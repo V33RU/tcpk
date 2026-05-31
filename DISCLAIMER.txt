@@ -1,0 +1,44 @@
+================================================================================
+TCPK -- Thick Client Pentest Kit
+DISCLAIMER / TERMS OF USE -- READ BEFORE USING
+================================================================================
+
+FOR AUTHORIZED SECURITY TESTING AND EDUCATIONAL USE ONLY.
+
+By downloading, installing, running, or otherwise using this tool (and any
+artifacts it generates, including proof-of-concept exploit scaffolds), you
+acknowledge and agree to ALL of the following:
+
+1. AUTHORIZATION IS YOUR RESPONSIBILITY.
+   You confirm you have explicit, written authorization to test the target
+   system(s). Use ONLY on software/systems you own, or that you are
+   contractually engaged or otherwise lawfully permitted to test (e.g. your
+   own product, a signed pentest engagement, an in-scope bug-bounty program,
+   or an isolated lab/CTF you control).
+
+2. MISUSE IS SOLELY YOUR RESPONSIBILITY.
+   Any misuse -- including unauthorized access, scanning or attacking systems
+   you do not own or lack permission to test, exfiltration of data, or any
+   other unlawful activity -- is committed solely by you, the user. You alone
+   bear all legal, civil, criminal, and financial consequences of your actions.
+
+3. NO LIABILITY -- AUTHOR(S) AND COMMUNITY ARE NOT RESPONSIBLE.
+   The author(s), contributors, and the open-source community that created or
+   distribute this tool accept NO responsibility and NO liability whatsoever
+   for any damage, data loss, service disruption, legal consequence, or any
+   other harm arising directly or indirectly from the use or misuse of this
+   tool, whether by you or any third party.
+
+4. PROVIDED "AS IS".
+   This software is provided "AS IS", WITHOUT WARRANTY OF ANY KIND, express or
+   implied, including but not limited to the warranties of merchantability,
+   fitness for a particular purpose, and non-infringement. The entire risk as
+   to the quality and performance of the tool is with you.
+
+5. NO ILLEGAL USE.
+   You will not use this tool for any purpose that is unlawful in your
+   jurisdiction or the jurisdiction of the target.
+
+IF YOU DO NOT AGREE WITH ALL OF THE ABOVE, DO NOT USE THIS TOOL.
+
+================================================================================
