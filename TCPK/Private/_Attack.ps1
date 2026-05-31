@@ -1,0 +1,58 @@
+# MITRE ATT&CK technique mapping for TCPK rule IDs.
+# Pure lookup -- computed at report time from a finding's RuleId (like CVSS band),
+# so the [TcpkFinding] class is unchanged. First matching prefix wins extra
+# techniques; multiple entries can match and are unioned.
+
+# Ordered list: each entry maps a RuleId regex to one or more "Tid Name" strings.
+$script:TcpkAttackMap = @(
+    @{ rx = '^(dllsearch|pe-imports|proxydll|sxs|apppaths|ifeo|shimcache)';            tech = @('T1574 Hijack Execution Flow') }
+    @{ rx = '^(unquoted|servicepermissions|servicebin|taskbin)';                        tech = @('T1543.003 Windows Service','T1574.009 Unquoted Path') }
+    @{ rx = '^(autostart|run-key)';                                                     tech = @('T1547.001 Registry Run Keys') }
+    @{ rx = '^scheduledtask|autostart.scheduled';                                       tech = @('T1053.005 Scheduled Task') }
+    @{ rx = '^wmipersistence';                                                          tech = @('T1546.003 WMI Event Subscription') }
+    @{ rx = '^(secrets|entropy|appconfigsecrets|plaintext|keymaterial)';                tech = @('T1552.001 Credentials In Files') }
+    @{ rx = '^crypto\.';                                                                tech = @('T1552.001 Credentials In Files','T1600 Weaken Encryption') }
+    @{ rx = '^jwt\.';                                                                   tech = @('T1552.001 Credentials In Files','T1528 Steal Application Access Token') }
+    @{ rx = '^(dpapiblobs|tokencaches|webviewcreds|localdb)';                           tech = @('T1555 Credentials from Password Stores') }
+    @{ rx = '^credentialmanager';                                                       tech = @('T1555.004 Windows Credential Manager') }
+    @{ rx = '^(registryvalues|registry).*(secret|value)';                              tech = @('T1552.002 Credentials in Registry') }
+    @{ rx = '^truststore';                                                              tech = @('T1553.004 Install Root Certificate') }
+    @{ rx = '^avexclusion';                                                             tech = @('T1562.001 Disable or Modify Tools') }
+    @{ rx = '^debugflags';                                                              tech = @('T1562 Impair Defenses','T1211 Exploitation for Defense Evasion') }
+    @{ rx = '^firewall';                                                                tech = @('T1562.004 Disable or Modify System Firewall') }
+    @{ rx = '^process\.dacl|antiinjection';                                             tech = @('T1055 Process Injection') }
+    @{ rx = '^(packer|obfusc)';                                                         tech = @('T1027.002 Software Packing') }
+    @{ rx = '^(antidebug|timing|selfintegrity)';                                        tech = @('T1622 Debugger Evasion','T1497 Virtualization/Sandbox Evasion') }
+    @{ rx = '^(tlsbypass|tlspinning|tlsprotocols|insecureschemes|crlocsp|selfhost)';    tech = @('T1557 Adversary-in-the-Middle','T1040 Network Sniffing') }
+    @{ rx = '^uac';                                                                     tech = @('T1548.002 Bypass User Account Control') }
+    @{ rx = '^callsites';                                                               tech = @('T1059 Command and Scripting Interpreter') }
+    @{ rx = '^(updateflow|poisonedupdate|cve\.)';                                       tech = @('T1195.002 Compromise Software Supply Chain') }
+    @{ rx = '^kerneldrivers';                                                           tech = @('T1068 Exploitation for Privilege Escalation') }
+    @{ rx = '^(comobjects|comhijack|msixcom)';                                          tech = @('T1559.001 Component Object Model','T1546.015 COM Hijacking') }
+    @{ rx = '^(namedpipe|rpcsurface|mailslot|namedobjects)';                            tech = @('T1559 Inter-Process Communication') }
+    @{ rx = '^(authenticode|strongname|codeintegrity)';                                tech = @('T1553.002 Code Signing') }
+    @{ rx = '^authflags';                                                               tech = @('T1078 Valid Accounts','T1211 Exploitation for Defense Evasion') }
+    @{ rx = '^(wv2|webview)';                                                           tech = @('T1185 Browser Session Hijacking') }
+    @{ rx = '^(piiinlogs|logfiles|telemetry|etw)';                                      tech = @('T1005 Data from Local System') }
+    @{ rx = '^(deserial|xxe)';                                                          tech = @('T1059 Command and Scripting Interpreter') }
+)
+
+function Get-TcpkAttackTechnique {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$RuleId)
+    if ([string]::IsNullOrEmpty($RuleId)) { return @() }
+    $out = New-Object System.Collections.Generic.List[string]
+    foreach ($m in $script:TcpkAttackMap) {
+        if ($RuleId -match $m.rx) {
+            foreach ($t in $m.tech) { if (-not $out.Contains($t)) { $out.Add($t) } }
+        }
+    }
+    return $out.ToArray()
+}
+
+# Convenience: techniques as a single display string.
+function Get-TcpkAttackText {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$RuleId)
+    (Get-TcpkAttackTechnique -RuleId $RuleId) -join '; '
+}
