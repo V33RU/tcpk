@@ -35,7 +35,7 @@ function Test-TcpkCallsites {
             if ($hits.Count -eq 0) { continue }
 
             New-TcpkFinding -Module 'static' -RuleId "callsites.$($p.id)" `
-                -Severity $p.severity -Confidence 'Confirmed' `
+                -Severity $p.severity -Confidence 'Inferred' `
                 -Title "$($p.title) in $($pe.Name)" `
                 -File $pe.FullName -Evidence ($hits -join ', ') `
                 -Cwe ([string[]]$p.cwe) `
