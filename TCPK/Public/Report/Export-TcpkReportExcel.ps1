@@ -10,6 +10,9 @@ function Export-TcpkReportExcel {
       Findings       every finding, severity-coloured
       DLL Hardening  per-DLL mitigation matrix (ASLR/DEP/CFG/HighEntropyVA/...)
       CVEs           shipped components matched to the CVE catalog (if any)
+      Recon          attack surface: endpoints, ports, handlers, COM, pipes,
+                     file-assoc, update URLs, TLS posture (from -Profile)
+      SBOM           shipped PE inventory: name, version, publisher, SHA-256, path
 
 .PARAMETER Findings
     Pipeline of [TcpkFinding] objects.
@@ -26,6 +29,11 @@ function Export-TcpkReportExcel {
 .PARAMETER CveMatches
     Optional Get-TcpkCveMatches output.
 
+.PARAMETER Sbom
+    Optional Get-TcpkSbomComponents output. Rendered as an SBOM sheet (component
+    name, version, publisher, SHA-256, full path) -- parity with the HTML report
+    and the sbom.cdx.json deliverable.
+
 .PARAMETER Target
     Optional target string.
 #>
@@ -36,6 +44,7 @@ function Export-TcpkReportExcel {
         [object[]]$Hardening = @(),
         [object]$Profile = $null,
         [object[]]$CveMatches = @(),
+        [object[]]$Sbom = @(),
         [string]$Target = ''
     )
 
@@ -112,6 +121,35 @@ function Export-TcpkReportExcel {
                 ,@("$($c.Status)", "$($c.Severity)", "$($c.Cve)", "$($c.Package)", "$($c.ShippedVersion)", "$($c.FixedVersion)", "$($c.Area)", "$($c.Title)")
             }
             $sheets += [ordered]@{ Name = 'CVEs'; Headers = @('Status','Severity','CVE','Package','Shipped','Fixed','Area','Title'); Rows = @($cveRows) }
+        }
+
+        # ---------- Recon / Attack Surface sheet (parity with HTML recon section) ----------
+        if ($Profile) {
+            $p = $Profile
+            $reconRows = New-Object 'System.Collections.Generic.List[object]'
+            foreach ($e in @($p.Endpoints))          { $reconRows.Add(@('Network endpoint',  "$($e.Host)",  "$($e.Detail)", "$($e.File)")) }
+            foreach ($lp in @($p.ListeningPorts))     { $reconRows.Add(@('Listening port',    "$($lp.Endpoint)", "$($lp.Proto) / $($lp.Scope) [$($lp.Severity)]", '')) }
+            foreach ($h in @($p.ProtocolHandlers))    { $reconRows.Add(@('Protocol handler',  "$($h.Title)", "$($h.Detail)", '')) }
+            foreach ($cS in @($p.ComServers))         { $reconRows.Add(@('COM server',        "$($cS.Title)", "$($cS.Detail)", '')) }
+            foreach ($pp in @($p.NamedPipes))         { $reconRows.Add(@('Named pipe',        "$($pp.Title)", "$($pp.Detail)", '')) }
+            foreach ($fa in @($p.FileAssociations))   { $reconRows.Add(@('File association',  "$($fa.Title)", "$($fa.Detail)", '')) }
+            foreach ($u in @($p.UpdateUrls))          { $reconRows.Add(@('Update URL',        "$u", '', '')) }
+            foreach ($n in @($p.NonProdEndpoints))    { $reconRows.Add(@('Non-prod endpoint', "$n", '', '')) }
+            foreach ($t in @($p.TlsPosture))          { $reconRows.Add(@('TLS posture',       "$t", '', '')) }
+            if ($reconRows.Count) {
+                # NOTE: pass the List bare (NOT @($reconRows)) -- wrapping a generic
+                # List in @() inside an [ordered]@{} literal throws "Argument types do
+                # not match" on PS 5.1. New-TcpkXlsx enumerates Rows safely.
+                $sheets += [ordered]@{ Name = 'Recon'; Headers = @('Category','Item','Detail','Source file'); Rows = $reconRows; Widths = @(20, 52, 70, 30) }
+            }
+        }
+
+        # ---------- SBOM sheet (parity with HTML SBOM + sbom.cdx.json) ----------
+        if ($Sbom -and @($Sbom).Count) {
+            $sbomRows = foreach ($s in @($Sbom)) {
+                ,@("$($s.Name)", "$($s.Version)", "$($s.Publisher)", "$(if ($s.Managed){'nuget'}else{'native'})", "$($s.Sha256)", "$($s.Path)")
+            }
+            $sheets += [ordered]@{ Name = 'SBOM'; Headers = @('Component','Version','Publisher','Type','SHA-256','Path'); Rows = @($sbomRows); Widths = @(28, 16, 26, 9, 66, 80) }
         }
 
         New-TcpkXlsx -Path $OutFile -Sheets $sheets | Out-Null

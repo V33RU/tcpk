@@ -11,6 +11,9 @@ function Export-TcpkReportHtml {
       - Live search box, severity filter chips, expand/collapse all
       - Rule-summary table (group-by-rule) with click-to-filter
       - Collapsible per-severity sections; each finding numbered (#001..)
+      - CVE-match table (NVD links + KEV badges) -- parity with Excel CVEs sheet
+      - DLL exploit-mitigation matrix -- parity with Excel DLL Hardening sheet
+      - SBOM component inventory (name, version, publisher, SHA-256, full path)
       - Print stylesheet
 
 .PARAMETER Findings
@@ -28,6 +31,19 @@ function Export-TcpkReportHtml {
 .PARAMETER Scope
     Optional [hashtable]/[pscustomobject] with audit-scope info:
     Buckets, Llm, Timing (all strings). Rendered in the card footer.
+
+.PARAMETER CveMatches
+    Optional Get-TcpkCveMatches output. Rendered as a dedicated CVE table so the
+    HTML report carries the same component-CVE data as the Excel CVEs sheet.
+
+.PARAMETER Hardening
+    Optional Get-TcpkPeHardening output (per-DLL ASLR/DEP/CFG/... matrix).
+    Rendered as a hardening matrix so the HTML matches the Excel DLL Hardening sheet.
+
+.PARAMETER Sbom
+    Optional Get-TcpkSbomComponents output (shipped PE inventory). Rendered as a
+    software bill-of-materials table (name, version, publisher, SHA-256, full path)
+    so the HTML carries the same component inventory as the sbom.cdx.json / Excel.
 #>
     [CmdletBinding()]
     param(
@@ -35,7 +51,10 @@ function Export-TcpkReportHtml {
         [Parameter(Mandatory)][string]$OutFile,
         [string]$Target = '',
         [object]$Profile = $null,
-        [object]$Scope = $null
+        [object]$Scope = $null,
+        [object[]]$CveMatches = @(),
+        [object[]]$Hardening = @(),
+        [object[]]$Sbom = @()
     )
 
     begin { $all = New-Object 'System.Collections.Generic.List[object]' }
@@ -216,6 +235,65 @@ $($rowsKv -join "`n")
         }
         $chartHtml = "<section class='card'><div class='chart'>" + ($barRows -join "`n") + "</div></section>"
 
+        # ---------------- CVE matches (parity with Excel CVEs sheet) ----------------
+        $cveHtml = ''
+        if ($CveMatches -and @($CveMatches).Count) {
+            $statusColor = @{
+                'Vulnerable'='#9b0000'; 'Present'='#d68910'; 'PossiblyEmbedded'='#b9770e'
+                'Patched'='#117a65'
+            }
+            $cveSorted = @($CveMatches)
+            $cveRows = foreach ($c in $cveSorted) {
+                $sc   = if ($c.Severity -and $sevColor.ContainsKey("$($c.Severity)")) { $sevColor["$($c.Severity)"] } else { '#566573' }
+                $stc  = if ($c.Status -and $statusColor.ContainsKey("$($c.Status)")) { $statusColor["$($c.Status)"] } else { '#566573' }
+                $cveId = ConvertTo-TcpkHtmlSafe ([string]$c.Cve)
+                # link out to NVD for real CVE ids; leave plain otherwise
+                $cveCell = if ([string]$c.Cve -match '^(?i)CVE-\d{4}-\d+$') {
+                    "<a href='https://nvd.nist.gov/vuln/detail/$cveId' target='_blank' rel='noopener'><code>$cveId</code></a>"
+                } else { "<code>$cveId</code>" }
+                $kevBadge = if ($c.Kev) { " <span class='badge' style='background:#7b241c'>KEV</span>" } else { '' }
+                $cweCell = if ($c.Cwe) { ConvertTo-TcpkHtmlSafe (@($c.Cwe) -join ', ') } else { '' }
+                $refCell = ''
+                if ($c.References -and @($c.References).Count) {
+                    $refCell = (@($c.References) | Select-Object -First 3 | ForEach-Object {
+                        $r = ConvertTo-TcpkHtmlSafe ([string]$_)
+                        "<a href='$r' target='_blank' rel='noopener'>ref</a>"
+                    }) -join ' '
+                }
+                $title = ConvertTo-TcpkHtmlSafe ([string]$c.Title)
+                $summary = if ($c.Summary) { "<div class='cvesum'>" + (ConvertTo-TcpkHtmlSafe ([string]$c.Summary)) + "</div>" } else { '' }
+                @"
+<tr>
+  <td><span class='badge' style='background:$stc'>$(ConvertTo-TcpkHtmlSafe ([string]$c.Status))</span></td>
+  <td><span class='badge' style='background:$sc'>$(ConvertTo-TcpkHtmlSafe ([string]$c.Severity))</span></td>
+  <td>$cveCell$kevBadge</td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$c.Package))</td>
+  <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$c.ShippedVersion))</code></td>
+  <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$c.FixedVersion))</code></td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$c.Area))</td>
+  <td>$title$summary</td>
+  <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$c.File))</code></td>
+  <td>$refCell</td>
+</tr>
+"@
+            }
+            $vulnCount = @($CveMatches | Where-Object { "$($_.Status)" -eq 'Vulnerable' }).Count
+            $cveHtml = @"
+<section class='card cve'>
+  <h3 class='cvehead'><span class='caret'>&#9662;</span>Known-vulnerability matches (CVE catalog) <span class='seccount'>($(@($CveMatches).Count) match$(if (@($CveMatches).Count -ne 1){'es'}), $vulnCount vulnerable)</span></h3>
+  <div class='cvebody'>
+    <table class='recontab cvetab'>
+      <thead><tr><th>Status</th><th>Severity</th><th>CVE</th><th>Package</th><th>Shipped</th><th>Fixed</th><th>Area</th><th>Title</th><th>Source file</th><th>Refs</th></tr></thead>
+      <tbody>
+$($cveRows -join "`n")
+      </tbody>
+    </table>
+    <div class='cvenote'>Native (non-NuGet) matches are reported as <b>Present</b> / <b>PossiblyEmbedded</b> - verify the embedded build before treating them as confirmed. NuGet matches are version-compared and reliable.</div>
+  </div>
+</section>
+"@
+        }
+
         # ---------------- rule summary ----------------
         $ruleGroups = $all | Group-Object RuleId | ForEach-Object {
             $g = $_
@@ -295,6 +373,81 @@ $($cards -join "`n")
 "@
         }
 
+        # ---------------- DLL hardening matrix (parity with Excel DLL Hardening sheet) ----------------
+        $hardeningHtml = ''
+        if ($Hardening -and @($Hardening).Count) {
+            $hwStatusColor = @{ 'WEAK'='#c0392b'; 'PARTIAL'='#d68910'; 'HARDENED'='#117a65' }
+            $flagColor = { param($v) if ("$v" -in 'True','Yes','ON','Enabled') { '#117a65' } elseif ("$v" -in 'False','No','OFF','Disabled') { '#c0392b' } else { '#566573' } }
+            $hwSorted = $Hardening | Sort-Object @{ E = { switch ("$($_.Status)") { 'WEAK' {0} 'PARTIAL' {1} default {2} } } }, DLL
+            $hwRows = foreach ($h in $hwSorted) {
+                $stc = if ($hwStatusColor.ContainsKey("$($h.Status)")) { $hwStatusColor["$($h.Status)"] } else { '#566573' }
+                $cell = { param($v) "<td style='color:$(& $flagColor $v);font-weight:600'>$(ConvertTo-TcpkHtmlSafe ([string]$v))</td>" }
+                @"
+<tr>
+  <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$h.DLL))</code></td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$h.Arch))</td>
+  $(& $cell $h.ASLR)
+  $(& $cell $h.DEP)
+  $(& $cell $h.CFG)
+  $(& $cell $h.HighEntropyVA)
+  $(& $cell $h.SafeSEH)
+  $(& $cell $h.ForceIntegrity)
+  <td><span class='badge' style='background:$stc'>$(ConvertTo-TcpkHtmlSafe ([string]$h.Status))</span></td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$h.Missing))</td>
+</tr>
+"@
+            }
+            $weakN = @($Hardening | Where-Object { "$($_.Status)" -eq 'WEAK' }).Count
+            $partN = @($Hardening | Where-Object { "$($_.Status)" -eq 'PARTIAL' }).Count
+            $hardeningHtml = @"
+<section class='card hardening collapsed'>
+  <h3 class='hardhead'><span class='caret'>&#9662;</span>DLL exploit-mitigation matrix <span class='seccount'>($(@($Hardening).Count) binaries &middot; $weakN weak &middot; $partN partial)</span></h3>
+  <div class='hardbody'>
+    <table class='recontab hardtab'>
+      <thead><tr><th>DLL</th><th>Arch</th><th>ASLR</th><th>DEP</th><th>CFG</th><th>HighEntropyVA</th><th>SafeSEH</th><th>ForceIntegrity</th><th>Status</th><th>Missing</th></tr></thead>
+      <tbody>
+$($hwRows -join "`n")
+      </tbody>
+    </table>
+  </div>
+</section>
+"@
+        }
+
+        # ---------------- SBOM / component inventory (parity with sbom.cdx.json + Excel) ----------------
+        $sbomHtml = ''
+        if ($Sbom -and @($Sbom).Count) {
+            $sbomRows = foreach ($s in @($Sbom)) {
+                $typeTag = if ($s.Managed) { "<span class='tag tag-sdk'>nuget</span>" } else { "<span class='tag tag-net'>native</span>" }
+                @"
+<tr>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Name))</td>
+  <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$s.Version))</code></td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Publisher))</td>
+  <td>$typeTag</td>
+  <td><code class='sha'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Sha256))</code></td>
+  <td><code class='path'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Path))</code></td>
+</tr>
+"@
+            }
+            $managedN = @($Sbom | Where-Object { $_.Managed }).Count
+            $nativeN = @($Sbom).Count - $managedN
+            $sbomHtml = @"
+<section class='card sbom collapsed'>
+  <h3 class='sbomhead'><span class='caret'>&#9662;</span>Software bill of materials (SBOM) <span class='seccount'>($(@($Sbom).Count) components &middot; $nativeN native &middot; $managedN managed)</span></h3>
+  <div class='sbombody'>
+    <table class='recontab sbomtab'>
+      <thead><tr><th>Component</th><th>Version</th><th>Publisher</th><th>Type</th><th>SHA-256</th><th>Path</th></tr></thead>
+      <tbody>
+$($sbomRows -join "`n")
+      </tbody>
+    </table>
+    <div class='cvenote' style='color:#566573;background:#f7f8fa;border-color:#e1e1e1'>Full CycloneDX 1.5 inventory (with hashes + purls) is also written to <code>sbom.cdx.json</code> alongside this report.</div>
+  </div>
+</section>
+"@
+        }
+
         # ---------------- static CSS ----------------
         $css = @'
 *{box-sizing:border-box}
@@ -369,6 +522,19 @@ h3{font-size:15px;margin:0 0 10px}
 .reconlist{margin:4px 0 4px 4px;padding-left:18px;font-size:13px}
 .reconlist li{margin:2px 0}
 .emptynote{font-size:12.5px;color:#999;font-style:italic;padding:4px 0 4px 11px}
+.cve .cvehead,.hardening .hardhead{cursor:pointer;user-select:none;margin:0 0 12px}
+.cve.collapsed .cvebody,.hardening.collapsed .hardbody{display:none}
+.cvetab td,.hardtab td{vertical-align:top}
+.cvetab a,.recontab a{color:#1c4f80}
+.cvesum{font-size:11.5px;color:#666;margin-top:3px;line-height:1.4}
+.cvenote{font-size:11.5px;color:#7b241c;background:#fdf3f3;border:1px solid #e3b7b7;border-radius:5px;padding:7px 10px;margin-top:8px}
+.hardtab{font-size:12px}
+.hardtab th{white-space:nowrap}
+.sbom .sbomhead{cursor:pointer;user-select:none;margin:0 0 12px}
+.sbom.collapsed .sbombody{display:none}
+.sbomtab{font-size:12px}
+.sbomtab code.sha{font-size:10.5px;color:#566573;word-break:break-all}
+.sbomtab code.path{font-size:11px;word-break:break-all}
 .nores{padding:20px;text-align:center;color:#999;display:none}
 .disclaimer{margin-top:40px;padding:14px 16px;border:1px solid #e3b7b7;background:#fdf3f3;border-radius:6px;font-size:11.5px;line-height:1.6;color:#7b241c}
 .disclaimer strong{color:#9b0000}
@@ -428,6 +594,9 @@ h3{font-size:15px;margin:0 0 10px}
   });
   var rh=document.querySelector('.recon .reconhead');
   if(rh) rh.addEventListener('click',function(){rh.parentNode.classList.toggle('collapsed');});
+  document.querySelectorAll('.cve .cvehead,.hardening .hardhead,.sbom .sbomhead').forEach(function(h){
+    h.addEventListener('click',function(){h.parentNode.classList.toggle('collapsed');});
+  });
 
   var ea=document.getElementById('expandAll');
   if(ea) ea.addEventListener('click',function(){findings.forEach(function(f){if(f.style.display!=='none')f.classList.add('open');});});
@@ -500,6 +669,7 @@ $css
 $cardHtml
 $reconHtml
 $chartHtml
+$cveHtml
 $ruleSummaryHtml
 $toolbarHtml
 
@@ -507,6 +677,8 @@ $toolbarHtml
 $($sectionHtml -join "`n")
   </div>
   <div id='nores' class='nores'>No findings match the current filter.</div>
+$hardeningHtml
+$sbomHtml
 
   <footer class='disclaimer'>
     <strong>DISCLAIMER -- FOR AUTHORIZED TESTING ONLY.</strong>

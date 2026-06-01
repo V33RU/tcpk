@@ -184,9 +184,12 @@ $cmbAi.DropDownStyle = 'DropDownList'
 $cmbAi.SelectedIndex = 0
 $topPanel.Controls.Add($cmbAi)
 
-$txtAiModel = New-Object System.Windows.Forms.TextBox
+# Editable dropdown: pick a known/latest model OR type your own. Filled live by "Test AI".
+$txtAiModel = New-Object System.Windows.Forms.ComboBox
 $txtAiModel.Location = New-Object System.Drawing.Point(322, 110)
 $txtAiModel.Size = New-Object System.Drawing.Size(170, 24)
+$txtAiModel.DropDownStyle = 'DropDown'
+[void]$txtAiModel.Items.Add('qwen2.5-coder:7b')
 $txtAiModel.Text = 'qwen2.5-coder:7b'
 $topPanel.Controls.Add($txtAiModel)
 
@@ -263,22 +266,31 @@ $topPanel.Controls.Add($btnTheme)
 
 # Provider preset map: display-name -> @{ name; defaultModel; needsKey }
 $script:AiPresets = @{
-    'ollama (local)' = @{ name='ollama';   default='qwen2.5-coder:7b'; needsKey=$false }
-    'claude'         = @{ name='claude';    default='claude-sonnet-4-5'; needsKey=$true }
-    'openai'         = @{ name='openai';    default='gpt-4o';           needsKey=$true }
-    'deepseek'       = @{ name='deepseek';  default='deepseek-chat';    needsKey=$true }
-    'custom'         = @{ name='custom';    default='';                 needsKey=$true }
+    'ollama (local)' = @{ name='ollama';   default='qwen2.5-coder:7b'; needsKey=$false
+                          models=@('qwen2.5-coder:7b','qwen2.5-coder:14b','llama3.1:8b','deepseek-coder-v2:16b','codellama:13b') }
+    'claude'         = @{ name='claude';    default='claude-sonnet-4-5'; needsKey=$true
+                          models=@('claude-opus-4-8','claude-opus-4-5','claude-opus-4-1','claude-sonnet-4-6','claude-sonnet-4-5','claude-haiku-4-5') }
+    'openai'         = @{ name='openai';    default='gpt-4.1';          needsKey=$true
+                          models=@('gpt-5.5','gpt-5.4-mini','gpt-5.4-nano','gpt-4.1','o3-mini','gpt-4o') }
+    'deepseek'       = @{ name='deepseek';  default='deepseek-chat';    needsKey=$true
+                          models=@('deepseek-chat','deepseek-reasoner') }
+    'custom'         = @{ name='custom';    default='';                 needsKey=$true
+                          models=@() }
 }
+# NOTE: the seeded lists are convenience defaults; the authoritative "latest"
+# list is pulled LIVE from your key when you click "Test AI" (Get-TcpkLlmModels).
 
 # When provider changes: set default model + enable/disable key field
 $cmbAi.Add_SelectedIndexChanged({
     $sel = $cmbAi.SelectedItem
     $p = $script:AiPresets[$sel]
     if ($p) {
+        $txtAiModel.Items.Clear()
+        foreach ($m in @($p.models)) { [void]$txtAiModel.Items.Add($m) }
         $txtAiModel.Text = $p.default
         $txtAiKey.Enabled = $p.needsKey
         if (-not $p.needsKey) { $txtAiKey.Text = '' }
-        $lblAiStatus.Text = if ($p.needsKey) { "$sel needs an API key" } else { "local -- no key needed" }
+        $lblAiStatus.Text = if ($p.needsKey) { "$sel needs an API key -- 'Test AI' loads its latest models" } else { "local -- no key needed" }
     }
 })
 
@@ -451,7 +463,7 @@ $dynDefs = @(
     @{ T='GUI Unlock';   A={ if (Test-DynGate) { Invoke-DynTool 'GUI unlock (dry-run)' { Invoke-TcpkGuiUnlock -ProcessName (Get-DynProc) } } } }
     @{ T='Pipe Probe';   A={ if (Test-DynGate) { $pn=[Microsoft.VisualBasic.Interaction]::InputBox('Pipe name (no \\.\pipe\ prefix):','TCPK Pipe Probe',''); if ($pn) { Invoke-DynTool "Pipe probe: $pn" { Invoke-TcpkPipeProbe -PipeName $pn } } } } }
     @{ T='Flag-Flip';    A={ if (Test-DynGate) { $pat=[Microsoft.VisualBasic.Interaction]::InputBox('ASCII/byte pattern to locate (DRY-RUN, no write):','TCPK Memory Flag-Flip',''); if ($pat) { Invoke-DynTool "Flag-flip dry-run: $pat" { Invoke-TcpkMemoryFlagFlip -ProcessName (Get-DynProc) -Pattern $pat -NewBytesHex '01' } } } } }
-    @{ T='Input Fuzz…';  A={ Write-ExpLine "`r`n[Input fuzz] Intrusive -- run from a console (it launches the target repeatedly):`r`n" ([System.Drawing.Color]::FromArgb(102,217,239)); Write-ExpLine "Enable-TcpkExploit -Acknowledge`r`nInvoke-TcpkInputFuzz -TargetExe '<app.exe>' -SeedFile '<sample.ext>' -ArgTemplate '{FUZZ}' -Iterations 25`r`n" ([System.Drawing.Color]::White) } }
+    @{ T='Input Fuzz...';  A={ Write-ExpLine "`r`n[Input fuzz] Intrusive -- run from a console (it launches the target repeatedly):`r`n" ([System.Drawing.Color]::FromArgb(102,217,239)); Write-ExpLine "Enable-TcpkExploit -Acknowledge`r`nInvoke-TcpkInputFuzz -TargetExe '<app.exe>' -SeedFile '<sample.ext>' -ArgTemplate '{FUZZ}' -Iterations 25`r`n" ([System.Drawing.Color]::White) } }
 )
 $dxi = 10
 foreach ($d in $dynDefs) {
@@ -1097,8 +1109,8 @@ function Apply-ModernStyle {
     }
 
     # --- flat inputs ---
-    foreach ($tb in @($txtTarget, $txtPkg, $txtProc, $txtAiModel, $txtAiKey)) { if ($tb) { $tb.BorderStyle = 'FixedSingle' } }
-    foreach ($cb in @($cmbProfile, $cmbAi, $cmbFont, $cmbSize)) { if ($cb) { $cb.FlatStyle = 'Flat' } }
+    foreach ($tb in @($txtTarget, $txtPkg, $txtProc, $txtAiKey)) { if ($tb) { $tb.BorderStyle = 'FixedSingle' } }
+    foreach ($cb in @($cmbProfile, $cmbAi, $cmbFont, $cmbSize, $txtAiModel)) { if ($cb) { $cb.FlatStyle = 'Flat' } }
 
     # --- flat buttons ---
     $btnRun.Tag = 'keep'
@@ -1242,14 +1254,27 @@ $btnTestAi.Add_Click({
     $lblAiStatus.Text = "Testing $sel ..."
     [System.Windows.Forms.Application]::DoEvents()
     [void](Set-AiConfigFromGui)
+    # Pull the LIVE model list for this key and fill the dropdown (always the latest).
+    $modelCount = 0
+    try {
+        $models = @(Get-TcpkLlmModels)
+        if ($models.Count) {
+            $modelCount = $models.Count
+            $cur = $txtAiModel.Text
+            $txtAiModel.Items.Clear()
+            foreach ($m in $models) { [void]$txtAiModel.Items.Add($m) }
+            $txtAiModel.Text = $cur   # keep current selection; user can drop down to pick another
+        }
+    } catch { }
     try {
         $r = Test-TcpkLlm
+        $modelNote = if ($modelCount) { "  ($modelCount models in dropdown)" } else { '' }
         if ($r.ModelResponds) {
             $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(17,122,101)
-            $lblAiStatus.Text = "OK: $($r.Provider)/$($r.Model) responded."
+            $lblAiStatus.Text = "OK: $($r.Provider)/$($r.Model) responded.$modelNote"
         } else {
             $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(192,57,43)
-            $lblAiStatus.Text = "Reachable=$($r.Reachable) but no model reply. Check model/key."
+            $lblAiStatus.Text = "Reachable=$($r.Reachable), model didn't reply -- pick a valid model from the dropdown.$modelNote"
         }
     } catch {
         $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(192,57,43)
@@ -1491,9 +1516,10 @@ $btnRun.Add_Click({
                             $scope = [pscustomobject]@{ Buckets='A-J + AI verification'; Llm='GUI-selected model'; Timing='' }
                             $hard = @(); try { $hard = @(Get-TcpkPeHardening -Path $tgt) } catch { }
                             $cvm  = @(); try { $cvm  = @(Get-TcpkCveMatches -Path $tgt) } catch { }
+                            $sbm  = @(); try { $sbm  = @(Get-TcpkSbomComponents -Path $tgt) } catch { }
                             $fobjs | Export-TcpkReportJson -OutFile (Join-Path $od 'findings.json') -Profile $prof
-                            $fobjs | Export-TcpkReportHtml -OutFile (Join-Path $od 'index.html') -Target $tgt -Profile $prof -Scope $scope
-                            $fobjs | Export-TcpkReportExcel -OutFile (Join-Path $od 'report.xlsx') -Hardening $hard -Profile $prof -CveMatches $cvm -Target $tgt
+                            $fobjs | Export-TcpkReportHtml -OutFile (Join-Path $od 'index.html') -Target $tgt -Profile $prof -Scope $scope -CveMatches $cvm -Hardening $hard -Sbom $sbm
+                            $fobjs | Export-TcpkReportExcel -OutFile (Join-Path $od 'report.xlsx') -Hardening $hard -Profile $prof -CveMatches $cvm -Sbom $sbm -Target $tgt
                         }
                         Write-LogLine "[AI] Verification complete; reports updated with AI verdicts." ([System.Drawing.Color]::FromArgb(46,204,113))
                     }

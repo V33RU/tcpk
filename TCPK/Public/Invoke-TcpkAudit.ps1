@@ -300,6 +300,20 @@ function Invoke-TcpkAudit {
         Write-TcpkLog -Level ERROR -Component 'cve.match' -Message $_.Exception.Message | Out-Null
     }
 
+    # --- correlate findings into exploit chains (raises co-occurring conditions
+    #     to their true, combined severity; appended so reports + summary see them) ---
+    try {
+        $chains = @($all.ToArray() | Get-TcpkExploitChains)
+        foreach ($c in $chains) { $all.Add($c) }
+        if ($chains.Count) {
+            Write-Information -MessageData "  exploit chains: $($chains.Count) correlated (see CRITICAL/HIGH 'chain.*' findings)" -InformationAction Continue
+            Write-TcpkLog -Level SUCCESS -Component 'chains' -Message "$($chains.Count) correlated chain(s)" | Out-Null
+        }
+    } catch {
+        Write-Information -MessageData "  chain correlation failed: $($_.Exception.Message)" -InformationAction Continue
+        Write-TcpkLog -Level ERROR -Component 'chains' -Message $_.Exception.Message | Out-Null
+    }
+
     # --- summary ---
     Write-Information -MessageData "" -InformationAction Continue
     Write-Information -MessageData "Severity breakdown:" -InformationAction Continue
@@ -357,10 +371,16 @@ function Invoke-TcpkAudit {
     }
 
     # --- SBOM (CycloneDX; Batch C deliverable) ---
+    # Inventory once (SHA-256 hashing is the expensive part) and reuse the same
+    # component list for the .cdx.json AND the HTML/Excel SBOM sections.
+    $sbom = @()
+    try { $sbom = @(Get-TcpkSbomComponents -Path $expanded) }
+    catch { Write-TcpkLog -Level ERROR -Component 'sbom.inventory' -Message $_.Exception.Message | Out-Null }
     try {
         $sbomPath = Join-Path $OutDir 'sbom.cdx.json'
-        Export-TcpkSbom -Path $expanded -OutFile $sbomPath -Profile $targetProfile | Out-Null
-        Write-TcpkLog -Level SUCCESS -Component 'sbom' -Message "SBOM written" | Out-Null
+        if ($sbom.Count) { Export-TcpkSbom -Components $sbom -OutFile $sbomPath -Profile $targetProfile | Out-Null }
+        else             { Export-TcpkSbom -Path $expanded  -OutFile $sbomPath -Profile $targetProfile | Out-Null }
+        Write-TcpkLog -Level SUCCESS -Component 'sbom' -Message "SBOM written ($($sbom.Count) components)" | Out-Null
     } catch {
         Write-Information -MessageData "  SBOM build failed: $($_.Exception.Message)" -InformationAction Continue
         Write-TcpkLog -Level ERROR -Component 'sbom' -Message $_.Exception.Message | Out-Null
@@ -407,9 +427,9 @@ function Invoke-TcpkAudit {
     try { $hardening = @(Get-TcpkPeHardening -Path $expanded) }
     catch { Write-TcpkLog -Level ERROR -Component 'hardening' -Message $_.Exception.Message | Out-Null }
 
-    $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope
+    $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Sbom $sbom
     try {
-        $all | Export-TcpkReportExcel -OutFile $xlsxPath -Hardening $hardening -Profile $targetProfile -CveMatches $cveMatches -Target $Target
+        $all | Export-TcpkReportExcel -OutFile $xlsxPath -Hardening $hardening -Profile $targetProfile -CveMatches $cveMatches -Sbom $sbom -Target $Target
     } catch { Write-TcpkLog -Level ERROR -Component 'report.excel' -Message $_.Exception.Message | Out-Null }
     Write-TcpkLog -Level SUCCESS -Component 'report' -Message "HTML + Excel written ($($all.Count) findings, $(@($hardening).Count) DLLs)" | Out-Null
 

@@ -43,10 +43,10 @@ Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 - **Test-TcpkMsixCapabilities** - B01. Risky capabilities declared in AppxManifest.xml.
 - **Test-TcpkMsixComServers** - B06. COM server registrations in AppxManifest.xml.
 - **Test-TcpkMsixDeclaredVsUsed** - B08. Declared-vs-used capability cross-check.
-- **Test-TcpkMsixExtensions** - B07. fullTrustProcess / appExecutionAlias / contextMenu / shortcutInfo extensions.
+- **Test-TcpkMsixExtensions** - B07. fullTrustProcess / appExecutionAlias / contextMenu / shortcutInfo extensions. Flags `msix.alias-shadowing` (HIGH) when an appExecutionAlias name collides with a common PATH tool.
 - **Test-TcpkMsixFileAssocs** - B04. File type associations declared in AppxManifest.xml.
 - **Test-TcpkMsixFrameworkDeps** - B02. Framework dependencies (VCLibs / WindowsAppRuntime) declared correctly.
-- **Test-TcpkMsixProtocols** - B03. URI scheme handlers declared in AppxManifest.xml.
+- **Test-TcpkMsixProtocols** - B03. URI scheme handlers declared in AppxManifest.xml. Adds a sink-reachability pass: emits `protocol.sink-reachable` (HIGH) when a binary both handles activation args and references a dangerous sink.
 - **Test-TcpkUacManifest** - B09. UAC execution level in embedded RT_MANIFEST (and sidecar .manifest).
 
 ## C - OS integration  (23)
@@ -164,9 +164,10 @@ Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 - **New-TcpkProxyDll** - K01. Generate a proxy-DLL source scaffold for a flagged phantom-import.
 - **Start-TcpkPipeMitm** - K06. Local-loopback named-pipe MITM listener.
 
-## Recon / target profiling  (3)
+## Recon / target profiling  (4)
 
 - **Get-TcpkAttackSurface** - R11. Synthesize a ranked attack-surface map from audit findings.
+- **Get-TcpkExploitChains** - R12. Correlate individual findings into multi-step exploit CHAINS (emits CRITICAL/HIGH `chain.*` findings when co-occurring conditions form an attack path: unsigned-update+writable-dir, web-content+host-bridge, writable-privileged-binary, SYSTEM+IPC impersonation, URI-handler+dangerous-sink).
 - **Get-TcpkReconStrings** - R11. Extract + categorize interesting literal strings from first-party binaries.
 - **Get-TcpkTargetProfile** - R00. Recon / fingerprint pass. Builds a target-application profile for the
 
@@ -184,13 +185,14 @@ Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 - **Export-TcpkReportJson** - Export TCPK findings as JSON for CI / re-processing.
 - **Export-TcpkSbom** - Export a CycloneDX 1.5 SBOM (software bill of materials) of bundled components.
 
-## LLM (optional, local-first)  (5)
+## LLM (optional, local-first)  (6)
 
 - **Disable-TcpkLlmCloud** - Turn off cloud LLM use for this session (reverts to local-only).
 - **Enable-TcpkLlmCloud** - Allow TCPK to send findings to a CLOUD LLM backend for this session.
+- **Get-TcpkLlmModels** - List the model IDs the configured provider + key can actually use (live).
 - **Get-TcpkLlmProvider** - List the built-in LLM providers (for the GUI dropdown) or the current selection.
 - **Invoke-TcpkLlmCodeJudgment** - L1 -- LLM-assisted verification of code-construct findings.
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**Total: 144 bucketed checks** (+ Invoke-TcpkAudit & Get-TcpkInfo orchestrators = 146 public cmdlets).
+**Total: 146 bucketed checks** (+ Invoke-TcpkAudit & Get-TcpkInfo = 148 public cmdlets).

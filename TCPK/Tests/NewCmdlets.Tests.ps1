@@ -2,8 +2,9 @@
 # Pester 5 tests for the cmdlets added in v1.7 (batches A-D + deliverables).
 
 BeforeAll {
-    $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK\TCPK.psd1'
-    if (-not (Test-Path $psd1)) { $psd1 = 'C:\Users\admin\Desktop\TCPK\TCPK\TCPK.psd1' }
+    # Resolve the module relative to this test file so the suite is portable:
+    #   <module-root>\Tests\NewCmdlets.Tests.ps1  ->  <module-root>\TCPK.psd1
+    $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
     try { Disable-TcpkExploit | Out-Null } catch {}   # ensure gate OFF for the throw tests
 
@@ -141,5 +142,79 @@ Describe 'Gated cmdlets refuse without Enable-TcpkExploit' {
             'Invoke-TcpkInputFuzz'      { { Invoke-TcpkInputFuzz -TargetExe 'x.exe' -SeedFile 'y' } }
         }
         $sb | Should -Throw -ExpectedMessage '*gated*'
+    }
+}
+
+Describe 'Exploit-chain correlation (Get-TcpkExploitChains)' {
+    It 'correlates unsigned-update + writable dir into a CRITICAL chain' {
+        $c = & (Get-Module TCPK) {
+            $f = @()
+            $f += New-TcpkFinding -Module net -RuleId 'update.no-signature-verification' -Severity HIGH   -Title 'no sig'   -File 'u.dll'
+            $f += New-TcpkFinding -Module os  -RuleId 'acl.programdata-user-writable'     -Severity MEDIUM -Title 'writable' -File 'C:\PD'
+            $f | Get-TcpkExploitChains
+        }
+        $hit = $c | Where-Object RuleId -eq 'chain.unsigned-update-writable'
+        $hit | Should -Not -BeNullOrEmpty
+        $hit.Severity | Should -Be 'CRITICAL'
+    }
+    It 'correlates SYSTEM process + IPC into a HIGH chain' {
+        $c = & (Get-Module TCPK) {
+            $f = @()
+            $f += New-TcpkFinding -Module runtime -RuleId 'process.running-as-system' -Severity INFO -Title 'sys'  -File 'a.exe'
+            $f += New-TcpkFinding -Module runtime -RuleId 'pipe-dacl.weak'            -Severity HIGH -Title 'pipe' -File 'p'
+            $f | Get-TcpkExploitChains
+        }
+        ($c | Where-Object RuleId -eq 'chain.system-ipc-impersonation').Severity | Should -Be 'HIGH'
+    }
+    It 'does NOT fire a chain when only one half is present' {
+        $c = & (Get-Module TCPK) {
+            $f = @( New-TcpkFinding -Module net -RuleId 'update.no-signature-verification' -Severity HIGH -Title 'no sig' -File 'u.dll' )
+            $f | Get-TcpkExploitChains
+        }
+        @($c | Where-Object { $_.RuleId -like 'chain.*' }) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Entry-point depth (sink reachability + alias shadowing)' {
+    BeforeAll {
+        $script:pkg = Join-Path $env:TEMP ('tcpk-depth-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $script:pkg | Out-Null
+        @'
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+         xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10">
+  <Identity Name="DepthFx" Version="1.0.0.0" Publisher="CN=ACME" ProcessorArchitecture="x64"/>
+  <Applications>
+    <Application Id="App" Executable="App.exe" EntryPoint="App.exe">
+      <Extensions>
+        <uap:Extension Category="windows.protocol"><uap:Protocol Name="depthfx"/></uap:Extension>
+        <uap3:Extension Category="windows.appExecutionAlias">
+          <uap3:AppExecutionAlias><desktop:ExecutionAlias Alias="python.exe"/></uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>
+'@ | Set-Content -LiteralPath (Join-Path $script:pkg 'AppxManifest.xml') -Encoding UTF8
+        Copy-Item "$env:WINDIR\System32\version.dll" (Join-Path $script:pkg 'App.exe') -Force
+        Add-Content -LiteralPath (Join-Path $script:pkg 'App.exe') -Value 'ProtocolActivatedEventArgs OnActivated Process.Start ShellExecute' -Encoding UTF8
+    }
+    AfterAll { if ($script:pkg -and (Test-Path $script:pkg)) { Remove-Item $script:pkg -Recurse -Force -ErrorAction SilentlyContinue } }
+
+    It 'flags protocol.sink-reachable when activation input can reach a sink' {
+        (Test-TcpkMsixProtocols -Path $script:pkg | Where-Object RuleId -eq 'protocol.sink-reachable') | Should -Not -BeNullOrEmpty
+    }
+    It 'flags an appExecutionAlias that shadows a common tool (python)' {
+        $s = Test-TcpkMsixExtensions -Path $script:pkg | Where-Object RuleId -eq 'msix.alias-shadowing'
+        $s | Should -Not -BeNullOrEmpty
+        $s.Severity | Should -Be 'HIGH'
+    }
+    It 'end-to-end: handler + sink correlate into a CRITICAL chain' {
+        $f = @()
+        $f += Test-TcpkMsixProtocols  -Path $script:pkg
+        $f += Test-TcpkMsixExtensions -Path $script:pkg
+        ($f | Get-TcpkExploitChains | Where-Object RuleId -eq 'chain.uri-handler-sink-rce').Severity | Should -Be 'CRITICAL'
     }
 }
