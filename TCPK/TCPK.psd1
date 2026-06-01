@@ -1,6 +1,6 @@
 @{
     RootModule        = 'TCPK.psm1'
-    ModuleVersion     = '0.0.1'
+    ModuleVersion     = '0.1.0'
     GUID              = 'a3f7c1d2-9b4e-4c8a-b1f3-7c2a4d5e8f01'
     Author            = 'TCPK contributors'
     CompanyName       = 'Open source'

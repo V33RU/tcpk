@@ -9,7 +9,11 @@ $script:TcpkSeverityRank = @{
     CRITICAL = 4
 }
 
-$script:TcpkValidConfidence = @('Confirmed','Inferred','Unverified','Skipped')
+# Base confidence labels (deterministic checks) + the LLM-verifier labels.
+# Invoke-TcpkLlmCodeJudgment writes the '(LLM)' variants, and findings round-trip
+# through New-TcpkFinding when the GUI/report layer rebuilds them, so the factory
+# must accept these too.
+$script:TcpkValidConfidence = @('Confirmed','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (LLM)','Uncertain (LLM)')
 
 function New-TcpkFinding {
     [CmdletBinding()]
@@ -22,7 +26,7 @@ function New-TcpkFinding {
         [string] $Severity,
         [Parameter(Mandatory)][string] $Title,
 
-        [ValidateSet('Confirmed','Inferred','Unverified','Skipped')]
+        [ValidateSet('Confirmed','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (LLM)','Uncertain (LLM)')]
         [string] $Confidence = 'Confirmed',
 
         [string]   $Description,

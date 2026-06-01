@@ -17,7 +17,7 @@ function Read-TcpkPe {
 
         if ($fs.Length -lt 0x80) { return $null }
 
-        # MZ header → PE offset at 0x3C
+        # MZ header -> PE offset at 0x3C
         $fs.Position = 0x3C
         $peOff = $br.ReadInt32()
         if ($peOff -le 0 -or $peOff -gt ($fs.Length - 24)) { return $null }
@@ -85,7 +85,7 @@ function Read-TcpkPe {
             $secs.Add([pscustomobject]@{ VA=$va; VSize=$vs; RawPtr=$rp })
         }
 
-        # RVA → file offset
+        # RVA -> file offset
         function _RvaToFile($rva, $secs) {
             foreach ($s in $secs) {
                 if ($rva -ge $s.VA -and $rva -lt ($s.VA + $s.VSize)) {
@@ -108,7 +108,7 @@ function Read-TcpkPe {
                     $null    = $br.ReadUInt32()  # OriginalFirstThunk
                     $null    = $br.ReadUInt32()  # TimeDateStamp
                     $null    = $br.ReadUInt32()  # ForwarderChain
-                    $nameRva = $br.ReadUInt32()  # Name RVA  ← what we want
+                    $nameRva = $br.ReadUInt32()  # Name RVA  <- what we want
                     $null    = $br.ReadUInt32()  # FirstThunk
                     if ($nameRva -eq 0) { break }    # null terminator = end of import table
 
@@ -194,7 +194,11 @@ function Get-TcpkPeFiles {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
     $item = Get-Item -LiteralPath $Path
     if ($item.PSIsContainer) {
-        Get-ChildItem -LiteralPath $Path -Recurse -File -Include '*.exe','*.dll','*.sys' -ErrorAction SilentlyContinue
+        # NB: Get-ChildItem -Include is SILENTLY IGNORED when -LiteralPath is used,
+        # so it would return EVERY file (png/txt/json/...). Filter on the extension
+        # explicitly instead.
+        Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension.ToLowerInvariant() -in '.exe', '.dll', '.sys' }
     } else {
         $item
     }

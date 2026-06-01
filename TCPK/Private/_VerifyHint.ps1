@@ -1,9 +1,53 @@
-# Per-finding manual re-validation playbook. For each finding returns:
-#   line 1: a copy-paste-RUNNABLE command (or a '#' note for manual steps)
-#   line 2: '# -> VULNERABLE if <X>;  OK if <Y>'  (how to read the output)
+# Per-finding manual re-validation playbook.
 #
-# Every returned string is paste-safe: line 1 runs, line 2 is a comment.
+# Get-TcpkVerifyHint returns a clear, multi-line, COPY-PASTE-SAFE block per finding:
+#   # WHAT THIS CHECKS: <plain-English purpose>
+#   # STEP 1 - RUN THIS IN POWERSHELL:   (or: DO THIS MANUALLY)
+#   <the actual command>                 <- the only non-comment line(s); paste-and-run
+#   # STEP 2 - READ THE OUTPUT:
+#   #   VULNERABLE  if  <what a bad result looks like>
+#   #   OK          if  <what a good result looks like>
+#   # NOTE: <extra guidance>              (optional)
+#   # TOOL: <which tool>
+#
+# Every line except the command itself is a '#' comment, so pasting the whole
+# block into PowerShell runs the command and ignores the explanations.
 # Used by both the HTML and Excel reports.
+
+function Format-TcpkVerifyHint {
+    [CmdletBinding()]
+    param(
+        [string]$What,                 # plain-English: what this verifies / what the command does
+        [string]$Run,                  # paste-and-run PowerShell one-liner (omit for manual-only checks)
+        [string[]]$Manual = @(),       # manual steps, one per line (used when there is no one-liner)
+        [string]$Vulnerable,           # what a BAD (vulnerable) result looks like
+        [string]$Ok,                   # what a GOOD (safe) result looks like
+        [string]$Info,                 # for informational checks: a single "what it means" line (instead of Vulnerable/Ok)
+        [string]$Note,                 # optional extra guidance
+        [string]$Tool                  # which tool(s) to use
+    )
+    $nl = "`r`n"
+    $L = New-Object System.Collections.Generic.List[string]
+    if ($What) { $L.Add("# WHAT THIS CHECKS: $What") }
+    if ($Run) {
+        $L.Add("# STEP 1 - RUN THIS IN POWERSHELL:")
+        $L.Add($Run)
+    } elseif ($Manual.Count) {
+        $L.Add("# STEP 1 - DO THIS MANUALLY:")
+        foreach ($m in $Manual) { $L.Add("#   - $m") }
+    }
+    if ($Info) {
+        $L.Add("# STEP 2 - WHAT IT MEANS:")
+        $L.Add("#   $Info")
+    } else {
+        $L.Add("# STEP 2 - READ THE OUTPUT:")
+        if ($Vulnerable) { $L.Add("#   VULNERABLE  if  $Vulnerable") }
+        if ($Ok)         { $L.Add("#   OK          if  $Ok") }
+    }
+    if ($Note) { $L.Add("# NOTE: $Note") }
+    if ($Tool) { $L.Add("# TOOL: $Tool") }
+    return ($L -join $nl)
+}
 
 function Get-TcpkVerifyHint {
     [CmdletBinding()]
@@ -16,138 +60,405 @@ function Get-TcpkVerifyHint {
     $f   = if ($File) { $File } else { '<file>' }
     $dir = if ($File) { Split-Path -Parent $File } else { '<install-dir>' }
     $hostName = if ($Evidence -match 'https?://([^/\s|]+)') { $matches[1] } else { '<host>' }
-    $nl  = "`r`n"
 
     $h = switch -Regex ($RuleId) {
 
         '^pe\.missing-mitigations' {
-            "Get-TcpkPeHardening -Path '$f'$nl# -> VULNERABLE if ASLR or DEP = NO;  OK if all four (ASLR/DEP/CFG/HighEntropyVA) = YES   [tool: PowerShell, or: dumpbin /headers]"
+            Format-TcpkVerifyHint `
+                -What "Re-checks the binary's exploit mitigations (ASLR, DEP, CFG, HighEntropyVA)." `
+                -Run "Get-TcpkPeHardening -Path '$f'" `
+                -Vulnerable "the table shows ASLR=NO or DEP=NO (a core memory-corruption defense is missing)." `
+                -Ok "ASLR, DEP, CFG and HighEntropyVA all show YES." `
+                -Tool "PowerShell (alternative: dumpbin /headers)"
         }
         '^pe-imports\.' {
-            "dumpbin /imports '$f'$nl# -> VULNERABLE if a listed DLL can resolve from a user-writable dir (DLL planting);  OK if all bind from System32/the app dir   [tool: Visual Studio dumpbin]"
+            Format-TcpkVerifyHint `
+                -What "Lists the DLLs this binary imports, to spot any that could be planted from a writable folder." `
+                -Run "dumpbin /imports '$f'" `
+                -Vulnerable "a listed DLL can resolve from a user-writable directory (DLL planting / search-order hijack)." `
+                -Ok "every imported DLL binds from System32 or the application directory." `
+                -Tool "Visual Studio 'dumpbin' (Developer Command Prompt)"
         }
         '^pe-exports\.' {
-            "dumpbin /exports '$f'$nl# -> VULNERABLE if a sensitive function is callable without auth;  OK if exports are inert/internal   [tool: dumpbin]"
+            Format-TcpkVerifyHint `
+                -What "Lists the functions this binary exposes to other callers." `
+                -Run "dumpbin /exports '$f'" `
+                -Vulnerable "a sensitive or privileged function is callable with no authentication." `
+                -Ok "the exports are inert or internal-only." `
+                -Tool "Visual Studio 'dumpbin'"
         }
         '^authenticode|^codeintegrity' {
-            "Get-AuthenticodeSignature -FilePath '$f' | Format-List Status,StatusMessage,SignerCertificate$nl# -> VULNERABLE if Status = NotSigned / HashMismatch / Unknown;  OK if Status = Valid   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Checks the file's Authenticode digital signature." `
+                -Run "Get-AuthenticodeSignature -FilePath '$f' | Format-List Status,StatusMessage,SignerCertificate" `
+                -Vulnerable "Status is NotSigned, HashMismatch, or Unknown (the file is unsigned, tampered, or untrusted)." `
+                -Ok "Status is Valid." `
+                -Tool "PowerShell"
         }
         '^strongname' {
-            "[Reflection.AssemblyName]::GetAssemblyName('$f').GetPublicKeyToken()$nl# -> VULNERABLE if output is EMPTY (not strong-named, tamperable);  OK if a token (bytes) is printed   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Checks whether a .NET assembly is strong-named (which makes it harder to silently replace)." `
+                -Run "[Reflection.AssemblyName]::GetAssemblyName('$f').GetPublicKeyToken()" `
+                -Vulnerable "the output is EMPTY - the assembly is not strong-named and can be modified or swapped out." `
+                -Ok "a public-key token (a row of bytes) is printed." `
+                -Tool "PowerShell"
         }
         '^secrets\.|app-config\.connstring|app-config\.machine-key' {
-            "([regex]::Matches([Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes('$f')),'AccountKey=\S{20,}|DefaultEndpointsProtocol=\S+|-----BEGIN [A-Z ]+KEY|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{10,}')).Value$nl# -> VULNERABLE if it prints a real key / connection-string / token;  OK if it prints nothing (placeholder/none). For ASCII swap ::Unicode->::UTF8, or use: strings.exe -u '$f'   [tool: PowerShell / Sysinternals strings]"
+            Format-TcpkVerifyHint `
+                -What "Scans the file's text for things that look like LIVE secrets - Azure storage keys, connection strings, PEM private keys, AWS access keys, or JWT tokens." `
+                -Run "([regex]::Matches([Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes('$f')),'DefaultEndpointsProtocol=https?;[A-Za-z0-9=;._/+\-]{0,300}AccountKey=[A-Za-z0-9+/=]{20,}|AccountKey=[A-Za-z0-9+/=]{20,}|-----BEGIN [A-Z ]+KEY|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{10,}')).Value" `
+                -Vulnerable "it prints a real secret - e.g. AccountKey=..., a DefaultEndpointsProtocol=... connection string, an AKIA... AWS key, an eyJ... JWT, or a -----BEGIN ... KEY----- block." `
+                -Ok "it prints nothing (only placeholders, or there are no secrets in the file)." `
+                -Note "this reads the file as UTF-16 (Unicode) text. If the secret is stored as plain ASCII, change ::Unicode to ::UTF8 and run it again. To dump EVERY readable string instead: strings.exe -u '$f'" `
+                -Tool "PowerShell built-in (alternative: Sysinternals strings.exe)"
         }
         '^(callsites\.|tls-bypass\.|deser\.|xxe\.|webview2\.)' {
-            "Test-TcpkCallsites -Path '$f'$nl# -> decompile the flagged method in a .NET decompiler. VULNERABLE if the body returns constant true / deserializes untrusted input with no check;  OK if it calls X509Chain.Build / compares a thumbprint / validates input   [tool: PowerShell + any .NET decompiler]"
+            Format-TcpkVerifyHint `
+                -What "Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler." `
+                -Run "Test-TcpkCallsites -Path '$f'" `
+                -Vulnerable "the flagged method returns a constant 'true' for certificate validation, or it deserializes/parses untrusted input with no checks." `
+                -Ok "it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it." `
+                -Note "open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body." `
+                -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
         }
         '^(backend\.endpoint|endpoints\.|scheme\.)' {
-            "Test-NetConnection $hostName -Port 443$nl# -> VULNERABLE if the host carries credentials over http:// (cleartext) or accepts a forged cert;  OK if https with a valid, validated cert. Capture with Burp/Fiddler while using the app   [tool: PowerShell + intercepting proxy]"
+            Format-TcpkVerifyHint `
+                -What "Confirms whether a backend host the app talks to is reachable, and how the connection is secured." `
+                -Run "Test-NetConnection $hostName -Port 443" `
+                -Vulnerable "the host is contacted over http:// (credentials sent in cleartext) or it accepts a forged/invalid certificate." `
+                -Ok "it uses https with a valid, properly-validated certificate." `
+                -Note "to see the real traffic, capture it with Burp or Fiddler while using the app." `
+                -Tool "PowerShell + an intercepting proxy (Burp / Fiddler)"
         }
         '^update\.' {
-            "Test-TcpkUpdateFlow -Path '$dir'$nl# -> decompile the update method. VULNERABLE if it applies a downloaded payload with NO signature/hash check;  OK if it verifies a signature before extract/exec   [tool: PowerShell + decompiler]"
+            Format-TcpkVerifyHint `
+                -What "Inspects the app's update/download flow for missing integrity checks." `
+                -Run "Test-TcpkUpdateFlow -Path '$dir'" `
+                -Vulnerable "it applies a downloaded update with NO signature or hash check (remote code execution via a poisoned update server)." `
+                -Ok "it verifies a signature or hash before extracting or running the payload." `
+                -Note "decompile the update method to confirm the check actually runs." `
+                -Tool "PowerShell + a .NET decompiler"
         }
         '^tls\.' {
-            "Test-TcpkTlsPinning -Path '$dir'$nl# -> MITM the app with a forged certificate. VULNERABLE if the app's HTTPS calls SUCCEED through your proxy;  OK if they FAIL (pinning/validation works)   [tool: PowerShell + mitmproxy/Burp]"
+            Format-TcpkVerifyHint `
+                -What "Tests whether the app pins or validates its TLS server certificates." `
+                -Run "Test-TcpkTlsPinning -Path '$dir'" `
+                -Vulnerable "the app's HTTPS calls SUCCEED when routed through your forged-certificate proxy (no pinning / no validation)." `
+                -Ok "those calls FAIL through the proxy (pinning or validation is working)." `
+                -Note "to test live, MITM the running app with mitmproxy or Burp using a self-signed CA." `
+                -Tool "PowerShell + mitmproxy / Burp"
         }
         '^ports\.' {
-            "Get-NetTCPConnection -State Listen -OwningProcess (Get-Process '<process>').Id$nl# -> VULNERABLE if LocalAddress = 0.0.0.0 / :: (all interfaces, unauthenticated);  OK if 127.0.0.1 only or the listener requires auth. App must be running   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Shows which network ports the running process is listening on." `
+                -Run "Get-NetTCPConnection -State Listen -OwningProcess (Get-Process '<process>').Id" `
+                -Vulnerable "LocalAddress is 0.0.0.0 or :: (listening on all interfaces) and the service needs no authentication." `
+                -Ok "it binds 127.0.0.1 only, or the listener requires authentication." `
+                -Note "replace <process> with the app's process name; the app must be running." `
+                -Tool "PowerShell"
         }
         '^(pipe\.|pipe-dacl)' {
-            "[System.IO.Directory]::GetFiles('\\\\.\\pipe\\') | Select-String '<name>'$nl# -> then: accesschk -accepteula \\pipe\\<name>. VULNERABLE if Everyone/Users have write;  OK if restricted to the owner   [tool: PowerShell + Sysinternals accesschk]"
+            # the pipe name is the finding Evidence -- fill it in so the command is runnable as-is
+            $pname = if ($Evidence) { $Evidence } else { '<name>' }
+            Format-TcpkVerifyHint `
+                -What "Checks named-pipe IPC endpoints and who is allowed to connect to them." `
+                -Run "[System.IO.Directory]::GetFiles('\\\\.\\pipe\\') | Select-String '$pname'" `
+                -Vulnerable "Everyone or Users have write access to the pipe (any local user can inject IPC messages)." `
+                -Ok "the pipe is restricted to its owner or SYSTEM." `
+                -Note "after finding the pipe, check its permissions: accesschk -accepteula \\pipe\\$pname" `
+                -Tool "PowerShell + Sysinternals accesschk"
         }
         '^(com\.|msix\.com-server)' {
-            "reg query `"HKCR\\CLSID`" /s /f `"$Evidence`"$nl# -> VULNERABLE if a standard user can register the same CLSID under HKCU (hijack);  OK if only HKLM and HKCU\\...\\CLSID is not user-writable   [tool: reg.exe]"
+            Format-TcpkVerifyHint `
+                -What "Looks for a COM CLSID that a standard user could hijack." `
+                -Run "reg query `"HKCR\\CLSID`" /s /f `"$Evidence`"" `
+                -Vulnerable "a standard user can register the same CLSID under HKCU and hijack activation of the COM server." `
+                -Ok "the CLSID lives only under HKLM and the HKCU path is not user-writable." `
+                -Tool "reg.exe"
         }
         '^registry\.weak-dacl' {
-            "(Get-Acl '$f').Access | Where-Object { `$_.IdentityReference -match 'Users|Everyone' -and `$_.RegistryRights -match 'Write|FullControl' }$nl# -> VULNERABLE if it returns ROWS (a standard user can write a machine-wide key);  OK if it returns NOTHING   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Checks whether a standard user can write to a machine-wide registry key." `
+                -Run "(Get-Acl '$f').Access | Where-Object { `$_.IdentityReference -match 'Users|Everyone' -and `$_.RegistryRights -match 'Write|FullControl' }" `
+                -Vulnerable "it returns one or more rows (a normal user can modify this machine-wide key)." `
+                -Ok "it returns nothing." `
+                -Tool "PowerShell"
         }
         '^registry\.footprint' {
-            "Get-ItemProperty '$f'$nl# -> VULNERABLE if a value holds a secret / trust decision a user could read or change;  OK if only benign config   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Shows the values stored under a registry key the app uses." `
+                -Run "Get-ItemProperty '$f'" `
+                -Vulnerable "a value holds a secret, or a trust decision that a user could read or change." `
+                -Ok "only benign configuration is present." `
+                -Tool "PowerShell"
         }
         '^(acl\.|install-dir\.)' {
-            "(Get-Acl '$f').Access | Format-Table IdentityReference,FileSystemRights,AccessControlType$nl# -> VULNERABLE if Users/Everyone have Write/Modify/FullControl;  OK if only SYSTEM/Administrators can write   [tool: PowerShell, or: icacls '$f']"
+            Format-TcpkVerifyHint `
+                -What "Shows the file/folder permissions so you can see who is allowed to modify it." `
+                -Run "(Get-Acl '$f').Access | Format-Table IdentityReference,FileSystemRights,AccessControlType" `
+                -Vulnerable "Users or Everyone have Write / Modify / FullControl (they can replace the file)." `
+                -Ok "only SYSTEM and Administrators can write." `
+                -Note "for a quick one-line view: icacls '$f'" `
+                -Tool "PowerShell (alternative: icacls)"
         }
         '^scheduled-task\.' {
-            "schtasks /query /tn `"<taskname>`" /xml$nl# -> then: Get-Acl (Join-Path `$env:SystemRoot 'System32\\Tasks\\<taskname>'). VULNERABLE if a SYSTEM/HighestAvailable task's file is user-writable;  OK if only SYSTEM/Admins can write   [tool: schtasks + PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Checks whether a privileged scheduled task runs a file that a normal user can overwrite." `
+                -Run "schtasks /query /tn `"<taskname>`" /xml" `
+                -Vulnerable "a SYSTEM or HighestAvailable task's executable (or its folder) is user-writable (replace it and it runs elevated)." `
+                -Ok "only SYSTEM/Admins can write both the task and its target binary." `
+                -Note "then check the target binary's permissions: (Get-Acl '<path-to-task-exe>').Access" `
+                -Tool "schtasks + PowerShell"
         }
         '^driver\.' {
-            "Get-AuthenticodeSignature '$f' | Format-List Status$nl# -> VULNERABLE if unsigned/weakly-signed or its IOCTLs lack access checks (BYOVD);  OK if WHQL-signed with locked-down IOCTL surface. Also: sc.exe qc <serviceName>   [tool: PowerShell + sc.exe]"
+            Format-TcpkVerifyHint `
+                -What "Checks a kernel driver/service for weak signing or an exposed IOCTL surface (bring-your-own-vulnerable-driver risk)." `
+                -Run "Get-AuthenticodeSignature '$f' | Format-List Status" `
+                -Vulnerable "it is unsigned/weakly-signed, or its IOCTLs lack access checks." `
+                -Ok "it is WHQL-signed with a locked-down IOCTL surface." `
+                -Note "also inspect the service configuration: sc.exe qc <serviceName>" `
+                -Tool "PowerShell + sc.exe"
         }
         '^uac\.' {
-            "Test-TcpkUacManifest -Path '$f'$nl# -> VULNERABLE if autoElevate=true or level=requireAdministrator (every bug becomes EoP);  OK if asInvoker   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Reads the executable's UAC manifest (the privilege level it asks Windows for)." `
+                -Run "Test-TcpkUacManifest -Path '$f'" `
+                -Vulnerable "autoElevate=true or level=requireAdministrator (any bug in the app becomes elevation-of-privilege)." `
+                -Ok "level = asInvoker (runs with the caller's privileges)." `
+                -Tool "PowerShell"
         }
         '^wmi\.' {
-            "Get-CimInstance -Namespace root/subscription -ClassName CommandLineEventConsumer; Get-CimInstance -Namespace root/subscription -ClassName __EventFilter$nl# -> VULNERABLE if an EventConsumer runs code on a trigger (persistence) and is undocumented;  OK if none / a documented product subscription   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Looks for permanent WMI event subscriptions, a common stealth persistence technique." `
+                -Run "Get-CimInstance -Namespace root/subscription -ClassName CommandLineEventConsumer; Get-CimInstance -Namespace root/subscription -ClassName __EventFilter" `
+                -Vulnerable "an EventConsumer runs code on a trigger and is undocumented." `
+                -Ok "there are none, or only a documented product subscription." `
+                -Tool "PowerShell"
         }
         '^dpapi\.' {
-            "# test box only: [Reflection.Assembly]::LoadWithPartialName('System.Security'); [Security.Cryptography.ProtectedData]::Unprotect((Get-Content '$f' -Encoding Byte),`$null,'CurrentUser')$nl# -> VULNERABLE if it DECRYPTS in the user context (recoverable without a master password);  OK if it throws / uses machine scope + entropy   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Tests whether a DPAPI-protected blob can be decrypted in the current user's context (i.e. recovered with no master password). Run on a TEST machine only." `
+                -Run "[Reflection.Assembly]::LoadWithPartialName('System.Security'); [Security.Cryptography.ProtectedData]::Unprotect((Get-Content '$f' -Encoding Byte),`$null,'CurrentUser')" `
+                -Vulnerable "it DECRYPTS and returns bytes - the secret is recoverable in the user context." `
+                -Ok "it throws an error, or the blob uses machine scope plus extra entropy." `
+                -Note "only run this against data you are authorized to test, on a non-production machine." `
+                -Tool "PowerShell"
         }
         '^cve\.' {
-            "(Get-Item '$f').VersionInfo.FileVersion$nl# -> VULNERABLE if the shipped version is BELOW the fixed version in the advisory;  OK if >= fixed. Cross-check: Get-TcpkCveMatches -Path '$dir'   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Reads the shipped file's version so you can compare it against the CVE's fixed version." `
+                -Run "(Get-Item '$f').VersionInfo.FileVersion" `
+                -Vulnerable "the printed version is BELOW the fixed version listed in the advisory." `
+                -Ok "the printed version is greater than or equal to the fixed version." `
+                -Note "cross-check the full match list: Get-TcpkCveMatches -Path '$dir'" `
+                -Tool "PowerShell"
         }
         '^(log\.|pii\.|telemetry|etw\.)' {
-            "Test-TcpkLogFiles -Path '$dir'; Test-TcpkPiiInLogs -Path '$dir'$nl# -> open the log/telemetry payloads. VULNERABLE if they contain secrets/tokens/PII;  OK if sanitized   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Inspects the app's log and telemetry files for sensitive data." `
+                -Run "Test-TcpkLogFiles -Path '$dir'; Test-TcpkPiiInLogs -Path '$dir'" `
+                -Vulnerable "the logs or telemetry payloads contain secrets, tokens, or personal data (PII)." `
+                -Ok "they are sanitized / contain no sensitive values." `
+                -Note "open the reported log and telemetry files and read the payloads yourself to confirm." `
+                -Tool "PowerShell"
         }
         '^named-object\.' {
-            "# Sysinternals WinObj -> browse \\BaseNamedObjects$nl# -> VULNERABLE if a Global\\ object has a predictable name + default DACL (squattable for DoS/race);  OK if randomized name or restrictive DACL   [tool: Sysinternals WinObj]"
+            Format-TcpkVerifyHint `
+                -What "Checks named kernel objects (events, mutexes, sections) for predictable names that another process could squat." `
+                -Manual @('Open Sysinternals WinObj as administrator.', 'Browse to \BaseNamedObjects and find the named object.') `
+                -Vulnerable "a Global\ object has a predictable name and a default DACL (squattable for denial-of-service or a race condition)." `
+                -Ok "the name is randomized, or the DACL is restrictive." `
+                -Tool "Sysinternals WinObj"
         }
         '^(antidebug\.|integrity\.|timing\.|antiinjection)' {
-            "# decompile the flagged routine in a .NET/native decompiler$nl# -> this is a HARDENING signal (informational). 'Good' if the check actually GATES execution; not a vuln by itself   [tool: decompiler]"
+            Format-TcpkVerifyHint `
+                -What "These are anti-tamper / hardening signals, not vulnerabilities by themselves." `
+                -Manual @('Decompile the flagged routine in a .NET or native decompiler.', 'Check whether the anti-debug / integrity check actually gates execution.') `
+                -Info "Informational. It is GOOD if the check genuinely stops execution when triggered; it is WEAK (but still not a vuln) if the check is present but never enforced." `
+                -Tool "a .NET / native decompiler"
         }
         '^(wer\.|pagefile\.|mem\.)' {
-            "reg query `"HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting`"$nl# -> VULNERABLE if full crash dumps are enabled or the pagefile isn't cleared (secrets reach disk);  OK if minidump-only + ClearPageFileAtShutdown=1   [tool: reg.exe / PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Checks crash-dump and pagefile settings that could leak secrets to disk." `
+                -Run "reg query `"HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting`"" `
+                -Vulnerable "full crash dumps are enabled, or the pagefile is not cleared at shutdown (in-memory secrets can reach disk)." `
+                -Ok "crash dumps are minidump-only AND ClearPageFileAtShutdown = 1." `
+                -Tool "reg.exe / PowerShell"
         }
         '^window\.exists' {
-            "# Spy++ / Winspy on the running app$nl# -> VULNERABLE if a window handles WM_COPYDATA / custom messages without validating the sender or payload;  OK otherwise   [tool: Spy++]"
+            Format-TcpkVerifyHint `
+                -What "Checks whether the app exposes a top-level window that accepts inter-process window messages." `
+                -Manual @('Run the app.', 'Inspect its windows with Spy++ or WinSpy.') `
+                -Vulnerable "a window handles WM_COPYDATA or custom messages without validating the sender or the payload." `
+                -Ok "messages are validated, or those messages are not handled." `
+                -Tool "Spy++ / WinSpy"
         }
         '^wcf\.' {
-            "# inspect the app's .config ServiceModel bindings$nl# -> VULNERABLE if basicHttpBinding (clear-text) or security mode=None;  OK if TLS transport + a real auth mode   [tool: text editor]"
+            Format-TcpkVerifyHint `
+                -What "Checks the app's WCF / ServiceModel bindings for weak transport security." `
+                -Manual @("Open the app's .config file and find the <system.serviceModel> bindings.") `
+                -Vulnerable "it uses basicHttpBinding (clear-text) or security mode = None." `
+                -Ok "it uses a TLS transport binding with a real authentication mode." `
+                -Tool "any text editor"
         }
         '^entropy\.' {
-            "Select-String -Path '$f' -Pattern '[A-Za-z0-9+/_-]{24,}' -AllMatches | ForEach-Object { `$_.Matches.Value }$nl# -> VULNERABLE if a printed high-entropy token is a live key/secret;  OK if it is a hash/cache-buster/asset id   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Surfaces long high-entropy strings in the file that might be embedded secrets." `
+                -Run "Select-String -Path '$f' -Pattern '[A-Za-z0-9+/_-]{24,}' -AllMatches | ForEach-Object { `$_.Matches.Value }" `
+                -Vulnerable "a printed high-entropy string turns out to be a live key or secret." `
+                -Ok "the strings are hashes, cache-busters, or asset IDs." `
+                -Tool "PowerShell"
         }
         '^crypto\.' {
-            "# decompile the crypto routine that references this file/value$nl# -> VULNERABLE if a hardcoded key/IV is used, or PaddingMode.None / PasswordDeriveBytes;  OK if keys are derived per-user (PBKDF2/Argon2) with a random salt + AES-GCM   [tool: .NET decompiler]"
+            Format-TcpkVerifyHint `
+                -What "Checks how the app uses cryptography - looking for hardcoded keys or weak modes." `
+                -Manual @('Decompile the crypto routine that references this file/value.') `
+                -Vulnerable "a hardcoded key/IV is used, or PaddingMode.None / PasswordDeriveBytes appears." `
+                -Ok "keys are derived per-user (PBKDF2 / Argon2) with a random salt, using AES-GCM." `
+                -Tool "a .NET decompiler"
         }
         '^jwt\.' {
-            "`$p=('$Evidence' -split '\.'); [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((`$p[1]+'===').Substring(0,(`$p[1].Length+3) -band -4).Replace('-','+').Replace('_','/')))$nl# -> VULNERABLE if alg=none, or the token is unexpired/has sensitive claims;  OK if it is an expired sample with no secrets   [tool: PowerShell / jwt.io offline]"
+            Format-TcpkVerifyHint `
+                -What "Decodes the payload of the flagged JWT so you can read its claims." `
+                -Run "`$p=('$Evidence' -split '\.'); [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String((`$p[1]+'===').Substring(0,(`$p[1].Length+3) -band -4).Replace('-','+').Replace('_','/')))" `
+                -Vulnerable "alg = none, or the token is unexpired / carries sensitive claims." `
+                -Ok "it is an expired sample token with no secrets." `
+                -Note "you can also paste the token into an OFFLINE jwt decoder (never a live online one)." `
+                -Tool "PowerShell (alternative: an offline jwt decoder)"
         }
         '^keymaterial\.' {
-            "Get-PfxData -FilePath '$f' -ErrorAction SilentlyContinue; Get-Content '$f' -TotalCount 2$nl# -> VULNERABLE if a PRIVATE KEY loads with no/empty password (server impersonation / signing);  OK if encrypted with a non-shipped password or only public certs   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Tests whether a shipped key/cert file contains a usable PRIVATE key." `
+                -Run "Get-PfxData -FilePath '$f' -ErrorAction SilentlyContinue; Get-Content '$f' -TotalCount 2" `
+                -Vulnerable "a private key loads with no password / an empty password (enables server impersonation or code signing)." `
+                -Ok "it is encrypted with a password that is not shipped, or only public certificates are present." `
+                -Tool "PowerShell"
         }
         '^truststore\.' {
-            "Get-ChildItem Cert:\LocalMachine\Root, Cert:\CurrentUser\Root | Where-Object { `$_.Subject -match '<vendor>' }$nl# -> VULNERABLE if the app installed a custom ROOT CA (can MITM TLS / sign trusted code machine-wide);  OK if no app-owned root is present   [tool: PowerShell / certlm.msc]"
+            Format-TcpkVerifyHint `
+                -What "Checks whether the app installed its own root CA into the Windows trust store." `
+                -Run "Get-ChildItem Cert:\LocalMachine\Root, Cert:\CurrentUser\Root | Where-Object { `$_.Subject -match '<vendor>' }" `
+                -Vulnerable "a custom ROOT CA is present (it can MITM TLS, or sign code trusted machine-wide)." `
+                -Ok "no app-owned root CA is installed." `
+                -Note "replace <vendor> with the app's publisher name." `
+                -Tool "PowerShell (alternative: certlm.msc)"
         }
         '^selfhost\.' {
-            "# run the app, then: Get-NetTCPConnection -State Listen -OwningProcess (Get-Process '<process>').Id$nl# -> VULNERABLE if it binds 0.0.0.0/all and serves without auth (curl http://localhost:<port>/ returns data);  OK if 127.0.0.1 + authenticated   [tool: PowerShell + curl]"
+            Format-TcpkVerifyHint `
+                -What "Checks whether the app runs its own local HTTP/socket server, and whether that server needs authentication." `
+                -Run "Get-NetTCPConnection -State Listen -OwningProcess (Get-Process '<process>').Id" `
+                -Vulnerable "it binds 0.0.0.0 / all interfaces and serves data without auth (e.g. curl http://localhost:<port>/ returns content)." `
+                -Ok "it binds 127.0.0.1 and requires authentication." `
+                -Note "run the app first; replace <process> with its process name." `
+                -Tool "PowerShell + curl"
         }
         '^zipslip\.' {
-            "# decompile the extraction loop$nl# -> VULNERABLE if it writes Path.Combine(dest, entry.FullName) without verifying the resolved path stays under dest (craft an entry named ..\\..\\evil to test);  OK if it canonicalises + checks StartsWith(dest)   [tool: .NET decompiler]"
+            Format-TcpkVerifyHint `
+                -What "Checks an archive-extraction routine for path-traversal (the 'Zip Slip' bug)." `
+                -Manual @('Decompile the extraction loop.') `
+                -Vulnerable "it writes Path.Combine(dest, entry.FullName) without checking the resolved path stays under dest (test with an entry named ..\..\evil)." `
+                -Ok "it canonicalizes the path and verifies it StartsWith(dest) before writing." `
+                -Tool "a .NET decompiler"
         }
         '^debugflags\.' {
-            "Select-String -Path '$f' -Pattern '$Evidence'$nl# -> VULNERABLE if the flag is reachable via config/env/arg and disables a control (test by setting it and observing);  OK if dead/compile-time-only   [tool: PowerShell + decompiler]"
+            Format-TcpkVerifyHint `
+                -What "Checks whether a debug / feature flag can be toggled to disable a security control." `
+                -Run "Select-String -Path '$f' -Pattern '$Evidence'" `
+                -Vulnerable "the flag is reachable via config / environment / argument and disables a control (test by setting it and observing)." `
+                -Ok "it is dead code or compile-time only." `
+                -Tool "PowerShell + a decompiler"
         }
         '^firewall\.' {
-            "Get-NetFirewallRule -Direction Inbound -Action Allow | Where-Object DisplayName -match '<vendor>' | Get-NetFirewallPortFilter$nl# -> VULNERABLE if an inbound allow exposes an unauthenticated listener (esp. Any remote / Public);  OK if scoped/removed or the listener authenticates   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Lists the inbound firewall allow-rules the app created." `
+                -Run "Get-NetFirewallRule -Direction Inbound -Action Allow | Where-Object DisplayName -match '<vendor>' | Get-NetFirewallPortFilter" `
+                -Vulnerable "an inbound allow rule exposes an unauthenticated listener (especially 'Any' remote address or the Public profile)." `
+                -Ok "the rules are scoped/removed, or the listener authenticates." `
+                -Note "replace <vendor> with the app's name." `
+                -Tool "PowerShell"
         }
         '^avexclusion\.' {
-            "Get-MpPreference | Select-Object ExclusionPath,ExclusionProcess,ExclusionExtension$nl# -> VULNERABLE if the app's own path/process is excluded (malware there runs unscanned);  OK if no app-owned exclusion (run elevated to read)   [tool: PowerShell]"
+            Format-TcpkVerifyHint `
+                -What "Checks for Microsoft Defender exclusions that cover the app (malware placed there would run unscanned)." `
+                -Run "Get-MpPreference | Select-Object ExclusionPath,ExclusionProcess,ExclusionExtension" `
+                -Vulnerable "the app's own path, process, or extension is excluded from scanning." `
+                -Ok "no app-owned exclusion exists." `
+                -Note "run PowerShell elevated (as administrator) to read these settings." `
+                -Tool "PowerShell (elevated)"
         }
         '^(servicebin|taskbin)\.' {
-            "(Get-Acl '$f').Access | Format-Table IdentityReference,FileSystemRights,AccessControlType$nl# -> VULNERABLE if Users/Everyone can Write/Modify the binary or its folder (replace it -> runs as the service account);  OK if admin-only   [tool: PowerShell / icacls]"
+            Format-TcpkVerifyHint `
+                -What "Checks whether a service/task binary (or its folder) can be replaced by a normal user." `
+                -Run "(Get-Acl '$f').Access | Format-Table IdentityReference,FileSystemRights,AccessControlType" `
+                -Vulnerable "Users or Everyone can Write/Modify the binary or its folder (replace it and it runs as the service account)." `
+                -Ok "only administrators can write." `
+                -Note "for a quick one-line view: icacls '$f'" `
+                -Tool "PowerShell (alternative: icacls)"
         }
         '^process\.dacl' {
-            "# run the app, then with Process Hacker: right-click process -> Properties -> Security -> Permissions$nl# -> VULNERABLE if Users/Everyone have Write/CreateThread/AllAccess (inject into an elevated process);  OK if default DACL   [tool: Process Hacker / accesschk -p]"
+            Format-TcpkVerifyHint `
+                -What "Checks the running process's security descriptor for weak access rights." `
+                -Manual @('Run the app.', 'In Process Hacker: right-click the process -> Properties -> Security -> Permissions.') `
+                -Vulnerable "Users or Everyone have Write / CreateThread / AllAccess (you could inject code into an elevated process)." `
+                -Ok "the process keeps a default, restrictive DACL." `
+                -Note "command-line alternative: accesschk -p -accepteula <process>" `
+                -Tool "Process Hacker / Sysinternals accesschk"
         }
         '^(memsecret\.|env\.secret)' {
-            "# with the app running: Test-TcpkMemorySecrets -ProcessName '<process>'  (or)  Test-TcpkProcessEnvSecrets -ProcessName '<process>'$nl# -> VULNERABLE if a live secret/token/password is recoverable from heap or environment;  OK if none (secrets are protected + cleared)   [tool: TCPK / Process Hacker memory search]"
+            Format-TcpkVerifyHint `
+                -What "Searches the running process's heap and environment block for live secrets." `
+                -Run "Test-TcpkMemorySecrets -ProcessName '<process>'; Test-TcpkProcessEnvSecrets -ProcessName '<process>'" `
+                -Vulnerable "a live secret / token / password is recoverable from the heap or the environment." `
+                -Ok "nothing is found (secrets are protected in memory and cleared after use)." `
+                -Note "the app must be running; replace <process> with its process name." `
+                -Tool "TCPK (alternative: Process Hacker memory search)"
         }
         '^attacksurface\.' {
-            "# review attack-surface.json in the output folder$nl# -> triage each entry point (protocol/pipe/COM/RPC/port/listener) for auth + input validation. Informational map, not a vuln by itself   [tool: TCPK]"
+            Format-TcpkVerifyHint `
+                -What "A map of the entry points TCPK found - protocols, pipes, COM, RPC, ports, listeners." `
+                -Manual @('Open attack-surface.json in the output folder.', 'Triage each entry point for authentication and input validation.') `
+                -Info "Informational map, not a vulnerability by itself. Use it to decide what to test next." `
+                -Tool "TCPK"
+        }
+        '^chain\.' {
+            Format-TcpkVerifyHint `
+                -What "This is a CORRELATED finding - TCPK combined several lower-severity findings into one exploit chain. Confirm each link, then prove the end-to-end path." `
+                -Manual @(
+                    'Re-read the "Contributing conditions" in this finding''s Description.',
+                    'Open each contributing finding (listed in this finding''s Evidence) and confirm it on its own.',
+                    'Then prove the chain end-to-end on a TEST machine (e.g. plant the payload / craft the link, trigger the update or activation, observe code execution or privilege gain).'
+                ) `
+                -Vulnerable "every link confirms AND the end-to-end path runs attacker-controlled code or elevates privilege." `
+                -Ok "any single link is a false positive or not actually reachable - that breaks the chain." `
+                -Tool "TCPK (the contributing checks) + manual end-to-end validation"
+        }
+        '^protocol\.sink-reachable' {
+            Format-TcpkVerifyHint `
+                -What "Checks whether URI/file activation input in this binary can flow into a dangerous sink (process launch, deserialization, or path/file write)." `
+                -Run "Test-TcpkCallsites -Path '$f'" `
+                -Vulnerable "decompiling the activation handler shows the URI / file argument reaching Process.Start / ShellExecute / a deserializer / a built file path with no validation." `
+                -Ok "the argument is validated or allow-listed before any sink, or the sink uses a constant value (not the activation input)." `
+                -Note "open the activation handler (OnActivated / ProtocolActivatedEventArgs) in ILSpy or dnSpy and trace the Uri/file value to each sink listed in the Evidence." `
+                -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
+        }
+        '^msix\.alias-shadowing' {
+            # the alias name is the finding Evidence -- fill it in so the command runs as-is
+            $alias = if ($Evidence) { $Evidence } else { '<alias>' }
+            Format-TcpkVerifyHint `
+                -What "Checks whether an appExecutionAlias registers a name that shadows a common command on PATH." `
+                -Run "where.exe $alias; Get-Command $alias -All -ErrorAction SilentlyContinue | Select-Object Source" `
+                -Vulnerable "the WindowsApps alias resolves BEFORE the real tool (where.exe lists the %LOCALAPPDATA%\Microsoft\WindowsApps stub first), so typing the command runs the app, not the tool." `
+                -Ok "no collision, or the real tool resolves first / the alias name is unique to this app." `
+                -Note "alias stubs live in %LOCALAPPDATA%\Microsoft\WindowsApps (a per-user, user-writable PATH dir)." `
+                -Tool "PowerShell (where.exe / Get-Command)"
         }
         default {
-            "# re-run the TCPK check for rule '$RuleId' and inspect the File + Evidence$nl# -> use the Evidence value as the search term; confirm it is real and reachable"
+            Format-TcpkVerifyHint `
+                -What "Re-validate this finding using its reported File and Evidence values." `
+                -Manual @("Re-run the TCPK check for rule '$RuleId'.", "Inspect the reported File and Evidence; use the Evidence value as a search term.") `
+                -Vulnerable "the Evidence value is real, reachable, and does what the finding describes." `
+                -Ok "the Evidence is a false positive (a placeholder, dead code, or unreachable)." `
+                -Tool "TCPK / PowerShell"
         }
     }
     return [string](@($h) | Select-Object -First 1)

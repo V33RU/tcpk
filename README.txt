@@ -117,5 +117,5 @@ read-only live tools (memory/env secret scan, process DACL) need no gate.
 VERSION
 -------
 
-  TCPK v0.0.1, first public release, May 2026. 146 cmdlets; HTML + Excel
+  TCPK v0.1.0, June 2026. 146+ cmdlets; HTML + Excel
   reports with CVSS, MITRE ATT&CK, SBOM and an attack-surface map.

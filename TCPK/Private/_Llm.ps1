@@ -126,22 +126,32 @@ function Invoke-TcpkLlm {
 
     if ($b.Dialect -eq 'anthropic') {
         $uri = "$($b.BaseUrl)/v1/messages"
+        # Do NOT send `temperature`: the newest Claude models (Opus 4.6/4.7/4.8,
+        # Sonnet 4.6, ...) reject a custom temperature with HTTP 400
+        # "temperature is deprecated for this model". Omitting it works across ALL
+        # models, and the JSON-verdict prompt is already tightly constrained.
         $body = @{
             model      = $b.Model
             max_tokens = 1024
-            temperature = [double]$cfg.temperature
             system     = $System
             messages   = @(@{ role='user'; content=$User })
         }
     } else {
         $uri = "$($b.BaseUrl)/chat/completions"
         $body = @{
-            model       = $b.Model
-            temperature = [double]$cfg.temperature
-            messages    = @(
+            model    = $b.Model
+            messages = @(
                 @{ role='system'; content=$System },
                 @{ role='user';   content=$User }
             )
+        }
+        # Reasoning / GPT-5 models reject sampling params with HTTP 400
+        # ("temperature is not supported / only the default (1) is supported"):
+        # OpenAI o-series (o1/o3/o4/...), GPT-5.x, and DeepSeek-reasoner.
+        # Only send temperature for models that accept it (gpt-4o/4.1, ollama,
+        # deepseek-chat, other local models).
+        if ($b.Model -notmatch '(?i)^(o\d|gpt-5)' -and $b.Model -notmatch '(?i)reasoner') {
+            $body.temperature = [double]$cfg.temperature
         }
         if ($AsJson) { $body.response_format = @{ type = 'json_object' } }
     }
