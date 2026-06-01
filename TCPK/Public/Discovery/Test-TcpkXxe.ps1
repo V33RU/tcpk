@@ -60,8 +60,11 @@ function Test-TcpkXxe {
         foreach ($b in $bad) {
             $m = [regex]::Match($text, $b.Rx)
             if (-not $m.Success) { continue }
+            # Regex over PE text proves the setting STRING is present, not that it is
+            # applied to a reader that parses untrusted input. Inferred until the
+            # data flow is confirmed.
             New-TcpkFinding -Module 'static' -RuleId ('xxe.' + ($b.Rx -replace '\W','_')) `
-                -Severity $b.Sev -Confidence 'Confirmed' `
+                -Severity $b.Sev -Confidence 'Inferred' `
                 -Title $b.Title -File $pe.FullName -Evidence $m.Value `
                 -Cwe @('CWE-611','CWE-827') `
                 -Fix 'Set DtdProcessing=Prohibit and XmlResolver=null on every XmlReaderSettings instance.'

@@ -86,8 +86,11 @@ function Test-TcpkSecrets {
                         $hit.Substring(0,6) + '...' + $hit.Substring($hit.Length-6) + " (len=$($hit.Length))"
                     } else { $hit }
 
+                    # A regex match confirms the secret FORMAT is present, not that
+                    # the credential is live. Per the liveness rule, this is Inferred
+                    # until a confirmation step proves the key authenticates.
                     New-TcpkFinding -Module 'static' -RuleId "secrets.$($r.id)" `
-                        -Severity $r.severity -Confidence 'Confirmed' `
+                        -Severity $r.severity -Confidence 'Inferred' `
                         -Title $r.title -File $f.FullName `
                         -Evidence "$redacted [src=$($view.Src)]" `
                         -Cwe ([string[]]$r.cwe) -Fix $r.fix

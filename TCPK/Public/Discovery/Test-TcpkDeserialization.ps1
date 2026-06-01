@@ -36,7 +36,10 @@ function Test-TcpkDeserialization {
             if (-not $text.Contains($t.token)) { continue }
 
             $sev   = if ($isFramework) { 'INFO' } else { $t.severity }
-            $conf  = if ($isFramework) { 'Inferred' } else { 'Confirmed' }
+            # A token match proves the type is REFERENCED, not INVOKED. Both
+            # first-party and framework stay Inferred until Confirm-TcpkDeserialization
+            # locates an actual Deserialize() call site in the IL.
+            $conf  = 'Inferred'
             $title = if ($isFramework) { "$($t.title) (framework, informational)" } else { $t.title }
 
             New-TcpkFinding -Module 'static' -RuleId "deser.$($t.token.ToLowerInvariant())" `
