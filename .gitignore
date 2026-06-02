@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# TCPK .gitignore -- keep audit outputs and target apps OUT of the repo.
+# Audit outputs can contain REAL secrets extracted from a target. Never commit.
+# ---------------------------------------------------------------------------
+
+# Audit output folders + artifacts (may contain real findings/secrets)
+out/
+**/out/
+**/report.xlsx
+**/findings.json
+**/attack-surface.json
+**/sbom.cdx.json
+**/strings.json
+**/exploits.json
+**/profile.json
+**/run.jsonl
+
+# Target applications / extracted packages / binaries under test
+*.msix
+*.appx
+*.msixbundle
+*.appxbundle
+WindowsApps/
+
+# Crash / memory dumps and fuzzing output
+*.dmp
+tcpk-fuzz/
+
+# Scratch + temp work dirs
+_smoke*/
+_audit*/
+_logotest*/
+_sbom*/
+_extracted*/
+*.tmp
+
+# OS / editor noise
+Thumbs.db
+.DS_Store
+*.swp
+.vs/
+.vscode/
+
+# Local LLM config may hold an API key - never commit
+**/llm-config.json
