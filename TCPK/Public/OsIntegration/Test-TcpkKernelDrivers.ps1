@@ -24,7 +24,7 @@ function Test-TcpkKernelDrivers {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Path,
-        [string]$NameLike
+        [string[]]$NameLike
     )
 
     if (-not (Assert-TcpkWindows 'Test-TcpkKernelDrivers')) { return }
@@ -54,10 +54,11 @@ function Test-TcpkKernelDrivers {
     }
 
     # 2) installed kernel driver services matching the vendor
-    if ($NameLike) {
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
+    if ($terms.Count) {
         $svcRoot = 'HKLM:\SYSTEM\CurrentControlSet\Services'
         $svcKeys = Get-ChildItem -Path $svcRoot -ErrorAction SilentlyContinue |
-            Where-Object { $_.PSChildName -like "*$NameLike*" }
+            Where-Object { Test-TcpkTermMatch -Text $_.PSChildName -Terms $terms }
         foreach ($k in $svcKeys) {
             $props = $null
             try { $props = Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction Stop } catch { continue }

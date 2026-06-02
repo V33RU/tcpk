@@ -17,13 +17,13 @@ function Test-TcpkMailslotsAlpc {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$NameLike)
+    param([string[]]$NameLike = @())
 
     if (-not (Assert-TcpkWindows 'Test-TcpkMailslotsAlpc')) { return }
 
     try {
         $slots = Get-ChildItem '\\.\mailslot\' -ErrorAction Stop
-        $matched = $slots | Where-Object { $_.Name -like "*$NameLike*" }
+        $matched = $slots | Where-Object { Test-TcpkNameInclude -Text $_.Name -Terms $NameLike }
         foreach ($s in $matched) {
             New-TcpkFinding -Module 'runtime' -RuleId 'mailslot.exists' `
                 -Severity 'INFO' -Confidence 'Confirmed' `

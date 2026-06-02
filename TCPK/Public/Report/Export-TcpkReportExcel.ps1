@@ -98,6 +98,8 @@ function Export-TcpkReportExcel {
                 "$($f.Evidence)",
                 "$(if ($f.Cwe) { ($f.Cwe -join ', ') } else { '' })",
                 "$(Get-TcpkAttackText $f.RuleId)",
+                "$(Get-TcpkTasvsText $f.RuleId)",
+                "$(Get-TcpkImpactText $f)",
                 "$($f.Fix)",
                 "$(Get-TcpkVerifyHint -RuleId $f.RuleId -File $f.File -Evidence $f.Evidence)"
             )
@@ -111,7 +113,7 @@ function Export-TcpkReportExcel {
 
         $sheets = @(
             [ordered]@{ Name = 'Summary'; Headers = @('Metric','Value'); Rows = $sumRows; Widths = @(26, 90) }
-            [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS','Module','Rule','Title','File','Evidence','CWE','ATT&CK','Fix','Verify (manual)'); Rows = @($findRows) }
+            [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS / Desktop Top 10','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
             [ordered]@{ Name = 'DLL Hardening'; Headers = @('DLL','Arch','ASLR','DEP','CFG','HighEntropyVA','SafeSEH','ForceIntegrity','Status','Missing','Flags'); Rows = @($hwRows) }
         )
 

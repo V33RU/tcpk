@@ -20,12 +20,15 @@ function Test-TcpkWmiPersistence {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$NameLike)
+    param([string[]]$NameLike)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkWmiPersistence')) { return }
 
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
+    if (-not $terms.Count) { return }
+
     $ns = 'root/subscription'
-    function _match($s) { return ("$s" -match [regex]::Escape($NameLike)) }
+    function _match($s) { return (Test-TcpkTermMatch -Text "$s" -Terms $terms) }
 
     # Consumers (the code-execution end)
     foreach ($cls in 'CommandLineEventConsumer','ActiveScriptEventConsumer') {

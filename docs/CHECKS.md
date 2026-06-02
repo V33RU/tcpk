@@ -17,8 +17,10 @@ Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 - **Test-TcpkEmbeddedScripts** - A20. Embedded script files shipped in the package.
 - **Test-TcpkEndpoints** - A09 -- URL extraction + dev / qe / staging classifier.
 - **Test-TcpkEntropySecrets** - A12. Entropy-based secret detection in text / config / source files.
+- **Test-TcpkJavaBundle** - A35. Crack shipped Java archives (jar/war/ear) and scan entries for secrets + insecure-TLS markers.
 - **Test-TcpkJwt** - A14. Embedded JSON Web Token (JWT) discovery + weakness analysis.
 - **Test-TcpkNativeInterop** - A18. Native interop -- unsafe Marshal / pointer patterns.
+- **Test-TcpkPackageManifests** - A34. CVE check for non-deps.json manifests (packages.config / *.csproj PackageReference / pom.xml / package.json / lockfiles) vs the offline catalog.
 - **Test-TcpkPacker** - A22. Packer / obfuscator detection -- and the inverse: source-recoverable
 - **Test-TcpkPeExports** - A04. PE export surface enumeration (for proxy-DLL planning).
 - **Test-TcpkPeImports** - A03 -- Phantom DLL imports (DLL hijack candidates).
@@ -27,6 +29,7 @@ Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 - **Test-TcpkReflectionLoading** - A16. Dynamic code loading via reflection.
 - **Test-TcpkResources** - A07. Embedded resource audit.
 - **Test-TcpkSecrets** - A08 -- Hardcoded-secret scan (regex rules over UTF-8 + UTF-16LE views).
+- **Test-TcpkSessionHandling** - A33. Session-handling hygiene (cookie HttpOnly/Secure/SameSite, token in URL, weak token generation, expiry) over shipped config / scripts / PE strings.
 - **Test-TcpkSignature** - A01. Authenticode chain validation.
 - **Test-TcpkStrings** - A06. Strings extraction with summary classification.
 - **Test-TcpkStrongName** - A05. .NET assembly strong-name presence check.
@@ -51,7 +54,11 @@ Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 
 ## C - OS integration  (23)
 
+- **Expand-TcpkAsar** - Parse an Electron app.asar file-table, extract each module to disk, and scan the extracted JS/config for secrets + insecure Electron flags.
+- **Get-TcpkTasvsMap** - Map findings / rule IDs to OWASP TASVS controls and the OWASP Desktop App Security Top 10 (report-time lookup; pipe findings, pass -RuleId, or dump the table).
+- **Compare-TcpkFileSnapshot** - C19b. Diff two file-system snapshots -- files the app created/modified/deleted at runtime (exec drops HIGH).
 - **Compare-TcpkRegistrySnapshot** - C18b. Diff two registry snapshots (Regshot-style) -- what the app changed.
+- **Save-TcpkFileSnapshot** - C19a. Regshot-style file-system snapshot (path/size/mtime/SHA-256) for before/after diffing.
 - **Save-TcpkRegistrySnapshot** - C18a. Regshot-style registry snapshot (before/after the app runs).
 - **Test-TcpkAppPaths** - C10. App Paths registry entries.
 - **Test-TcpkAutoStart** - C04. Autostart entries (Run / RunOnce keys + scheduled tasks).
@@ -115,6 +122,7 @@ Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 - **Test-TcpkDnsLeakage** - F05. DNS pre-resolution / hostname leakage indicators.
 - **Test-TcpkInsecureSchemes** - F07. Cleartext network scheme references (http:// and ws://).
 - **Test-TcpkSelfHostedServer** - F07. Self-hosted HTTP/web-server surface detection.
+- **Test-TcpkTlsHandshake** - F09. ACTIVE (gated) per-version TLS handshake probe to backends + cert-validity result; flags negotiable SSL3/TLS1.0/1.1.
 - **Test-TcpkTlsPinning** - F01. TLS certificate pinning detection.
 - **Test-TcpkTlsProtocols** - F04. TLS protocol version markers (1.0 / 1.1 fallback?).
 - **Test-TcpkUpdateFlow** - F02. Update mechanism: signed manifest? signed payload? downgrade defense?

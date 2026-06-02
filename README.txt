@@ -100,7 +100,7 @@ TROUBLESHOOTING
 COVERAGE
 --------
 
-151 cmdlets across buckets A to L. See docs\CHECKS.md for the full list of
+159 cmdlets across buckets A to L. See docs\CHECKS.md for the full list of
 every check and which bucket it lives in (run Get-TcpkInfo for live counts).
 
   A Static binary   B MSIX manifest   C OS integration   D Credentials
@@ -117,5 +117,6 @@ read-only live tools (memory/env secret scan, process DACL) need no gate.
 VERSION
 -------
 
-  TCPK v0.2.0, June 2026. 151 cmdlets; HTML + Excel
-  reports with CVSS, MITRE ATT&CK, SBOM and an attack-surface map.
+  TCPK v0.2.0, June 2026. 159 cmdlets; HTML + Excel
+  reports with CVSS v4.0, MITRE ATT&CK, OWASP TASVS / Desktop Top 10,
+  SBOM and an attack-surface map.

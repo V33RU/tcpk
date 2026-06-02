@@ -52,6 +52,20 @@ function Test-TcpkLogFiles {
                     -Description 'Plain text logs containing credentials, tokens, or session material are a direct credential exposure to anyone reading the log.' `
                     -Fix 'Redact sensitive fields before logging. Centralize logging through a helper that strips known patterns.'
             }
+
+            # Stack-trace / unhandled-exception leakage: exposes internal types,
+            # file paths, and line numbers (info disclosure; aids exploitation).
+            $stMatch = [regex]::Match($head, '(?im)(^\s*at\s+[\w\.<>`+]+\([^\r\n]*\)\s*$|--- End of (inner )?stack trace|\.cs:line\s+\d+|System\.[\w\.]+Exception\b|Traceback \(most recent call last\)|\bat [\w\.$]+\([\w\. ,]*\) in .+:\d+)')
+            if ($stMatch.Success) {
+                $ev = $stMatch.Value.Trim(); if ($ev.Length -gt 120) { $ev = $ev.Substring(0,120) + ' ...' }
+                New-TcpkFinding -Module 'logging' -RuleId 'log.stack-trace' `
+                    -Severity 'MEDIUM' -Confidence 'Inferred' `
+                    -Title "Stack trace / exception detail in $($f.Name)" `
+                    -File $f.FullName -Evidence $ev `
+                    -Cwe @('CWE-209','CWE-497') `
+                    -Description 'The log contains stack traces / exception detail (internal namespaces, source file paths, line numbers). In a production build this is information disclosure that maps the codebase and aids exploitation.' `
+                    -Fix 'Disable verbose/stack-trace logging in release builds; log a correlation id instead and keep full detail server-side only.'
+            }
         } catch { }
     }
 }

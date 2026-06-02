@@ -26,11 +26,12 @@ function Test-TcpkTrustStore {
 #>
     [CmdletBinding()]
     param(
-        [string]$NameLike = '',
+        [string[]]$NameLike = @(),
         [string]$Path
     )
 
     if (-not (Assert-TcpkWindows 'Test-TcpkTrustStore')) { return }
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
     # thumbprints of certs shipped inside the package (strongest attribution)
     $shipped = @{}
@@ -60,10 +61,10 @@ function Test-TcpkTrustStore {
             $subj = "$($c.Subject)"
             $iss  = "$($c.Issuer)"
             $byThumbprint = $shipped.ContainsKey($c.Thumbprint)
-            $byName = $NameLike -and ($subj -like "*$NameLike*" -or $iss -like "*$NameLike*")
+            $byName = ($terms.Count -gt 0) -and ((Test-TcpkTermMatch -Text $subj -Terms $terms) -or (Test-TcpkTermMatch -Text $iss -Terms $terms))
             if (-not ($byThumbprint -or $byName)) { continue }
 
-            $why = if ($byThumbprint) { "thumbprint matches shipped file '$($shipped[$c.Thumbprint])'" } else { "subject/issuer matches '$NameLike'" }
+            $why = if ($byThumbprint) { "thumbprint matches shipped file '$($shipped[$c.Thumbprint])'" } else { "subject/issuer matches an identity term ($($terms -join ', '))" }
             $conf = if ($byThumbprint) { 'Confirmed' } else { 'Inferred' }
             $sev = if ($byThumbprint -and $st.Kind -like 'Trusted Root*') { 'HIGH' } else { $st.Sev }
 

@@ -40,7 +40,16 @@ function Test-TcpkTlsBypass {
            Title='Custom TLS validation callback present (verify body)' },
         @{ Rx='WINHTTP_OPTION_DISABLE_FEATURE.*WINHTTP_DISABLE_PASSPORT_AUTH'
            Sev='LOW'; Conf='Confirmed'
-           Title='WinHttp feature disable (audit context)' }
+           Title='WinHttp feature disable (audit context)' },
+        @{ Rx='(AllowAllHostnameVerifier|ALLOW_ALL_HOSTNAME_VERIFIER|NullHostnameVerifier|setHostnameVerifier)'
+           Sev='CRITICAL'; Conf='Inferred'; Cwe=@('CWE-297')
+           Title='All-hosts HostnameVerifier (TLS hostname check disabled)' },
+        @{ Rx='HostnameVerifier[^;{]{0,60}(=>|->)\s*true'
+           Sev='CRITICAL'; Conf='Inferred'; Cwe=@('CWE-297')
+           Title='HostnameVerifier returns true unconditionally (hostname check bypassed)' },
+        @{ Rx='(X509CertificateValidationMode\s*\.?\s*None|CertificateValidationMode\s*=\s*"?None|CheckCertificateName\s*=\s*false)'
+           Sev='HIGH'; Conf='Inferred'; Cwe=@('CWE-297','CWE-295')
+           Title='Certificate name / validation mode disabled (WCF / WinRT)' }
     )
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
@@ -57,11 +66,12 @@ function Test-TcpkTlsBypass {
             if ($seenIds.ContainsKey($id)) { continue }
             $seenIds[$id] = $true
 
+            $cwe = if ($p.Cwe) { $p.Cwe } else { @('CWE-295') }
             New-TcpkFinding -Module 'static' -RuleId "tls-bypass.$id" `
                 -Severity $p.Sev -Confidence $p.Conf `
                 -Title "$($p.Title) in $($pe.Name)" `
                 -File $pe.FullName -Evidence $m.Value `
-                -Cwe @('CWE-295') `
+                -Cwe $cwe `
                 -Fix 'Remove the override or replace with proper chain + hostname validation (and pin cert thumbprint if appropriate).'
         }
     }

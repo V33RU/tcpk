@@ -19,11 +19,22 @@ function Test-TcpkPacker {
 .PARAMETER Path
     File or directory.
 
+.PARAMETER Unpack
+    Opt-in: when a UPX-packed binary is found and upx.exe is on PATH, auto-unpack a
+    COPY (upx -d) to %TEMP% and report the path so the static checks can run on the
+    real code. Only UPX is auto-reversible; commercial protectors (Themida/VMProtect)
+    require a dynamic unpacker and are never touched.
+
 .OUTPUTS
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Path)
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [switch]$Unpack
+    )
+
+    $upxExe = if ($Unpack) { (Get-Command upx -ErrorAction SilentlyContinue).Source } else { $null }
 
     # packer / protector section-name signatures
     $packerSecs = @{
@@ -61,12 +72,42 @@ function Test-TcpkPacker {
         foreach ($sn in $info.SectionNames) {
             $key = $packerSecs.Keys | Where-Object { $sn -ieq $_ -or $sn -like "$_*" } | Select-Object -First 1
             if ($key) {
+                $packerName = $packerSecs[$key]
                 New-TcpkFinding -Module 'static' -RuleId 'packer.detected' `
                     -Severity 'MEDIUM' -Confidence 'Confirmed' `
-                    -Title "$($pe.Name) is packed/protected ($($packerSecs[$key]))" `
+                    -Title "$($pe.Name) is packed/protected ($packerName)" `
                     -File $pe.FullName -Evidence "section '$sn'" -Cwe @('CWE-656') `
                     -Description "A packer/protector section was found. Packing hides code from static analysis and is sometimes used to evade AV; confirm it is intentional (commercial protector) and unpack to audit the real code." `
                     -Fix 'If this is your own product, ensure the protector is a known commercial one and document it; otherwise treat as suspicious.'
+
+                if ($Unpack -and $packerName -eq 'UPX') {
+                    if (-not $upxExe) {
+                        New-TcpkFinding -Module 'static' -RuleId 'packer.unpack-skipped' `
+                            -Severity 'INFO' -Confidence 'Skipped' `
+                            -Title "Cannot auto-unpack $($pe.Name): upx.exe not on PATH" `
+                            -File $pe.FullName -Evidence 'install UPX and re-run with -Unpack' `
+                            -Description 'UPX was detected but the upx tool is not available to reverse it.'
+                    } else {
+                        $dest = Join-Path $env:TEMP ('tcpk-unpacked-' + [guid]::NewGuid().ToString('N') + '-' + $pe.Name)
+                        try {
+                            Copy-Item -LiteralPath $pe.FullName -Destination $dest -Force
+                            & $upxExe -d -q $dest 2>$null | Out-Null
+                            if ($LASTEXITCODE -eq 0) {
+                                New-TcpkFinding -Module 'static' -RuleId 'packer.unpacked' `
+                                    -Severity 'INFO' -Confidence 'Confirmed' `
+                                    -Title "Unpacked $($pe.Name) (UPX) for analysis" `
+                                    -File $dest -Evidence 'upx -d succeeded' `
+                                    -Description 'A UPX-unpacked copy was written. Re-run the static checks (secrets/strings/callsites/PE) against this path to audit the real code.'
+                            } else {
+                                New-TcpkFinding -Module 'static' -RuleId 'packer.unpack-failed' `
+                                    -Severity 'INFO' -Confidence 'Skipped' `
+                                    -Title "UPX unpack failed for $($pe.Name)" `
+                                    -File $pe.FullName -Evidence "upx exit $LASTEXITCODE (may be a modified/secondary-packed UPX)"
+                                Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
+                            }
+                        } catch { }
+                    }
+                }
                 break
             }
         }

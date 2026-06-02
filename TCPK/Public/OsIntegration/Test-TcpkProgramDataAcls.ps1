@@ -21,16 +21,19 @@ function Test-TcpkProgramDataAcls {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$NameLike)
+    param([string[]]$NameLike)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkProgramDataAcls')) { return }
+
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
+    if (-not $terms.Count) { return }
 
     $bases = @($env:ProgramData, (Join-Path $env:SystemDrive 'Users\Public')) | Where-Object { $_ -and (Test-Path $_) }
     $userPrincipals = '(?i)\b(Everyone|Authenticated Users|BUILTIN\\Users|\\Users$|^Users$|INTERACTIVE)\b'
 
     foreach ($base in $bases) {
         $dirs = Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "*$NameLike*" }
+            Where-Object { Test-TcpkTermMatch -Text $_.Name -Terms $terms }
         foreach ($d in $dirs) {
             $acl = $null
             try { $acl = Get-Acl -LiteralPath $d.FullName -ErrorAction Stop } catch { continue }

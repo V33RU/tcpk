@@ -15,9 +15,12 @@ function Test-TcpkNamedPipes {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$NameLike)
+    param([string[]]$NameLike)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkNamedPipes')) { return }
+
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
+    if (-not $terms.Count) { return }
 
     try {
         $pipes = Get-ChildItem '\\.\pipe\' -ErrorAction Stop
@@ -27,9 +30,8 @@ function Test-TcpkNamedPipes {
         return
     }
 
-    $escName = [regex]::Escape($NameLike)
     foreach ($pipe in $pipes) {
-        if ($pipe.Name -notmatch $escName) { continue }
+        if (-not (Test-TcpkTermMatch -Text $pipe.Name -Terms $terms)) { continue }
         New-TcpkFinding -Module 'runtime' -RuleId 'pipe.exists' `
             -Severity 'INFO' -Confidence 'Confirmed' `
             -Title "Named pipe present: $($pipe.Name)" `

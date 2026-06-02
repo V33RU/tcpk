@@ -337,10 +337,14 @@ $($ruleRows -join "`n")
                 $kv = New-Object 'System.Collections.Generic.List[string]'
                 if ($file) { $kv.Add("<tr><th>File</th><td><code>$file</code></td></tr>") }
                 if ($evid) { $kv.Add("<tr><th>Evidence</th><td><code>$evid</code></td></tr>") }
-                $kv.Add("<tr><th>CVSS</th><td>$(ConvertTo-TcpkHtmlSafe (Get-TcpkCvssBand $f.Severity))</td></tr>")
+                $kv.Add("<tr><th>CVSS v4.0</th><td>$(ConvertTo-TcpkHtmlSafe (Get-TcpkCvssBand $f.Severity))</td></tr>")
                 if ($cwe)  { $kv.Add("<tr><th>CWE</th><td>$cwe</td></tr>") }
                 $attack = ConvertTo-TcpkHtmlSafe (Get-TcpkAttackText $f.RuleId)
                 if ($attack) { $kv.Add("<tr><th>ATT&amp;CK</th><td>$attack</td></tr>") }
+                $tasvs = ConvertTo-TcpkHtmlSafe (Get-TcpkTasvsText $f.RuleId)
+                if ($tasvs) { $kv.Add("<tr><th>OWASP TASVS / Desktop Top 10</th><td>$tasvs</td></tr>") }
+                $impact = ConvertTo-TcpkHtmlSafe (Get-TcpkImpactText $f)
+                if ($impact) { $kv.Add("<tr><th>Impact</th><td>$impact</td></tr>") }
                 if ($desc) { $kv.Add("<tr><th>Description</th><td>$desc</td></tr>") }
                 if ($fix)  { $kv.Add("<tr><th>Fix</th><td>$fix</td></tr>") }
                 $verify = ConvertTo-TcpkHtmlSafe (Get-TcpkVerifyHint -RuleId $f.RuleId -File $f.File -Evidence $f.Evidence)

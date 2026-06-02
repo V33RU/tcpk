@@ -15,9 +15,11 @@ function Test-TcpkShimCache {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$NameLike = '*')
+    param([string[]]$NameLike = @())
 
     if (-not (Assert-TcpkWindows 'Test-TcpkShimCache')) { return }
+
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
     $keys = @(
         'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Custom',
@@ -30,7 +32,7 @@ function Test-TcpkShimCache {
             if (-not $props) { continue }
             foreach ($p in $props.PSObject.Properties) {
                 if ($p.Name.StartsWith('PS')) { continue }
-                if ($NameLike -ne '*' -and $p.Name -notlike "*$NameLike*" -and "$($p.Value)" -notlike "*$NameLike*") { continue }
+                if ($terms.Count -and -not ((Test-TcpkTermMatch -Text $p.Name -Terms $terms) -or (Test-TcpkTermMatch -Text "$($p.Value)" -Terms $terms))) { continue }
                 New-TcpkFinding -Module 'os' -RuleId 'shim.applied' `
                     -Severity 'INFO' -Confidence 'Confirmed' `
                     -Title "AppCompat shim entry: $($p.Name)" `

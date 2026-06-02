@@ -17,9 +17,11 @@ function Test-TcpkServiceBinaryAcl {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$NameLike = '*')
+    param([string[]]$NameLike = @())
 
     if (-not (Assert-TcpkWindows 'Test-TcpkServiceBinaryAcl')) { return }
+
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
     $riskyId    = '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE|BUILTIN\\Users)\b'
     $riskyRights = 'Write|Modify|FullControl|WriteData|CreateFiles|AppendData|ChangePermissions|TakeOwnership'
@@ -66,10 +68,10 @@ function Test-TcpkServiceBinaryAcl {
     try {
         $svcs = Get-CimInstance Win32_Service -ErrorAction Stop
         foreach ($s in $svcs) {
-            if ($NameLike -ne '*' -and
-                $s.Name -notlike "*$NameLike*" -and
-                $s.DisplayName -notlike "*$NameLike*" -and
-                "$($s.PathName)" -notlike "*$NameLike*") { continue }
+            if ($terms.Count -and -not (
+                    (Test-TcpkTermMatch -Text $s.Name -Terms $terms) -or
+                    (Test-TcpkTermMatch -Text $s.DisplayName -Terms $terms) -or
+                    (Test-TcpkTermMatch -Text "$($s.PathName)" -Terms $terms))) { continue }
             $exe = _ExePath $s.PathName
             if ($exe) { _CheckFileAcl $exe "Service '$($s.Name)'" 'servicebin.user-writable' }
         }
@@ -83,7 +85,7 @@ function Test-TcpkServiceBinaryAcl {
             $tn = "$($row.TaskName)"
             $run = "$($row.'Task To Run')"
             if (-not $run) { continue }
-            if ($NameLike -ne '*' -and $tn -notlike "*$NameLike*" -and $run -notlike "*$NameLike*") { continue }
+            if ($terms.Count -and -not ((Test-TcpkTermMatch -Text $tn -Terms $terms) -or (Test-TcpkTermMatch -Text $run -Terms $terms))) { continue }
             $exe = _ExePath $run
             if (-not $exe) { continue }
             if ($seen.ContainsKey($exe)) { continue }

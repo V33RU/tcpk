@@ -23,15 +23,16 @@ function Test-TcpkLocalDb {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Path,
-        [string]$NameLike
+        [string[]]$NameLike
     )
 
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
     $dirs = New-Object 'System.Collections.Generic.List[string]'
     $dirs.Add($Path)
-    if ($NameLike) {
-        foreach ($base in @($env:LOCALAPPDATA, $env:APPDATA, $env:ProgramData)) {
+    if ($terms.Count) {
+        foreach ($base in @($env:LOCALAPPDATA, $env:APPDATA, $env:ProgramData, $env:TEMP)) {
             if ($base -and (Test-Path $base)) {
-                foreach ($d in (Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*$NameLike*" })) {
+                foreach ($d in (Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue | Where-Object { Test-TcpkTermMatch -Text $_.Name -Terms $terms })) {
                     $dirs.Add($d.FullName)
                 }
             }

@@ -15,12 +15,12 @@ function Test-TcpkUnquotedServicePath {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$NameLike = '*')
+    param([string[]]$NameLike = @())
 
     if (-not (Assert-TcpkWindows 'Test-TcpkUnquotedServicePath')) { return }
 
     $svcs = Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object {
-        $_.Name -like $NameLike -and
+        (Test-TcpkNameInclude -Text $_.Name -Terms $NameLike) -and
         $_.PathName -match ' ' -and
         $_.PathName -notmatch '^"' -and
         $_.PathName -notmatch '^[A-Za-z]:\\[^ ]+\.exe$'

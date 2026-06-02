@@ -78,6 +78,12 @@ function Invoke-TcpkAudit {
     # Expand MSIX if needed
     $expanded = try { Expand-TcpkMsix -Path $Target } catch { $Target }
 
+    # --- application-identity search terms (drives the OS / registry bucket) ---
+    # Apps store data under product codes, CLSIDs, ProgIDs and brand names that
+    # differ from the package name, so we search for a SET of terms derived from
+    # the app's own identity (manifest + main exe), not just a hand-typed -PackageName.
+    $idTerms = @(Get-TcpkIdentityTerms -Path $expanded -Extra $PackageName)
+
     # --- collected findings ---
     $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
 
@@ -114,6 +120,10 @@ function Invoke-TcpkAudit {
     Clear-TcpkRunLog
     Clear-TcpkTextCache
     Write-TcpkLog -Level INFO -Component 'audit' -Message "Audit start: $Target" | Out-Null
+    if ($idTerms.Count) {
+        Write-Information -MessageData ("Identity search terms ({0}): {1}" -f $idTerms.Count, ($idTerms -join ', ')) -InformationAction Continue
+        Write-TcpkLog -Level INFO -Component 'audit.identity' -Message ("terms: " + ($idTerms -join ', ')) | Out-Null
+    }
 
     # Stopwatch for scan timing (recorded into the report scope footer)
     $auditSw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -138,6 +148,8 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkPInvokeSurface'      { Test-TcpkPInvokeSurface      -Path $expanded }
     _RunCheck 'Test-TcpkNativeInterop'       { Test-TcpkNativeInterop       -Path $expanded }
     _RunCheck 'Test-TcpkDependencyCves'      { Test-TcpkDependencyCves      -Path $expanded }
+    _RunCheck 'Test-TcpkPackageManifests'    { Test-TcpkPackageManifests    -Path $expanded }
+    _RunCheck 'Test-TcpkJavaBundle'          { Test-TcpkJavaBundle          -Path $expanded }
     _RunCheck 'Test-TcpkEmbeddedScripts'     { Test-TcpkEmbeddedScripts     -Path $expanded }
     _RunCheck 'Test-TcpkWebViewNavTargets'   { Test-TcpkWebViewNavTargets   -Path $expanded }
     _RunCheck 'Test-TcpkNamedObjects'        { Test-TcpkNamedObjects        -Path $expanded }
@@ -149,6 +161,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkEntropySecrets'      { Test-TcpkEntropySecrets      -Path $expanded }
     _RunCheck 'Test-TcpkCryptoMisuse'        { Test-TcpkCryptoMisuse        -Path $expanded }
     _RunCheck 'Test-TcpkJwt'                 { Test-TcpkJwt                 -Path $expanded }
+    _RunCheck 'Test-TcpkSessionHandling'     { Test-TcpkSessionHandling     -Path $expanded }
     _RunCheck 'Test-TcpkZipSlip'             { Test-TcpkZipSlip             -Path $expanded }
     _RunCheck 'Test-TcpkDebugFlags'          { Test-TcpkDebugFlags          -Path $expanded }
 
@@ -168,26 +181,28 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkInstallDirAcl'       { Test-TcpkInstallDirAcl       -Path $expanded }
     _RunCheck 'Test-TcpkFolderAcls'          { Test-TcpkFolderAcls          -Path $expanded }
     _RunCheck 'Test-TcpkSxsManifests'        { Test-TcpkSxsManifests        -Path $expanded }
-    _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $PackageName }
-    _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $PackageName -Path $expanded }
-    # PackageName-targeted (only if supplied)
-    if ($PackageName) {
-        _RunCheck 'Test-TcpkFirewallRules'       { Test-TcpkFirewallRules       -NameLike $PackageName -Path $expanded }
-        _RunCheck 'Test-TcpkAvExclusions'        { Test-TcpkAvExclusions        -NameLike $PackageName -Path $expanded }
-        _RunCheck 'Test-TcpkServiceBinaryAcl'    { Test-TcpkServiceBinaryAcl    -NameLike $PackageName }
-        _RunCheck 'Test-TcpkServicePermissions'  { Test-TcpkServicePermissions  -NameLike $PackageName }
-        _RunCheck 'Test-TcpkUnquotedServicePath' { Test-TcpkUnquotedServicePath -NameLike "*$PackageName*" }
-        _RunCheck 'Test-TcpkAutoStart'           { Test-TcpkAutoStart           -NameLike $PackageName }
-        _RunCheck 'Test-TcpkRegistryFootprint'   { Test-TcpkRegistryFootprint   -NameLike $PackageName }
-        _RunCheck 'Test-TcpkRegistryAcl'         { Test-TcpkRegistryAcl         -NameLike $PackageName }
-        _RunCheck 'Test-TcpkRegistryValues'      { Test-TcpkRegistryValues      -NameLike $PackageName }
-        _RunCheck 'Test-TcpkProgramDataAcls'     { Test-TcpkProgramDataAcls     -NameLike $PackageName }
-        _RunCheck 'Test-TcpkScheduledTaskAcl'    { Test-TcpkScheduledTaskAcl    -NameLike $PackageName }
-        _RunCheck 'Test-TcpkWmiPersistence'      { Test-TcpkWmiPersistence      -NameLike $PackageName }
-        _RunCheck 'Test-TcpkProtocolHandlers'    { Test-TcpkProtocolHandlers    -NameLike $PackageName }
-        _RunCheck 'Test-TcpkShimCache'           { Test-TcpkShimCache           -NameLike $PackageName }
-        _RunCheck 'Test-TcpkAppPaths'            { Test-TcpkAppPaths            -NameLike $PackageName }
-        _RunCheck 'Test-TcpkIfeoHijack'          { Test-TcpkIfeoHijack          -NameLike $PackageName }
+    _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
+    _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $idTerms -Path $expanded }
+    # All name-targeted checks are app-aware: they take the FULL derived term set so
+    # they find data keyed by product code / CLSID / brand name / vendor, not just one
+    # hand-typed package name. They run whenever any term was derived (or supplied).
+    if ($idTerms.Count) {
+        _RunCheck 'Test-TcpkRegistryFootprint'   { Test-TcpkRegistryFootprint   -NameLike $idTerms }
+        _RunCheck 'Test-TcpkRegistryAcl'         { Test-TcpkRegistryAcl         -NameLike $idTerms }
+        _RunCheck 'Test-TcpkRegistryValues'      { Test-TcpkRegistryValues      -NameLike $idTerms }
+        _RunCheck 'Test-TcpkFirewallRules'       { Test-TcpkFirewallRules       -NameLike $idTerms -Path $expanded }
+        _RunCheck 'Test-TcpkAvExclusions'        { Test-TcpkAvExclusions        -NameLike $idTerms -Path $expanded }
+        _RunCheck 'Test-TcpkServiceBinaryAcl'    { Test-TcpkServiceBinaryAcl    -NameLike $idTerms }
+        _RunCheck 'Test-TcpkServicePermissions'  { Test-TcpkServicePermissions  -NameLike $idTerms }
+        _RunCheck 'Test-TcpkUnquotedServicePath' { Test-TcpkUnquotedServicePath -NameLike $idTerms }
+        _RunCheck 'Test-TcpkAutoStart'           { Test-TcpkAutoStart           -NameLike $idTerms }
+        _RunCheck 'Test-TcpkProgramDataAcls'     { Test-TcpkProgramDataAcls     -NameLike $idTerms }
+        _RunCheck 'Test-TcpkScheduledTaskAcl'    { Test-TcpkScheduledTaskAcl    -NameLike $idTerms }
+        _RunCheck 'Test-TcpkWmiPersistence'      { Test-TcpkWmiPersistence      -NameLike $idTerms }
+        _RunCheck 'Test-TcpkProtocolHandlers'    { Test-TcpkProtocolHandlers    -NameLike $idTerms }
+        _RunCheck 'Test-TcpkShimCache'           { Test-TcpkShimCache           -NameLike $idTerms }
+        _RunCheck 'Test-TcpkAppPaths'            { Test-TcpkAppPaths            -NameLike $idTerms }
+        _RunCheck 'Test-TcpkIfeoHijack'          { Test-TcpkIfeoHijack          -NameLike $idTerms }
     }
 
     # ----- Bucket D (credential storage, 6 cmdlets) -----
@@ -196,9 +211,9 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkAppConfigSecrets'    { Test-TcpkAppConfigSecrets    -Path $expanded }
     _RunCheck 'Test-TcpkTokenCaches'         { Test-TcpkTokenCaches         -Path $expanded }
     _RunCheck 'Test-TcpkKeyMaterial'         { Test-TcpkKeyMaterial         -Path $expanded }
-    _RunCheck 'Test-TcpkLocalDb'             { Test-TcpkLocalDb             -Path $expanded -NameLike $PackageName }
-    if ($PackageName) {
-        _RunCheck 'Test-TcpkCredentialManager'  { Test-TcpkCredentialManager  -NameLike $PackageName }
+    _RunCheck 'Test-TcpkLocalDb'             { Test-TcpkLocalDb             -Path $expanded -NameLike $idTerms }
+    if ($idTerms.Count) {
+        _RunCheck 'Test-TcpkCredentialManager'  { Test-TcpkCredentialManager  -NameLike $idTerms }
         # WebView2 creds need PackageFamilyName not Name; defer to user passing it
         if ($PSBoundParameters.ContainsKey('PackageFamilyName')) {
             _RunCheck 'Test-TcpkWebViewCreds'   { Test-TcpkWebViewCreds       -PackageFamilyName $PackageFamilyName }
@@ -219,11 +234,11 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkProcessDacl'             { Test-TcpkProcessDacl             -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkProcessEnvSecrets'       { Test-TcpkProcessEnvSecrets       -ProcessName $ProcessName }
     }
-    if ($PackageName) {
-        _RunCheck 'Test-TcpkNamedPipes'              { Test-TcpkNamedPipes              -NameLike $PackageName }
-        _RunCheck 'Test-TcpkNamedPipeDacl'           { Test-TcpkNamedPipeDacl           -NameLike $PackageName }
-        _RunCheck 'Test-TcpkComObjects'              { Test-TcpkComObjects              -NameLike $PackageName }
-        _RunCheck 'Test-TcpkMailslotsAlpc'           { Test-TcpkMailslotsAlpc           -NameLike $PackageName }
+    if ($idTerms.Count) {
+        _RunCheck 'Test-TcpkNamedPipes'              { Test-TcpkNamedPipes              -NameLike $idTerms }
+        _RunCheck 'Test-TcpkNamedPipeDacl'           { Test-TcpkNamedPipeDacl           -NameLike $idTerms }
+        _RunCheck 'Test-TcpkComObjects'              { Test-TcpkComObjects              -NameLike $idTerms }
+        _RunCheck 'Test-TcpkMailslotsAlpc'           { Test-TcpkMailslotsAlpc           -NameLike $idTerms }
     }
     # ETW and memory dump only when explicitly requested via -EnableDeepRuntime
     if ($EnableDeepRuntime -and $ProcessName) {

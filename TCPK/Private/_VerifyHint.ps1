@@ -112,6 +112,15 @@ function Get-TcpkVerifyHint {
                 -Note "this reads the file as UTF-16 (Unicode) text. If the secret is stored as plain ASCII, change ::Unicode to ::UTF8 and run it again. To dump EVERY readable string instead: strings.exe -u '$f'" `
                 -Tool "PowerShell built-in (alternative: Sysinternals strings.exe)"
         }
+        '^session\.' {
+            Format-TcpkVerifyHint `
+                -What "Re-checks how the app handles session cookies/tokens (HttpOnly/Secure/SameSite flags, token in URL, weak token generation, expiry) in the flagged file." `
+                -Run "Select-String -Path '$f' -Pattern 'HttpOnly|Secure|SameSite|cookieless|Guid\.NewGuid|new Random|sessionid=|access_token=|isPersistent|timeout' -AllMatches | Select-Object LineNumber,Line" `
+                -Vulnerable "a session cookie is set without HttpOnly/Secure, a token is carried in the URL, the session id is generated from Guid.NewGuid()/Random, or the session never expires." `
+                -Ok "session cookies set HttpOnly+Secure+SameSite, tokens travel in headers/secure cookies, and tokens come from a CSPRNG with a sane expiry." `
+                -Note "for compiled .NET, open the flagged method in a decompiler (ILSpy/dnSpy) to confirm the setting governs a real session; for the running app, inspect the actual Set-Cookie headers/tokens with Burp or Fiddler." `
+                -Tool "PowerShell + a .NET decompiler / intercepting proxy (Burp / Fiddler)"
+        }
         '^(callsites\.|tls-bypass\.|deser\.|xxe\.|webview2\.)' {
             Format-TcpkVerifyHint `
                 -What "Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler." `

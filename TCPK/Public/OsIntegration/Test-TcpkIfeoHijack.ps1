@@ -17,15 +17,17 @@ function Test-TcpkIfeoHijack {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$NameLike = '*')
+    param([string[]]$NameLike = @())
 
     if (-not (Assert-TcpkWindows 'Test-TcpkIfeoHijack')) { return }
+
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
     $ifeo = 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Image File Execution Options'
     if (-not (Test-Path $ifeo)) { return }
 
     foreach ($k in (Get-ChildItem $ifeo -ErrorAction SilentlyContinue)) {
-        if ($NameLike -ne '*' -and $k.PSChildName -notlike "*$NameLike*") { continue }
+        if ($terms.Count -and -not (Test-TcpkTermMatch -Text $k.PSChildName -Terms $terms)) { continue }
         $debugger = (Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).Debugger
         if (-not $debugger) { continue }
 

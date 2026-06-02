@@ -24,6 +24,7 @@ class TcpkFinding {
 
     # --- categorization + remediation ---
     [string[]] $Cwe        # CWE identifiers like 'CWE-798'
+    [string] $Impact       # optional business/technical impact sentence (else derived from Severity at report time)
     [string] $Fix          # one-line remediation suggestion
 
     # --- provenance ---

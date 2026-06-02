@@ -16,7 +16,7 @@ function Test-TcpkCredentialManager {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$NameLike)
+    param([string[]]$NameLike)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkCredentialManager')) { return }
 
@@ -26,7 +26,7 @@ function Test-TcpkCredentialManager {
     foreach ($line in $out) {
         if ($line -match 'Target:\s+(.+)') {
             $t = $matches[1].Trim()
-            if ($NameLike -and $t -notlike "*$NameLike*") { continue }
+            if (-not (Test-TcpkNameInclude -Text $t -Terms $NameLike)) { continue }
             New-TcpkFinding -Module 'creds' -RuleId 'credman.entry' `
                 -Severity 'INFO' -Confidence 'Confirmed' `
                 -Title "Credential Manager entry: $t" `

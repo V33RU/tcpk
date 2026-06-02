@@ -19,16 +19,19 @@ function Test-TcpkScheduledTaskAcl {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$NameLike)
+    param([string[]]$NameLike)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkScheduledTaskAcl')) { return }
+
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
+    if (-not $terms.Count) { return }
 
     $taskDir = Join-Path $env:SystemRoot 'System32\Tasks'
     if (-not (Test-Path $taskDir)) { return }
     $userPrincipals = '(?i)\b(Everyone|Authenticated Users|BUILTIN\\Users|\\Users$|^Users$|INTERACTIVE)\b'
 
     $files = Get-ChildItem -LiteralPath $taskDir -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -like "*$NameLike*" }
+        Where-Object { Test-TcpkTermMatch -Text $_.Name -Terms $terms }
 
     foreach ($f in $files) {
         # runs-as principal + action, from the task XML

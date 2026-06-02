@@ -4,35 +4,40 @@ function Test-TcpkRegistryAcl {
     C12. Weak DACL on the app's HKLM registry keys (privilege escalation).
 
 .DESCRIPTION
-    Surveys HKLM\Software (+ WOW6432Node) for keys matching the product/vendor
-    name and checks whether a standard user (Users / Authenticated Users /
-    Everyone / INTERACTIVE) holds SetValue / CreateSubKey / WriteKey / FullControl.
+    Surveys HKLM Software (+ WOW6432Node, + Classes) for keys matching the
+    product / vendor terms and checks whether a standard user (Users /
+    Authenticated Users / Everyone / INTERACTIVE) holds SetValue / CreateSubKey /
+    WriteKey / FullControl.
 
     If a privileged process (service, elevated app) later reads such a key to
     decide a path, command, or flag, a low-privileged user who can rewrite it
-    achieves privilege escalation.
+    achieves privilege escalation. Only machine-wide (HKLM) keys are checked --
+    HKCU is the user's own hive and not a privesc primitive.
 
 .PARAMETER NameLike
-    Substring to match against the key name (vendor or product).
+    One or more vendor / product / package search terms (substring, case-
+    insensitive). Pass the set from Get-TcpkIdentityTerms for app-aware coverage.
 
 .OUTPUTS
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$NameLike)
+    param([Parameter(Mandatory)][string[]]$NameLike)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkRegistryAcl')) { return }
 
-    $roots = @('HKLM:\SOFTWARE', 'HKLM:\SOFTWARE\WOW6432Node')
+    $terms = @($NameLike | Where-Object { $_ })
+    if (-not $terms.Count) { return }
+
     $riskyRights = 'SetValue|CreateSubKey|WriteKey|TakeOwnership|ChangePermissions|FullControl'
     $userPrincipals = '(?i)\b(Everyone|Authenticated Users|BUILTIN\\Users|^Users$|\\Users$|INTERACTIVE|NT AUTHORITY\\INTERACTIVE)\b'
 
-    foreach ($r in $roots) {
+    foreach ($r in (Get-TcpkRegistrySearchRoots -MachineOnly)) {
         if (-not (Test-Path $r)) { continue }
-        # PERF: don't enumerate the whole SOFTWARE tree. Find the vendor root key(s)
-        # at the top level (cheap), then recurse ONLY under those small subtrees.
+        # PERF: don't enumerate the whole tree. Match the vendor root key(s) at the
+        # top level (cheap), then recurse ONLY under those small subtrees.
         $vendorRoots = Get-ChildItem -Path $r -ErrorAction SilentlyContinue |
-            Where-Object { $_.PSChildName -like "*$NameLike*" }
+            Where-Object { Test-TcpkTermMatch -Text $_.PSChildName -Terms $terms }
         $keys = foreach ($vr in $vendorRoots) {
             $vr
             Get-ChildItem -Path $vr.PSPath -Recurse -Depth 3 -ErrorAction SilentlyContinue

@@ -15,12 +15,15 @@ function Test-TcpkServicePermissions {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$NameLike)
+    param([string[]]$NameLike)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkServicePermissions')) { return }
 
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
+    if (-not $terms.Count) { return }
+
     foreach ($s in (Get-CimInstance Win32_Service -ErrorAction SilentlyContinue |
-                    Where-Object { $_.Name -like "*$NameLike*" })) {
+                    Where-Object { Test-TcpkTermMatch -Text $_.Name -Terms $terms })) {
         $exe = ($s.PathName -split '"')[1]
         if (-not $exe) { $exe = ($s.PathName -split ' ')[0] }
         if ($exe -and (Test-Path -LiteralPath $exe)) {

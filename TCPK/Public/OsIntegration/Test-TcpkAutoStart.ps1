@@ -15,9 +15,11 @@ function Test-TcpkAutoStart {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$NameLike = '*')
+    param([string[]]$NameLike = @())
 
     if (-not (Assert-TcpkWindows 'Test-TcpkAutoStart')) { return }
+
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
     $keys = @(
         'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run',
@@ -31,12 +33,11 @@ function Test-TcpkAutoStart {
         if (-not $props) { continue }
         foreach ($p in $props.PSObject.Properties) {
             if ($p.Name.StartsWith('PS')) { continue }
-            if ($NameLike -eq '*' -or $p.Value -like "*$NameLike*" -or $p.Name -like "*$NameLike*") {
-                New-TcpkFinding -Module 'os' -RuleId 'autostart.run-key' `
-                    -Severity 'INFO' -Confidence 'Confirmed' `
-                    -Title "Autostart: $($p.Name) = $($p.Value)" `
-                    -File $k -Evidence $p.Value -Cwe @('CWE-426')
-            }
+            if ($terms.Count -and -not ((Test-TcpkTermMatch -Text "$($p.Value)" -Terms $terms) -or (Test-TcpkTermMatch -Text $p.Name -Terms $terms))) { continue }
+            New-TcpkFinding -Module 'os' -RuleId 'autostart.run-key' `
+                -Severity 'INFO' -Confidence 'Confirmed' `
+                -Title "Autostart: $($p.Name) = $($p.Value)" `
+                -File $k -Evidence $p.Value -Cwe @('CWE-426')
         }
     }
     # Use schtasks.exe rather than Get-ScheduledTask -- CIM-backed Get-ScheduledTask
@@ -48,7 +49,7 @@ function Test-TcpkAutoStart {
                 $cells = $line -split '","'
                 if ($cells.Count -lt 2) { continue }
                 $taskName = $cells[0].TrimStart('"')
-                if ($NameLike -ne '*' -and $taskName -notlike "*$NameLike*") { continue }
+                if ($terms.Count -and -not (Test-TcpkTermMatch -Text $taskName -Terms $terms)) { continue }
                 $task = $cells[1]
                 New-TcpkFinding -Module 'os' -RuleId 'autostart.scheduled-task' `
                     -Severity 'INFO' -Confidence 'Confirmed' `

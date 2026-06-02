@@ -16,26 +16,18 @@ function Test-TcpkProtocolHandlers {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$NameLike = '*')
+    param([string[]]$NameLike = @())
 
     if (-not (Assert-TcpkWindows 'Test-TcpkProtocolHandlers')) { return }
 
     $hkcr = 'Registry::HKEY_CLASSES_ROOT'
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
-    # Performance: if the caller supplied a specific NameLike, only check
-    # that key directly. Full HKCR enumeration takes minutes and is wasted
-    # work for a per-product audit.
-    if ($NameLike -ne '*') {
-        $directKey = Join-Path $hkcr $NameLike
-        if (-not (Test-Path -LiteralPath $directKey)) {
-            # Fall back to a substring scan but only across top-level keys, not their children.
-            $candidates = Get-ChildItem $hkcr -ErrorAction SilentlyContinue |
-                Where-Object { $_.PSChildName -like "*$NameLike*" }
-        } else {
-            $candidates = @(Get-Item -LiteralPath $directKey -ErrorAction SilentlyContinue)
-        }
-    } else {
-        $candidates = Get-ChildItem $hkcr -ErrorAction SilentlyContinue
+    # Performance: enumerate HKCR top-level once. When terms are supplied, restrict
+    # candidates to keys whose scheme name matches a term; otherwise survey all.
+    $candidates = Get-ChildItem $hkcr -ErrorAction SilentlyContinue
+    if ($terms.Count) {
+        $candidates = $candidates | Where-Object { Test-TcpkTermMatch -Text $_.PSChildName -Terms $terms }
     }
 
     foreach ($k in $candidates) {
@@ -45,7 +37,7 @@ function Test-TcpkProtocolHandlers {
         $cmdPath = Join-Path $k.PSPath 'shell\open\command'
         $cmd = (Get-ItemProperty -LiteralPath $cmdPath -ErrorAction SilentlyContinue).'(default)'
         if (-not $cmd) { continue }
-        if (-not ($NameLike -eq '*' -or $cmd -like "*$NameLike*" -or $scheme -like "*$NameLike*")) { continue }
+        if ($terms.Count -and -not ((Test-TcpkTermMatch -Text $cmd -Terms $terms) -or (Test-TcpkTermMatch -Text $scheme -Terms $terms))) { continue }
 
         $sev = if ($cmd -match '%1[^"]') { 'HIGH' } else { 'MEDIUM' }
         New-TcpkFinding -Module 'os' -RuleId 'protocol-handler' `

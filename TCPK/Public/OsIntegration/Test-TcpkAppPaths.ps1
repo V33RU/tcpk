@@ -16,9 +16,11 @@ function Test-TcpkAppPaths {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$NameLike = '*')
+    param([string[]]$NameLike = @())
 
     if (-not (Assert-TcpkWindows 'Test-TcpkAppPaths')) { return }
+
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
     $roots = @(
         'HKLM:\Software\Microsoft\Windows\CurrentVersion\App Paths',
@@ -28,7 +30,7 @@ function Test-TcpkAppPaths {
     foreach ($r in $roots) {
         if (-not (Test-Path $r)) { continue }
         foreach ($k in (Get-ChildItem $r -ErrorAction SilentlyContinue)) {
-            if ($NameLike -ne '*' -and $k.PSChildName -notlike "*$NameLike*") { continue }
+            if ($terms.Count -and -not (Test-TcpkTermMatch -Text $k.PSChildName -Terms $terms)) { continue }
             $default = (Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).'(default)'
             if (-not $default) { continue }
 

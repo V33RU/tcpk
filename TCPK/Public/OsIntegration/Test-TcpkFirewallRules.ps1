@@ -25,11 +25,12 @@ function Test-TcpkFirewallRules {
 #>
     [CmdletBinding()]
     param(
-        [string]$NameLike = '',
+        [string[]]$NameLike = @(),
         [string]$Path
     )
 
     if (-not (Assert-TcpkWindows 'Test-TcpkFirewallRules')) { return }
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
     $key = 'HKLM:\SYSTEM\CurrentControlSet\Services\SharedAccess\Parameters\FirewallPolicy\FirewallRules'
     $props = $null
@@ -55,8 +56,8 @@ function Test-TcpkFirewallRules {
 
         # attribute to this app
         $match = $false
-        if ($NameLike) {
-            if ($app -like "*$NameLike*" -or $name -like "*$NameLike*") { $match = $true }
+        if ($terms.Count) {
+            if ((Test-TcpkTermMatch -Text $app -Terms $terms) -or (Test-TcpkTermMatch -Text $name -Terms $terms)) { $match = $true }
         }
         if ($Path -and $app -and $app -like "$Path*") { $match = $true }
         if (-not $match) { continue }

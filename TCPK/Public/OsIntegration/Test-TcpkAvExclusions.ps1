@@ -21,12 +21,13 @@ function Test-TcpkAvExclusions {
 #>
     [CmdletBinding()]
     param(
-        [string]$NameLike = '',
+        [string[]]$NameLike = @(),
         [string]$Path
     )
 
     if (-not (Assert-TcpkWindows 'Test-TcpkAvExclusions')) { return }
     if (-not (Get-Command Get-MpPreference -ErrorAction SilentlyContinue)) { return }
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
 
     $mp = $null
     try { $mp = Get-MpPreference -ErrorAction Stop } catch { return }
@@ -52,7 +53,7 @@ function Test-TcpkAvExclusions {
         foreach ($item in $s.Items) {
             if (-not $item) { continue }
             $mine = $false
-            if ($NameLike -and $item -like "*$NameLike*") { $mine = $true }
+            if ($terms.Count -and (Test-TcpkTermMatch -Text $item -Terms $terms)) { $mine = $true }
             if ($Path -and $s.Name -eq 'path' -and $item -like "$Path*") { $mine = $true }
 
             if ($mine) {

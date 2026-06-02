@@ -20,13 +20,16 @@ function Test-TcpkNamedPipeDacl {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$NameLike)
+    param([string[]]$NameLike)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkNamedPipeDacl')) { return }
 
+    $terms = Get-TcpkNameTerms -NameLike $NameLike
+    if (-not $terms.Count) { return }
+
     try {
         $pipes = Get-ChildItem '\\.\pipe\' -ErrorAction Stop |
-                 Where-Object { $_.Name -like "*$NameLike*" }
+                 Where-Object { Test-TcpkTermMatch -Text $_.Name -Terms $terms }
     } catch {
         New-TcpkSkippedFinding -RuleId 'pipe-dacl.enum-fail' `
             -Title 'Cannot enumerate named pipes' -Reason $_.Exception.Message
