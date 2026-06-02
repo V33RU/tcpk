@@ -84,4 +84,40 @@ function Test-TcpkDebugFlags {
             if ($n -ge $cap) { break }
         }
     }
+
+    # TASVS-CODE-2.4: release-build verification via the managed DebuggableAttribute.
+    # A Debug build sets isJITOptimizerDisabled / DebuggingModes.DisableOptimizations,
+    # ships extra debug metadata, and is not a hardened release artifact. Read the
+    # attribute from metadata (accurate -> Confirmed) when Mono.Cecil is available.
+    if (Initialize-TcpkCecil) {
+        $dn = 0
+        foreach ($pe in Get-TcpkPeFiles -Path $Path) {
+            if ($dn -ge $cap) { break }
+            if ($pe.Extension -notin '.dll','.exe') { continue }
+            if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
+            $asm = $null
+            try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($pe.FullName) } catch { continue }
+            try {
+                $dbg = $asm.CustomAttributes | Where-Object { $_.AttributeType.Name -eq 'DebuggableAttribute' } | Select-Object -First 1
+                if ($dbg) {
+                    $optDisabled = $false
+                    $ctorArgs = @($dbg.ConstructorArguments)
+                    if ($ctorArgs.Count -eq 2) {
+                        $optDisabled = [bool]$ctorArgs[1].Value          # (isJITTrackingEnabled, isJITOptimizerDisabled)
+                    } elseif ($ctorArgs.Count -eq 1) {
+                        try { $optDisabled = (([int]$ctorArgs[0].Value) -band 0x100) -ne 0 } catch { }   # DebuggingModes.DisableOptimizations
+                    }
+                    if ($optDisabled) {
+                        New-TcpkFinding -Module 'static' -RuleId 'debugflags.debug-build' `
+                            -Severity 'MEDIUM' -Confidence 'Confirmed' `
+                            -Title "Debug build (JIT optimizer disabled): $($pe.Name)" `
+                            -File $pe.FullName -Evidence 'DebuggableAttribute: IsJITOptimizerDisabled=true' -Cwe @('CWE-489') `
+                            -Description 'TASVS-CODE-2.4. This assembly was compiled in Debug configuration (JIT optimizations disabled), so it ships extra debug metadata and is not a hardened release build.' `
+                            -Fix 'Build in Release configuration (optimizations on, no DEBUG constant) and strip debug symbols from the shipped artifact.'
+                        $dn++
+                    }
+                }
+            } catch { } finally { if ($asm) { $asm.Dispose() } }
+        }
+    }
 }

@@ -13,6 +13,7 @@ Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 - **Test-TcpkDebugFlags** - A16. Debug switches, security-disabling flags, and backdoor markers.
 - **Test-TcpkDependencyCves** - A19. Parse *.deps.json and flag bundled NuGet deps with known CVEs.
 - **Test-TcpkDeserialization** - A10. Static heuristic for unsafe .NET deserialization patterns.
+- **Test-TcpkDevArtifacts** - A36. Leftover dev/build artifacts shipped in the release (TASVS-CONF-1.4): debug symbols, source, backups, dev-config, API specs, .git/IDE dirs.
 - **Test-TcpkElectron** - A24. Electron / Chromium-embedded insecure configuration.
 - **Test-TcpkEmbeddedScripts** - A20. Embedded script files shipped in the package.
 - **Test-TcpkEndpoints** - A09 -- URL extraction + dev / qe / staging classifier.

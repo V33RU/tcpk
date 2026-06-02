@@ -150,6 +150,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkDependencyCves'      { Test-TcpkDependencyCves      -Path $expanded }
     _RunCheck 'Test-TcpkPackageManifests'    { Test-TcpkPackageManifests    -Path $expanded }
     _RunCheck 'Test-TcpkJavaBundle'          { Test-TcpkJavaBundle          -Path $expanded }
+    _RunCheck 'Test-TcpkDevArtifacts'        { Test-TcpkDevArtifacts        -Path $expanded }
     _RunCheck 'Test-TcpkEmbeddedScripts'     { Test-TcpkEmbeddedScripts     -Path $expanded }
     _RunCheck 'Test-TcpkWebViewNavTargets'   { Test-TcpkWebViewNavTargets   -Path $expanded }
     _RunCheck 'Test-TcpkNamedObjects'        { Test-TcpkNamedObjects        -Path $expanded }
