@@ -121,7 +121,25 @@ function Get-TcpkVerifyHint {
                 -Note "for compiled .NET, open the flagged method in a decompiler (ILSpy/dnSpy) to confirm the setting governs a real session; for the running app, inspect the actual Set-Cookie headers/tokens with Burp or Fiddler." `
                 -Tool "PowerShell + a .NET decompiler / intercepting proxy (Burp / Fiddler)"
         }
-        '^(callsites\.|tls-bypass\.|deser\.|xxe\.|webview2\.)' {
+        '^tls-bypass\.cert-callback-accepts-all' {
+            Format-TcpkVerifyHint `
+                -What "TCPK proved from IL that a certificate-validation callback returns true unconditionally (or uses the BCL accept-all validator) - the client accepts ANY server certificate." `
+                -Run "Test-TcpkTlsBypass -Path '$dir'" `
+                -Vulnerable "the flagged method's body is 'ldc.i4.1; ret' (return true) with no chain build, thumbprint compare, or SslPolicyErrors check." `
+                -Ok "the method validates the chain / compares a thumbprint / checks errors == SslPolicyErrors.None before returning." `
+                -Note "this is already CONFIRMED. Open the flagged Type::Method in ILSpy/dnSpy to capture the PoC. The callback may live in a SIBLING assembly, so scan the whole install dir (-Path the folder, not one DLL)." `
+                -Tool "PowerShell (TCPK IL prover) + ILSpy/dnSpy for the screenshot"
+        }
+        '^tls-bypass\.' {
+            Format-TcpkVerifyHint `
+                -What "A TLS validation override was referenced. Confirm whether it actually disables certificate/hostname checking." `
+                -Run "Test-TcpkTlsBypass -Path '$dir'" `
+                -Vulnerable "a cert/hostname callback returns true unconditionally, or validation mode is None." `
+                -Ok "the callback builds a chain / compares a thumbprint / validates the hostname." `
+                -Note "run against the whole install dir, not just one DLL - the callback often lives in a sibling assembly. TCPK auto-confirms accept-all callbacks (rule tls-bypass.cert-callback-accepts-all) via the Mono.Cecil IL prover." `
+                -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
+        }
+        '^(callsites\.|deser\.|xxe\.|webview2\.)' {
             Format-TcpkVerifyHint `
                 -What "Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler." `
                 -Run "Test-TcpkCallsites -Path '$f'" `

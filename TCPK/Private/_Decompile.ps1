@@ -266,3 +266,132 @@ function Get-TcpkCallSites {
     if ($results.Count -eq 0) { return $null }
     return $results
 }
+
+# Deterministic, shape-based TLS certificate-validation-bypass detector. Scans every
+# method of an assembly for the REAL callback shape - a method that returns Boolean AND
+# has a System.Net.Security.SslPolicyErrors parameter (the RemoteCertificate/
+# ServerCertificateCustomValidationCallback delegate signature) - builds its IL and runs
+# Test-TcpkIlReturnsTrueUnconditionally. Also flags the BCL accept-all validator
+# (HttpClientHandler.DangerousAcceptAnyServerCertificateValidator). Finds the callback
+# wherever it lives (incl. sibling assemblies / compiler lambdas), which name-only
+# heuristics miss. Returns @() if Cecil is unavailable.
+#
+# Each result is a rich location record so the analyst can jump straight to it in
+# ILSpy / dnSpy (no guessing which assembly, no searching for un-typeable lambda names):
+#   File       - the assembly file the callback actually lives in
+#   Assembly   - module name
+#   Namespace  - declaring namespace (or '(global namespace)')
+#   Type       - declaring type full name (incl. nested '/' for display classes)
+#   Method     - method name (may be a compiler lambda like '<Connect>b__5_0')
+#   Signature  - readable signature: 'Boolean Name(Object, X509Chain, SslPolicyErrors)'
+#   Token      - metadata token, e.g. 0x06000123 (dnSpy: Ctrl+D, paste to navigate)
+#   Enclosing  - for a lambda, the user-written method it was declared in (searchable)
+#   Kind       - 'unconditional-true' or 'dangerous-accept'
+#   Reason     - the IL-proof explanation
+#   Il         - the disassembled method body (the proof)
+#   AssignedAt - list of 'Type::Method' sites that wire the callback up (ldftn/newobj)
+function Get-TcpkTlsCallbackVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+
+    $fileName = Split-Path -Leaf $DllPath
+    $hits = New-Object 'System.Collections.Generic.List[object]'   # interim: holds Cecil refs
+
+    try {
+        # Flatten all methods once (reused for the assignment-site pass below).
+        $allMethods = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) { $allMethods.Add([pscustomobject]@{ T = $t; M = $m }) }
+        }
+
+        foreach ($pair in $allMethods) {
+            $t = $pair.T; $m = $pair.M
+            if (-not $m.HasBody) { continue }
+
+            # (1) BCL accept-all validator assigned anywhere in the body
+            $dangerous = $false
+            foreach ($ins in $m.Body.Instructions) {
+                if ("$($ins.Operand)" -match 'DangerousAcceptAnyServerCertificateValidator') { $dangerous = $true; break }
+            }
+            if ($dangerous) {
+                $hits.Add([pscustomobject]@{ Def = $m; Type = $t; Kind = 'dangerous-accept'
+                    Reason = 'assigns HttpClientHandler.DangerousAcceptAnyServerCertificateValidator (accepts every server certificate).'
+                    Il = $null })
+            }
+
+            # (2) real callback shape: returns Boolean AND takes an SslPolicyErrors arg
+            $hasSpe = $false
+            foreach ($p in $m.Parameters) { if ("$($p.ParameterType.FullName)" -match 'SslPolicyErrors') { $hasSpe = $true; break } }
+            if ("$($m.ReturnType.FullName)" -eq 'System.Boolean' -and $hasSpe) {
+                $lines  = New-Object 'System.Collections.Generic.List[string]'
+                $ilBody = New-Object 'System.Collections.Generic.List[string]'
+                $lines.Add("// $($t.FullName)::$($m.Name)")
+                $lines.Add("// returns $($m.ReturnType.Name)")
+                foreach ($ins in $m.Body.Instructions) {
+                    $txt = ("{0} {1}" -f $ins.OpCode.Name, "$($ins.Operand)").TrimEnd()
+                    $lines.Add($txt); $ilBody.Add($txt)
+                }
+                $verdict = Test-TcpkIlReturnsTrueUnconditionally -Il ($lines -join "`n")
+                if ($verdict.Verdict -eq 'unconditional-true') {
+                    $hits.Add([pscustomobject]@{ Def = $m; Type = $t; Kind = 'unconditional-true'
+                        Reason = $verdict.Reason; Il = ($ilBody -join "`n") })
+                }
+            }
+        }
+
+        # Assignment-site pass: find where each flagged callback is wired up (loaded as a
+        # function pointer / passed to a delegate ctor / assigned via a set_ accessor).
+        # This is the line of code the analyst is usually hunting for.
+        $assignMap = @{}
+        foreach ($h in $hits) { $assignMap[$h.Def.FullName] = (New-Object 'System.Collections.Generic.List[string]') }
+        if ($assignMap.Count -gt 0) {
+            $refOps = @('ldftn','ldvirtftn','newobj','call','callvirt')
+            foreach ($pair in $allMethods) {
+                $cm = $pair.M
+                if (-not $cm.HasBody) { continue }
+                foreach ($ins in $cm.Body.Instructions) {
+                    if ($refOps -notcontains $ins.OpCode.Name) { continue }
+                    $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($null -eq $mref) { continue }
+                    if ($assignMap.ContainsKey($mref.FullName)) {
+                        $site = "$($pair.T.FullName)::$($cm.Name)"
+                        if (-not $assignMap[$mref.FullName].Contains($site)) { $assignMap[$mref.FullName].Add($site) }
+                    }
+                }
+            }
+        }
+
+        # Materialize to plain strings (safe to use after Dispose).
+        $out = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($h in $hits) {
+            $m = $h.Def; $t = $h.Type
+            $ns  = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+            $ps  = ($m.Parameters | ForEach-Object { $_.ParameterType.Name }) -join ', '
+            $sig = "$($m.ReturnType.Name) $($m.Name)($ps)"
+            $tok = '0x{0:X8}' -f $m.MetadataToken.ToInt32()
+            $enclosing = if ($m.Name -match '^<([^>]+)>') { $matches[1] } else { $null }
+            $assigned = if ($assignMap.ContainsKey($m.FullName)) { $assignMap[$m.FullName].ToArray() } else { @() }
+            $out.Add([pscustomobject]@{
+                File       = $fileName
+                Assembly   = $asm.MainModule.Name
+                Namespace  = $ns
+                Type       = $t.FullName
+                Method     = $m.Name
+                Signature  = $sig
+                Token      = $tok
+                Enclosing  = $enclosing
+                Kind       = $h.Kind
+                Reason     = $h.Reason
+                Il         = $h.Il
+                AssignedAt = $assigned
+            })
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}

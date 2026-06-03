@@ -3,6 +3,14 @@
 Every public cmdlet, grouped by bucket. Run `Get-TcpkInfo` for live counts.
 **GATED** cmdlets require `Enable-TcpkExploit -Acknowledge`.
 
+**Supported targets:** TCPK is path-based, not installer-specific. Point it at an
+MSIX/AppX/`.msixbundle`/`.zip` package, an installed/extracted app folder, or a single
+`.exe` (portable apps). It works the same on MSIX, MSI, ClickOnce, Squirrel and portable
+apps; the 8 MSIX-manifest checks (bucket B) auto-skip when there is no `AppxManifest.xml`.
+For thin-client apps it audits the **client-side binaries** only -- the remote server/API
+is out of scope (separate web/API engagement), as is the thin-client terminal OS/appliance
+(run TCPK where the Windows PE binaries live, e.g. a Citrix/RDP published-app host).
+
 ## A - Static binary analysis  (31)
 
 - **Get-TcpkPeHardening** - Per-DLL binary-hardening matrix (ASLR / DEP / CFG / HighEntropyVA / ...).

@@ -31,8 +31,24 @@ function Invoke-TcpkAudit {
     INFO/LOW/MEDIUM/HIGH/CRITICAL -- throws at the end if any finding meets
     or exceeds the threshold (useful in CI).
 
+.PARAMETER EnableLlm
+    Run the optional LLM Stage-2 (Invoke-TcpkLlmCodeJudgment) inline after triage.
+    It annotates the Confidence of code-construct findings (callsites / tls-bypass /
+    deser / xxe / webview2) with an '(LLM)' verdict; it never changes Severity.
+    Local-only by default: if the configured provider is a CLOUD backend it is
+    skipped (the decompiled IL would leave the machine) unless -AllowCloudLlm is
+    also supplied. No-op with a warning if no backend is reachable.
+
+.PARAMETER AllowCloudLlm
+    Permit -EnableLlm to use a CLOUD LLM provider, sending decompiled IL off-box.
+    Only use this when the engagement allows the target's code to leave the machine.
+
 .EXAMPLE
     Invoke-TcpkAudit -Target 'C:\Path\To\App.msix' -OutDir .\out\App -Acknowledge
+
+.EXAMPLE
+    # audit + local AI triage in one run (Ollama):
+    Invoke-TcpkAudit -Target 'C:\App' -Acknowledge -EnableLlm
 
 .OUTPUTS
     [TcpkFinding[]] -- the full collected pipeline, after writing reports.
@@ -46,6 +62,8 @@ function Invoke-TcpkAudit {
         [string]$OutDir,
         [switch]$Acknowledge,
         [switch]$EnableDeepRuntime,
+        [switch]$EnableLlm,
+        [switch]$AllowCloudLlm,
         [ValidateSet('INFO','LOW','MEDIUM','HIGH','CRITICAL')][string]$FailOn
     )
 
@@ -294,6 +312,36 @@ function Invoke-TcpkAudit {
     Write-Information -MessageData "  $before -> $($all.Count) findings after dedupe + triage" -InformationAction Continue
     Write-TcpkLog -Level INFO -Component 'triage' -Message "$before -> $($all.Count) findings after dedupe + triage" | Out-Null
 
+    # --- optional LLM Stage-2 (opt-in): annotate code-construct findings ---
+    # Advisory only: updates Confidence to a '(LLM)' verdict + appends reasoning,
+    # never changes Severity. Local-only unless -AllowCloudLlm (cloud would send the
+    # decompiled IL off-box). Degrades to a no-op + warning if no backend / Cecil.
+    $llmRan = $false
+    if ($EnableLlm) {
+        $llmCloud = $false
+        try { $llmCloud = Test-TcpkLlmIsCloud } catch { }
+        if ($llmCloud -and -not $AllowCloudLlm) {
+            $pn = (Get-TcpkLlmConfig).provider
+            Write-Information -MessageData "  LLM: provider '$pn' is a CLOUD backend; SKIPPED to protect target confidentiality (decompiled IL would leave this machine). Re-run with -AllowCloudLlm to send it, or switch to a local provider (ollama)." -InformationAction Continue
+            Write-TcpkLog -Level WARN -Component 'llm' -Message "cloud provider '$pn' skipped (no -AllowCloudLlm)" | Out-Null
+        } else {
+            Write-Information -MessageData "" -InformationAction Continue
+            Write-Information -MessageData "LLM Stage-2 (code-construct judgment)..." -InformationAction Continue
+            try {
+                $judged = $all.ToArray() | Invoke-TcpkLlmCodeJudgment
+                $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
+                foreach ($f in $judged) { $all.Add($f) }
+                $llmCount = @($all | Where-Object { "$($_.Confidence)" -match '\(LLM\)' }).Count
+                Write-Information -MessageData "  LLM annotated $llmCount code-construct finding(s)" -InformationAction Continue
+                Write-TcpkLog -Level SUCCESS -Component 'llm' -Message "$llmCount finding(s) annotated" | Out-Null
+                $llmRan = $true
+            } catch {
+                Write-Information -MessageData "  LLM Stage-2 failed: $($_.Exception.Message)" -InformationAction Continue
+                Write-TcpkLog -Level ERROR -Component 'llm' -Message $_.Exception.Message | Out-Null
+            }
+        }
+    }
+
     # --- CVE exposure: match shipped components vs the offline CVE catalog ---
     $cveMatches = @()
     try {
@@ -420,7 +468,8 @@ function Invoke-TcpkAudit {
     $llmInfo = 'disabled'
     try {
         $lc = Get-TcpkLlmConfig
-        if ($lc -and $lc.enabled) { $llmInfo = "$($lc.provider) / $($lc.model) (run separately via Stage-2)" }
+        if ($llmRan) { $llmInfo = "$($lc.provider) / $($lc.model) (ran inline; code-construct findings annotated)" }
+        elseif ($lc -and $lc.enabled) { $llmInfo = "$($lc.provider) / $($lc.model) (available; pass -EnableLlm or pipe to Invoke-TcpkLlmCodeJudgment)" }
     } catch { }
     $scope = [pscustomobject]@{
         Buckets = $bucketsRun

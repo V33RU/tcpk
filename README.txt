@@ -43,6 +43,32 @@ WHAT'S IN HERE
   Start-TcpkMcpServer.ps1  Native MCP server (see docs\MCP-USAGE.md).
 
 
+SUPPORTED TARGETS
+-----------------
+
+TCPK is path-based, not installer-specific. Point -Target (or the GUI
+target box) at any of these:
+
+  - An MSIX / AppX / .msixbundle / .zip package file (auto-extracted).
+  - An already-installed or extracted app folder.
+  - A single .exe (portable apps that run from a folder or USB stick).
+
+So it works the same on MSIX, MSI, ClickOnce, Squirrel and fully portable
+apps -- whatever lands as files you can point a path at. The 8 MSIX-manifest
+checks (bucket B) auto-skip when there is no AppxManifest.xml: no error,
+they simply report nothing. Everything else (static binary, credentials,
+OS integration, network, WebView2, logging, anti-debug, and live-process
+runtime) runs identically regardless of how the app was packaged.
+
+Thin clients: TCPK audits the CLIENT-SIDE binaries that land on the
+endpoint, the same as any thick client. The remote server / API the client
+talks to is out of scope -- that is a separate web/API engagement (TCPK
+surfaces the backend endpoints and their TLS posture, but does not exercise
+them). The thin-client terminal OS / appliance itself (IGEL, ThinOS, kiosk)
+is also out of scope: TCPK analyses Windows PE binaries, so run it on the
+machine where those binaries live (e.g. a Citrix/RDP published-app host).
+
+
 REQUIREMENTS
 ------------
 
@@ -117,6 +143,7 @@ read-only live tools (memory/env secret scan, process DACL) need no gate.
 VERSION
 -------
 
-  TCPK v1.0.0, June 2026. 160 cmdlets; HTML + Excel
-  reports with CVSS v4.0, MITRE ATT&CK, OWASP TASVS / Desktop Top 10,
-  SBOM and an attack-surface map.
+  TCPK v1.0.1, June 2026. 160 cmdlets; HTML + Excel
+  reports with COMPUTED CVSS v4.0 base scores (FIRST.org algorithm),
+  MITRE ATT&CK, OWASP TASVS / Desktop Top 10, SBOM and an attack-surface
+  map. Optional local-LLM triage (-EnableLlm / GUI "AI-verify findings").

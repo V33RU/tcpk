@@ -75,13 +75,32 @@ function Resolve-TcpkFindings {
                 $connstrByFile[$f.File] = $true
             }
         }
+        # Files where the deterministic IL prover CONFIRMED an accept-all cert callback.
+        # This verdict is the strongest evidence we have and must never be demoted.
+        $provenTlsByFile = @{}
         foreach ($f in $uniq) {
-            # tls-bypass.* matching same callback the callsites.* rule already CRITICAL'd
+            if ($f.RuleId -eq 'tls-bypass.cert-callback-accepts-all') { $provenTlsByFile[$f.File] = $true }
+        }
+        foreach ($f in $uniq) {
+            # A WEAK (regex / Inferred) tls-bypass hit on a file the callsites.* rule
+            # already CRITICAL'd is a duplicate -> demote. NEVER demote the IL-proven
+            # verdict (tls-bypass.cert-callback-accepts-all, Confirmed): it is the
+            # authoritative finding, not the noise.
             if ($f.RuleId -like 'tls-bypass.*' -and
+                $f.RuleId -ne 'tls-bypass.cert-callback-accepts-all' -and
+                "$($f.Confidence)" -notmatch 'Confirmed' -and
                 $callsiteByFile.ContainsKey($f.File)) {
                 $f.Severity = 'INFO'
                 $f.Confidence = 'Unverified'
                 $f.Description = "$($f.Description) [TCPK dedupe: same callback covered by callsites.disabled-cert-validation on this file.]"
+            }
+            # Conversely, the Inferred callsites.disabled-cert-validation is SUPERSEDED
+            # when the IL prover confirmed the same file's callback accepts all certs.
+            if ($f.RuleId -eq 'callsites.disabled-cert-validation' -and
+                $provenTlsByFile.ContainsKey($f.File)) {
+                $f.Severity = 'INFO'
+                $f.Confidence = 'Unverified'
+                $f.Description = "$($f.Description) [TCPK dedupe: superseded by IL-proven tls-bypass.cert-callback-accepts-all (Confirmed) on this file.]"
             }
             # azure-storage-account-key-bare is the key portion of the connection string
             # already CRITICAL'd via secrets.azure-storage-connection-string

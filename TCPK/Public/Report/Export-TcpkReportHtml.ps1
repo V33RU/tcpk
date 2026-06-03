@@ -337,7 +337,8 @@ $($ruleRows -join "`n")
                 $kv = New-Object 'System.Collections.Generic.List[string]'
                 if ($file) { $kv.Add("<tr><th>File</th><td><code>$file</code></td></tr>") }
                 if ($evid) { $kv.Add("<tr><th>Evidence</th><td><code>$evid</code></td></tr>") }
-                $kv.Add("<tr><th>CVSS v4.0</th><td>$(ConvertTo-TcpkHtmlSafe (Get-TcpkCvssBand $f.Severity))</td></tr>")
+                $cvssDisp = (Get-TcpkCvssVector $f).Display
+                if ($cvssDisp) { $kv.Add("<tr><th>CVSS v4.0 vector</th><td>$(ConvertTo-TcpkHtmlSafe $cvssDisp)</td></tr>") }
                 if ($cwe)  { $kv.Add("<tr><th>CWE</th><td>$cwe</td></tr>") }
                 $attack = ConvertTo-TcpkHtmlSafe (Get-TcpkAttackText $f.RuleId)
                 if ($attack) { $kv.Add("<tr><th>ATT&amp;CK</th><td>$attack</td></tr>") }

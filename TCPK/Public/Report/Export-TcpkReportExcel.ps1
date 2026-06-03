@@ -90,7 +90,7 @@ function Export-TcpkReportExcel {
             ,@(
                 "$($f.Severity)",
                 "$($f.Confidence)",
-                "$(Get-TcpkCvssBand $f.Severity)",
+                "$((Get-TcpkCvssVector $f).Display)",
                 "$($f.Module)",
                 "$($f.RuleId)",
                 "$($f.Title)",
@@ -113,7 +113,7 @@ function Export-TcpkReportExcel {
 
         $sheets = @(
             [ordered]@{ Name = 'Summary'; Headers = @('Metric','Value'); Rows = $sumRows; Widths = @(26, 90) }
-            [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS / Desktop Top 10','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
+            [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0 vector','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS / Desktop Top 10','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
             [ordered]@{ Name = 'DLL Hardening'; Headers = @('DLL','Arch','ASLR','DEP','CFG','HighEntropyVA','SafeSEH','ForceIntegrity','Status','Missing','Flags'); Rows = @($hwRows) }
         )
 

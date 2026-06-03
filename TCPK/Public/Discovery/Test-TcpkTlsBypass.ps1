@@ -74,5 +74,47 @@ function Test-TcpkTlsBypass {
                 -Cwe $cwe `
                 -Fix 'Remove the override or replace with proper chain + hostname validation (and pin cert thumbprint if appropriate).'
         }
+
+        # Deterministic IL confirmation (Cecil): prove a cert-validation callback that
+        # returns true unconditionally, or use of the BCL accept-all validator. This
+        # promotes the finding from Inferred to CONFIRMED. Degrades silently if Cecil
+        # is unavailable. The callback can live in any (sibling) assembly, so this runs
+        # per-PE across the whole target.
+        foreach ($cb in (Get-TcpkTlsCallbackVerdicts -DllPath $pe.FullName)) {
+            $ev = New-Object 'System.Collections.Generic.List[string]'
+            $ev.Add("$($cb.Kind): $($cb.Reason)")
+            $ev.Add('')
+            $ev.Add('LOCATION (open THIS assembly in ILSpy/dnSpy - the callback is here, not necessarily in the main exe):')
+            $ev.Add("  Assembly : $($cb.File)")
+            $ev.Add("  Namespace: $($cb.Namespace)")
+            $ev.Add("  Type     : $($cb.Type)")
+            $ev.Add("  Method   : $($cb.Signature)")
+            $ev.Add("  MD token : $($cb.Token)")
+            if ($cb.Enclosing -and $cb.Method -ne $cb.Enclosing) {
+                $ev.Add("  Note     : this is a compiler-generated lambda. ILSpy lists it under a nested display-class node (e.g. '<>c'); its name '$($cb.Method)' is not typeable in the search box - search for the enclosing method '$($cb.Enclosing)' instead, or use the MD token in dnSpy.")
+            }
+            if ($cb.AssignedAt -and $cb.AssignedAt.Count -gt 0) {
+                $ev.Add('WIRED UP AT (where the callback is assigned / passed as a delegate):')
+                foreach ($site in $cb.AssignedAt) { $ev.Add("  $site") }
+            }
+            if ($cb.Il) {
+                $ev.Add('IL PROOF (disassembled method body):')
+                $shown = 0
+                foreach ($ln in @($cb.Il -split "`n")) {
+                    $ev.Add("  $ln"); $shown++
+                    if ($shown -ge 40) { $ev.Add('  ... (truncated)'); break }
+                }
+            }
+            $ev.Add('')
+            $ev.Add('HOW TO OPEN IT: in ILSpy use File > Open on the assembly named above, expand the Namespace then the Type, and open the Method. In dnSpy press Ctrl+D and paste the MD token. If a search returns nothing, you almost certainly had the wrong DLL loaded.')
+
+            New-TcpkFinding -Module 'static' -RuleId 'tls-bypass.cert-callback-accepts-all' `
+                -Severity 'CRITICAL' -Confidence 'Confirmed' `
+                -Title "TLS cert validation accepts ALL certificates: $($cb.Type)::$($cb.Method) in $($pe.Name)" `
+                -File $pe.FullName -Evidence ($ev -join "`n") `
+                -Cwe @('CWE-295') `
+                -Description 'Proven from IL: the certificate-validation callback returns true unconditionally (or assigns the BCL accept-all validator), so the client accepts ANY server certificate - trivial man-in-the-middle of all TLS traffic. The Evidence block gives the exact assembly, namespace, type, method signature and metadata token so the callback can be opened directly in ILSpy/dnSpy.' `
+                -Fix 'Implement real chain + hostname validation (or pin the certificate thumbprint). Never return true unconditionally and never use DangerousAcceptAnyServerCertificateValidator in production.'
+        }
     }
 }

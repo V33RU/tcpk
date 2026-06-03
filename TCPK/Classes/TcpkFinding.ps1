@@ -25,6 +25,7 @@ class TcpkFinding {
     # --- categorization + remediation ---
     [string[]] $Cwe        # CWE identifiers like 'CWE-798'
     [string] $Impact       # optional business/technical impact sentence (else derived from Severity at report time)
+    [string] $Cvss         # optional explicit CVSS v4.0 vector for THIS finding (e.g. a real NVD vector); else assigned by attack archetype at report time
     [string] $Fix          # one-line remediation suggestion
 
     # --- provenance ---

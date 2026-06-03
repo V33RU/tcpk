@@ -1461,8 +1461,19 @@ $btnRun.Add_Click({
                 $sel = $cmbAi.SelectedItem
                 $preset = $script:AiPresets[$sel]
                 $keyOk = (-not $preset.needsKey) -or [bool]$txtAiKey.Text
+                # Local-only by default: a CLOUD provider would send the target's
+                # decompiled IL off-box, which can breach a confidential engagement.
+                # Require explicit confirmation (the CLI equivalent is -AllowCloudLlm).
+                $cloudOk = $true
+                if ($keyOk -and $preset.name -ne 'ollama') {
+                    $msg = "The AI pass will send DECOMPILED CODE (IL) of the target to the CLOUD provider '$($preset.name)'.`r`n`r`nFor a confidential engagement this may breach your authorization / NDA -- the code leaves this machine.`r`n`r`nSend the target's code to '$($preset.name)'?`r`n`r`n(No = skip the AI pass and keep everything local. Tip: choose 'ollama (local)' for fully offline AI.)"
+                    $ans = [System.Windows.Forms.MessageBox]::Show($msg, "TCPK -- cloud AI confirmation", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning, [System.Windows.Forms.MessageBoxDefaultButton]::Button2)
+                    $cloudOk = ($ans -eq [System.Windows.Forms.DialogResult]::Yes)
+                }
                 if (-not $keyOk) {
                     Write-LogLine "AI verify skipped: $sel needs an API key (none entered)." ([System.Drawing.Color]::FromArgb(214,137,16))
+                } elseif (-not $cloudOk) {
+                    Write-LogLine "AI verify skipped: cloud provider '$($preset.name)' not confirmed -- target code kept local." ([System.Drawing.Color]::FromArgb(214,137,16))
                 } else {
                     Write-LogLine ""
                     Write-LogLine "[AI] Applying $sel and verifying code-construct findings..." ([System.Drawing.Color]::FromArgb(174, 214, 241))

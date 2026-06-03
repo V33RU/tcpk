@@ -93,6 +93,17 @@ function Resolve-TcpkLlmBackend {
     }
 }
 
+# Is the CONFIGURED provider a cloud backend? Used to keep -EnableLlm local-only by
+# default: cloud means the decompiled IL would leave the machine, which can breach a
+# confidential engagement, so the audit requires an explicit -AllowCloudLlm to proceed.
+function Test-TcpkLlmIsCloud {
+    [CmdletBinding()] param()
+    $cfg = Get-TcpkLlmConfig
+    $name = if ($cfg.provider) { $cfg.provider } else { 'ollama' }
+    $preset = $script:TcpkLlmProviders[$name]
+    return [bool]($preset -and $preset.cloud)
+}
+
 function Test-TcpkLlmAvailable {
     [CmdletBinding()] param()
     try {
