@@ -506,6 +506,55 @@ $lblExpStatus.Text = "Exploit gate: OFF  --  tick the authorization box above to
 $expBottom.Controls.Add($lblExpStatus)
 $tabExploit.Controls.Add($expBottom)
 
+# --- SBOM tab (software bill of materials + embedded CVEs) ---
+$tabSbom = New-Object System.Windows.Forms.TabPage
+$tabSbom.Text = '  SBOM  '
+$tabSbom.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabSbom)
+$lvSbom = New-Object System.Windows.Forms.ListView
+$lvSbom.Dock = 'Fill'; $lvSbom.View = 'Details'; $lvSbom.FullRowSelect = $true; $lvSbom.GridLines = $true
+$lvSbom.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+[void]$lvSbom.Columns.Add('Component', 210)
+[void]$lvSbom.Columns.Add('Version', 110)
+[void]$lvSbom.Columns.Add('Type', 70)
+[void]$lvSbom.Columns.Add('Publisher', 170)
+[void]$lvSbom.Columns.Add('purl', 290)
+[void]$lvSbom.Columns.Add('SHA-256', 200)
+[void]$lvSbom.Columns.Add('CVEs', 170)
+$tabSbom.Controls.Add($lvSbom)
+$sbomHint = New-Object System.Windows.Forms.Label
+$sbomHint.Dock = 'Top'; $sbomHint.Height = 22
+$sbomHint.Text = "Run an audit -- every shipped component (name, version, purl, SHA-256) plus any matched CVEs appears here (from sbom.cdx.json)."
+$sbomHint.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+$sbomHint.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
+$tabSbom.Controls.Add($sbomHint); $sbomHint.BringToFront()
+
+# --- DLL exploit-mitigation matrix tab ---
+$tabHard = New-Object System.Windows.Forms.TabPage
+$tabHard.Text = '  DLL Mitigation Matrix  '
+$tabHard.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabHard)
+$lvHard = New-Object System.Windows.Forms.ListView
+$lvHard.Dock = 'Fill'; $lvHard.View = 'Details'; $lvHard.FullRowSelect = $true; $lvHard.GridLines = $true
+$lvHard.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+[void]$lvHard.Columns.Add('DLL', 230)
+[void]$lvHard.Columns.Add('Arch', 60)
+[void]$lvHard.Columns.Add('ASLR', 60)
+[void]$lvHard.Columns.Add('DEP', 55)
+[void]$lvHard.Columns.Add('CFG', 55)
+[void]$lvHard.Columns.Add('HighEntropyVA', 100)
+[void]$lvHard.Columns.Add('SafeSEH', 70)
+[void]$lvHard.Columns.Add('ForceIntegrity', 95)
+[void]$lvHard.Columns.Add('Status', 80)
+[void]$lvHard.Columns.Add('Missing', 240)
+$tabHard.Controls.Add($lvHard)
+$hardHint = New-Object System.Windows.Forms.Label
+$hardHint.Dock = 'Top'; $hardHint.Height = 22
+$hardHint.Text = "Run an audit -- per-DLL exploit mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
+$hardHint.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+$hardHint.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
+$tabHard.Controls.Add($hardHint); $hardHint.BringToFront()
+
 # --- Logs / Runtime tab (verbose timed trace + runtime analysis) ---
 $tabLogs = New-Object System.Windows.Forms.TabPage
 $tabLogs.Text = '  Logs / Runtime  '
@@ -848,6 +897,72 @@ function Populate-Exploits([string]$OutDir) {
         [void]$row.SubItems.Add($(if ($it.Module) { "$($it.Module)" } else { "$($it.Area)" }))
         [void]$row.SubItems.Add("$($it.Status)")
         [void]$lvExp.Items.Add($row)
+    }
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function Populate-Sbom([string]$OutDir) {
+    $lvSbom.Items.Clear()
+    $sf = Join-Path $OutDir 'sbom.cdx.json'
+    if (-not (Test-Path $sf)) { return }
+    $bom = $null
+    try { $bom = ConvertFrom-Json (Get-Content -LiteralPath $sf -Raw) } catch { return }
+    if ($null -eq $bom) { return }
+    # map component bom-ref -> CVE ids (from the embedded vulnerabilities array)
+    $cveByRef = @{}
+    foreach ($v in @($bom.vulnerabilities)) {
+        foreach ($a in @($v.affects)) {
+            $ref = "$($a.ref)"
+            if (-not $cveByRef.ContainsKey($ref)) { $cveByRef[$ref] = New-Object System.Collections.Generic.List[string] }
+            if (-not $cveByRef[$ref].Contains("$($v.id)")) { $cveByRef[$ref].Add("$($v.id)") }
+        }
+    }
+    foreach ($c in @($bom.components)) {
+        $ref = "$($c.'bom-ref')"
+        $managed = ''
+        $mp = @($c.properties | Where-Object { $_.name -eq 'tcpk:managed' } | Select-Object -First 1)
+        if ($mp) { $managed = if ("$($mp.value)" -eq 'True') { 'managed' } else { 'native' } }
+        $sha = ''
+        $h = @($c.hashes | Where-Object { $_.alg -eq 'SHA-256' } | Select-Object -First 1)
+        if ($h) { $sha = "$($h.content)" }
+        $cves = if ($cveByRef.ContainsKey($ref)) { ($cveByRef[$ref] -join ', ') } else { '' }
+        $row = New-Object System.Windows.Forms.ListViewItem("$($c.name)")
+        [void]$row.SubItems.Add("$($c.version)")
+        [void]$row.SubItems.Add($managed)
+        [void]$row.SubItems.Add("$($c.publisher)")
+        [void]$row.SubItems.Add("$($c.purl)")
+        [void]$row.SubItems.Add($sha)
+        [void]$row.SubItems.Add($cves)
+        if ($cves) { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+        [void]$lvSbom.Items.Add($row)
+    }
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function Populate-Hardening([string]$OutDir) {
+    $lvHard.Items.Clear()
+    $hf = Join-Path $OutDir 'hardening.json'
+    if (-not (Test-Path $hf)) { return }
+    $parsed = $null
+    try { $parsed = ConvertFrom-Json (Get-Content -LiteralPath $hf -Raw) } catch { return }
+    if ($null -eq $parsed) { return }
+    foreach ($h in @($parsed)) {
+        $row = New-Object System.Windows.Forms.ListViewItem("$($h.DLL)")
+        [void]$row.SubItems.Add("$($h.Arch)")
+        [void]$row.SubItems.Add("$($h.ASLR)")
+        [void]$row.SubItems.Add("$($h.DEP)")
+        [void]$row.SubItems.Add("$($h.CFG)")
+        [void]$row.SubItems.Add("$($h.HighEntropyVA)")
+        [void]$row.SubItems.Add("$($h.SafeSEH)")
+        [void]$row.SubItems.Add("$($h.ForceIntegrity)")
+        [void]$row.SubItems.Add("$($h.Status)")
+        [void]$row.SubItems.Add("$($h.Missing)")
+        switch ("$($h.Status)") {
+            'WEAK'     { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+            'PARTIAL'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(214, 137, 16) }
+            'HARDENED' { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
+        }
+        [void]$lvHard.Items.Add($row)
     }
     [System.Windows.Forms.Application]::DoEvents()
 }
@@ -1581,6 +1696,22 @@ $btnRun.Add_Click({
         Write-LogLine "Exploit/CVE plan ready -- click the 'Exploit / CVE' tab ($(@($script:ExploitPlan).Count) actionable items)." ([System.Drawing.Color]::FromArgb(249, 38, 114))
     } catch {
         Write-LogLine "Exploit plan render failed: $($_.Exception.Message)" ([System.Drawing.Color]::FromArgb(214, 137, 16))
+    }
+
+    # Populate the SBOM tab from sbom.cdx.json
+    try {
+        Populate-Sbom $outDir
+        Write-LogLine "SBOM ready -- click the 'SBOM' tab ($($lvSbom.Items.Count) components)." ([System.Drawing.Color]::FromArgb(102, 217, 239))
+    } catch {
+        Write-LogLine "SBOM render failed: $($_.Exception.Message)" ([System.Drawing.Color]::FromArgb(214, 137, 16))
+    }
+
+    # Populate the DLL Mitigation Matrix tab from hardening.json
+    try {
+        Populate-Hardening $outDir
+        Write-LogLine "DLL mitigation matrix ready -- click the 'DLL Mitigation Matrix' tab ($($lvHard.Items.Count) DLLs)." ([System.Drawing.Color]::FromArgb(102, 217, 239))
+    } catch {
+        Write-LogLine "DLL matrix render failed: $($_.Exception.Message)" ([System.Drawing.Color]::FromArgb(214, 137, 16))
     }
 
     # Populate the Logs / Runtime tab from run.jsonl

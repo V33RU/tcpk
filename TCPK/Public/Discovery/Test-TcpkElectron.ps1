@@ -46,10 +46,13 @@ function Test-TcpkElectron {
         'enableRemoteModule'           = @{ rx = 'enableRemoteModule["'']?\s*:\s*true';             sev='HIGH';     desc='Legacy remote module exposed to the renderer.' }
     }
 
-    # search targets: every .asar (JS is plaintext inside) + loose main/preload JS
+    # search targets: every .asar (JS is plaintext inside) + loose main/preload JS.
+    # NB: Get-ChildItem -Include is SILENTLY IGNORED with -LiteralPath (it would return
+    # EVERY file and we'd scan PNGs/configs for Electron flags). Filter by name explicitly.
+    $jsNames = @('main.js','preload.js','index.js','app.js')
     $targets = @()
     $targets += $asars
-    $targets += @(Get-ChildItem -LiteralPath $dir -Recurse -File -Include 'main.js','preload.js','index.js','app.js' -ErrorAction SilentlyContinue)
+    $targets += @(Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -in $jsNames })
 
     foreach ($t in ($targets | Select-Object -Unique)) {
         $blob = ''

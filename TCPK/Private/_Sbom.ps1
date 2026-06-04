@@ -1,3 +1,31 @@
+# Map each shipped runtime DLL basename -> its true NuGet package id + version, read
+# from *.deps.json (the `targets` section lists each package's runtime files). This lets
+# the SBOM emit accurate `pkg:nuget/<id>@<version>` purls (a DLL's FileVersion is NOT the
+# package version), making sbom.cdx.json consumable by external SBOM-CVE scanners
+# (Dependency-Track / Grype / OSV) and aligning it with TCPK's own CVE matcher.
+function Get-TcpkDepsRuntimeMap {
+    [CmdletBinding()] param([Parameter(Mandatory)][string]$Dir)
+    $map = @{}
+    if (-not (Test-Path -LiteralPath $Dir)) { return $map }
+    foreach ($f in (Get-ChildItem -LiteralPath $Dir -Recurse -File -Filter '*.deps.json' -ErrorAction SilentlyContinue)) {
+        $d = $null; try { $d = Get-Content -LiteralPath $f.FullName -Raw | ConvertFrom-Json } catch { continue }
+        if (-not $d.targets) { continue }
+        foreach ($tfm in $d.targets.PSObject.Properties) {
+            foreach ($lib in $tfm.Value.PSObject.Properties) {
+                if ($lib.Name -notmatch '^(.+)/([^/]+)$') { continue }
+                $pkg = $matches[1]; $ver = $matches[2]
+                $rt = $lib.Value.runtime
+                if (-not $rt) { continue }
+                foreach ($rf in $rt.PSObject.Properties) {
+                    $bn = ([IO.Path]::GetFileName($rf.Name)).ToLowerInvariant()
+                    if ($bn -and -not $map.ContainsKey($bn)) { $map[$bn] = [pscustomobject]@{ Package = $pkg; Version = $ver } }
+                }
+            }
+        }
+    }
+    return $map
+}
+
 function Get-TcpkSbomComponents {
 <#
 .SYNOPSIS
@@ -38,6 +66,10 @@ function Get-TcpkSbomComponents {
             Where-Object { $_.Extension.ToLowerInvariant() -in $codeExt }
     }
 
+    # deps.json runtime map (managed components get a precise pkg:nuget/<id>@<version> purl)
+    $invDir = if ($item -and $item.PSIsContainer) { $Path } elseif ($item) { Split-Path -Parent $item.FullName } else { $null }
+    $depsMap = if ($invDir) { Get-TcpkDepsRuntimeMap -Dir $invDir } else { @{} }
+
     $out = New-Object System.Collections.Generic.List[object]
     foreach ($f in $candidates) {
         # Validate it is a REAL PE binary. Read-TcpkPe returns $null for anything
@@ -63,7 +95,19 @@ function Get-TcpkSbomComponents {
         $verClean = $ver
         $mv = [regex]::Match($ver, '^[\d]+(\.[\d]+){0,3}')
         if ($mv.Success) { $verClean = $mv.Value }
-        $purl = "pkg:$purlType/$([uri]::EscapeDataString($name))@$verClean"
+
+        # Prefer the TRUE NuGet package id + version from deps.json (the DLL FileVersion
+        # is not the package version). Falls back to filename + FileVersion when the DLL
+        # is not declared in any deps.json (e.g. the app's own binaries / native libs).
+        $dep = if ($managed) { $depsMap[$f.Name.ToLowerInvariant()] } else { $null }
+        if ($dep) {
+            $name     = $dep.Package
+            $ver      = $dep.Version
+            $verClean = $dep.Version
+            $purl     = "pkg:nuget/$([uri]::EscapeDataString($dep.Package))@$([uri]::EscapeDataString($dep.Version))"
+        } else {
+            $purl = "pkg:$purlType/$([uri]::EscapeDataString($name))@$verClean"
+        }
 
         $out.Add([pscustomobject]@{
             Name      = $name

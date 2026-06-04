@@ -147,7 +147,7 @@ read-only live tools (memory/env secret scan, process DACL) need no gate.
 VERSION
 -------
 
-  TCPK v1.0.1, June 2026. 160 cmdlets; HTML + Excel
+  TCPK v1.2.0, June 2026. 160 cmdlets; HTML + Excel
   reports with COMPUTED CVSS v4.0 base scores (FIRST.org algorithm),
   MITRE ATT&CK, OWASP TASVS / Desktop Top 10, SBOM and an attack-surface
   map. Optional local-LLM triage (-EnableLlm / GUI "AI-verify findings").

@@ -30,7 +30,8 @@ function Export-TcpkSbom {
         [Parameter(Mandatory, ParameterSetName = 'FromPath')][string]$Path,
         [Parameter(Mandatory, ParameterSetName = 'FromComponents')][object[]]$Components,
         [Parameter(Mandatory)][string]$OutFile,
-        [object]$Profile = $null
+        [object]$Profile = $null,
+        [object[]]$CveMatches = @()
     )
 
     $inventory = if ($PSCmdlet.ParameterSetName -eq 'FromComponents') { @($Components) } else { @(Get-TcpkSbomComponents -Path $Path) }
@@ -70,7 +71,7 @@ function Export-TcpkSbom {
 
     $meta = [ordered]@{
         timestamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-        tools     = @([ordered]@{ vendor = 'TCPK'; name = 'Thick Client Pentest Kit'; version = '1.0.1' })
+        tools     = @([ordered]@{ vendor = 'TCPK'; name = 'Thick Client Pentest Kit'; version = '1.2.0' })
     }
     if ($appComp) { $meta.component = $appComp }
 
@@ -84,6 +85,41 @@ function Export-TcpkSbom {
     # NOTE: assigning a List[object] via @(...) INSIDE the [ordered]@{} literal
     # throws "Argument types do not match" in PS 5.1 -- set it via the indexer instead.
     $bom['components'] = @($cdxComps.ToArray())
+
+    # CycloneDX vulnerabilities array: TCPK's own CVE matches, linked to the affected
+    # component's bom-ref so the SBOM is self-contained (findings + inventory agree).
+    # Grouped by CVE id; a group with no confirmed-Vulnerable match (native Present /
+    # PossiblyEmbedded) is marked analysis.state = in_triage (version unconfirmed).
+    if ($CveMatches -and @($CveMatches).Count) {
+        $sevMap = @{ CRITICAL = 'critical'; HIGH = 'high'; MEDIUM = 'medium'; LOW = 'low'; INFO = 'info' }
+        $vulns = New-Object System.Collections.Generic.List[object]
+        foreach ($grp in (@($CveMatches) | Group-Object Cve)) {
+            $ms = @($grp.Group); $first = $ms[0]
+            $seen = @{}; $refList = New-Object System.Collections.Generic.List[object]
+            foreach ($m in $ms) {
+                $hit = $inventory | Where-Object { $_.Name -eq $m.Package -and "$($_.Version)" -eq "$($m.ShippedVersion)" } | Select-Object -First 1
+                if (-not $hit -and $m.File) { $hit = $inventory | Where-Object { (Split-Path $_.Path -Leaf) -eq $m.File } | Select-Object -First 1 }
+                if (-not $hit) { $hit = $inventory | Where-Object { $_.Name -eq $m.Package } | Select-Object -First 1 }
+                $r = if ($hit) { "$($hit.BomRef)" } else { "$($m.Package)@$($m.ShippedVersion)" }
+                if (-not $seen.ContainsKey($r)) { $seen[$r] = $true; $refList.Add([ordered]@{ ref = $r }) }
+            }
+            $sev = if ($sevMap.ContainsKey("$($first.Severity)")) { $sevMap["$($first.Severity)"] } else { 'unknown' }
+            $cwes = @(); foreach ($c in @($first.Cwe)) { if ("$c" -match '(\d+)') { $cwes += [int]$matches[1] } }
+            $desc = "$($first.Title)"; if ($first.Summary) { $desc = "$desc -- $($first.Summary)" }
+            $confirmed = @($ms | Where-Object { $_.Status -eq 'Vulnerable' }).Count -gt 0
+            $v = [ordered]@{
+                id      = "$($first.Cve)"
+                source  = [ordered]@{ name = 'NVD'; url = "https://nvd.nist.gov/vuln/detail/$($first.Cve)" }
+                ratings = @([ordered]@{ severity = $sev; method = 'other' })
+            }
+            if ($cwes.Count) { $v.cwes = @($cwes) }
+            $v.description = $desc
+            if (-not $confirmed) { $v.analysis = [ordered]@{ state = 'in_triage'; detail = 'Version unconfirmed (native / statically-linked); verify the embedding or native build.' } }
+            $v.affects = @($refList.ToArray())
+            $vulns.Add([pscustomobject]$v)
+        }
+        if ($vulns.Count) { $bom['vulnerabilities'] = @($vulns.ToArray()) }
+    }
 
     $json = $bom | ConvertTo-Json -Depth 8
     $dir = Split-Path -Parent $OutFile

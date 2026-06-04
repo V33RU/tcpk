@@ -442,8 +442,8 @@ function Invoke-TcpkAudit {
     catch { Write-TcpkLog -Level ERROR -Component 'sbom.inventory' -Message $_.Exception.Message | Out-Null }
     try {
         $sbomPath = Join-Path $OutDir 'sbom.cdx.json'
-        if ($sbom.Count) { Export-TcpkSbom -Components $sbom -OutFile $sbomPath -Profile $targetProfile | Out-Null }
-        else             { Export-TcpkSbom -Path $expanded  -OutFile $sbomPath -Profile $targetProfile | Out-Null }
+        if ($sbom.Count) { Export-TcpkSbom -Components $sbom -OutFile $sbomPath -Profile $targetProfile -CveMatches $cveMatches | Out-Null }
+        else             { Export-TcpkSbom -Path $expanded  -OutFile $sbomPath -Profile $targetProfile -CveMatches $cveMatches | Out-Null }
         Write-TcpkLog -Level SUCCESS -Component 'sbom' -Message "SBOM written ($($sbom.Count) components)" | Out-Null
     } catch {
         Write-Information -MessageData "  SBOM build failed: $($_.Exception.Message)" -InformationAction Continue
@@ -488,9 +488,12 @@ function Invoke-TcpkAudit {
     $all | Export-TcpkReportJson -OutFile $jsonPath -Profile $targetProfile
 
     # Per-DLL hardening matrix (ASLR/DEP/CFG/HighEntropyVA/...) for the Excel sheet
+    # AND as a JSON sidecar the GUI's "DLL Mitigation Matrix" tab reads.
     $hardening = @()
     try { $hardening = @(Get-TcpkPeHardening -Path $expanded) }
     catch { Write-TcpkLog -Level ERROR -Component 'hardening' -Message $_.Exception.Message | Out-Null }
+    try { $hardening | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'hardening.json') -Encoding UTF8 }
+    catch { Write-TcpkLog -Level ERROR -Component 'hardening.json' -Message $_.Exception.Message | Out-Null }
 
     $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Sbom $sbom
     try {
