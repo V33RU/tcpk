@@ -1,14 +1,17 @@
 TCPK: Thick Client Pentest Kit (Portable)
 =============================================
 
-Drop this entire folder on a USB stick. Double-click TCPK.exe to launch.
-No install needed.
+Drop this entire folder on a USB stick. Double-click TCPK.bat to launch.
+No install needed. (Keep the whole folder together: the launcher must sit
+beside the TCPK\ module folder.)
 
 
 QUICK START
 -----------
 
-1. Double-click TCPK.exe.
+1. Double-click TCPK.bat (the recommended launcher).
+   (TCPK.exe is a compiled alternative; if it shows "module missing",
+    use TCPK.bat -- the exe must be rebuilt to find the module folder.)
 
 2. In the target box, paste the MSIX install dir or the path to a .msix file:
      C:\Program Files\WindowsApps\YourApp_x.y.z_x64__hash
@@ -34,9 +37,10 @@ QUICK START
 WHAT'S IN HERE
 --------------
 
-  TCPK.exe          The GUI tool (self-contained .exe, branded icon).
-  TCPK.bat          Alternate launcher (calls PowerShell directly).
-  Start-TCPKGui.ps1 The source script (the .exe is this, compiled).
+  TCPK.bat          Recommended launcher (runs the GUI script in STA mode).
+  Start-TCPKGui.ps1 The GUI source script (run directly with -STA if you prefer).
+  TCPK.exe          Compiled launcher (branded icon). Must sit beside the TCPK\
+                    module folder AND be rebuilt from Start-TCPKGui.ps1 to find it.
   TCPK\             The PowerShell module that does the actual work.
   assets\           Logo / icon (tcpk.ico, tcpk-logo.png). Swap to rebrand.
   docs\             methodology, bug-classes, CHECKS.md, disclosure-guide.

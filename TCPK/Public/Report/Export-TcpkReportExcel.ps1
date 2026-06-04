@@ -111,9 +111,18 @@ function Export-TcpkReportExcel {
             ,@("$($h.DLL)", "$($h.Arch)", "$($h.ASLR)", "$($h.DEP)", "$($h.CFG)", "$($h.HighEntropyVA)", "$($h.SafeSEH)", "$($h.ForceIntegrity)", "$($h.Status)", "$($h.Missing)", "$($h.DllCharacteristics)")
         }
 
+        # ---------- Checklist sheet (thick-client test plan + auto-status) ----------
+        # Correlates findings to the 40-case manual methodology. Auto Status is TCPK's
+        # automated read; the tester completes the Result column. A NO-FINDINGS status
+        # is NOT a pass -- it means nothing was auto-detected; confirm manually.
+        $clRows = foreach ($row in (Get-TcpkChecklistStatus -Findings $all)) {
+            ,@("$($row.Id)", "$($row.Name)", "$($row.Type)", "$($row.Coverage)", "$($row.AutoStatus)", "$($row.Findings)", "$($row.RuleIds)", "$($row.Result)", "$($row.Manual)")
+        }
+
         $sheets = @(
             [ordered]@{ Name = 'Summary'; Headers = @('Metric','Value'); Rows = $sumRows; Widths = @(26, 90) }
             [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0 vector','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS / Desktop Top 10','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
+            [ordered]@{ Name = 'Checklist'; Headers = @('Test #','Test Name','Type','TCPK Coverage','Auto Status','Findings','Related Rule IDs','Result (PASS/FAIL)','Manual confirmation step'); Rows = @($clRows); Widths = @(8, 44, 14, 13, 13, 9, 40, 17, 64) }
             [ordered]@{ Name = 'DLL Hardening'; Headers = @('DLL','Arch','ASLR','DEP','CFG','HighEntropyVA','SafeSEH','ForceIntegrity','Status','Missing','Flags'); Rows = @($hwRows) }
         )
 

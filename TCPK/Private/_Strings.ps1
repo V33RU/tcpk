@@ -26,14 +26,21 @@ function Read-TcpkStringViews {
     } catch {
         return $null
     }
+    # UTF-16LE strings (the #US literal heap) are only decoded correctly when the
+    # decode starts on the same byte parity as the string. Decoding from offset 0
+    # misses every wide string that happens to begin at an ODD file offset (~half
+    # of them). We decode BOTH alignments so literal-string scans (secrets,
+    # endpoints, callsites) are not silently alignment-dependent.
+    $utf16Odd = if ($bytes.Length -gt 1) { [Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1) } else { '' }
     $obj = [pscustomobject]@{
-        Path     = $Path
-        Utf8     = [Text.Encoding]::UTF8.GetString($bytes)
-        Utf16Le  = [Text.Encoding]::Unicode.GetString($bytes)
-        Length   = $bytes.Length
+        Path       = $Path
+        Utf8       = [Text.Encoding]::UTF8.GetString($bytes)
+        Utf16Le    = [Text.Encoding]::Unicode.GetString($bytes)
+        Utf16LeOdd = $utf16Odd
+        Length     = $bytes.Length
     }
-    # cache while within the byte budget (decoded views cost ~4x file size)
-    $cost = [int64]$bytes.Length * 4
+    # cache while within the byte budget (decoded views cost ~5x file size)
+    $cost = [int64]$bytes.Length * 5
     if (($script:TcpkViewCacheBytes + $cost) -lt $script:TcpkViewCacheBudget) {
         $script:TcpkViewCache[$Path] = $obj
         $script:TcpkViewCacheBytes  += $cost
@@ -47,7 +54,7 @@ function Read-TcpkAllText {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
     $v = Read-TcpkStringViews -Path $Path
     if (-not $v) { return '' }
-    "$($v.Utf8)`n$($v.Utf16Le)"
+    "$($v.Utf8)`n$($v.Utf16Le)`n$($v.Utf16LeOdd)"
 }
 
 # Count occurrences of a literal substring across both views.
