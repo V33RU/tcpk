@@ -90,6 +90,14 @@ $topPanel.Height = 180
 $topPanel.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 $form.Controls.Add($topPanel)
 
+# Accent separator delineating the control header from the tabbed work area.
+$topSep = New-Object System.Windows.Forms.Panel
+$topSep.Dock = 'Bottom'
+$topSep.Height = 2
+$topSep.BackColor = [System.Drawing.Color]::FromArgb(78, 201, 176)
+$topSep.Tag = 'keep'
+$topPanel.Controls.Add($topSep)
+
 # Brand badge, top-right of the header (assets\tcpk-badge.png; falls back to tcpk-logo.png).
 # Swap the file in assets\ to use your own artwork -- it is loaded at runtime.
 $badgePath = Join-Path $script:TcpkAssets 'tcpk-badge.png'
@@ -338,32 +346,27 @@ $txtRecon.ReadOnly = $true
 $txtRecon.WordWrap = $false
 $txtRecon.DetectUrls = $true
 $txtRecon.Text = "Run an audit -- the full target reconnaissance profile (application details, tech stack, network endpoints, listening ports, SDK inventory, attack surface) will appear here."
-$tabRecon.Controls.Add($txtRecon)
 
-# Recon tab header with the TCPK brand logo (added AFTER the Fill control so the
-# Top dock reserves the top strip and the RichTextBox fills the remainder).
+# Recon tab header: slim title strip + accent separator (logo removed per request;
+# added AFTER the Fill control so the Top dock reserves the strip and the text fills).
 $reconHeader = New-Object System.Windows.Forms.Panel
 $reconHeader.Dock = 'Top'
-$reconHeader.Height = 74
+$reconHeader.Height = 24
 $reconHeader.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24)
-$reconLogoPath = Join-Path $script:TcpkAssets 'tcpk-logo.png'
-if (Test-Path $reconLogoPath) {
-    $picRecon = New-Object System.Windows.Forms.PictureBox
-    $picRecon.SizeMode = 'Zoom'
-    $picRecon.Size = New-Object System.Drawing.Size(376, 62)
-    $picRecon.Location = New-Object System.Drawing.Point(12, 7)
-    $picRecon.BackColor = [System.Drawing.Color]::Transparent
-    try { $picRecon.Image = [System.Drawing.Image]::FromFile($reconLogoPath) } catch {}
-    $reconHeader.Controls.Add($picRecon)
-}
+$reconTitle = New-Object System.Windows.Forms.Label
+$reconTitle.Text = "Target reconnaissance profile"
+$reconTitle.Dock = 'Fill'
+$reconTitle.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
+$reconHeader.Controls.Add($reconTitle)
 $reconSep = New-Object System.Windows.Forms.Label
 $reconSep.Text = ''
 $reconSep.Dock = 'Bottom'
 $reconSep.Height = 2
-$reconSep.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+$reconSep.BackColor = [System.Drawing.Color]::FromArgb(78, 201, 176)
+$reconSep.Tag = 'keep'
 $reconHeader.Controls.Add($reconSep)
 $tabRecon.Controls.Add($reconHeader)
-$reconHeader.BringToFront()
+$tabRecon.Controls.Add($txtRecon)
 
 # --- Exploit tab (CVE matches + exploitable findings; gated PoC generation) ---
 $tabExploit = New-Object System.Windows.Forms.TabPage
@@ -507,12 +510,21 @@ $expBottom.Controls.Add($lblExpStatus)
 $tabExploit.Controls.Add($expBottom)
 
 # --- SBOM tab (software bill of materials + embedded CVEs) ---
+# NB: add the Dock=Top hint FIRST, then the Dock=Fill ListView LAST -- otherwise the
+# ListView fills the whole tab and its column-header row is hidden behind the hint.
 $tabSbom = New-Object System.Windows.Forms.TabPage
 $tabSbom.Text = '  SBOM  '
 $tabSbom.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 [void]$tabs.TabPages.Add($tabSbom)
+$sbomHint = New-Object System.Windows.Forms.Label
+$sbomHint.Dock = 'Top'; $sbomHint.Height = 22
+$sbomHint.Text = "Run an audit -- every shipped component (name, version, purl, SHA-256) plus any matched CVEs appears here (from sbom.cdx.json)."
+$sbomHint.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+$sbomHint.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
+$tabSbom.Controls.Add($sbomHint)
 $lvSbom = New-Object System.Windows.Forms.ListView
 $lvSbom.Dock = 'Fill'; $lvSbom.View = 'Details'; $lvSbom.FullRowSelect = $true; $lvSbom.GridLines = $true
+$lvSbom.HeaderStyle = 'Nonclickable'
 $lvSbom.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 [void]$lvSbom.Columns.Add('Component', 210)
 [void]$lvSbom.Columns.Add('Version', 110)
@@ -522,20 +534,22 @@ $lvSbom.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 [void]$lvSbom.Columns.Add('SHA-256', 200)
 [void]$lvSbom.Columns.Add('CVEs', 170)
 $tabSbom.Controls.Add($lvSbom)
-$sbomHint = New-Object System.Windows.Forms.Label
-$sbomHint.Dock = 'Top'; $sbomHint.Height = 22
-$sbomHint.Text = "Run an audit -- every shipped component (name, version, purl, SHA-256) plus any matched CVEs appears here (from sbom.cdx.json)."
-$sbomHint.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
-$sbomHint.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
-$tabSbom.Controls.Add($sbomHint); $sbomHint.BringToFront()
+$lvSbom.BringToFront()
 
 # --- DLL exploit-mitigation matrix tab ---
 $tabHard = New-Object System.Windows.Forms.TabPage
 $tabHard.Text = '  DLL Mitigation Matrix  '
 $tabHard.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 [void]$tabs.TabPages.Add($tabHard)
+$hardHint = New-Object System.Windows.Forms.Label
+$hardHint.Dock = 'Top'; $hardHint.Height = 22
+$hardHint.Text = "Run an audit -- per-DLL exploit mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
+$hardHint.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+$hardHint.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
+$tabHard.Controls.Add($hardHint)
 $lvHard = New-Object System.Windows.Forms.ListView
 $lvHard.Dock = 'Fill'; $lvHard.View = 'Details'; $lvHard.FullRowSelect = $true; $lvHard.GridLines = $true
+$lvHard.HeaderStyle = 'Nonclickable'
 $lvHard.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 [void]$lvHard.Columns.Add('DLL', 230)
 [void]$lvHard.Columns.Add('Arch', 60)
@@ -548,12 +562,7 @@ $lvHard.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 [void]$lvHard.Columns.Add('Status', 80)
 [void]$lvHard.Columns.Add('Missing', 240)
 $tabHard.Controls.Add($lvHard)
-$hardHint = New-Object System.Windows.Forms.Label
-$hardHint.Dock = 'Top'; $hardHint.Height = 22
-$hardHint.Text = "Run an audit -- per-DLL exploit mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
-$hardHint.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
-$hardHint.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
-$tabHard.Controls.Add($hardHint); $hardHint.BringToFront()
+$lvHard.BringToFront()
 
 # --- Logs / Runtime tab (verbose timed trace + runtime analysis) ---
 $tabLogs = New-Object System.Windows.Forms.TabPage
@@ -1269,16 +1278,21 @@ function Apply-UiFont {
 
 function Get-UiPalette([bool]$dark) {
     if ($dark) {
-        # Darcula-style soft dark (layered greys, easy on the eyes -- not pure black)
-        @{ FormBg=[System.Drawing.Color]::FromArgb(60,63,65); PanelBg=[System.Drawing.Color]::FromArgb(69,73,74)
-           TextBg=[System.Drawing.Color]::FromArgb(43,43,43); TextFg=[System.Drawing.Color]::FromArgb(169,183,198)
-           ListBg=[System.Drawing.Color]::FromArgb(49,51,53); ListFg=[System.Drawing.Color]::FromArgb(187,187,187)
-           LabelFg=[System.Drawing.Color]::FromArgb(204,204,204) }
+        # High-contrast layered dark (VS Code / GitHub-dark style). Distinct layers:
+        # window (#1E1E1E) < panel (#2D2D30) < input fields (#3C3C3C, lifted so they
+        # stand out) ; text areas are deep (#181818) for log readability. Text is
+        # near-white for strong contrast (the old muted blue-grey was the visibility issue).
+        @{ FormBg =[System.Drawing.Color]::FromArgb(30,30,30);   PanelBg=[System.Drawing.Color]::FromArgb(45,45,48)
+           InputBg=[System.Drawing.Color]::FromArgb(60,60,60);   TextBg =[System.Drawing.Color]::FromArgb(24,24,24)
+           TextFg =[System.Drawing.Color]::FromArgb(236,236,236)
+           ListBg =[System.Drawing.Color]::FromArgb(37,37,38);   ListFg =[System.Drawing.Color]::FromArgb(236,236,236)
+           LabelFg=[System.Drawing.Color]::FromArgb(242,242,242) }
     } else {
-        @{ FormBg=[System.Drawing.Color]::FromArgb(250,250,250); PanelBg=[System.Drawing.Color]::FromArgb(243,243,243)
-           TextBg=[System.Drawing.Color]::White; TextFg=[System.Drawing.Color]::FromArgb(30,30,30)
-           ListBg=[System.Drawing.Color]::White; ListFg=[System.Drawing.Color]::FromArgb(30,30,30)
-           LabelFg=[System.Drawing.Color]::FromArgb(40,40,40) }
+        @{ FormBg =[System.Drawing.Color]::FromArgb(248,249,250); PanelBg=[System.Drawing.Color]::FromArgb(238,240,242)
+           InputBg=[System.Drawing.Color]::White;                 TextBg =[System.Drawing.Color]::White
+           TextFg =[System.Drawing.Color]::FromArgb(24,24,24)
+           ListBg =[System.Drawing.Color]::White;                 ListFg =[System.Drawing.Color]::FromArgb(24,24,24)
+           LabelFg=[System.Drawing.Color]::FromArgb(28,28,28) }
     }
 }
 
@@ -1293,10 +1307,10 @@ function Set-CtlThemeRecursive($ctl, $pal) {
             'TabPage'        { $c.BackColor = $pal.TextBg }
             'Label'          { $c.ForeColor = $pal.LabelFg; $c.BackColor = $ctl.BackColor }
             'CheckBox'       { $c.ForeColor = $pal.LabelFg; $c.BackColor = $ctl.BackColor }
-            'TextBox'        { $c.BackColor = $pal.TextBg; $c.ForeColor = $pal.TextFg }
-            'RichTextBox'    { $c.BackColor = $pal.TextBg; $c.ForeColor = $pal.TextFg }
-            'ListView'       { $c.BackColor = $pal.ListBg; $c.ForeColor = $pal.ListFg }
-            'ComboBox'       { $c.BackColor = $pal.TextBg; $c.ForeColor = $pal.TextFg }
+            'TextBox'        { $c.BackColor = $pal.InputBg; $c.ForeColor = $pal.TextFg }
+            'RichTextBox'    { $c.BackColor = $pal.TextBg;  $c.ForeColor = $pal.TextFg }
+            'ListView'       { $c.BackColor = $pal.ListBg;  $c.ForeColor = $pal.ListFg }
+            'ComboBox'       { $c.BackColor = $pal.InputBg; $c.ForeColor = $pal.TextFg }
             'Button'         { $c.BackColor = $pal.PanelBg; $c.ForeColor = $pal.LabelFg; try { $c.FlatAppearance.BorderColor = $script:Accent } catch { } }
         }
         if ($c.Controls.Count -gt 0) { Set-CtlThemeRecursive $c $pal }
