@@ -177,11 +177,33 @@ $topPanel.Controls.Add($txtProc)
 $btnRun = New-Object System.Windows.Forms.Button
 $btnRun.Text = "Run Audit"
 $btnRun.Location = New-Object System.Drawing.Point(820, 65)
-$btnRun.Size = New-Object System.Drawing.Size(186, 32)
+$btnRun.Size = New-Object System.Drawing.Size(118, 32)
 $btnRun.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
 $btnRun.ForeColor = [System.Drawing.Color]::White
 $btnRun.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
 $topPanel.Controls.Add($btnRun)
+
+# Pause / Resume the running audit. Pause holds the audit at the next check boundary
+# (a shared signal file the background job watches) so the operator can change the
+# target / environment, then Resume continues. Enabled only while an audit is running.
+$script:PauseFlag = Join-Path ([System.IO.Path]::GetTempPath()) ("tcpk-pause-$PID.flag")
+$btnPause = New-Object System.Windows.Forms.Button
+$btnPause.Text = "Pause"
+$btnPause.Location = New-Object System.Drawing.Point(942, 65)
+$btnPause.Size = New-Object System.Drawing.Size(64, 32)
+$btnPause.Enabled = $false
+$topPanel.Controls.Add($btnPause)
+$btnPause.Add_Click({
+    if (Test-Path -LiteralPath $script:PauseFlag) {
+        Remove-Item -LiteralPath $script:PauseFlag -Force -ErrorAction SilentlyContinue
+        $btnPause.Text = "Pause"
+        Update-Status "Resumed -- audit continuing."
+    } else {
+        New-Item -ItemType File -Path $script:PauseFlag -Force | Out-Null
+        $btnPause.Text = "Resume"
+        Update-Status "Paused -- make your changes on the target, then click Resume."
+    }
+})
 
 # --- AI row (y=108) -----------------------------------------------------------
 $chkAi = New-Object System.Windows.Forms.CheckBox
@@ -201,17 +223,19 @@ $cmbAi = New-Object System.Windows.Forms.ComboBox
 $cmbAi.Location = New-Object System.Drawing.Point(196, 110)
 $cmbAi.Size = New-Object System.Drawing.Size(120, 24)
 $cmbAi.DropDownStyle = 'DropDownList'
-@('ollama (local)','claude','openai','deepseek','custom') | ForEach-Object { [void]$cmbAi.Items.Add($_) }
+# Provider list. 'custom' = any other OpenAI-compatible endpoint (set its URL in llm-config.json).
+@('ollama (local)','claude','openai','gemini','grok','deepseek','custom') | ForEach-Object { [void]$cmbAi.Items.Add($_) }
 $cmbAi.SelectedIndex = 0
 $topPanel.Controls.Add($cmbAi)
 
-# Editable dropdown: pick a known/latest model OR type your own. Filled live by "Test AI".
+# Free-text model box: type ANY model the provider exposes -- nothing is hardcoded.
+# A sensible default is pre-filled per provider; click "Test AI" to load the live
+# list from your key (Get-TcpkLlmModels) into the dropdown for convenience.
 $txtAiModel = New-Object System.Windows.Forms.ComboBox
 $txtAiModel.Location = New-Object System.Drawing.Point(322, 110)
 $txtAiModel.Size = New-Object System.Drawing.Size(170, 24)
 $txtAiModel.DropDownStyle = 'DropDown'
-[void]$txtAiModel.Items.Add('qwen2.5-coder:7b')
-$txtAiModel.Text = 'qwen2.5-coder:7b'
+$txtAiModel.Text = 'qwen2.5-coder:7b'   # default for ollama (provider[0]); overtype with anything
 $topPanel.Controls.Add($txtAiModel)
 
 $lblKey = New-Object System.Windows.Forms.Label
@@ -285,33 +309,33 @@ $btnTheme.Add_Click({
 })
 $topPanel.Controls.Add($btnTheme)
 
-# Provider preset map: display-name -> @{ name; defaultModel; needsKey }
+# Provider preset map: display-name -> @{ name; default; needsKey }
+# NO hardcoded model lists. 'default' is just a starting suggestion you can overtype
+# with ANY model the provider exposes; "Test AI" loads the live list from your key.
 $script:AiPresets = @{
-    'ollama (local)' = @{ name='ollama';   default='qwen2.5-coder:7b'; needsKey=$false
-                          models=@('qwen2.5-coder:7b','qwen2.5-coder:14b','llama3.1:8b','deepseek-coder-v2:16b','codellama:13b') }
-    'claude'         = @{ name='claude';    default='claude-sonnet-4-5'; needsKey=$true
-                          models=@('claude-opus-4-8','claude-opus-4-5','claude-opus-4-1','claude-sonnet-4-6','claude-sonnet-4-5','claude-haiku-4-5') }
-    'openai'         = @{ name='openai';    default='gpt-4.1';          needsKey=$true
-                          models=@('gpt-5.5','gpt-5.4-mini','gpt-5.4-nano','gpt-4.1','o3-mini','gpt-4o') }
-    'deepseek'       = @{ name='deepseek';  default='deepseek-chat';    needsKey=$true
-                          models=@('deepseek-chat','deepseek-reasoner') }
-    'custom'         = @{ name='custom';    default='';                 needsKey=$true
-                          models=@() }
+    'ollama (local)' = @{ name='ollama';   default='qwen2.5-coder:7b'; needsKey=$false }
+    'claude'         = @{ name='claude';    default='claude-sonnet-4-5'; needsKey=$true }
+    'openai'         = @{ name='openai';    default='gpt-4o';            needsKey=$true }
+    'gemini'         = @{ name='gemini';    default='gemini-2.0-flash';  needsKey=$true }
+    'grok'           = @{ name='grok';      default='grok-2-latest';     needsKey=$true }
+    'deepseek'       = @{ name='deepseek';  default='deepseek-chat';     needsKey=$true }
+    'custom'         = @{ name='custom';    default='';                  needsKey=$true }
 }
-# NOTE: the seeded lists are convenience defaults; the authoritative "latest"
-# list is pulled LIVE from your key when you click "Test AI" (Get-TcpkLlmModels).
 
-# When provider changes: set default model + enable/disable key field
+# When provider changes: pre-fill a sensible default model (overtypeable) + toggle key field.
 $cmbAi.Add_SelectedIndexChanged({
     $sel = $cmbAi.SelectedItem
     $p = $script:AiPresets[$sel]
     if ($p) {
-        $txtAiModel.Items.Clear()
-        foreach ($m in @($p.models)) { [void]$txtAiModel.Items.Add($m) }
+        $txtAiModel.Items.Clear()   # no hardcoded list -- type any model, or click "Test AI" to load live
         $txtAiModel.Text = $p.default
         $txtAiKey.Enabled = $p.needsKey
         if (-not $p.needsKey) { $txtAiKey.Text = '' }
-        $lblAiStatus.Text = if ($p.needsKey) { "$sel needs an API key -- 'Test AI' loads its latest models" } else { "local -- no key needed" }
+        $lblAiStatus.Text = if ($p.needsKey) {
+            "$sel needs an API key -- type any model, or 'Test AI' to load its live list"
+        } else {
+            "local -- no key needed; type any model you've pulled (e.g. qwen2.5-coder:7b)"
+        }
     }
 })
 
@@ -516,12 +540,19 @@ $tabSbom = New-Object System.Windows.Forms.TabPage
 $tabSbom.Text = '  SBOM  '
 $tabSbom.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 [void]$tabs.TabPages.Add($tabSbom)
+# header panel: hint + live filter (ONE Top panel) then the Fill ListView added last
+$sbomHeader = New-Object System.Windows.Forms.Panel
+$sbomHeader.Dock = 'Top'; $sbomHeader.Height = 50
 $sbomHint = New-Object System.Windows.Forms.Label
-$sbomHint.Dock = 'Top'; $sbomHint.Height = 22
-$sbomHint.Text = "Run an audit -- every shipped component (name, version, purl, SHA-256) plus any matched CVEs appears here (from sbom.cdx.json)."
-$sbomHint.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
-$sbomHint.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
-$tabSbom.Controls.Add($sbomHint)
+$sbomHint.AutoSize = $true; $sbomHint.Location = New-Object System.Drawing.Point(6, 6)
+$sbomHint.Text = "Run an audit -- every shipped component (name, version, purl, SHA-256) + any matched CVEs (from sbom.cdx.json)."
+$sbomLblF = New-Object System.Windows.Forms.Label
+$sbomLblF.AutoSize = $true; $sbomLblF.Location = New-Object System.Drawing.Point(6, 28); $sbomLblF.Text = "Filter:"
+$txtSbomFilter = New-Object System.Windows.Forms.TextBox
+$txtSbomFilter.Location = New-Object System.Drawing.Point(52, 25); $txtSbomFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtSbomFilter.Add_TextChanged({ Filter-Sbom })
+$sbomHeader.Controls.AddRange(@($sbomHint, $sbomLblF, $txtSbomFilter))
+$tabSbom.Controls.Add($sbomHeader)
 $lvSbom = New-Object System.Windows.Forms.ListView
 $lvSbom.Dock = 'Fill'; $lvSbom.View = 'Details'; $lvSbom.FullRowSelect = $true; $lvSbom.GridLines = $true
 $lvSbom.HeaderStyle = 'Nonclickable'
@@ -541,12 +572,18 @@ $tabHard = New-Object System.Windows.Forms.TabPage
 $tabHard.Text = '  DLL Mitigation Matrix  '
 $tabHard.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 [void]$tabs.TabPages.Add($tabHard)
+$hardHeader = New-Object System.Windows.Forms.Panel
+$hardHeader.Dock = 'Top'; $hardHeader.Height = 50
 $hardHint = New-Object System.Windows.Forms.Label
-$hardHint.Dock = 'Top'; $hardHint.Height = 22
-$hardHint.Text = "Run an audit -- per-DLL exploit mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
-$hardHint.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
-$hardHint.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
-$tabHard.Controls.Add($hardHint)
+$hardHint.AutoSize = $true; $hardHint.Location = New-Object System.Drawing.Point(6, 6)
+$hardHint.Text = "Run an audit -- per-DLL mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
+$hardLblF = New-Object System.Windows.Forms.Label
+$hardLblF.AutoSize = $true; $hardLblF.Location = New-Object System.Drawing.Point(6, 28); $hardLblF.Text = "Filter:"
+$txtHardFilter = New-Object System.Windows.Forms.TextBox
+$txtHardFilter.Location = New-Object System.Drawing.Point(52, 25); $txtHardFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtHardFilter.Add_TextChanged({ Filter-Hardening })
+$hardHeader.Controls.AddRange(@($hardHint, $hardLblF, $txtHardFilter))
+$tabHard.Controls.Add($hardHeader)
 $lvHard = New-Object System.Windows.Forms.ListView
 $lvHard.Dock = 'Fill'; $lvHard.View = 'Details'; $lvHard.FullRowSelect = $true; $lvHard.GridLines = $true
 $lvHard.HeaderStyle = 'Nonclickable'
@@ -911,6 +948,7 @@ function Populate-Exploits([string]$OutDir) {
 }
 
 function Populate-Sbom([string]$OutDir) {
+    $script:SbomItems = New-Object System.Collections.Generic.List[object]
     $lvSbom.Items.Clear()
     $sf = Join-Path $OutDir 'sbom.cdx.json'
     if (-not (Test-Path $sf)) { return }
@@ -943,12 +981,27 @@ function Populate-Sbom([string]$OutDir) {
         [void]$row.SubItems.Add($sha)
         [void]$row.SubItems.Add($cves)
         if ($cves) { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
-        [void]$lvSbom.Items.Add($row)
+        $row.Tag = ("$($c.name) $($c.version) $managed $($c.publisher) $($c.purl) $sha $cves").ToLowerInvariant()
+        [void]$script:SbomItems.Add($row)
     }
+    Filter-Sbom
     [System.Windows.Forms.Application]::DoEvents()
 }
 
+# Live filter for the SBOM tab: re-show only cached rows matching the filter text.
+function Filter-Sbom {
+    if ($null -eq $script:SbomItems) { return }
+    $q = "$($txtSbomFilter.Text)".ToLowerInvariant().Trim()
+    $lvSbom.BeginUpdate()
+    $lvSbom.Items.Clear()
+    foreach ($it in $script:SbomItems) {
+        if ($q -eq '' -or "$($it.Tag)".Contains($q)) { [void]$lvSbom.Items.Add($it) }
+    }
+    $lvSbom.EndUpdate()
+}
+
 function Populate-Hardening([string]$OutDir) {
+    $script:HardItems = New-Object System.Collections.Generic.List[object]
     $lvHard.Items.Clear()
     $hf = Join-Path $OutDir 'hardening.json'
     if (-not (Test-Path $hf)) { return }
@@ -971,9 +1024,23 @@ function Populate-Hardening([string]$OutDir) {
             'PARTIAL'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(214, 137, 16) }
             'HARDENED' { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
         }
-        [void]$lvHard.Items.Add($row)
+        $row.Tag = ("$($h.DLL) $($h.Arch) $($h.Status) $($h.Missing)").ToLowerInvariant()
+        [void]$script:HardItems.Add($row)
     }
+    Filter-Hardening
     [System.Windows.Forms.Application]::DoEvents()
+}
+
+# Live filter for the DLL Mitigation Matrix tab.
+function Filter-Hardening {
+    if ($null -eq $script:HardItems) { return }
+    $q = "$($txtHardFilter.Text)".ToLowerInvariant().Trim()
+    $lvHard.BeginUpdate()
+    $lvHard.Items.Clear()
+    foreach ($it in $script:HardItems) {
+        if ($q -eq '' -or "$($it.Tag)".Contains($q)) { [void]$lvHard.Items.Add($it) }
+    }
+    $lvHard.EndUpdate()
 }
 
 # Authorization / gate toggle
@@ -1200,6 +1267,40 @@ function Style-FlatBtn($b, [System.Drawing.Color]$bg, [System.Drawing.Color]$fg,
     $b.Cursor = [System.Windows.Forms.Cursors]::Hand
 }
 
+# WinForms greys a DISABLED button's text to a near-black tone derived from its
+# BackColor -- on a dark theme that makes the label invisible (e.g. "Open HTML
+# report" / "Pause" before they're enabled). We repaint disabled buttons ourselves
+# with a legible muted label so the action is always readable. Wire ONCE per button.
+$script:ReadableDisabledWired = $false
+function Enable-ReadableDisabled($b) {
+    if (-not $b) { return }
+    $b.Add_EnabledChanged({ param($s, $e) $s.Invalidate() })
+    $b.Add_Paint({
+        param($s, $e)
+        if ($s.Enabled) { return }   # enabled buttons paint normally (good contrast)
+        $g = $e.Graphics
+        $rect = $s.ClientRectangle
+        # erase the faint system-greyed text the base painter already drew
+        $bgBrush = New-Object System.Drawing.SolidBrush($s.BackColor)
+        $g.FillRectangle($bgBrush, $rect); $bgBrush.Dispose()
+        # dim 1px border so the (disabled) button still reads as a button
+        $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(96, 96, 100), 1)
+        $g.DrawRectangle($pen, 0, 0, $rect.Width - 1, $rect.Height - 1); $pen.Dispose()
+        # legible muted label
+        $flags = [System.Windows.Forms.TextFormatFlags]::HorizontalCenter `
+            -bor [System.Windows.Forms.TextFormatFlags]::VerticalCenter `
+            -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis
+        [System.Windows.Forms.TextRenderer]::DrawText($g, $s.Text, $s.Font, $rect, [System.Drawing.Color]::FromArgb(170, 170, 174), $flags)
+    })
+}
+function Wire-ReadableDisabledButtons {
+    if ($script:ReadableDisabledWired) { return }
+    foreach ($b in @($btnRun, $btnPause, $btnOpenHtml, $btnOpenExcel, $btnOpenFolder, $btnTestAi, $btnBrowse, $btnAutoDetect, $btnExpRun)) {
+        Enable-ReadableDisabled $b
+    }
+    $script:ReadableDisabledWired = $true
+}
+
 $script:TabDrawAttached = $false
 function Apply-ModernStyle {
     $pal = Get-UiPalette $script:DarkTheme
@@ -1253,7 +1354,7 @@ function Apply-ModernStyle {
     $btnRun.Tag = 'keep'
     Style-FlatBtn $btnRun $script:Accent $script:AccentText $script:Accent
     $btnRun.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
-    foreach ($b in @($btnBrowse, $btnAutoDetect, $btnTestAi, $btnTheme, $btnOpenHtml, $btnOpenExcel, $btnOpenFolder)) {
+    foreach ($b in @($btnBrowse, $btnAutoDetect, $btnTestAi, $btnTheme, $btnPause, $btnOpenHtml, $btnOpenExcel, $btnOpenFolder)) {
         Style-FlatBtn $b $pal.PanelBg $pal.LabelFg $script:Accent
     }
     if ($btnExpRun) {
@@ -1506,6 +1607,9 @@ $btnRun.Add_Click({
     $btnOpenHtml.Enabled = $false
     $btnOpenExcel.Enabled = $false
     $btnOpenFolder.Enabled = $false
+    # pause/resume: clear any stale signal, then enable Pause for this run
+    Remove-Item -LiteralPath $script:PauseFlag -Force -ErrorAction SilentlyContinue
+    $btnPause.Text = "Pause"; $btnPause.Enabled = $true
     $txtLog.Clear()
     $lvFindings.Items.Clear()
 
@@ -1525,6 +1629,7 @@ $btnRun.Add_Click({
         Acknowledge = $true
         OutDir = $outDir
         InformationAction = 'Continue'
+        PauseSignalPath = $script:PauseFlag
     }
     if ($txtProc.Text) { $params.ProcessName = $txtProc.Text }
     if ($txtPkg.Text)  { $params.PackageName = $txtPkg.Text }
@@ -1740,6 +1845,9 @@ $btnRun.Add_Click({
     Write-LogLine "Audit complete. Reports in: $outDir" ([System.Drawing.Color]::FromArgb(46, 204, 113))
     Update-Status "Audit complete -- $($lvFindings.Items.Count) findings shown."
     $btnRun.Enabled = $true
+    # pause/resume: audit finished -> disable Pause and clear any signal
+    $btnPause.Enabled = $false; $btnPause.Text = "Pause"
+    Remove-Item -LiteralPath $script:PauseFlag -Force -ErrorAction SilentlyContinue
     $btnOpenHtml.Enabled = (Test-Path (Join-Path $outDir 'index.html'))
     $btnOpenExcel.Enabled = (Test-Path (Join-Path $outDir 'report.xlsx'))
     $btnOpenFolder.Enabled = $true
@@ -1780,6 +1888,8 @@ foreach ($keep in @($btnRun, $btnExpRun, $disclaimerStrip, $expBanner)) { if ($k
 Apply-UiFont
 Apply-UiTheme
 Apply-ModernStyle
+# Keep disabled-button labels legible on the dark theme (wire once, after styling).
+Wire-ReadableDisabledButtons
 
 # --- Mandatory startup disclaimer acknowledgement ---
 $ackText = @"

@@ -1,17 +1,23 @@
-# LLM client -- multi-provider.
+# LLM client -- multi-provider, model-agnostic.
 # Two API dialects are supported:
-#   * 'openai'    -> POST {baseUrl}/chat/completions   (Ollama, OpenAI, DeepSeek, Azure, gateways)
+#   * 'openai'    -> POST {baseUrl}/chat/completions   (Ollama, OpenAI, DeepSeek, Gemini, Grok/xAI, Azure, any OpenAI-compatible gateway)
 #   * 'anthropic' -> POST {baseUrl}/v1/messages        (Claude)
 # Provider, model, key and dialect all come from Data\llm-config.json, which the
-# GUI writes when the operator picks a backend.
+# GUI writes when the operator picks a backend. The MODEL is free-text -- you can
+# type ANY model the provider exposes (no hardcoded model list); 'custom' lets you
+# point at any other OpenAI-compatible endpoint by setting baseUrl in the config.
 
 $script:TcpkLlmConfig = $null
 
-# Built-in provider presets. The GUI exposes these by name.
+# Built-in provider presets. The GUI exposes these by name; 'custom' = bring-your-own URL.
+# Gemini and Grok both expose an OpenAI-compatible surface (Bearer auth, /chat/completions,
+# /models), so they use the 'openai' dialect.
 $script:TcpkLlmProviders = @{
     'ollama'    = @{ dialect='openai';    baseUrl='http://localhost:11434/v1'; needsKey=$false; cloud=$false; defaultModel='qwen2.5-coder:7b' }
     'claude'    = @{ dialect='anthropic'; baseUrl='https://api.anthropic.com';  needsKey=$true;  cloud=$true;  defaultModel='claude-sonnet-4-5' }
     'openai'    = @{ dialect='openai';    baseUrl='https://api.openai.com/v1';  needsKey=$true;  cloud=$true;  defaultModel='gpt-4o' }
+    'gemini'    = @{ dialect='openai';    baseUrl='https://generativelanguage.googleapis.com/v1beta/openai'; needsKey=$true; cloud=$true; defaultModel='gemini-2.0-flash' }
+    'grok'      = @{ dialect='openai';    baseUrl='https://api.x.ai/v1';        needsKey=$true;  cloud=$true;  defaultModel='grok-2-latest' }
     'deepseek'  = @{ dialect='openai';    baseUrl='https://api.deepseek.com';   needsKey=$true;  cloud=$true;  defaultModel='deepseek-chat' }
     'custom'    = @{ dialect='openai';    baseUrl='';                           needsKey=$true;  cloud=$true;  defaultModel='' }
 }

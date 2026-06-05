@@ -57,14 +57,19 @@ accelerates triage.
 
 No API key. After the model is pulled, it runs **offline**.
 
-### 2b. Cloud AI (Claude / OpenAI / DeepSeek -- needs internet + API key)
+### 2b. Cloud AI (Claude / OpenAI / Gemini / Grok / DeepSeek -- needs internet + API key)
 
-Get an API key from the provider, then in TCPK pick the provider and paste the key:
+Get an API key from the provider, then in TCPK pick the provider and paste the key.
+The **model field is free-text** -- type any model the provider exposes, or click
+**Test AI** to pull the live list. Need something not listed? Pick **custom** and set
+its `baseUrl` in `Data\llm-config.json` (any OpenAI-compatible endpoint works).
 
 | Provider | Get a key at |
 |----------|--------------|
 | Claude (Anthropic) | https://console.anthropic.com |
 | OpenAI | https://platform.openai.com/api-keys |
+| Gemini (Google) | https://aistudio.google.com/apikey |
+| Grok (xAI) | https://console.x.ai |
 | DeepSeek | https://platform.deepseek.com |
 
 (Cloud is opt-in behind a gate; local Ollama is the default.)

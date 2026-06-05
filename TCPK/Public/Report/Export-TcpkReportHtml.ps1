@@ -408,6 +408,7 @@ $($cards -join "`n")
 <section class='card hardening collapsed'>
   <h3 class='hardhead'><span class='caret'>&#9662;</span>DLL exploit-mitigation matrix <span class='seccount'>($(@($Hardening).Count) binaries &middot; $weakN weak &middot; $partN partial)</span></h3>
   <div class='hardbody'>
+    <div class='filterbar'><input class='tabfilter' data-target='hardtab' type='text' placeholder='Filter DLLs by name / status / missing mitigation...'><span class='filtcount'></span></div>
     <table class='recontab hardtab'>
       <thead><tr><th>DLL</th><th>Arch</th><th>ASLR</th><th>DEP</th><th>CFG</th><th>HighEntropyVA</th><th>SafeSEH</th><th>ForceIntegrity</th><th>Status</th><th>Missing</th></tr></thead>
       <tbody>
@@ -441,6 +442,7 @@ $($hwRows -join "`n")
 <section class='card sbom collapsed'>
   <h3 class='sbomhead'><span class='caret'>&#9662;</span>Software bill of materials (SBOM) <span class='seccount'>($(@($Sbom).Count) components &middot; $nativeN native &middot; $managedN managed)</span></h3>
   <div class='sbombody'>
+    <div class='filterbar'><input class='tabfilter' data-target='sbomtab' type='text' placeholder='Filter components by name / version / type / hash / path...'><span class='filtcount'></span></div>
     <table class='recontab sbomtab'>
       <thead><tr><th>Component</th><th>Version</th><th>Publisher</th><th>Type</th><th>SHA-256</th><th>Path</th></tr></thead>
       <tbody>
@@ -486,6 +488,9 @@ h1{font-size:24px;margin:0}
 .barcount{min-width:36px;text-align:right;font-weight:700}
 .toolbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#f4f5f7;padding:10px 0;margin-bottom:10px;border-bottom:1px solid #e1e1e1}
 #search{flex:1;min-width:200px;padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:14px}
+.filterbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.tabfilter{flex:1;max-width:460px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px}
+.filtcount{color:#566573;font-size:12px}
 .chip{cursor:pointer;font-size:12px;font-weight:600;padding:6px 11px;border-radius:14px;border:1px solid #ccc;background:#fff;color:#444;user-select:none}
 .chip.active{background:#222;color:#fff;border-color:#222}
 .btn{cursor:pointer;font-size:12px;padding:6px 11px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#333}
@@ -545,7 +550,7 @@ h3{font-size:15px;margin:0 0 10px}
 .disclaimer strong{color:#9b0000}
 @media print{
   body{background:#fff}
-  .toolbar,.chip,.btn,#search{display:none!important}
+  .toolbar,.chip,.btn,#search,.filterbar{display:none!important}
   .sevsection.collapsed .sevbody{display:block!important}
   .fbody{display:block!important}
   .finding{break-inside:avoid;border:1px solid #ccc}
@@ -581,6 +586,21 @@ h3{font-size:15px;margin:0 0 10px}
   }
 
   if(search) search.addEventListener('input',function(){query=search.value.toLowerCase().trim();apply();});
+
+  // per-table filters (SBOM + DLL hardening): hide non-matching tbody rows live
+  document.querySelectorAll('.tabfilter').forEach(function(inp){
+    inp.addEventListener('input',function(){
+      var q=inp.value.toLowerCase().trim();
+      var tbl=document.querySelector('table.'+inp.getAttribute('data-target'));
+      if(!tbl)return;
+      var shown=0;
+      tbl.querySelectorAll('tbody tr').forEach(function(tr){
+        var hit=(q===''||tr.textContent.toLowerCase().indexOf(q)!==-1);
+        tr.style.display=hit?'':'none'; if(hit)shown++;
+      });
+      var cnt=inp.parentNode.querySelector('.filtcount'); if(cnt)cnt.textContent=shown+' shown';
+    });
+  });
 
   document.querySelectorAll('.chip').forEach(function(c){
     c.addEventListener('click',function(){

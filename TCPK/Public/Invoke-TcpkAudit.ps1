@@ -64,6 +64,7 @@ function Invoke-TcpkAudit {
         [switch]$EnableDeepRuntime,
         [switch]$EnableLlm,
         [switch]$AllowCloudLlm,
+        [string]$PauseSignalPath,
         [ValidateSet('INFO','LOW','MEDIUM','HIGH','CRITICAL')][string]$FailOn
     )
 
@@ -107,6 +108,15 @@ function Invoke-TcpkAudit {
 
     # --- per-check runner ---
     function _RunCheck([string]$Name, [scriptblock]$Block) {
+        # Cooperative pause: while the GUI's pause-signal file exists, hold here at the
+        # check boundary (capped at 30 min so a stale flag can't hang the audit forever).
+        # No PauseSignalPath (CLI default) -> never pauses.
+        if ($PauseSignalPath -and (Test-Path -LiteralPath $PauseSignalPath)) {
+            Write-Information -MessageData "  [PAUSED] audit held before '$Name' -- make your changes, then click Resume." -InformationAction Continue
+            $psw = [System.Diagnostics.Stopwatch]::StartNew()
+            while ((Test-Path -LiteralPath $PauseSignalPath) -and $psw.Elapsed.TotalMinutes -lt 30) { Start-Sleep -Milliseconds 400 }
+            Write-Information -MessageData "  [RESUMED] continuing audit." -InformationAction Continue
+        }
         Write-TcpkLog -Level DEBUG -Component $Name -Message 'start' | Out-Null
         try {
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
