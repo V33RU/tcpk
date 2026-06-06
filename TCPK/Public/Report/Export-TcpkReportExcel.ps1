@@ -42,6 +42,7 @@ function Export-TcpkReportExcel {
         [Parameter(Mandatory, ValueFromPipeline)][TcpkFinding[]]$Findings,
         [Parameter(Mandatory)][string]$OutFile,
         [object[]]$Hardening = @(),
+        [object[]]$Signing = @(),
         [object]$Profile = $null,
         [object[]]$CveMatches = @(),
         [object[]]$Sbom = @(),
@@ -111,6 +112,12 @@ function Export-TcpkReportExcel {
             ,@("$($h.DLL)", "$($h.Arch)", "$($h.ASLR)", "$($h.DEP)", "$($h.CFG)", "$($h.HighEntropyVA)", "$($h.SafeSEH)", "$($h.ForceIntegrity)", "$($h.Status)", "$($h.Missing)", "$($h.DllCharacteristics)")
         }
 
+        # ---------- DLL Signing sheet (signed / not signed -- information only) ----------
+        $sgSorted = $Signing | Sort-Object @{ E = { switch ("$($_.Status)") { 'TAMPERED' {0} 'UNTRUSTED' {1} 'UNSIGNED' {2} 'UNKNOWN' {3} default {4} } } }, DLL
+        $sgRows = foreach ($s in $sgSorted) {
+            ,@("$($s.DLL)", "$($s.Signed)", "$($s.Status)", "$($s.Signer)", "$($s.Algorithm)", "$($s.Expires)", "$($s.Type)", "$($s.Path)")
+        }
+
         # ---------- Checklist sheet (thick-client test plan + auto-status) ----------
         # Correlates findings to the 40-case manual methodology. Auto Status is TCPK's
         # automated read; the tester completes the Result column. A NO-FINDINGS status
@@ -124,6 +131,7 @@ function Export-TcpkReportExcel {
             [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0 vector','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS / Desktop Top 10','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
             [ordered]@{ Name = 'Checklist'; Headers = @('Test #','Test Name','Type','TCPK Coverage','Auto Status','Findings','Related Rule IDs','Result (PASS/FAIL)','Manual confirmation step'); Rows = @($clRows); Widths = @(8, 44, 14, 13, 13, 9, 40, 17, 64) }
             [ordered]@{ Name = 'DLL Hardening'; Headers = @('DLL','Arch','ASLR','DEP','CFG','HighEntropyVA','SafeSEH','ForceIntegrity','Status','Missing','Flags'); Rows = @($hwRows) }
+            [ordered]@{ Name = 'DLL Signing'; Headers = @('DLL','Signed','Status','Signer','Algorithm','Expires','Type','Path'); Rows = @($sgRows); Widths = @(34, 9, 12, 40, 16, 12, 12, 80) }
         )
 
         # ---------- CVEs sheet (optional) ----------

@@ -54,6 +54,7 @@ function Export-TcpkReportHtml {
         [object]$Scope = $null,
         [object[]]$CveMatches = @(),
         [object[]]$Hardening = @(),
+        [object[]]$Signing = @(),
         [object[]]$Sbom = @()
     )
 
@@ -420,6 +421,43 @@ $($hwRows -join "`n")
 "@
         }
 
+        # ---------------- DLL signing matrix (signed / not signed -- information only) ----------------
+        $signingHtml = ''
+        if ($Signing -and @($Signing).Count) {
+            $sgColor = { param($v) switch ("$v") { 'SIGNED' {'#117a65'} 'CATALOG' {'#117a65'} 'UNSIGNED' {'#c0392b'} 'TAMPERED' {'#c0392b'} 'UNTRUSTED' {'#c0392b'} default {'#566573'} } }
+            $sgSorted = $Signing | Sort-Object @{ E = { switch ("$($_.Status)") { 'TAMPERED' {0} 'UNTRUSTED' {1} 'UNSIGNED' {2} 'UNKNOWN' {3} default {4} } } }, DLL
+            $sgRows = foreach ($s in $sgSorted) {
+                $stc = & $sgColor $s.Status
+                @"
+<tr>
+  <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$s.DLL))</code></td>
+  <td style='color:$stc;font-weight:600'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Signed))</td>
+  <td><span class='badge' style='background:$stc'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Status))</span></td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Signer))</td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Algorithm))</td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Expires))</td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Type))</td>
+</tr>
+"@
+            }
+            $unsN = @($Signing | Where-Object { "$($_.Signed)" -eq 'NO' }).Count
+            $sgnN = @($Signing | Where-Object { "$($_.Signed)" -in 'YES','CATALOG' }).Count
+            $signingHtml = @"
+<section class='card signing collapsed'>
+  <h3 class='signhead'><span class='caret'>&#9662;</span>DLL signing matrix (signed / not signed) <span class='seccount'>($(@($Signing).Count) binaries &middot; $sgnN signed &middot; $unsN unsigned)</span></h3>
+  <div class='signbody'>
+    <div class='filterbar'><input class='tabfilter' data-target='signtab' type='text' placeholder='Filter DLLs by name / signer / status...'><span class='filtcount'></span></div>
+    <table class='recontab hardtab signtab'>
+      <thead><tr><th>DLL</th><th>Signed</th><th>Status</th><th>Signer</th><th>Algorithm</th><th>Expires</th><th>Type</th></tr></thead>
+      <tbody>
+$($sgRows -join "`n")
+      </tbody>
+    </table>
+  </div>
+</section>
+"@
+        }
+
         # ---------------- SBOM / component inventory (parity with sbom.cdx.json + Excel) ----------------
         $sbomHtml = ''
         if ($Sbom -and @($Sbom).Count) {
@@ -533,7 +571,7 @@ h3{font-size:15px;margin:0 0 10px}
 .reconlist li{margin:2px 0}
 .emptynote{font-size:12.5px;color:#999;font-style:italic;padding:4px 0 4px 11px}
 .cve .cvehead,.hardening .hardhead{cursor:pointer;user-select:none;margin:0 0 12px}
-.cve.collapsed .cvebody,.hardening.collapsed .hardbody{display:none}
+.cve.collapsed .cvebody,.hardening.collapsed .hardbody,.signing.collapsed .signbody{display:none}
 .cvetab td,.hardtab td{vertical-align:top}
 .cvetab a,.recontab a{color:#1c4f80}
 .cvesum{font-size:11.5px;color:#666;margin-top:3px;line-height:1.4}
@@ -619,7 +657,7 @@ h3{font-size:15px;margin:0 0 10px}
   });
   var rh=document.querySelector('.recon .reconhead');
   if(rh) rh.addEventListener('click',function(){rh.parentNode.classList.toggle('collapsed');});
-  document.querySelectorAll('.cve .cvehead,.hardening .hardhead,.sbom .sbomhead').forEach(function(h){
+  document.querySelectorAll('.cve .cvehead,.hardening .hardhead,.signing .signhead,.sbom .sbomhead').forEach(function(h){
     h.addEventListener('click',function(){h.parentNode.classList.toggle('collapsed');});
   });
 
@@ -703,6 +741,7 @@ $($sectionHtml -join "`n")
   </div>
   <div id='nores' class='nores'>No findings match the current filter.</div>
 $hardeningHtml
+$signingHtml
 $sbomHtml
 
   <footer class='disclaimer'>

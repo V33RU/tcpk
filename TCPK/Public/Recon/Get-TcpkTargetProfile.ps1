@@ -149,6 +149,18 @@ function Get-TcpkTargetProfile {
     $isElectron = (_Has 'electron.exe') -or (_FileLike 'app.asar') -or (_Has 'ffmpeg.dll' -and $isCef)
     $isNwjs     = (_Has 'nw.exe') -or (_Has 'nw.dll')
 
+    # ---------- R10b Tauri / Flutter (newer cross-platform desktop frameworks) ----------
+    # Tauri ships the Rust exe + WebView2Loader (no wry.dll -- WRY is statically linked),
+    # so confirm via tauri.conf.json (dev/source builds) or Tauri runtime markers in the exe.
+    $isTauri = $false
+    if (_FileLike 'tauri.conf.json') { $isTauri = $true }
+    elseif ((_Has 'webview2loader.dll') -and $mainExePath) {
+        $mt = Read-TcpkAllText -Path $mainExePath
+        if ($mt -and ($mt.Contains('__TAURI') -or $mt.Contains('tauri://') -or $mt.Contains('ipc://localhost'))) { $isTauri = $true }
+    }
+    # Flutter desktop ships flutter_windows.dll + data\flutter_assets\ (kernel_blob.bin / app.so).
+    $isFlutter = (_Has 'flutter_windows.dll') -or (_FileLike 'kernel_blob.bin')
+
     # ---------- R03 runtime / language ----------
     $runtime = $null; $runtimeDetail = $null
     $hasManagedMarker = (_Has 'system.private.corelib.dll') -or (_Has 'mscorlib.dll') -or (_AnyLike 'system.*.dll')
@@ -182,6 +194,8 @@ function Get-TcpkTargetProfile {
             } catch { }
         }
     }
+    elseif ($isTauri)                { $runtime = 'Rust + System WebView (Tauri)' }
+    elseif ($isFlutter)              { $runtime = 'Flutter (Dart)' }
     else { $runtime = 'Native (C/C++)' }
 
     # ---------- R02 UI framework ----------
@@ -193,6 +207,8 @@ function Get-TcpkTargetProfile {
     if (_AnyLike 'avalonia*.dll')                                              { $ui.Add('Avalonia') }
     if (_AnyLike 'qt5*.dll' -or (_AnyLike 'qt6*.dll'))                         { $ui.Add('Qt') }
     if (_AnyLike 'mfc*.dll')                                                   { $ui.Add('MFC') }
+    if ($isTauri)                                                              { $ui.Add('Tauri (WebView)') }
+    if ($isFlutter)                                                            { $ui.Add('Flutter') }
     if ($isElectron -or $isCef -or $isNwjs)                                    { $ui.Add('Chromium/WebView') }
     if ((_AnyLike 'microsoft.web.webview2*.dll'))                              { $ui.Add('WebView2') }
     if ($ui.Count -eq 0) { $ui.Add('unknown / custom') }
@@ -282,6 +298,8 @@ function Get-TcpkTargetProfile {
         elseif ($isNwjs)           { 'NW.js app' }
         elseif ($isJava)           { 'Java application' }
         elseif ($isPython)         { 'Python (bundled) application' }
+        elseif ($isTauri)          { 'Tauri app' }
+        elseif ($isFlutter)        { 'Flutter desktop app' }
         elseif (_FileLike '*.application') { 'ClickOnce application' }
         elseif ($exeCount -gt 0)   { 'Win32 application' }
         else                       { 'unknown' }
@@ -391,6 +409,8 @@ function Get-TcpkTargetProfile {
         PrivilegeModel  = $priv
         IsElectron      = [bool]$isElectron
         IsCef           = [bool]$isCef
+        IsTauri         = [bool]$isTauri
+        IsFlutter       = [bool]$isFlutter
         Signature       = $sig
         ThirdPartySdks  = $sdks.ToArray()
         Counts          = $counts

@@ -6,6 +6,22 @@
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
+    # Deterministic baseline: Pester shares the module instance across files via
+    # `& (Get-Module TCPK)`, so another file can leave a cloud provider / open gate
+    # cached. Reset to local ollama so the cloud-gate classification tests are stable.
+    & (Get-Module TCPK) {
+        Set-TcpkLlmConfig -Provider 'ollama' -Model 'qwen2.5-coder:7b' -BaseUrl '' -ApiKey '' -Enabled $true | Out-Null
+        $script:TcpkLlmCloudEnabled = $false
+    }
+}
+
+AfterAll {
+    # Leave a clean baseline for test files that run after this one (these tests set
+    # cloud providers + open the gate to exercise the multi-provider wiring).
+    & (Get-Module TCPK) {
+        Set-TcpkLlmConfig -Provider 'ollama' -Model 'qwen2.5-coder:7b' -BaseUrl '' -ApiKey '' -Enabled $true | Out-Null
+        $script:TcpkLlmCloudEnabled = $false
+    }
 }
 
 Describe 'Invoke-TcpkAudit LLM opt-in' {

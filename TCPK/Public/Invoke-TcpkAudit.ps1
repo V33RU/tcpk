@@ -158,7 +158,12 @@ function Invoke-TcpkAudit {
 
     # ----- Bucket A (static binary analysis, 21 cmdlets) -----
     _RunCheck 'Test-TcpkSignature'           { Test-TcpkSignature           -Path $Target   }
-    _RunCheck 'Test-TcpkPeMitigations'       { Test-TcpkPeMitigations       -Path $expanded }
+    # Missing binary-hardening (ASLR/DEP/CFG/HighEntropyVA) is reported as POSTURE in
+    # the DLL Mitigation Matrix (Get-TcpkPeHardening -> hardening.json, below), NOT as
+    # findings: a missing mitigation is defense-in-depth, not an exploitable bug on its
+    # own, and a per-DLL HIGH/MEDIUM finding per module would drown the real issues.
+    # Run Test-TcpkPeMitigations manually if an engagement specifically needs them as
+    # findings (e.g. an SDL / CIS compliance line item).
     _RunCheck 'Test-TcpkPeImports'           { Test-TcpkPeImports           -Path $expanded }
     _RunCheck 'Test-TcpkPeExports'           { Test-TcpkPeExports           -Path $expanded }
     _RunCheck 'Test-TcpkStrongName'          { Test-TcpkStrongName          -Path $expanded }
@@ -193,6 +198,31 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkSessionHandling'     { Test-TcpkSessionHandling     -Path $expanded }
     _RunCheck 'Test-TcpkZipSlip'             { Test-TcpkZipSlip             -Path $expanded }
     _RunCheck 'Test-TcpkDebugFlags'          { Test-TcpkDebugFlags          -Path $expanded }
+    _RunCheck 'Test-TcpkUiLeakSurface'       { Test-TcpkUiLeakSurface       -Path $expanded }
+    _RunCheck 'Test-TcpkTauriConfig'         { Test-TcpkTauriConfig         -Path $expanded }
+
+    # ----- Single-file (.NET PublishSingleFile): extract bundled assemblies + re-scan -----
+    # A single-file apphost embeds all managed assemblies inside the .exe, so the
+    # checks above see nothing on disk. Extract them and re-run the managed static
+    # checks against the recovered assemblies (temp folder, so ACL/dev-artifact
+    # checks are not re-run against them).
+    $sfRoot = $null
+    try { $sfRoot = Expand-TcpkSingleFileForScan -Path $expanded } catch { $sfRoot = $null }
+    if ($sfRoot) {
+        _RunCheck 'Single-file bundle detected' { New-TcpkFinding -Module 'static' -RuleId 'singlefile.bundle-detected' -Severity 'LOW' -Confidence 'Confirmed' -Title 'Single-file (.NET PublishSingleFile) bundle detected' -File $expanded -Evidence "managed assemblies extracted to $sfRoot" -Description 'Managed assemblies are bundled inside the apphost .exe; on-disk static checks would otherwise miss them. TCPK extracted the bundle and re-ran the managed checks against the recovered assemblies. Single-file packaging is not a security boundary.' -Fix 'Treat all bundled code and strings as recoverable.' }
+        _RunCheck 'Test-TcpkSecrets (bundle)'          { Test-TcpkSecrets          -Path $sfRoot }
+        _RunCheck 'Test-TcpkEndpoints (bundle)'        { Test-TcpkEndpoints        -Path $sfRoot }
+        _RunCheck 'Test-TcpkDeserialization (bundle)'  { Test-TcpkDeserialization  -Path $sfRoot }
+        _RunCheck 'Test-TcpkCallsites (bundle)'        { Test-TcpkCallsites        -Path $sfRoot }
+        _RunCheck 'Test-TcpkTlsBypass (bundle)'        { Test-TcpkTlsBypass        -Path $sfRoot }
+        _RunCheck 'Test-TcpkCryptoMisuse (bundle)'     { Test-TcpkCryptoMisuse     -Path $sfRoot }
+        _RunCheck 'Test-TcpkJwt (bundle)'              { Test-TcpkJwt              -Path $sfRoot }
+        _RunCheck 'Test-TcpkDependencyCves (bundle)'   { Test-TcpkDependencyCves   -Path $sfRoot }
+        _RunCheck 'Test-TcpkReflectionLoading (bundle)' { Test-TcpkReflectionLoading -Path $sfRoot }
+        _RunCheck 'Test-TcpkEntropySecrets (bundle)'   { Test-TcpkEntropySecrets   -Path $sfRoot }
+        _RunCheck 'Test-TcpkAuthFlags (bundle)'        { Test-TcpkAuthFlags        -Path $sfRoot }
+        _RunCheck 'Test-TcpkSessionHandling (bundle)'  { Test-TcpkSessionHandling  -Path $sfRoot }
+    }
 
     # ----- Bucket B (MSIX manifest, 8 cmdlets) -----
     _RunCheck 'Test-TcpkMsixCapabilities'    { Test-TcpkMsixCapabilities    -Path $Target   }
@@ -247,6 +277,7 @@ function Invoke-TcpkAudit {
         if ($PSBoundParameters.ContainsKey('PackageFamilyName')) {
             _RunCheck 'Test-TcpkWebViewCreds'   { Test-TcpkWebViewCreds       -PackageFamilyName $PackageFamilyName }
         }
+        _RunCheck 'Test-TcpkBrowserTokenStore'  { Test-TcpkBrowserTokenStore  -NameLike $idTerms }
     }
 
     # ----- Bucket E (runtime / live process, 14 cmdlets) -----
@@ -285,6 +316,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkCrlOcsp'           { Test-TcpkCrlOcsp           -Path $expanded }
     _RunCheck 'Test-TcpkInsecureSchemes'   { Test-TcpkInsecureSchemes   -Path $expanded }
     _RunCheck 'Test-TcpkSelfHostedServer'  { Test-TcpkSelfHostedServer  -Path $expanded }
+    _RunCheck 'Test-TcpkRpcChannels'       { Test-TcpkRpcChannels       -Path $expanded }
 
     # ----- Bucket G (WebView2, 6 new cmdlets; G03 already in Discovery as WebViewNavTargets) -----
     _RunCheck 'Test-TcpkWv2HostObjects'    { Test-TcpkWv2HostObjects    -Path $expanded }
@@ -316,11 +348,32 @@ function Invoke-TcpkAudit {
     Write-Information -MessageData "" -InformationAction Continue
     Write-Information -MessageData "Triaging via Resolve-TcpkFindings..." -InformationAction Continue
     $before = $all.Count
-    $resolved = $all | Resolve-TcpkFindings
+    # Triage only (dedupe + false-positive killers + correlation). Aggregation is
+    # deferred until AFTER the optional LLM pass, so the LLM can read each occurrence's
+    # method IL on its own file before identical findings are collapsed.
+    $resolved = $all | Resolve-TcpkFindings -NoAggregate
     $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
     foreach ($f in $resolved) { $all.Add($f) }
     Write-Information -MessageData "  $before -> $($all.Count) findings after dedupe + triage" -InformationAction Continue
     Write-TcpkLog -Level INFO -Component 'triage' -Message "$before -> $($all.Count) findings after dedupe + triage" | Out-Null
+
+    # --- deterministic IL verification (real-vs-FP) for callsites.* findings ---
+    # Reads the IL with Cecil: is the flagged API actually invoked, reachable, and fed
+    # by external input? Refines Confidence to 'Confirmed (IL)' / 'Likely-FP (IL)'.
+    # Runs BEFORE the LLM so the model + reports inherit the proven verdicts. No model.
+    try {
+        $ilRefined = $all | Confirm-TcpkCallsiteUsage
+        $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
+        foreach ($f in $ilRefined) { $all.Add($f) }
+        $ilOk = @($all | Where-Object { "$($_.Confidence)" -eq 'Confirmed (IL)' }).Count
+        $ilFp = @($all | Where-Object { "$($_.Confidence)" -eq 'Likely-FP (IL)' }).Count
+        if ($ilOk -or $ilFp) {
+            Write-Information -MessageData "  IL verify: $ilOk confirmed, $ilFp likely-FP (callsite reachability + argument analysis)" -InformationAction Continue
+            Write-TcpkLog -Level INFO -Component 'il-verify' -Message "$ilOk confirmed, $ilFp likely-FP" | Out-Null
+        }
+    } catch {
+        Write-TcpkLog -Level WARN -Component 'il-verify' -Message $_.Exception.Message | Out-Null
+    }
 
     # --- optional LLM Stage-2 (opt-in): annotate code-construct findings ---
     # Advisory only: updates Confidence to a '(LLM)' verdict + appends reasoning,
@@ -335,6 +388,10 @@ function Invoke-TcpkAudit {
             Write-Information -MessageData "  LLM: provider '$pn' is a CLOUD backend; SKIPPED to protect target confidentiality (decompiled IL would leave this machine). Re-run with -AllowCloudLlm to send it, or switch to a local provider (ollama)." -InformationAction Continue
             Write-TcpkLog -Level WARN -Component 'llm' -Message "cloud provider '$pn' skipped (no -AllowCloudLlm)" | Out-Null
         } else {
+            # -AllowCloudLlm confirmed (or a local provider): open the cloud gate for
+            # this run so Resolve-TcpkLlmBackend permits a cloud backend. Without this,
+            # a cloud provider throws "Run Enable-TcpkLlmCloud" inside the judgment call.
+            if ($llmCloud) { $script:TcpkLlmCloudEnabled = $true }
             Write-Information -MessageData "" -InformationAction Continue
             Write-Information -MessageData "LLM Stage-2 (code-construct judgment)..." -InformationAction Continue
             try {
@@ -350,6 +407,24 @@ function Invoke-TcpkAudit {
                 Write-TcpkLog -Level ERROR -Component 'llm' -Message $_.Exception.Message | Out-Null
             }
         }
+    }
+
+    # Snapshot the FULL (un-aggregated) findings BEFORE collapsing. The recon profile,
+    # attack-surface map and exploit plan are per-occurrence inventories -- they must
+    # see every endpoint/port/host individually, not the aggregated "(N affected)" view.
+    $findingsFull = $all.ToArray()
+
+    # --- aggregate identical findings (now that the LLM has judged per-file) ---
+    # Collapse same RuleId + Severity + Confidence into one finding with an Affected
+    # list. Done after the LLM pass so files sharing a verdict merge, while files with
+    # different verdicts (e.g. Confirmed (LLM) vs Likely-FP (LLM)) stay separate.
+    $beforeAgg = $all.Count
+    $aggregated = $all | Resolve-TcpkFindings -AggregateOnly
+    $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
+    foreach ($f in $aggregated) { $all.Add($f) }
+    if ($all.Count -ne $beforeAgg) {
+        Write-Information -MessageData "  $beforeAgg -> $($all.Count) findings after aggregating identical rules" -InformationAction Continue
+        Write-TcpkLog -Level INFO -Component 'aggregate' -Message "$beforeAgg -> $($all.Count) after aggregation" | Out-Null
     }
 
     # --- CVE exposure: match shipped components vs the offline CVE catalog ---
@@ -406,7 +481,7 @@ function Invoke-TcpkAudit {
     $targetProfile = $null
     try {
         $psw = [System.Diagnostics.Stopwatch]::StartNew()
-        $targetProfile = Get-TcpkTargetProfile -Path $expanded -Findings $all.ToArray()
+        $targetProfile = Get-TcpkTargetProfile -Path $expanded -Findings $findingsFull
         $psw.Stop()
         Write-TcpkLog -Level SUCCESS -Component 'recon.profile' -Message "built ($($targetProfile.Name) $($targetProfile.Version))" -DurationMs ([int]$psw.Elapsed.TotalMilliseconds) | Out-Null
     } catch {
@@ -429,7 +504,7 @@ function Invoke-TcpkAudit {
 
     # --- attack-surface map (synthesized entry-point view; Batch C deliverable) ---
     try {
-        $surface = $all.ToArray() | Get-TcpkAttackSurface
+        $surface = $findingsFull | Get-TcpkAttackSurface
         $surface | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutDir 'attack-surface.json') -Encoding UTF8
         $catSummary = (@($surface.Categories) | ForEach-Object { "$($_.Label)=$($_.Count)" }) -join '; '
         $all.Add( (New-TcpkFinding -Module 'recon' -RuleId 'attacksurface.summary' `
@@ -462,7 +537,7 @@ function Invoke-TcpkAudit {
 
     # --- exploit plan (CVE matches + exploitable findings -> actionable items) ---
     try {
-        $plan = @(Get-TcpkExploitPlan -Findings $all.ToArray() -CveMatches $cveMatches -Path $expanded)
+        $plan = @(Get-TcpkExploitPlan -Findings $findingsFull -CveMatches $cveMatches -Path $expanded)
         $plan | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'exploits.json') -Encoding UTF8
         $expModules = @($plan | Where-Object { $_.Module }).Count
         Write-Information -MessageData "  exploits.json: $(@($plan).Count) actionable items ($expModules with a framework exploit module)" -InformationAction Continue
@@ -505,9 +580,17 @@ function Invoke-TcpkAudit {
     try { $hardening | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'hardening.json') -Encoding UTF8 }
     catch { Write-TcpkLog -Level ERROR -Component 'hardening.json' -Message $_.Exception.Message | Out-Null }
 
-    $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Sbom $sbom
+    # Per-DLL signing matrix (signed / not signed -- information only) for the Excel
+    # 'DLL Signing' sheet, the HTML signing table, and the GUI 'DLL Signing' tab.
+    $signing = @()
+    try { $signing = @(Get-TcpkSigningMatrix -Path $expanded) }
+    catch { Write-TcpkLog -Level ERROR -Component 'signing' -Message $_.Exception.Message | Out-Null }
+    try { $signing | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'signing.json') -Encoding UTF8 }
+    catch { Write-TcpkLog -Level ERROR -Component 'signing.json' -Message $_.Exception.Message | Out-Null }
+
+    $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Signing $signing -Sbom $sbom
     try {
-        $all | Export-TcpkReportExcel -OutFile $xlsxPath -Hardening $hardening -Profile $targetProfile -CveMatches $cveMatches -Sbom $sbom -Target $Target
+        $all | Export-TcpkReportExcel -OutFile $xlsxPath -Hardening $hardening -Signing $signing -Profile $targetProfile -CveMatches $cveMatches -Sbom $sbom -Target $Target
     } catch { Write-TcpkLog -Level ERROR -Component 'report.excel' -Message $_.Exception.Message | Out-Null }
     Write-TcpkLog -Level SUCCESS -Component 'report' -Message "HTML + Excel written ($($all.Count) findings, $(@($hardening).Count) DLLs)" | Out-Null
 

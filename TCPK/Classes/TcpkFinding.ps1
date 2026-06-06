@@ -21,6 +21,7 @@ class TcpkFinding {
     # --- evidence ---
     [string] $File         # primary path/file/key the finding applies to
     [string] $Evidence     # raw observed value (redact secrets before storing here)
+    [string[]] $Affected = @()   # when this finding aggregates multiple occurrences of the SAME rule: the affected files / URLs / params
 
     # --- categorization + remediation ---
     [string[]] $Cwe        # CWE identifiers like 'CWE-798'

@@ -8,6 +8,13 @@ function Test-TcpkPeMitigations {
     the supplied path. Emits a HIGH finding for any PE missing ASLR or DEP,
     MEDIUM for missing CFG / HighEntropyVA.
 
+    NOTE: this is NOT part of the default audit. A missing mitigation is
+    defense-in-depth (it makes exploiting a SEPARATE bug easier), not an
+    exploitable defect by itself, so Invoke-TcpkAudit reports binary hardening as
+    POSTURE in the DLL Mitigation Matrix (Get-TcpkPeHardening / hardening.json),
+    not as findings. Run this cmdlet directly only when an engagement explicitly
+    wants missing mitigations as findings (e.g. an SDL / CIS compliance line item).
+
 .PARAMETER Path
     File or directory.
 

@@ -601,6 +601,37 @@ $lvHard.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $tabHard.Controls.Add($lvHard)
 $lvHard.BringToFront()
 
+# --- DLL Signing tab (signed / not signed -- information only) ---
+$tabSign = New-Object System.Windows.Forms.TabPage
+$tabSign.Text = '  DLL Signing  '
+$tabSign.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabSign)
+$signHeader = New-Object System.Windows.Forms.Panel
+$signHeader.Dock = 'Top'; $signHeader.Height = 50
+$signHint = New-Object System.Windows.Forms.Label
+$signHint.AutoSize = $true; $signHint.Location = New-Object System.Drawing.Point(6, 6)
+$signHint.Text = "Run an audit -- per-DLL code-signing status (information only). Red = UNSIGNED / TAMPERED / UNTRUSTED, green = SIGNED / CATALOG."
+$signLblF = New-Object System.Windows.Forms.Label
+$signLblF.AutoSize = $true; $signLblF.Location = New-Object System.Drawing.Point(6, 28); $signLblF.Text = "Filter:"
+$txtSignFilter = New-Object System.Windows.Forms.TextBox
+$txtSignFilter.Location = New-Object System.Drawing.Point(52, 25); $txtSignFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtSignFilter.Add_TextChanged({ Filter-Signing })
+$signHeader.Controls.AddRange(@($signHint, $signLblF, $txtSignFilter))
+$tabSign.Controls.Add($signHeader)
+$lvSign = New-Object System.Windows.Forms.ListView
+$lvSign.Dock = 'Fill'; $lvSign.View = 'Details'; $lvSign.FullRowSelect = $true; $lvSign.GridLines = $true
+$lvSign.HeaderStyle = 'Nonclickable'
+$lvSign.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+[void]$lvSign.Columns.Add('DLL', 240)
+[void]$lvSign.Columns.Add('Signed', 70)
+[void]$lvSign.Columns.Add('Status', 95)
+[void]$lvSign.Columns.Add('Signer', 280)
+[void]$lvSign.Columns.Add('Algorithm', 110)
+[void]$lvSign.Columns.Add('Expires', 90)
+[void]$lvSign.Columns.Add('Type', 90)
+$tabSign.Controls.Add($lvSign)
+$lvSign.BringToFront()
+
 # --- Logs / Runtime tab (verbose timed trace + runtime analysis) ---
 $tabLogs = New-Object System.Windows.Forms.TabPage
 $tabLogs.Text = '  Logs / Runtime  '
@@ -1041,6 +1072,48 @@ function Filter-Hardening {
         if ($q -eq '' -or "$($it.Tag)".Contains($q)) { [void]$lvHard.Items.Add($it) }
     }
     $lvHard.EndUpdate()
+}
+
+function Populate-Signing([string]$OutDir) {
+    $script:SignItems = New-Object System.Collections.Generic.List[object]
+    $lvSign.Items.Clear()
+    $sf = Join-Path $OutDir 'signing.json'
+    if (-not (Test-Path $sf)) { return }
+    $parsed = $null
+    try { $parsed = ConvertFrom-Json (Get-Content -LiteralPath $sf -Raw) } catch { return }
+    if ($null -eq $parsed) { return }
+    foreach ($s in @($parsed)) {
+        $row = New-Object System.Windows.Forms.ListViewItem("$($s.DLL)")
+        [void]$row.SubItems.Add("$($s.Signed)")
+        [void]$row.SubItems.Add("$($s.Status)")
+        [void]$row.SubItems.Add("$($s.Signer)")
+        [void]$row.SubItems.Add("$($s.Algorithm)")
+        [void]$row.SubItems.Add("$($s.Expires)")
+        [void]$row.SubItems.Add("$($s.Type)")
+        switch ("$($s.Status)") {
+            'UNSIGNED'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+            'TAMPERED'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+            'UNTRUSTED' { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+            'SIGNED'    { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
+            'CATALOG'   { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
+        }
+        $row.Tag = ("$($s.DLL) $($s.Signed) $($s.Status) $($s.Signer)").ToLowerInvariant()
+        [void]$script:SignItems.Add($row)
+    }
+    Filter-Signing
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+# Live filter for the DLL Signing tab.
+function Filter-Signing {
+    if ($null -eq $script:SignItems) { return }
+    $q = "$($txtSignFilter.Text)".ToLowerInvariant().Trim()
+    $lvSign.BeginUpdate()
+    $lvSign.Items.Clear()
+    foreach ($it in $script:SignItems) {
+        if ($q -eq '' -or "$($it.Tag)".Contains($q)) { [void]$lvSign.Items.Add($it) }
+    }
+    $lvSign.EndUpdate()
 }
 
 # Authorization / gate toggle
@@ -1640,6 +1713,32 @@ $btnRun.Add_Click({
         if ($pkg) { $params.PackageFamilyName = $pkg.PackageFamilyName }
     }
 
+    # --- AI verification runs INLINE in the audit (single AI-aware report pass) ---
+    # Configure the backend + confirm cloud use BEFORE the job starts; the job's
+    # runspace reads llm-config.json, and -AllowCloudLlm opens the cloud gate there.
+    # This replaces the old write-reports-then-rewrite post-pass (no stale window).
+    if ($chkAi.Checked) {
+        $aiSel = $cmbAi.SelectedItem
+        $aiPreset = $script:AiPresets[$aiSel]
+        $aiKeyOk = (-not $aiPreset.needsKey) -or [bool]$txtAiKey.Text
+        $aiCloudOk = $true
+        if ($aiKeyOk -and $aiPreset.name -ne 'ollama') {
+            $msg = "The AI pass will send DECOMPILED CODE (IL) of the target to the CLOUD provider '$($aiPreset.name)'.`r`n`r`nFor a confidential engagement this may breach your authorization / NDA -- the code leaves this machine.`r`n`r`nSend the target's code to '$($aiPreset.name)'?`r`n`r`n(No = skip the AI pass and keep everything local. Tip: choose 'ollama (local)' for fully offline AI.)"
+            $ans = [System.Windows.Forms.MessageBox]::Show($msg, "TCPK -- cloud AI confirmation", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning, [System.Windows.Forms.MessageBoxDefaultButton]::Button2)
+            $aiCloudOk = ($ans -eq [System.Windows.Forms.DialogResult]::Yes)
+        }
+        if (-not $aiKeyOk) {
+            Write-LogLine "AI verify skipped: $aiSel needs an API key (none entered)." ([System.Drawing.Color]::FromArgb(214,137,16))
+        } elseif (-not $aiCloudOk) {
+            Write-LogLine "AI verify skipped: cloud provider '$($aiPreset.name)' not confirmed -- target code kept local." ([System.Drawing.Color]::FromArgb(214,137,16))
+        } else {
+            [void](Set-AiConfigFromGui)   # writes provider/model/key to llm-config.json (read by the job)
+            $params.EnableLlm = $true
+            if ($aiPreset.name -ne 'ollama') { $params.AllowCloudLlm = $true }
+            Write-LogLine "[AI] $aiSel will verify code-construct findings inline; reports will include AI verdicts." ([System.Drawing.Color]::FromArgb(174,214,241))
+        }
+    }
+
     Update-Status "Running audit..."
 
     # Run as job so we can stream output
@@ -1703,86 +1802,10 @@ $btnRun.Add_Click({
         try {
             $findings = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json
 
-            # --- Stage 2: AI verification pass (if enabled) ---
-            if ($chkAi.Checked) {
-                $sel = $cmbAi.SelectedItem
-                $preset = $script:AiPresets[$sel]
-                $keyOk = (-not $preset.needsKey) -or [bool]$txtAiKey.Text
-                # Local-only by default: a CLOUD provider would send the target's
-                # decompiled IL off-box, which can breach a confidential engagement.
-                # Require explicit confirmation (the CLI equivalent is -AllowCloudLlm).
-                $cloudOk = $true
-                if ($keyOk -and $preset.name -ne 'ollama') {
-                    $msg = "The AI pass will send DECOMPILED CODE (IL) of the target to the CLOUD provider '$($preset.name)'.`r`n`r`nFor a confidential engagement this may breach your authorization / NDA -- the code leaves this machine.`r`n`r`nSend the target's code to '$($preset.name)'?`r`n`r`n(No = skip the AI pass and keep everything local. Tip: choose 'ollama (local)' for fully offline AI.)"
-                    $ans = [System.Windows.Forms.MessageBox]::Show($msg, "TCPK -- cloud AI confirmation", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning, [System.Windows.Forms.MessageBoxDefaultButton]::Button2)
-                    $cloudOk = ($ans -eq [System.Windows.Forms.DialogResult]::Yes)
-                }
-                if (-not $keyOk) {
-                    Write-LogLine "AI verify skipped: $sel needs an API key (none entered)." ([System.Drawing.Color]::FromArgb(214,137,16))
-                } elseif (-not $cloudOk) {
-                    Write-LogLine "AI verify skipped: cloud provider '$($preset.name)' not confirmed -- target code kept local." ([System.Drawing.Color]::FromArgb(214,137,16))
-                } else {
-                    Write-LogLine ""
-                    Write-LogLine "[AI] Applying $sel and verifying code-construct findings..." ([System.Drawing.Color]::FromArgb(174, 214, 241))
-                    [void](Set-AiConfigFromGui)
-                    # Only code-construct, MEDIUM+ findings get the (slower) LLM pass
-                    $codeRx = '^(callsites\.|tls-bypass\.|deser\.|xxe\.|webview2\.)'
-                    $toJudge = @($findings | Where-Object { $_.RuleId -match $codeRx })
-                    if ($toJudge.Count -eq 0) {
-                        Write-LogLine "[AI] No code-construct findings to verify." ([System.Drawing.Color]::FromArgb(86,101,115))
-                    } else {
-                        Write-LogLine "[AI] Verifying $($toJudge.Count) findings with $($txtAiModel.Text)..." ([System.Drawing.Color]::FromArgb(174,214,241))
-                        $judgedMap = @{}
-                        $n = 0
-                        foreach ($jf in $toJudge) {
-                            $n++
-                            Update-Status "AI verifying $n/$($toJudge.Count)..."
-                            try {
-                                $res = InModuleScope TCPK -ArgumentList $jf {
-                                    param($obj)
-                                    $f = New-TcpkFinding -Module $obj.Module -RuleId $obj.RuleId -Severity $obj.Severity `
-                                        -Confidence $obj.Confidence -Title $obj.Title -File $obj.File `
-                                        -Evidence $obj.Evidence -Description $obj.Description
-                                    $f | Invoke-TcpkLlmCodeJudgment
-                                }
-                                if ($res) { $judgedMap["$($jf.RuleId)::$($jf.File)"] = $res }
-                                Write-LogLine ("  [AI] {0} -> {1}" -f $jf.RuleId, $res.Confidence) ([System.Drawing.Color]::FromArgb(174,214,241))
-                            } catch {
-                                Write-LogLine "  [AI] $($jf.RuleId) failed: $($_.Exception.Message.Split([char]10)[0])" ([System.Drawing.Color]::FromArgb(214,137,16))
-                            }
-                        }
-                        # Merge AI verdicts back into the findings set
-                        foreach ($f in $findings) {
-                            $k = "$($f.RuleId)::$($f.File)"
-                            if ($judgedMap.ContainsKey($k)) {
-                                $f.Confidence = $judgedMap[$k].Confidence
-                                $f.Description = $judgedMap[$k].Description
-                            }
-                        }
-                        # Re-save the enriched findings + regenerate reports with AI verdicts.
-                        # Rebuild the target profile from the enriched findings so the recon
-                        # card/section is preserved (and counts reflect the final set).
-                        InModuleScope TCPK -ArgumentList $findings, $outDir, $target {
-                            param($fnd, $od, $tgt)
-                            $fobjs = foreach ($x in $fnd) {
-                                New-TcpkFinding -Module $x.Module -RuleId $x.RuleId -Severity $x.Severity `
-                                    -Confidence $x.Confidence -Title $x.Title -File $x.File `
-                                    -Evidence $x.Evidence -Description $x.Description `
-                                    -Cwe ([string[]]@($x.Cwe | Where-Object { $_ })) -Fix $x.Fix
-                            }
-                            $prof = Get-TcpkTargetProfile -Path $tgt -Findings $fobjs
-                            $scope = [pscustomobject]@{ Buckets='A-J + AI verification'; Llm='GUI-selected model'; Timing='' }
-                            $hard = @(); try { $hard = @(Get-TcpkPeHardening -Path $tgt) } catch { }
-                            $cvm  = @(); try { $cvm  = @(Get-TcpkCveMatches -Path $tgt) } catch { }
-                            $sbm  = @(); try { $sbm  = @(Get-TcpkSbomComponents -Path $tgt) } catch { }
-                            $fobjs | Export-TcpkReportJson -OutFile (Join-Path $od 'findings.json') -Profile $prof
-                            $fobjs | Export-TcpkReportHtml -OutFile (Join-Path $od 'index.html') -Target $tgt -Profile $prof -Scope $scope -CveMatches $cvm -Hardening $hard -Sbom $sbm
-                            $fobjs | Export-TcpkReportExcel -OutFile (Join-Path $od 'report.xlsx') -Hardening $hard -Profile $prof -CveMatches $cvm -Sbom $sbm -Target $tgt
-                        }
-                        Write-LogLine "[AI] Verification complete; reports updated with AI verdicts." ([System.Drawing.Color]::FromArgb(46,204,113))
-                    }
-                }
-            }
+            # AI verification now runs INLINE inside Invoke-TcpkAudit (via the
+            # -EnableLlm / -AllowCloudLlm wiring set up before the job started), so
+            # findings.json already carries the AI verdicts and every report
+            # (HTML / Excel / JSON) is AI-aware in a single pass -- no re-export.
 
             # Sort by severity (CRITICAL first) and populate the table
             $sevRank = @{ 'CRITICAL' = 0; 'HIGH' = 1; 'MEDIUM' = 2; 'LOW' = 3; 'INFO' = 4 }
@@ -1831,6 +1854,14 @@ $btnRun.Add_Click({
         Write-LogLine "DLL mitigation matrix ready -- click the 'DLL Mitigation Matrix' tab ($($lvHard.Items.Count) DLLs)." ([System.Drawing.Color]::FromArgb(102, 217, 239))
     } catch {
         Write-LogLine "DLL matrix render failed: $($_.Exception.Message)" ([System.Drawing.Color]::FromArgb(214, 137, 16))
+    }
+
+    # Populate the DLL Signing tab from signing.json
+    try {
+        Populate-Signing $outDir
+        Write-LogLine "DLL signing matrix ready -- click the 'DLL Signing' tab ($($lvSign.Items.Count) DLLs)." ([System.Drawing.Color]::FromArgb(102, 217, 239))
+    } catch {
+        Write-LogLine "DLL signing render failed: $($_.Exception.Message)" ([System.Drawing.Color]::FromArgb(214, 137, 16))
     }
 
     # Populate the Logs / Runtime tab from run.jsonl

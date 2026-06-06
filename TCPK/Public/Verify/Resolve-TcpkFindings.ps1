@@ -24,12 +24,67 @@ function Resolve-TcpkFindings {
 #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory, ValueFromPipeline)][TcpkFinding[]]$Findings
+        [Parameter(Mandatory, ValueFromPipeline)][TcpkFinding[]]$Findings,
+        # By default, multiple occurrences of the SAME rule (same RuleId + Severity +
+        # Confidence) are collapsed into ONE finding with an Affected list (e.g. 6
+        # cleartext-http endpoints -> 1 finding affecting 6 URLs). -NoAggregate keeps
+        # every occurrence as its own finding.
+        [switch]$NoAggregate,
+        # Internal: skip dedupe/demote/correlate and ONLY aggregate (the caller already
+        # triaged). Invoke-TcpkAudit uses this so the LLM pass can judge each occurrence's
+        # IL on its own file BEFORE identical findings are collapsed into one.
+        [switch]$AggregateOnly
     )
 
     begin { $all = New-Object 'System.Collections.Generic.List[TcpkFinding]' }
     process { foreach ($f in $Findings) { $all.Add($f) } }
     end {
+        function _TcpkLocLabel {
+            param([TcpkFinding]$f)
+            $detail = ''
+            $t = "$($f.Title)"
+            $ci = $t.IndexOf(': ')
+            if ($ci -ge 0) { $detail = $t.Substring($ci + 2).Trim() }
+            $leaf = if ($f.File) { Split-Path $f.File -Leaf } else { '' }
+            if ($detail) { return $detail }
+            if ($leaf)   { return $leaf }
+            $ev = "$($f.Evidence)"; if ($ev.Length -gt 80) { $ev = $ev.Substring(0, 80) + '...' }
+            if ($ev) { return $ev }
+            return '(unspecified)'
+        }
+        function _TcpkAggregate {
+            param([System.Collections.Generic.List[TcpkFinding]]$list)
+            $groups = $list | Group-Object { "$($_.RuleId)|$($_.Severity)|$($_.Confidence)" }
+            foreach ($g in $groups) {
+                $members = @($g.Group)
+                if ($members.Count -eq 1) { $members[0]; continue }
+                $rep  = $members[0]
+                $locs = @($members | ForEach-Object { _TcpkLocLabel $_ } | Where-Object { $_ } | Select-Object -Unique)
+                if ($locs.Count -le 1) { $rep; continue }   # near-duplicates -> single finding, no list
+                $n = $locs.Count
+                $t = "$($rep.Title)"
+                $ci = $t.IndexOf(': ')
+                $newTitle = if ($ci -ge 0) { $t.Substring(0, $ci) + " ($n affected)" } else { "$t (+$($n - 1) more affected)" }
+                $files = @($members | ForEach-Object { $_.File } | Where-Object { $_ } | Select-Object -Unique)
+                $newFile = if ($files.Count -gt 1) { "$($files.Count) files" } else { "$($rep.File)" }
+                $shown = ($locs | Select-Object -First 25) -join '; '
+                if ($n -gt 25) { $shown += " ...(+$($n - 25) more)" }
+                # Emit a CLONE -- never mutate the original finding objects, because the
+                # same objects feed the recon profile / attack-surface / exploit-plan
+                # (which need the per-occurrence detail, not the collapsed view).
+                $clone = New-TcpkFinding -Module $rep.Module -RuleId $rep.RuleId -Severity $rep.Severity `
+                    -Confidence $rep.Confidence -Title $newTitle -File $newFile -Evidence "$n affected: $shown" `
+                    -Description "$($rep.Description) [TCPK: $n occurrences of this rule aggregated into one finding; see the affected list.]" `
+                    -Cwe ([string[]]@($rep.Cwe)) -Impact "$($rep.Impact)" -Cvss "$($rep.Cvss)" -Fix "$($rep.Fix)"
+                $clone.Affected = [string[]]$locs
+                $clone
+            }
+        }
+
+        # AggregateOnly: input is already deduped/triaged (Invoke-TcpkAudit runs the LLM
+        # pass between triage and aggregation) -- just collapse identical findings.
+        if ($AggregateOnly) { _TcpkAggregate $all; return }
+
         # 1) Dedupe by (RuleId, File, Title)
         $seen = @{}
         $uniq = New-Object 'System.Collections.Generic.List[TcpkFinding]'
@@ -121,7 +176,9 @@ function Resolve-TcpkFindings {
             }
         }
 
-        # Emit
-        foreach ($f in $uniq) { $f }
+        # 4) Aggregate identical findings (unless disabled): collapse same RuleId +
+        # Severity + Confidence into ONE finding whose Affected[] lists every occurrence.
+        if ($NoAggregate) { foreach ($f in $uniq) { $f }; return }
+        _TcpkAggregate $uniq
     }
 }

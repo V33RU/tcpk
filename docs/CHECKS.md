@@ -11,9 +11,10 @@ For thin-client apps it audits the **client-side binaries** only -- the remote s
 is out of scope (separate web/API engagement), as is the thin-client terminal OS/appliance
 (run TCPK where the Windows PE binaries live, e.g. a Citrix/RDP published-app host).
 
-## A - Static binary analysis  (31)
+## A - Static binary analysis  (34)
 
 - **Get-TcpkPeHardening** - Per-DLL binary-hardening matrix (ASLR / DEP / CFG / HighEntropyVA / ...).
+- **Get-TcpkSigningMatrix** - Per-DLL code-signing matrix (signed / not signed -- information only; SIGNED / CATALOG / UNSIGNED / TAMPERED / UNTRUSTED + signer). Drives the GUI 'DLL Signing' tab, HTML signing table and Excel 'DLL Signing' sheet.
 - **Test-TcpkAuthFlags** - A23. Client-side authentication / licensing boolean flags.
 - **Test-TcpkCallsites** - A11. Static reference scan for dangerous .NET API patterns.
 - **Test-TcpkCodeIntegrity** - A15. AppxMetadata\CodeIntegrity.cat signature status.
@@ -33,7 +34,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkPacker** - A22. Packer / obfuscator detection -- and the inverse: source-recoverable
 - **Test-TcpkPeExports** - A04. PE export surface enumeration (for proxy-DLL planning).
 - **Test-TcpkPeImports** - A03 -- Phantom DLL imports (DLL hijack candidates).
-- **Test-TcpkPeMitigations** - A02 -- PE compile-time mitigations (ASLR, DEP, CFG, HighEntropyVA).
+- **Test-TcpkPeMitigations** - A02 -- PE compile-time mitigations (ASLR, DEP, CFG, HighEntropyVA). NOT in the default audit (opt-in / compliance use): the audit reports hardening as posture in the DLL Mitigation Matrix (Get-TcpkPeHardening), not as findings.
 - **Test-TcpkPInvokeSurface** - A17. P/Invoke surface -- bare-name DllImport declarations.
 - **Test-TcpkReflectionLoading** - A16. Dynamic code loading via reflection.
 - **Test-TcpkResources** - A07. Embedded resource audit.
@@ -42,7 +43,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkSignature** - A01. Authenticode chain validation.
 - **Test-TcpkStrings** - A06. Strings extraction with summary classification.
 - **Test-TcpkStrongName** - A05. .NET assembly strong-name presence check.
+- **Test-TcpkTauriConfig** - A38. Audit a Tauri app config (tauri.conf.json) for insecure CSP / allowlist / shell / fs / IPC / updater settings (v1 + v2).
 - **Test-TcpkTlsBypass** - A12. TLS validation bypass patterns.
+- **Test-TcpkUiLeakSurface** - A37. UI data-leak surface: screen-capture protection (SetWindowDisplayAffinity) and clipboard-history / cloud-clipboard hygiene.
 - **Test-TcpkUnsafeNativeApis** - A25. Dangerous C/C++ runtime functions in native binaries (overflow surface).
 - **Test-TcpkWcfConfig** - A14. Audit shipped WCF config files for cleartext / unauthenticated bindings.
 - **Test-TcpkWebViewNavTargets** - A21. URLs that an embedded WebView2 will navigate to.
@@ -91,9 +94,10 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkUnquotedServicePath** - C03. Classic unquoted-service-path LPE primitive.
 - **Test-TcpkWmiPersistence** - C16. WMI permanent event subscriptions (persistence mechanism).
 
-## D - Credential storage  (8)
+## D - Credential storage  (9)
 
 - **Test-TcpkAppConfigSecrets** - D04. .NET Framework .config secrets (connection strings, machine keys).
+- **Test-TcpkBrowserTokenStore** - D08. Chromium / Electron / NW.js cookie + token store, and whether its os_crypt key is App-Bound-Encrypted or plain DPAPI.
 - **Test-TcpkCredentialManager** - D02. Credential Manager entries belonging to the target.
 - **Test-TcpkDpapiBlobs** - D01. DPAPI blobs in the target path.
 - **Test-TcpkKeyMaterial** - D07. Private-key and certificate material inventory.
@@ -124,12 +128,13 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkRpcSurface** - E16. MS-RPC server interface surface (static).
 - **Test-TcpkWindowEnumeration** - E12. Top-level windows owned by the process (Shatter / UIA surface).
 
-## F - Network  (8)
+## F - Network  (9)
 
 - **Test-TcpkBackendEndpoints** - F03. Inventory backend API endpoints + inferred auth model.
 - **Test-TcpkCrlOcsp** - F06. CRL / OCSP revocation-checking behavior.
 - **Test-TcpkDnsLeakage** - F05. DNS pre-resolution / hostname leakage indicators.
 - **Test-TcpkInsecureSchemes** - F07. Cleartext network scheme references (http:// and ws://).
+- **Test-TcpkRpcChannels** - F10. gRPC / SignalR channel security: insecure (no-TLS) credentials in first-party code + cleartext ws:// / http:// hubs and gRPC targets in shipped config / JS.
 - **Test-TcpkSelfHostedServer** - F07. Self-hosted HTTP/web-server surface detection.
 - **Test-TcpkTlsHandshake** - F09. ACTIVE (gated) per-version TLS handshake probe to backends + cert-validity result; flags negotiable SSL3/TLS1.0/1.1.
 - **Test-TcpkTlsPinning** - F01. TLS certificate pinning detection.
@@ -188,10 +193,12 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Get-TcpkReconStrings** - R11. Extract + categorize interesting literal strings from first-party binaries.
 - **Get-TcpkTargetProfile** - R00. Recon / fingerprint pass. Builds a target-application profile for the
 
-## Verify / triage  (4)
+## Verify / triage  (6)
 
+- **Confirm-TcpkCallsiteUsage** - Deterministic IL verification of callsites.* findings: is the flagged API actually invoked, reachable, and fed by external input? Refines Confidence to 'Confirmed (IL)' (reachable + dynamic argument) or 'Likely-FP (IL)' (no call site / constant-only argument). Runs in the audit before the LLM; no model needed.
 - **Disable-TcpkExploit** - Turn off the Exploit bucket for this PowerShell session.
 - **Enable-TcpkExploit** - Toggle on the Exploit bucket (K01-K06) for this PowerShell session.
+- **Expand-TcpkSingleFile** - Extract the managed assemblies bundled inside a .NET single-file (PublishSingleFile) apphost so every static scanner can read them (the full audit auto-extracts + re-scans).
 - **Invoke-TcpkDecompile** - Drive ILSpy CLI to decompile and return source context for a method.
 - **Resolve-TcpkFindings** - Triage pipeline: dedupe + false-positive killers + confidence refinement.
 
@@ -212,4 +219,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**Total: 146 bucketed checks** (+ Invoke-TcpkAudit & Get-TcpkInfo = 148 public cmdlets).
+**Total: 153 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (167 public cmdlets in v1.3.0).

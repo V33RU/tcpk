@@ -395,3 +395,123 @@ function Get-TcpkTlsCallbackVerdicts {
         if ($asm) { $asm.Dispose() }
     }
 }
+
+# Constant vs dynamic IL load opcodes (for the argument-source heuristic below).
+$script:TcpkIlConstLoads = @(
+    'ldstr','ldnull','ldc.i4','ldc.i4.s','ldc.i4.m1',
+    'ldc.i4.0','ldc.i4.1','ldc.i4.2','ldc.i4.3','ldc.i4.4','ldc.i4.5','ldc.i4.6','ldc.i4.7','ldc.i4.8',
+    'ldc.i8','ldc.r4','ldc.r8'
+)
+$script:TcpkIlDynLoads = @(
+    'ldarg.0','ldarg.1','ldarg.2','ldarg.3','ldarg','ldarg.s','ldarga','ldarga.s',
+    'ldloc.0','ldloc.1','ldloc.2','ldloc.3','ldloc','ldloc.s','ldloca','ldloca.s',
+    'ldfld','ldflda','ldsfld','ldsflda','ldelem','ldelem.ref','ldelema','ldobj','call','callvirt'
+)
+
+# Deterministic usage analysis for a dangerous-API "sink". Loads the assembly with
+# Cecil and answers three questions a substring scan cannot:
+#   1) Is the API ACTUALLY invoked (call/callvirt/newobj), or did the rule match a
+#      mere string/type reference?  (CallSiteCount)
+#   2) Is the enclosing method REACHABLE -- public / virtual / entry point / event-
+#      handler-shaped / has any in-assembly caller?  (AnyReachable)
+#   3) For an injection-class sink, is the argument a hardcoded CONSTANT (ldstr/ldc:
+#      not attacker-controllable) or DYNAMIC (ldarg/ldloc/ldfld/call: external input
+#      may reach it)?  (AllConstant / AnyDynamic)
+#
+# The argument check is a bounded backward scan over the IL preceding the call -- a
+# heuristic, deliberately biased SAFE: any dynamic load in the window => 'dynamic'
+# (we only call it 'constant' when NO dynamic source is present), so a real bug is
+# never demoted on a miss. Returns $null if Cecil is unavailable / file unreadable.
+function Get-TcpkCallsiteUsage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DllPath,
+        [Parameter(Mandatory)][string]$TypeFragment,
+        [string]$MethodName,
+        [switch]$Injection,
+        [int]$Max = 60
+    )
+    if (-not (Initialize-TcpkCecil)) { return $null }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return $null }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return $null }
+
+    $callOps = @('call','callvirt','newobj')
+    $refOps  = @('call','callvirt','newobj','ldftn','ldvirtftn')
+    $typeRx   = "(?i)$([regex]::Escape($TypeFragment))"
+    $methodRx = if ($MethodName) { "(?i)$([regex]::Escape($MethodName))" } else { $null }
+    $entry = $null; try { $entry = $asm.MainModule.EntryPoint } catch { }
+    $handlerRx = '^(On[A-Z]|.*_(Click|Load|Closing|Closed|Changed|Tick|SelectionChanged|TextChanged)$|Handle|btn|Button_|Page_|Window_|Execute$|CanExecute$)'
+
+    try {
+        $allMethods = New-Object 'System.Collections.Generic.List[object]'
+        $called = New-Object 'System.Collections.Generic.HashSet[string]'
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                $allMethods.Add([pscustomobject]@{ T = $t; M = $m })
+                if (-not $m.HasBody) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    if ($refOps -notcontains $ins.OpCode.Name) { continue }
+                    $r = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($r) { [void]$called.Add($r.FullName) }
+                }
+            }
+        }
+
+        $sites = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($pair in $allMethods) {
+            $t = $pair.T; $m = $pair.M
+            if (-not $m.HasBody) { continue }
+            $instrs = @($m.Body.Instructions)
+            for ($i = 0; $i -lt $instrs.Count; $i++) {
+                $ins = $instrs[$i]
+                if ($callOps -notcontains $ins.OpCode.Name) { continue }
+                $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                if ($null -eq $mref) { continue }
+                if ("$($mref.DeclaringType.FullName)" -notmatch $typeRx) { continue }
+                if ($methodRx -and ("$($mref.Name)" -notmatch $methodRx)) { continue }
+
+                $reach = $m.IsPublic -or $m.IsVirtual -or ($entry -and $entry -eq $m) -or
+                         $called.Contains($m.FullName) -or ("$($m.Name)" -match $handlerRx)
+
+                $argKind = 'n/a'
+                if ($Injection) {
+                    $nargs = 0; try { $nargs = $mref.Parameters.Count } catch { }
+                    $seenDyn = $false; $seenConst = $false; $win = 0
+                    for ($j = $i - 1; $j -ge 0 -and $win -lt ($nargs + 5); $j--) {
+                        $op = $instrs[$j].OpCode.Name
+                        if ($op -eq 'nop' -or $op -eq 'dup' -or $op -like 'conv.*' -or $op -eq 'box') { continue }
+                        if ($script:TcpkIlDynLoads -contains $op)   { $seenDyn = $true;   $win++; continue }
+                        if ($script:TcpkIlConstLoads -contains $op) { $seenConst = $true; $win++; continue }
+                        # a store / branch / return marks a statement boundary
+                        if ($op -match '^(st|br|ret|leave|switch|throw|endfinally)') { break }
+                    }
+                    if ($seenDyn) { $argKind = 'dynamic' }
+                    elseif ($seenConst) { $argKind = 'constant' }
+                    else { $argKind = 'unknown' }
+                }
+
+                $sites.Add([pscustomobject]@{
+                    Enclosing = "$($t.FullName)::$($m.Name)"
+                    Reachable = [bool]$reach
+                    ArgKind   = $argKind
+                    Target    = "$($mref.DeclaringType.Name)::$($mref.Name)"
+                })
+                if ($sites.Count -ge $Max) { break }
+            }
+            if ($sites.Count -ge $Max) { break }
+        }
+
+        $dyn = @($sites | Where-Object { $_.ArgKind -eq 'dynamic' }).Count
+        $con = @($sites | Where-Object { $_.ArgKind -eq 'constant' }).Count
+        return [pscustomobject]@{
+            CallSiteCount = $sites.Count
+            AnyReachable  = [bool](@($sites | Where-Object { $_.Reachable }).Count)
+            AnyDynamic    = [bool]$dyn
+            AllConstant   = ($sites.Count -gt 0 -and $dyn -eq 0 -and $con -gt 0)
+            Sites         = $sites.ToArray()
+        }
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}
