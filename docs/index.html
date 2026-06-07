@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCPK - Thick Client Pentest Kit | Technical Deep-Dive</title>
+<meta name="description" content="TCPK is a portable PowerShell engine for auditing Windows thick-client / MSIX applications: data-driven static detection, deterministic IL verification (Mono.Cecil), computed CVSS v4.0, ATT&CK + OWASP TASVS mapping, SBOM/CVE, and exploit-chain correlation.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<style>
+:root{
+  --bg:#0b0e14; --bg2:#11151f; --panel:#141a26; --line:#222b3a;
+  --fg:#c9d4e3; --muted:#7c8aa0; --accent:#36c2a8; --accent2:#5aa9ff;
+  --crit:#ff5c6c; --high:#ff8a3d; --med:#ffd23f; --low:#6fd3ff; --info:#7c8aa0;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent2);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.86em;background:#1b2230;color:#e6edf6;padding:.1em .4em;border-radius:4px}
+pre{margin:0}
+pre code.hljs{font-family:var(--mono);font-size:13px;line-height:1.6;border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#0d1117!important}
+.wrap{display:flex;max-width:1280px;margin:0 auto}
+/* sidebar */
+nav.toc{position:sticky;top:0;align-self:flex-start;width:262px;height:100vh;overflow-y:auto;padding:26px 14px 60px 20px;border-right:1px solid var(--line);background:var(--bg)}
+nav.toc .brand{font-family:var(--mono);font-weight:700;font-size:18px;color:#fff;letter-spacing:.5px}
+nav.toc .brand span{color:var(--accent)}
+nav.toc .ver{color:var(--muted);font-size:12px;font-family:var(--mono);margin:2px 0 18px}
+nav.toc a{display:block;color:var(--muted);font-size:13px;padding:4px 8px;border-radius:6px;border-left:2px solid transparent}
+nav.toc a:hover{color:var(--fg);background:var(--bg2);text-decoration:none}
+nav.toc a.h2{padding-left:20px;font-size:12.5px}
+nav.toc .grp{color:#56627a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 4px 8px}
+/* main */
+main{flex:1;min-width:0;padding:0 40px 120px;max-width:1000px}
+header.hero{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+header.hero h1{font-size:40px;margin:0 0 6px;color:#fff;letter-spacing:-.5px}
+header.hero .tag{font-size:19px;color:var(--accent);font-weight:600;margin:0 0 18px}
+header.hero p.lede{font-size:16.5px;color:var(--fg);max-width:760px}
+.badges{margin:22px 0 0;display:flex;flex-wrap:wrap;gap:8px}
+.badge{font-family:var(--mono);font-size:12px;background:var(--panel);border:1px solid var(--line);color:var(--muted);padding:4px 10px;border-radius:20px}
+.badge b{color:var(--accent)}
+h2{font-size:26px;color:#fff;margin:54px 0 6px;padding-top:14px;letter-spacing:-.3px}
+h2 .num{color:var(--accent);font-family:var(--mono);font-size:18px;margin-right:10px}
+h3{font-size:18px;color:#e6edf6;margin:30px 0 8px}
+h4{font-size:15px;color:var(--accent2);margin:20px 0 6px;font-family:var(--mono)}
+section>p,li{color:var(--fg)}
+.muted{color:var(--muted)}
+.lead{font-size:16px;color:var(--fg)}
+hr{border:0;border-top:1px solid var(--line);margin:40px 0}
+blockquote{margin:18px 0;padding:12px 18px;border-left:3px solid var(--accent);background:var(--bg2);color:#d7e0ec;border-radius:0 8px 8px 0}
+blockquote p{margin:0}
+.callout{background:var(--bg2);border:1px solid var(--line);border-left:3px solid var(--accent2);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+.callout.warn{border-left-color:var(--high)}
+.callout.danger{border-left-color:var(--crit)}
+.callout b{color:#fff}
+figure{margin:24px 0}
+figure img{width:100%;border:1px solid var(--line);border-radius:12px;display:block}
+figcaption{color:var(--muted);font-size:13px;margin-top:8px;text-align:center}
+table{width:100%;border-collapse:collapse;margin:18px 0;font-size:13.5px}
+th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+th{background:var(--panel);color:#fff;font-weight:600}
+td code{font-size:.92em}
+tr:nth-child(even) td{background:#0e131c}
+.pill{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:10px;font-weight:700}
+.c-crit{background:#3a151a;color:var(--crit)} .c-high{background:#3a2415;color:var(--high)}
+.c-med{background:#3a3415;color:var(--med)} .c-low{background:#15303a;color:var(--low)} .c-info{background:#20252e;color:var(--info)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:20px 0}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.card h4{margin-top:0}
+.kicker{font-family:var(--mono);color:var(--accent);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.pipe{font-family:var(--mono);font-size:13px;color:var(--fg);background:#0d1117;border:1px solid var(--line);border-radius:10px;padding:16px 18px;white-space:pre;overflow-x:auto;line-height:1.7}
+.pipe b{color:var(--accent)}
+footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var(--muted);font-size:13px}
+@media(max-width:900px){nav.toc{display:none}main{padding:0 20px 80px}header.hero h1{font-size:30px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand">TC<span>PK</span></div>
+  <div class="ver">v1.3.0 &middot; 168 cmdlets</div>
+  <a href="#tldr">TL;DR</a>
+  <a href="#threat">Why thick clients</a>
+  <a href="#principles">Design principles</a>
+  <div class="grp">Internals</div>
+  <a href="#arch">Architecture</a>
+  <a href="#finding" class="h2">The finding object</a>
+  <a href="#buckets" class="h2">Detection buckets</a>
+  <a href="#pipeline">The audit pipeline</a>
+  <a href="#confidence">Confidence ladder</a>
+  <a href="#il">IL verification engine</a>
+  <a href="#cvss">CVSS v4.0 engine</a>
+  <a href="#chains">Exploit-chain correlation</a>
+  <div class="grp">Coverage</div>
+  <a href="#catalog">Detection catalog</a>
+  <a href="#hardening">Hardening + signing</a>
+  <a href="#sbom">SBOM + CVE</a>
+  <a href="#ai">AI verification layer</a>
+  <a href="#mapping">ATT&amp;CK / TASVS / checklist</a>
+  <div class="grp">Operate</div>
+  <a href="#reports">Reporting outputs</a>
+  <a href="#usage">Usage (CLI / GUI / MCP)</a>
+  <a href="#install">Install</a>
+  <a href="#auth">Authorization</a>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="kicker">Windows thick-client / MSIX security auditing</div>
+  <h1>TCPK -- Thick Client Pentest Kit</h1>
+  <p class="tag">Evidence over assertion. A scanner that proves its findings.</p>
+  <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
+  <div class="badges">
+    <span class="badge"><b>v1.3.0</b></span>
+    <span class="badge"><b>168</b> cmdlets</span>
+    <span class="badge">PowerShell <b>5.1+</b></span>
+    <span class="badge">WinForms GUI + <b>MCP</b> server</span>
+    <span class="badge">CVSS <b>v4.0</b> (computed)</span>
+    <span class="badge">OWASP <b>TASVS v1.8</b></span>
+    <span class="badge">CycloneDX <b>SBOM</b></span>
+    <span class="badge">No external runtime</span>
+  </div>
+</header>
+
+<figure>
+  <img src="tcpk-gui.png" alt="TCPK GUI: target selection, live audit progress, findings table, and tabs for Recon, Exploit/CVE, SBOM, DLL Mitigation Matrix, DLL Signing, and Logs.">
+  <figcaption>The WinForms console: live per-check progress, streaming findings, and posture tabs (Recon, SBOM, DLL Mitigation Matrix, DLL Signing). The same engine drives the CLI and the MCP server.</figcaption>
+</figure>
+
+<section id="tldr">
+<h2><span class="num">00</span>TL;DR</h2>
+<p class="lead">Point TCPK at an installed app or an <code>.msix</code>. It collects findings from ~130 checks across a dozen buckets, kills the false positives deterministically by reading the IL, scores what survives with a faithful CVSS v4.0 implementation, correlates co-occurring weaknesses into exploit chains, and writes an analyst-grade HTML + Excel report plus machine-readable JSON and a CycloneDX SBOM.</p>
+<pre><code class="language-powershell">Import-Module .\TCPK\TCPK.psd1
+
+# full static + posture audit, reports to .\out\App
+Invoke-TcpkAudit -Target 'C:\Program Files\WindowsApps\Contoso.App_1.0.0_x64__abc' `
+                 -OutDir .\out\App -Acknowledge
+
+# add local-only AI triage (Ollama); never leaves the box
+Invoke-TcpkAudit -Target 'C:\Apps\Contoso' -Acknowledge -EnableLlm
+
+# CI gate: non-zero exit if anything HIGH or worse survives verification
+Invoke-TcpkAudit -Target 'C:\Apps\Contoso' -Acknowledge -FailOn HIGH</code></pre>
+</section>
+
+<section id="threat">
+<h2><span class="num">01</span>Why thick clients are their own threat model</h2>
+<p>Web apps keep their logic on the server. Thick clients ship it to the attacker. The moment an MSIX lands on disk, the adversary owns a copy of your binaries, your config, your embedded URLs, your trust decisions, and -- far too often -- your secrets. The interesting questions are not "is there an injection point on a form" but:</p>
+<ul>
+  <li><b>What did you bake into the artifact?</b> Private keys, cloud account keys, connection strings, JWTs, hardcoded credentials -- readable by anyone who downloads the installer.</li>
+  <li><b>What trust does it grant the OS and other processes?</b> Custom URI schemes (<code>app://</code>), file-type associations, COM servers, named pipes, RPC interfaces, services, scheduled tasks -- each one an attacker-reachable entry point.</li>
+  <li><b>Does it validate what it is told?</b> A URI handler that hands its argument to <code>Process.Start</code>; a <code>BinaryFormatter.Deserialize</code> over a stream from disk; a certificate callback that <code>return true</code>s.</li>
+  <li><b>Is the binary even defended?</b> ASLR/DEP/CFG/GS, Authenticode, strong naming -- or stripped and replaceable in a user-writable directory.</li>
+</ul>
+<p>TCPK is organized around those questions, not around a generic OWASP web checklist bolted onto a desktop app.</p>
+</section>
+
+<section id="principles">
+<h2><span class="num">02</span>Design principles</h2>
+<div class="grid">
+  <div class="card"><h4>1. Evidence over assertion</h4><p>A regex that finds <code>BinaryFormatter</code> proves the <em>type is referenced</em>, not that <code>Deserialize()</code> is <em>invoked</em>, reachable, and fed by external input. TCPK refuses to print a confident verdict it cannot back with IL. The confidence model is first-class output.</p></div>
+  <div class="card"><h4>2. Data-driven detection</h4><p>Secret patterns, dangerous call-sites, and deserialization sinks live in <code>Data/secrets.json</code> as regex rules with severity + CWE. Adding a detection is a JSON edit, not a code change. Rules are compiled once and prefiltered with a cheap literal.</p></div>
+  <div class="card"><h4>3. Local-first, air-gap friendly</h4><p>Zero third-party PowerShell modules, no Excel install (the workbook is written byte-by-byte), no internet required. The optional AI layer defaults to local Ollama and refuses to send decompiled IL to a cloud provider unless you explicitly open the gate.</p></div>
+  <div class="card"><h4>4. Honest scoring</h4><p>The displayed CVSS v4.0 number is computed by a faithful port of the FIRST.org reference algorithm from an attack-archetype vector, so a LOCAL-only issue is never mislabelled with a network attack vector, and the severity badge always agrees with the computed band.</p></div>
+</div>
+</section>
+
+<hr>
+
+<section id="arch">
+<h2><span class="num">03</span>Architecture</h2>
+<p>TCPK is a single PowerShell module plus three front-ends (CLI, WinForms GUI, MCP server) over a shared engine. The module auto-loads its class, private helpers, and public cmdlets; the function name equals the file basename; public cmdlets are auto-exported.</p>
+<pre><code class="language-text">TCPK/
+  TCPK.psd1                 # manifest: ModuleVersion, ReleaseNotes, exports
+  TCPK.psm1                 # dot-sources Classes/ -> Private/ -> Public/
+  Classes/
+    TcpkFinding.ps1         # [TcpkFinding] -- the universal output object
+  Private/                  # _-prefixed helpers (not exported)
+    _Finding.ps1            # New-TcpkFinding factory + CVSS archetype map
+    _Cvss40.ps1            # FIRST.org CVSS v4.0 base-score engine
+    _Decompile.ps1         # Mono.Cecil IL bridge (callsites, taint, TLS verdicts)
+    _Attack.ps1            # MITRE ATT&CK technique map
+    _Tasvs.ps1             # OWASP TASVS + Desktop App Top 10 map
+    _VerifyHint.ps1        # per-rule manual re-validation playbook
+    _PeReader.ps1          # raw PE parser (DllCharacteristics, load-config, ...)
+    _Llm.ps1              # multi-provider LLM client (local-first, cloud-gated)
+    _Strings.ps1, _UriSink.ps1, _Msix.ps1, _Xlsx.ps1, ...
+  Public/                   # one cmdlet per file, grouped by bucket
+    Discovery/  Manifest/  OsIntegration/  Credentials/  Runtime/
+    Network/  WebView2/  Logging/  Memory/  AntiDebug/  Verify/
+    Recon/  Report/  Exploit/  Llm/
+    Invoke-TcpkAudit.ps1   # the top-level orchestrator
+  Data/
+    secrets.json           # rules[], callsite_patterns[], deser_tokens[]
+    cvss/cvss40-lookup.json# 270-entry macrovector -> base-score table
+    cve/catalog.json       # curated component CVE catalog
+    checklist/thick-client-checklist.json  # 55-case methodology
+Start-TCPKGui.ps1          # WinForms console
+Start-TcpkMcpServer.ps1    # Model Context Protocol server for AI agents</code></pre>
+
+<h3 id="finding">The finding object</h3>
+<p>Every public cmdlet returns <code>[TcpkFinding]</code> instances. Report generators are the only code that knows about formatting; everything else passes typed objects down the pipeline. This is the contract:</p>
+<pre><code class="language-powershell">class TcpkFinding {
+    [string]   $Module       # bucket: static | manifest | os | creds | runtime |
+                             #         network | webview2 | logging | memory |
+                             #         antidebug | exploit | chain | meta
+    [string]   $RuleId       # stable dotted id, e.g. 'callsites.command-execution'
+    [string]   $Severity     # INFO | LOW | MEDIUM | HIGH | CRITICAL
+    [string]   $Confidence   # Confirmed | Inferred | Unverified | Skipped
+                             #   (refined at verify time to 'Confirmed (IL)',
+                             #    'Likely-FP (IL)', 'Confirmed (LLM)', ...)
+    [string]   $Title
+    [string]   $Description
+    [string]   $File         # primary path / key the finding applies to
+    [string]   $Evidence     # observed value (secrets redacted before storing)
+    [string[]] $Affected     # aggregation: every occurrence of the SAME rule
+    [string[]] $Cwe          # e.g. 'CWE-798'
+    [string]   $Impact       # else derived from Severity at report time
+    [string]   $Cvss         # explicit v4.0 vector (e.g. a real NVD vector) or
+                             #   assigned by attack archetype at report time
+    [string]   $Fix
+    [string]   $Timestamp    # ISO-8601 UTC
+}</code></pre>
+<p>A representative finding, post-verification, serialized to <code>findings.json</code>:</p>
+<pre><code class="language-json">{
+  "Module": "static",
+  "RuleId": "callsites.command-execution",
+  "Severity": "MEDIUM",
+  "Confidence": "Confirmed (IL)",
+  "Title": "Process / shell execution call site in Updater.dll",
+  "File": "C:\\Apps\\Contoso\\Updater.dll",
+  "Evidence": "Process.Start, ProcessStartInfo",
+  "Cwe": ["CWE-78"],
+  "Impact": "Meaningful weakness that aids an attack chain ...",
+  "Cvss": "",
+  "Fix": "Allow-list the argument before it reaches the process-launch sink.",
+  "Description": "... [TCPK IL: reachable call where external input reaches the
+    sink (1 call site) -- the method reads an external source (file / registry /
+    network / IPC / HTTP request) or a caller parameter flows into the argument.
+    Treat as a real injectable path and review.]"
+}</code></pre>
+
+<h3 id="buckets">Detection buckets</h3>
+<p>Checks are grouped A-L. The CLI runs them in order; the GUI runs the same set and streams each result live.</p>
+<table>
+<thead><tr><th>Bucket</th><th>Module</th><th>What it interrogates</th><th>Examples</th></tr></thead>
+<tbody>
+<tr><td>A &middot; Static binary</td><td><code>static</code></td><td>PE imports/exports, strings, secrets, endpoints, deserialization, dangerous call-sites, TLS bypass, XXE, WCF, reflection, P/Invoke, packers, Electron, unsafe CRT, CSV injection, single-file extraction</td><td><code>secrets.*</code>, <code>callsites.*</code>, <code>deser.*</code>, <code>tls-bypass.*</code>, <code>csv.formula-injection-risk</code></td></tr>
+<tr><td>B &middot; MSIX manifest</td><td><code>manifest</code></td><td>AppxManifest capabilities, protocol/file-type extensions, appExecutionAlias shadowing, COM, full-trust</td><td><code>msix.protocol-handler</code>, <code>msix.alias-shadowing</code></td></tr>
+<tr><td>C &middot; OS integration</td><td><code>os</code></td><td>Registry footprint, autostart, services, scheduled tasks, UAC, COM servers, DLL search order, file associations</td><td><code>protocol-handler</code>, <code>uac.*</code>, <code>service.*</code></td></tr>
+<tr><td>D &middot; Credential storage</td><td><code>creds</code></td><td>PEM/PFX key material, DPAPI blobs, Credential Manager, browser/Electron token stores (App-Bound vs DPAPI)</td><td><code>keymaterial.*</code>, <code>browser.cookie-key-dpapi</code></td></tr>
+<tr><td>E &middot; Runtime (live)</td><td><code>runtime</code></td><td>Process mitigations, loaded-module signatures, listening ports, handles, window/GUI inspection, token, child processes, in-memory secrets (requires <code>-ProcessName</code>)</td><td><code>process.*</code>, <code>ports.*</code>, <code>memsecret.*</code></td></tr>
+<tr><td>F &middot; Network</td><td><code>network</code></td><td>Backend endpoints, cleartext schemes, TLS posture, gRPC/SignalR channels, self-hosted listeners</td><td><code>scheme.cleartext-http</code>, <code>rpc.grpc-insecure-credentials</code></td></tr>
+<tr><td>G &middot; WebView2</td><td><code>webview2</code></td><td>Navigation targets, virtual-host mapping, host-object bridge, web-message handlers, script injection</td><td><code>webview2.add-host-object</code></td></tr>
+<tr><td>H &middot; Logging/telemetry</td><td><code>logging</code></td><td>PII in logs, telemetry sinks, ETW providers</td><td><code>log.*</code>, <code>pii.*</code></td></tr>
+<tr><td>I &middot; Memory hygiene</td><td><code>memory</code></td><td>WER/pagefile exposure, secret-in-memory residency, dump policy</td><td><code>mem.*</code>, <code>wer.*</code></td></tr>
+<tr><td>J &middot; Anti-tamper</td><td><code>antidebug</code></td><td>Anti-debug, timing checks, self-integrity, packing/obfuscation</td><td><code>antidebug.*</code>, <code>packer.*</code></td></tr>
+<tr><td>K &middot; Exploit (gated)</td><td><code>exploit</code></td><td>PoC template generation for confirmed findings -- behind <code>Enable-TcpkExploit -Acknowledge</code></td><td><code>K01..K06</code></td></tr>
+<tr><td>L &middot; Verify / Recon</td><td><code>chain</code></td><td>IL proof (Confirm-*), target profile, attack surface, exploit-chain correlation, SBOM</td><td><code>chain.uri-handler-sink-rce</code></td></tr>
+</tbody>
+</table>
+</section>
+
+<hr>
+
+<section id="pipeline">
+<h2><span class="num">04</span>The audit pipeline</h2>
+<p><code>Invoke-TcpkAudit</code> is a deterministic, ordered pipeline. The ordering matters: deduplication and false-positive killers run before scoring; IL verification runs <em>before</em> the LLM so the model and the reports inherit the proven verdicts; aggregation runs <em>after</em> the LLM so per-file judgments are preserved; the per-occurrence snapshot is taken before aggregation so recon and attack-surface views see every endpoint individually.</p>
+<div class="pipe"><b>collect</b>      buckets A-J run every check -> List[TcpkFinding]
+   |
+<b>triage</b>       Resolve-TcpkFindings: dedupe + false-positive killers + correlation
+   |
+<b>IL verify</b>    Confirm-TcpkCallsiteUsage: Mono.Cecil reachability + source->sink taint
+   |              -> 'Confirmed (IL)' / 'Likely-FP (IL)' (no model, deterministic)
+   |
+<b>LLM (opt)</b>    Invoke-TcpkLlmCodeJudgment: advisory '(LLM)' verdict, never changes severity
+   |              local-only unless -AllowCloudLlm
+   |
+<b>snapshot</b>     $findingsFull = un-aggregated copy (recon/attack-surface read this)
+   |
+<b>aggregate</b>    Resolve-TcpkFindings -AggregateOnly: same RuleId+Sev+Conf -> 1 + Affected[]
+   |
+<b>enrich</b>       CVE match -> target profile -> attack surface -> SBOM -> exploit chains
+   |
+<b>report</b>       HTML + Excel + JSON + Markdown + CycloneDX SBOM + sidecars</div>
+<p class="muted">Any check that throws becomes a single <code>meta.cmdlet-failed</code> INFO finding rather than aborting the run -- a partial audit is always better than no audit.</p>
+</section>
+
+<section id="confidence">
+<h2><span class="num">05</span>The confidence ladder</h2>
+<p>Severity answers "how bad if real". Confidence answers "how sure it is real". TCPK treats them as orthogonal and surfaces both. A finding climbs (or falls) the ladder as evidence accrues:</p>
+<table>
+<thead><tr><th>Confidence</th><th>Meaning</th><th>Produced by</th></tr></thead>
+<tbody>
+<tr><td><code>Inferred</code></td><td>A substring / regex / type reference matched. The name is present; reachability and data-flow are unproven.</td><td>Static scanners (bucket A-J)</td></tr>
+<tr><td><code>Confirmed</code></td><td>A structural fact verified without a decompiler (a PFX loaded with an empty password; a registry value exists; a port is listening).</td><td>Direct probes</td></tr>
+<tr><td><code>Confirmed (IL)</code></td><td>Mono.Cecil proved the API is invoked, the enclosing method is reachable, and external input (a source API or a caller parameter) reaches the sink.</td><td><code>Confirm-TcpkCallsiteUsage</code></td></tr>
+<tr><td><code>Likely-FP (IL)</code></td><td>The IL says the API is never actually invoked (string-only match), or is only ever called with constant arguments. Severity is dropped to INFO / one notch.</td><td><code>Confirm-TcpkCallsiteUsage</code></td></tr>
+<tr><td><code>Confirmed (LLM)</code> / <code>Likely-FP (LLM)</code> / <code>Uncertain (LLM)</code></td><td>Advisory second opinion from a model that read the decompiled method. Adjusts confidence, never severity.</td><td><code>Invoke-TcpkLlmCodeJudgment</code></td></tr>
+</tbody>
+</table>
+<blockquote><p>This is the whole point of the tool. Most scanners stop at <code>Inferred</code> and call it CRITICAL. TCPK makes the cost of a false positive explicit and then spends deterministic IL analysis to drive it down.</p></blockquote>
+</section>
+
+<section id="il">
+<h2><span class="num">06</span>The IL verification engine</h2>
+<p>The bridge in <code>_Decompile.ps1</code> loads Mono.Cecil (which ships with ILSpy) and reads method bodies directly. The core primitive, <code>Get-TcpkCallsiteUsage</code>, answers three questions a substring scan cannot:</p>
+<ol>
+<li><b>Is the API actually invoked?</b> A <code>call</code> / <code>callvirt</code> / <code>newobj</code> to the sink, or did the rule match a mere string/type reference?</li>
+<li><b>Is the enclosing method reachable?</b> public / virtual / entry-point / event-handler-shaped / has any in-assembly caller.</li>
+<li><b>Does external input reach the dangerous argument?</b> A bounded backward scan of the IL preceding the call, classifying the argument as <code>constant</code> (ldstr/ldc), <code>dynamic</code> (ldarg/ldloc/ldfld), or <code>tainted</code>.</li>
+</ol>
+<h4>Bounded source-to-sink taint</h4>
+<p>"Tainted" is the signal that turns a maybe into a finding. A call site is tainted when the enclosing method pulls from a known external-input source <em>and</em> a non-constant value flows into the sink, or when a reachable method's own parameter feeds the call:</p>
+<pre><code class="language-text">tainted = methodHasSource OR (callerParameter AND reachable)
+
+methodHasSource = the method calls one of:
+  System.IO.File::Read*/Open*, StreamReader::Read*, ReadAllText/Bytes,
+  Console::Read*, Environment::GetEnvironmentVariable/GetCommandLineArgs,
+  Registry::GetValue/OpenSubKey, WebClient/HttpClient downloads,
+  ReadAsStringAsync, NamedPipe/PipeStream::Read, Socket::Receive,
+  SqlDataReader, HttpRequest::get_Form/get_QueryString/get_InputStream, ...</code></pre>
+<p>The classifier is deliberately biased safe: it only calls an argument <code>constant</code> when <em>no</em> dynamic load appears in the window, so a real bug is never demoted on a miss. The decision matrix for an injection-class sink:</p>
+<table>
+<thead><tr><th>IL observation</th><th>Verdict</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>API never invoked (call/newobj absent)</td><td><span class="pill c-info">Likely-FP (IL)</span></td><td>severity -&gt; INFO</td></tr>
+<tr><td>Called only with constant args</td><td><span class="pill c-info">Likely-FP (IL)</span></td><td>severity -1 notch</td></tr>
+<tr><td>Reachable + external input reaches sink</td><td><span class="pill c-high">Confirmed (IL)</span></td><td>"real injectable path"</td></tr>
+<tr><td>Reachable + dynamic, no proven source</td><td><span class="pill c-med">unchanged</span></td><td>review note, no over-claim</td></tr>
+</tbody>
+</table>
+<h4>Managed and native sinks</h4>
+<p>The engine matches both managed BCL sinks by declaring type and P/Invoke sinks by method name (so a native <code>WinExec</code>/<code>CreateProcess</code>/<code>ShellExecute</code> is treated like <code>Process.Start</code>). A declared-but-never-called P/Invoke capability (a keyboard hook, screen grab, or token impersonation that was copied in wholesale but never invoked) is correctly demoted to INFO. Deserialization is confirmed when an unsafe formatter's <code>Deserialize()</code> / <code>ReadObject()</code> is actually invoked -- and strengthened when the stream is tainted.</p>
+<pre><code class="language-powershell"># standalone IL confirmation over a single assembly
+Confirm-TcpkDeserialization -Dll .\Updater.dll
+# Dll          Formatter        In                       Op    Target
+# Updater.dll  BinaryFormatter  Updater.Cache::Load      call  Deserialize
+
+# the audit pipeline runs this automatically; you can also pipe findings:
+$findings | Confirm-TcpkCallsiteUsage</code></pre>
+<div class="callout"><b>Why this matters.</b> Pattern matching on a 100&nbsp;MB Electron bundle that <em>mentions</em> <code>-----BEGIN RSA PRIVATE KEY-----</code> in a UI placeholder, or registers a normal <code>app://</code> URI handler, will scream CRITICAL all day. The IL/structural layer is what separates "the string is here" from "the bug is here".</div>
+</section>
+
+<section id="cvss">
+<h2><span class="num">07</span>The CVSS v4.0 engine</h2>
+<p>A CVSS v4.0 base score is <em>not</em> a closed-form formula -- it is a 270-entry macrovector lookup plus a severity-distance interpolation. <code>_Cvss40.ps1</code> is a faithful port of the FIRST.org reference calculator (<code>cvss_score.js</code> / <code>cvss_lookup.js</code> / <code>max_severity.js</code> / <code>max_composed.js</code>), so the number is <em>derived</em> from the vector, never guessed. The lookup table ships verbatim.</p>
+<pre><code class="language-powershell"># the score is computed, and validated against the FIRST.org reference:
+Get-TcpkCvss40Score -Vector 'CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N'
+# Score   Rating     MacroVector
+# 9.3     Critical   000200</code></pre>
+<p>Findings are not scored by a hand-typed number; they are scored by an <b>attack archetype</b> -- a representative 11-metric vector chosen for the bug family. This is what stops a local-only weakness from being mislabelled with a network attack vector:</p>
+<table>
+<thead><tr><th>Archetype</th><th>Vector (abridged)</th><th>Score</th><th>For</th></tr></thead>
+<tbody>
+<tr><td><code>net-rce</code></td><td>AV:N VC:H VI:H VA:H</td><td><span class="pill c-crit">9.3</span></td><td>unsafe deserialization, poisoned update</td></tr>
+<tr><td><code>live-credential</code></td><td>AV:N VC:H VI:H</td><td><span class="pill c-crit">9.3</span></td><td>cloud/API/SCM/SSH credential, network read+write</td></tr>
+<tr><td><code>net-mitm</code></td><td>AV:N VC:H VI:H VA:N</td><td><span class="pill c-high">8.7</span></td><td>TLS cert/hostname bypass</td></tr>
+<tr><td><code>embedded-key</code></td><td>AV:L VC:H VI:H</td><td><span class="pill c-high">8.5</span></td><td>private key / unprotected keystore in the artifact</td></tr>
+<tr><td><code>local-privesc</code></td><td>AV:L PR:L VC:H VI:H VA:H</td><td><span class="pill c-high">7.x</span></td><td>writable ACL / hijack / service path</td></tr>
+<tr><td><code>shipped-secret</code></td><td>AV:L VC:H VI:N</td><td><span class="pill c-med">6.9</span></td><td>confidentiality-only secret on disk</td></tr>
+<tr><td><code>weak-crypto</code></td><td>AV:N AC:H AT:P VC:L VI:L</td><td><span class="pill c-low">low</span></td><td>weak hash / mode / RNG</td></tr>
+</tbody>
+</table>
+<p>For genuinely mixed families (raw call-sites, registry), TCPK refuses to fabricate a vector and prints "assign exact CVSS v4.0 vector per finding" instead -- and for credential findings it picks the archetype by severity tier, so the badge and the computed band always agree.</p>
+</section>
+
+<section id="chains">
+<h2><span class="num">08</span>Exploit-chain correlation</h2>
+<p>Most checks score a single condition in isolation. Real compromise is usually a chain. <code>Get-TcpkExploitChains</code> raises a finding <em>above</em> its parts when the preconditions co-occur -- and, crucially, it only chains links that survived verification (it skips anything already demoted to <code>Likely-FP</code>, and a chain is only as real as its weakest link).</p>
+<pre><code class="language-text">chain.unsigned-update-writable  (CRITICAL)
+  = updater applies payloads with NO signature check
+  + a standard user can write to a directory the app loads from
+
+chain.web-host-bridge-rce       (CRITICAL)
+  = WebView2 loads loosely-scoped / external content
+  + a .NET&lt;-&gt;JS host bridge is exposed to it
+
+chain.uri-handler-sink-rce      (CRITICAL)
+  = the OS hands attacker-controlled URIs/files to the app
+  + activation input reaches a REAL RCE sink
+    (command-execution / deserialize / path-build -- not a weak call-site)</code></pre>
+<p>The narrative, contributing conditions, and a per-link verify playbook are emitted with the finding so the analyst can confirm each link and then prove the path end-to-end.</p>
+</section>
+
+<hr>
+
+<section id="catalog">
+<h2><span class="num">09</span>Detection catalog (selected)</h2>
+<p>Detections are data-driven. A dangerous call-site rule is a JSON object; <code>Test-TcpkCallsites</code> matches its patterns, and <code>Confirm-TcpkCallsiteUsage</code> later verifies any hit:</p>
+<pre><code class="language-json">{
+  "id": "command-execution",
+  "title": "Process / shell execution call site",
+  "severity": "MEDIUM",
+  "cwe": ["CWE-78"],
+  "patterns": ["Process.Start","ProcessStartInfo","ShellExecute",
+               "CreateProcess","WinExec","cmd.exe","UseShellExecute"]
+}</code></pre>
+<p>A secret rule requires a real body, not just a header marker (so UI placeholders do not false-positive):</p>
+<pre><code class="language-json">{
+  "id": "pem-private-key",
+  "title": "PEM-encoded private key",
+  "severity": "HIGH",
+  "pattern": "-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----[A-Za-z0-9+/=\\s\\\\]{100,6000}-----END (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----",
+  "cwe": ["CWE-321","CWE-798"]
+}</code></pre>
+<table>
+<thead><tr><th>Class</th><th>Representative rules</th><th>CWE</th></tr></thead>
+<tbody>
+<tr><td>Hardcoded secrets</td><td>AWS/Azure/GCP keys, connection strings, PEM/SSH/PuTTY keys, GitHub/Slack/Stripe tokens, JWTs</td><td>CWE-798, CWE-321</td></tr>
+<tr><td>Injection sinks</td><td><code>callsites.command-execution</code>, <code>sql-command-construction</code>, <code>ldap-query</code>, <code>ssrf-request-build</code>, <code>path-traversal-build</code>, <code>nosql-command-construction</code></td><td>CWE-78/89/90/918/22</td></tr>
+<tr><td>Unsafe deserialization</td><td><code>deser.binaryformatter</code>, <code>netdatacontractserializer</code>, <code>soapformatter</code>, <code>typenamehandling</code></td><td>CWE-502</td></tr>
+<tr><td>Transport security</td><td><code>tls-bypass.cert-callback-accepts-all</code>, <code>scheme.cleartext-http</code>, <code>rpc.grpc-insecure-credentials</code></td><td>CWE-295, CWE-319</td></tr>
+<tr><td>Crypto misuse</td><td><code>weak-symmetric-crypto</code> (DES/3DES/RC2/RC4/ECB), <code>weak-hash-md5-sha1</code>, <code>weak-rng</code>, <code>base64-as-encryption</code></td><td>CWE-327/328/338</td></tr>
+<tr><td>Parser / archive</td><td><code>xxe.*</code>, <code>zipslip.*</code>, <code>csv.formula-injection-risk</code></td><td>CWE-611/22/1236</td></tr>
+<tr><td>Native memory</td><td><code>native.unsafe-crt</code> (strcpy/sprintf/gets + SDL-banned <code>lstrcpyW</code>/<code>StrCpyW</code>/<code>_snprintf</code> family)</td><td>CWE-120/134/787</td></tr>
+<tr><td>Capability abuse</td><td>keylogging / screen capture / clipboard / token impersonation / COM elevation / UAC-bypass registry</td><td>CWE-250/269</td></tr>
+</tbody>
+</table>
+<p>TCPK transparently unpacks what it audits: it extracts <b>.NET single-file</b> (PublishSingleFile) bundles and re-scans the assemblies inside, cracks <b>Electron</b> ASAR archives and shipped <b>Java</b> jar/war/ear, parses <b>MSIX</b> manifests, and fingerprints <b>Tauri</b> and <b>Flutter</b> desktop apps.</p>
+</section>
+
+<section id="hardening">
+<h2><span class="num">10</span>Binary hardening + code-signing matrices</h2>
+<p>Posture is reported as a matrix, not as noise. <code>Get-TcpkPeHardening</code> parses the PE directly (no dumpbin) and reports per-DLL exploit mitigations; missing mitigations are <em>posture</em>, not per-DLL findings, because a missing canary is defense-in-depth, not an exploitable bug on its own.</p>
+<pre><code class="language-powershell">Get-TcpkPeHardening -Path .\out\extracted | Format-Table DLL,ASLR,DEP,CFG,GS,Status
+# DLL            ASLR  DEP   CFG   GS    Status
+# app.dll        Yes   Yes   Yes   Yes   HARDENED
+# legacy.dll     Yes   Yes   No    No    PARTIAL
+# vendor.dll     No    Yes   No    No    WEAK</code></pre>
+<p>Columns: <b>ASLR, DEP, CFG, HighEntropyVA, SafeSEH, GS</b> (the /GS stack cookie, read from the load-config <code>SecurityCookie</code>), <b>ForceIntegrity</b>. The signing matrix (<code>Get-TcpkSigningMatrix</code>) is information-only and timestamp-aware:</p>
+<table>
+<thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>SIGNED</code> / <code>CATALOG</code></td><td>valid Authenticode (embedded / catalog)</td></tr>
+<tr><td><code>EXPIRED-TS</code></td><td>cert expired but counter-signed by a timestamp authority -- still valid (amber)</td></tr>
+<tr><td><code>EXPIRED</code></td><td>expired, no timestamp (red)</td></tr>
+<tr><td><code>UNSIGNED</code> / <code>TAMPERED</code> / <code>UNTRUSTED</code></td><td>no signature / hash mismatch / chain does not build</td></tr>
+</tbody>
+</table>
+<p>Each row carries the signer CN, digest algorithm, valid-from, and expiry. Both matrices render in the GUI, the HTML report, and dedicated Excel sheets, with JSON sidecars (<code>hardening.json</code>, <code>signing.json</code>).</p>
+</section>
+
+<section id="sbom">
+<h2><span class="num">11</span>SBOM + CVE</h2>
+<p>TCPK emits a <b>CycloneDX</b> SBOM (<code>sbom.cdx.json</code>): every shipped component with name, version, publisher, SHA-256, and a correct purl (<code>pkg:nuget/...</code> derived from <code>deps.json</code> for managed components, native for the rest) -- consumable by Dependency-Track, Grype, or OSV. Matched CVEs from the curated catalog are embedded as a CycloneDX <code>vulnerabilities[]</code> array linked to the affected component bom-ref, and surfaced in the report.</p>
+<pre><code class="language-powershell">Get-TcpkCveMatches -Path .\out\extracted | Format-Table Status,Severity,Cve,Package,ShippedVersion,FixedVersion
+# Status      Severity  Cve              Package          Shipped  Fixed
+# Vulnerable  HIGH      CVE-2024-21907   Newtonsoft.Json  12.0.0   13.0.1</code></pre>
+<p>Managed (NuGet) matches are version-compared and reliable; native/embedded matches are reported as <code>Present</code> / <code>PossiblyEmbedded</code> so you verify the embedded build before treating them as confirmed.</p>
+</section>
+
+<section id="ai">
+<h2><span class="num">12</span>The AI verification layer (optional, local-first)</h2>
+<p>The LLM stage is an <em>advisory second reader</em>, not the source of truth -- the deterministic IL pass already ran. It annotates code-construct findings with a <code>(LLM)</code> verdict and reasoning; it never changes severity. It is model-agnostic:</p>
+<table>
+<thead><tr><th>Provider</th><th>Dialect</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>ollama</code> (default)</td><td>local</td><td>fully offline; nothing leaves the box</td></tr>
+<tr><td><code>claude</code></td><td>anthropic</td><td>cloud (gated)</td></tr>
+<tr><td><code>openai</code> / <code>gemini</code> / <code>grok</code> / <code>deepseek</code></td><td>openai chat-completions</td><td>cloud (gated); free-text model field</td></tr>
+<tr><td><code>custom</code></td><td>openai-compatible</td><td>any self-hosted endpoint</td></tr>
+</tbody>
+</table>
+<div class="callout warn"><b>The cloud gate.</b> Sending decompiled IL to a cloud model can breach an engagement NDA. TCPK skips a cloud provider by default; you must pass <code>-AllowCloudLlm</code> (CLI) or confirm the warning dialog (GUI) to send anything off-box. The local Ollama path needs no gate.</div>
+<pre><code class="language-powershell"># offline triage with a local model:
+Invoke-TcpkAudit -Target 'C:\App' -Acknowledge -EnableLlm
+# explicitly permit a cloud model (IL leaves the machine):
+Invoke-TcpkAudit -Target 'C:\App' -Acknowledge -EnableLlm -AllowCloudLlm</code></pre>
+</section>
+
+<section id="mapping">
+<h2><span class="num">13</span>ATT&amp;CK, OWASP TASVS, and the 55-case checklist</h2>
+<p>Every finding is mapped, at report time, to a MITRE ATT&amp;CK technique and to OWASP TASVS v1.8 + the Desktop App Security Top 10. Mapping is a pure prefix lookup over the RuleId, so it stays in sync with the [TcpkFinding] schema. Findings are also auto-correlated to a 55-case thick-client methodology (TC01-TC55); the auto-status is TCPK's read, and the tester sets the final PASS/FAIL -- a NO-FINDINGS status is explicitly <em>not</em> a pass.</p>
+<pre><code class="language-powershell">Get-TcpkAttackText 'callsites.command-execution'   # T1059 Command and Scripting Interpreter
+Get-TcpkTasvsText  'secrets.aws-access-key-id'      # TASVS-STORAGE ...; DA3 Sensitive Data Exposure</code></pre>
+</section>
+
+<hr>
+
+<section id="reports">
+<h2><span class="num">14</span>Reporting outputs</h2>
+<p>One audit, many consumers. The output directory is self-contained:</p>
+<table>
+<thead><tr><th>File</th><th>Audience</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td><code>index.html</code></td><td>analyst</td><td>severity-grouped findings, live filter/search, rule summary, recon, CVE, hardening + signing matrices, SBOM; computed CVSS + ATT&amp;CK + TASVS + verify playbook per finding</td></tr>
+<tr><td><code>report.xlsx</code></td><td>reviewer / triage</td><td>Summary, Findings, Checklist, DLL Hardening, DLL Signing, CVEs, Recon, SBOM sheets (pure-PowerShell, no Excel needed)</td></tr>
+<tr><td><code>findings.json</code></td><td>tooling / CI</td><td>the full typed finding pipeline</td></tr>
+<tr><td><code>sbom.cdx.json</code></td><td>supply-chain</td><td>CycloneDX components + vulnerabilities[]</td></tr>
+<tr><td><code>hardening.json</code> / <code>signing.json</code></td><td>posture</td><td>per-DLL mitigation + code-signing matrices</td></tr>
+<tr><td><code>profile.json</code> / <code>attack-surface.json</code></td><td>recon</td><td>app identity + every endpoint, port, handler, COM server, pipe, file association</td></tr>
+<tr><td><code>exploits.json</code></td><td>red team</td><td>correlated chains + exploit plan</td></tr>
+<tr><td><code>run.jsonl</code> / <code>run.log</code></td><td>audit trail</td><td>structured + human run log</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="usage">
+<h2><span class="num">15</span>Usage</h2>
+<h4>CLI</h4>
+<pre><code class="language-powershell">Import-Module .\TCPK\TCPK.psd1
+
+# full audit (MSIX, install dir, or single binary)
+Invoke-TcpkAudit -Target 'C:\Path\App.msix' -OutDir .\out\App -Acknowledge
+
+# include live-process checks (ports, handles, in-memory secrets)
+Invoke-TcpkAudit -Target 'C:\Apps\Contoso' -ProcessName Contoso -Acknowledge
+
+# run a single check in isolation
+Test-TcpkSecrets       -Path 'C:\Apps\Contoso'
+Get-TcpkSigningMatrix  -Path 'C:\Apps\Contoso'
+$findings | Confirm-TcpkCallsiteUsage      # IL-verify a finding set
+Get-TcpkCvssVector $finding                # the computed v4.0 vector</code></pre>
+<h4>GUI</h4>
+<pre><code class="language-powershell"># recommended launcher (handles STA + module-path resolution)
+.\TCPK.bat
+# or directly
+powershell -STA -ExecutionPolicy Bypass -File .\Start-TCPKGui.ps1</code></pre>
+<p>Pick a target, click <b>Run Audit</b>, watch the progress bar and findings stream in. Tabs expose Recon/Target, Exploit/CVE, SBOM, DLL Mitigation Matrix, DLL Signing, and the live log. The AI provider, model (free-text), and key are configured inline.</p>
+<h4>MCP server (for AI agents)</h4>
+<pre><code class="language-powershell"># expose TCPK's cmdlets as Model Context Protocol tools
+powershell -File .\Start-TcpkMcpServer.ps1</code></pre>
+</section>
+
+<section id="install">
+<h2><span class="num">16</span>Install</h2>
+<ul>
+<li><b>Windows PowerShell 5.1+</b> (the GUI is WinForms; the engine also runs under PowerShell 7).</li>
+<li><b>No third-party PowerShell modules.</b> Reporting needs nothing extra.</li>
+<li><b>Optional:</b> ILSpy (for the bundled Mono.Cecil that powers IL verification) and Ollama (for fully-local AI triage).</li>
+</ul>
+<pre><code class="language-powershell"># clone / unzip, then:
+Import-Module .\TCPK\TCPK.psd1
+Get-Command -Module TCPK | Measure-Object   # 168 cmdlets
+Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
+</section>
+
+<section id="auth">
+<h2><span class="num">17</span>Authorization &amp; ethics</h2>
+<div class="callout danger"><b>Authorized testing only.</b> TCPK prints an authorization banner and requires <code>-Acknowledge</code> (CLI) before it runs. The exploit / PoC bucket is gated separately behind <code>Enable-TcpkExploit -Acknowledge</code> and emits templates, not weapons. Audit outputs can contain real secrets extracted from a target and are excluded from version control by default -- never commit <code>out/</code>. Use it on your own software, a contracted engagement, written bug-bounty scope, or a lab.</div>
+</section>
+
+<footer>
+<p><b>TCPK v1.3.0</b> &middot; Thick Client Pentest Kit &middot; 168 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+</footer>
+</main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/powershell.min.js"></script>
+<script>
+try { hljs.highlightAll(); } catch (e) {}
+// active-section highlight in the sidebar
+(function(){
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var map = {}; links.forEach(function(a){ var id=a.getAttribute('href').slice(1); if(id) map[id]=a; });
+  var obs = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ links.forEach(function(l){l.style.color='';l.style.borderLeftColor='transparent';}); var a=map[e.target.id]; if(a){a.style.color='#fff';a.style.borderLeftColor='#36c2a8';} } });
+  },{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('section[id]').forEach(function(s){obs.observe(s);});
+})();
+</script>
+</body>
+</html>
