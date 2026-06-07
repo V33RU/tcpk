@@ -6,7 +6,7 @@
   Portable Windows thick-client / MSIX security audit tool.
   **Find. Verify. Report.**
 
-  PowerShell engine + WPF/WinForms GUI + native MCP server. 167 cmdlets.
+  PowerShell engine + WPF/WinForms GUI + native MCP server. 168 cmdlets.
   Authorized testing only.
 </div>
 
@@ -17,7 +17,7 @@
 ![TCPK GUI](assets/tcpk-gui.png)
 
 Point it at an MSIX package, an installed folder, or a single `.exe`, click **Run Audit**,
-and TCPK runs ~167 checks across 10+ buckets, streams findings live, and writes
+and TCPK runs ~168 checks across 10+ buckets, streams findings live, and writes
 HTML + Excel reports. Every finding carries a confidence label, a **computed CVSS v4.0
 base score**, CWE, MITRE ATT&CK, and an OWASP TASVS / Desktop-App-Top-10 mapping.
 
@@ -27,6 +27,12 @@ base score**, CWE, MITRE ATT&CK, and an OWASP TASVS / Desktop-App-Top-10 mapping
   IL bridge then *proves* the high-value ones -- e.g. an accept-all TLS certificate
   callback is decompiled and proven to return `true` unconditionally, promoting it to
   `Confirmed` with the exact assembly / type / method / metadata token / call site.
+- **Real-bug-vs-FP IL verification.** Beyond TLS, the IL pass confirms dangerous call
+  sites (command exec, SQL/LDAP/SSRF, deserialization -- managed *and* P/Invoke) with a
+  bounded source-to-sink taint check: if external input (file / registry / network / IPC /
+  HTTP request) or a caller parameter reaches the sink it is promoted to `Confirmed (IL)`;
+  a constant-only or never-invoked match is demoted to `Likely-FP (IL)`. No model, fully
+  deterministic, runs before the optional LLM pass.
 - **Real CVSS v4.0 scores.** A faithful port of the FIRST.org reference algorithm +
   macrovector lookup computes the base score from each finding's vector -- a *local*
   issue is scored `AV:L`, not mislabelled like a network one. No fabricated numbers.
@@ -35,8 +41,9 @@ base score**, CWE, MITRE ATT&CK, and an OWASP TASVS / Desktop-App-Top-10 mapping
   Cloud providers are gated behind an explicit opt-in (the decompiled IL never leaves
   the machine by default).
 - **Engagement-ready reports.** HTML + multi-sheet Excel, including a **Checklist** sheet
-  that auto-correlates findings to a 40-case thick-client test plan (with an honest
-  auto-status; the tester sets the final PASS/FAIL).
+  that auto-correlates findings to a 55-case thick-client test plan (with an honest
+  auto-status; the tester sets the final PASS/FAIL), a **DLL Hardening** matrix
+  (ASLR/DEP/CFG/HighEntropyVA/SafeSEH/GS/ForceIntegrity) and a **DLL Signing** matrix.
 - **Honest about scope.** It automates the *detection* layer. Dynamic confirmation
   (Burp, mimikatz, EICAR, modify-and-relaunch) stays manual -- and the tool says so.
 
@@ -48,15 +55,15 @@ base score**, CWE, MITRE ATT&CK, and an OWASP TASVS / Desktop-App-Top-10 mapping
 
 See [`docs/CHECKS.md`](docs/CHECKS.md) for every check.
 
-## Test-plan coverage (54 cases)
+## Test-plan coverage (55 cases)
 
 The Excel report has a **Checklist** sheet that auto-correlates findings to this thick-client
 test plan. `AUTO` = TCPK flags the core condition; `PARTIAL` = flags part, rest manual; `GAP` =
-no detector (manual). **52 of 54 have automated detection** (31 AUTO + 21 PARTIAL); 2 are
+no detector (manual). **53 of 55 have automated detection** (31 AUTO + 22 PARTIAL); 2 are
 manual-only. Every case still needs the tester's final PASS/FAIL. TC01-TC40 = the imported
 plan; TC41+ = extended TCPK coverage. (Not the full check catalogue -- see `docs/CHECKS.md`.)
 
-<details><summary><b>Show all 54 cases</b></summary>
+<details><summary><b>Show all 55 cases</b></summary>
 
 | # | Test case | Type | Coverage |
 |---|-----------|------|----------|
@@ -114,6 +121,7 @@ plan; TC41+ = extended TCPK coverage. (Not the full check catalogue -- see `docs
 | TC52 | [Extended] Process environment-variable secrets | Runtime | PARTIAL |
 | TC53 | [Extended] RPC interface surface | Static | PARTIAL |
 | TC54 | [Extended] App Paths / shim-cache persistence & hijack | Runtime | PARTIAL |
+| TC55 | [Extended] CSV / spreadsheet formula injection on export | Static | PARTIAL |
 
 </details>
 

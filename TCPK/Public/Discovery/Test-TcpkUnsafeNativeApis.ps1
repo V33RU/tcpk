@@ -22,14 +22,29 @@ function Test-TcpkUnsafeNativeApis {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path)
 
-    # name -> why it's dangerous
+    # name -> why it's dangerous. The PE import name table stores the EXACT exported
+    # name, so the Win32 string helpers appear as their A/W-suffixed forms (lstrcpyW,
+    # StrCatA, ...) and the no-terminate printf family as _snprintf/_vsnprintf -- the
+    # bare 'lstrcpy' macro never appears, so those forms must be listed explicitly.
     $unsafe = @{
-        'strcpy'='unbounded copy'; 'strcat'='unbounded concat'; 'lstrcpy'='unbounded copy'; 'lstrcat'='unbounded concat'
+        'strcpy'='unbounded copy'; 'strcat'='unbounded concat'
         'wcscpy'='unbounded wide copy'; 'wcscat'='unbounded wide concat'; 'gets'='no bounds (banned)'
         'sprintf'='unbounded format'; 'vsprintf'='unbounded format'; 'swprintf'='unbounded wide format'
         'scanf'='format/overflow'; 'sscanf'='format/overflow'; 'strncpy'='no null-terminate'
         'memcpy'='unchecked length'; 'alloca'='stack exhaustion'; 'system'='shell exec'; '_wsystem'='shell exec'
-        'WinExec'='process exec'; 'StrCpyA'='unbounded copy'
+        'WinExec'='process exec'
+        # SDL-banned no-null-terminate-on-truncation printf family
+        '_snprintf'='no null-terminate on truncation (banned)'; '_vsnprintf'='no null-terminate on truncation (banned)'
+        '_snwprintf'='no null-terminate, wide (banned)'; '_vsnwprintf'='no null-terminate, wide (banned)'
+        # SDL-banned Win32 unbounded format/copy/concat helpers (A/W decorated forms)
+        'wsprintfA'='unbounded format (banned)'; 'wsprintfW'='unbounded wide format (banned)'
+        'wvsprintfA'='unbounded format (banned)'; 'wvsprintfW'='unbounded wide format (banned)'
+        'lstrcpyA'='unbounded copy (banned)'; 'lstrcpyW'='unbounded wide copy (banned)'
+        'lstrcatA'='unbounded concat (banned)'; 'lstrcatW'='unbounded wide concat (banned)'
+        'StrCpyA'='unbounded copy'; 'StrCpyW'='unbounded wide copy'
+        'StrCatA'='unbounded concat'; 'StrCatW'='unbounded wide concat'
+        # off-by-one / no-terminate prone bounded variants (evidence only)
+        'strncat'='off-by-one prone'; 'wcsncpy'='no null-terminate, wide'; 'wcsncat'='off-by-one prone, wide'
     }
     $rx = [regex]('\b(' + (($unsafe.Keys | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')\b')
 
@@ -47,7 +62,12 @@ function Test-TcpkUnsafeNativeApis {
         # Strong triggers = SPECIFIC unbounded string/format functions (rare as plain
         # words). 'system'/'memcpy' are excluded as triggers -- too common to confirm
         # by name alone -- but still listed in evidence if present.
-        $strong = @($found | Where-Object { $_ -in 'strcpy','strcat','sprintf','vsprintf','swprintf','gets','scanf','sscanf','lstrcpy','lstrcat','wcscpy','wcscat' })
+        $strong = @($found | Where-Object { $_ -in @(
+            'strcpy','strcat','sprintf','vsprintf','swprintf','gets','scanf','sscanf','wcscpy','wcscat',
+            '_snprintf','_vsnprintf','_snwprintf','_vsnwprintf',
+            'wsprintfA','wsprintfW','wvsprintfA','wvsprintfW',
+            'lstrcpyA','lstrcpyW','lstrcatA','lstrcatW','StrCpyA','StrCpyW','StrCatA','StrCatW','strncat'
+        ) })
         if ($strong.Count -eq 0) { continue }
 
         New-TcpkFinding -Module 'static' -RuleId 'native.unsafe-crt' `

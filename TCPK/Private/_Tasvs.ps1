@@ -6,6 +6,7 @@
 # Ordered list: RuleId regex -> { tasvs = TASVS category, da = Desktop App Top 10 item }.
 $script:TcpkTasvsMap = @(
     @{ rx='^(callsites|deser|xxe)';                                                       tasvs=@('TASVS-CODE Code Quality'); da=@('DA1 Injection','DA8 Poor Code Quality') }
+    @{ rx='^csv\.';                                                                       tasvs=@('TASVS-CODE Code Quality'); da=@('DA1 Injection') }
     @{ rx='^session\.';                                                                   tasvs=@('TASVS-AUTH Authentication & Session'); da=@('DA2 Broken Authentication','DA5 Improper Authorization') }
     @{ rx='^(jwt|authflags)';                                                             tasvs=@('TASVS-AUTH Authentication & Session'); da=@('DA2 Broken Authentication') }
     @{ rx='^(secrets|entropy|app-?config|plaintext|keymaterial|dpapi|tokencaches|webviewcreds|localdb|credentialmanager|memorysecrets|processenvsecrets)'; tasvs=@('TASVS-STORAGE Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }

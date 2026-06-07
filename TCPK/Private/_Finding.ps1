@@ -81,6 +81,9 @@ $script:TcpkCvssArchetypes = [ordered]@{
     'web-bridge'      = 'CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N'  # embedded web content -> native bridge (needs a navigation)
     'local-privesc'   = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N'  # writable ACL / hijack / service -> elevation (LOCAL)
     'shipped-secret'  = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N'  # secret baked into the distributed artifact (any holder reads it)
+    'embedded-key'    = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N'  # private key / unprotected keystore in the artifact: identity compromised (confidentiality + integrity) -> 8.5 High
+    'live-credential' = 'CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N'  # network-service credential (cloud / API / source-control / SSH): full read+write reachable over the network -> 9.3 Critical
+    'low-secret'      = 'CVSS:4.0/AV:L/AC:H/AT:P/PR:N/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N'  # low-value secret (analytics / app id): minor confidentiality, effort to abuse -> 2.1 Low
     'local-at-rest'   = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N'  # sensitive data on the victim host (needs local access)
     'client-bypass'   = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N'  # client-side licensing / auth decision flipped locally
     'weak-crypto'     = 'CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N'  # cryptographic weakness (conditions / effort required)
@@ -96,7 +99,7 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
     @{ Rx = '^(install-dir|acl|service|driver|ifeo|scheduled-task|app-paths|autostart|com|named-object|pipe-dacl|dll-search|shim|avexclusion|firewall|wmi|uac)\.'; A = 'local-privesc' }
-    @{ Rx = '^(secrets|keymaterial|entropy|jwt|config|app-config)\.';                                                                                               A = 'shipped-secret' }
+    @{ Rx = '^(entropy|jwt|config|app-config)\.';                                                                                                                   A = 'shipped-secret' }
     @{ Rx = '^(dpapi|token-cache|credman|localdb|env|memory|memsecret|pii|log)\.';                                                                                  A = 'local-at-rest' }
     @{ Rx = '^(authflags|guiunlock|flagflip)\.';                                                                                                                    A = 'client-bypass' }
     @{ Rx = '^(crypto)\.';                                                                                                                                          A = 'weak-crypto' }
@@ -121,6 +124,23 @@ function Get-TcpkCvssVector {
     if ($ov) { return (New-TcpkCvssResult -Vector $ov -Source 'override') }
 
     $rid = "$($Finding.RuleId)"
+
+    # Credential / secret family (secrets.* , keymaterial.*): impact depends on what the
+    # secret unlocks, which the rule's hand-assigned severity already encodes -- one
+    # archetype can't span a low-value app id and a cloud root credential. Pick a REAL,
+    # tier-matched vector so the displayed CVSS agrees with the badge (INFO returned
+    # above). Scores: 9.3 / 8.5 / 6.9 / 2.1 for CRITICAL / HIGH / MEDIUM / LOW.
+    if ($rid -match '^(secrets|keymaterial)\.') {
+        $a = switch ($sev) {
+            'CRITICAL' { 'live-credential' }
+            'HIGH'     { 'embedded-key' }
+            'MEDIUM'   { 'shipped-secret' }
+            'LOW'      { 'low-secret' }
+            default    { '' }
+        }
+        if ($a) { return (New-TcpkCvssResult -Vector $script:TcpkCvssArchetypes[$a] -Source ("archetype:" + $a)) }
+    }
+
     foreach ($m in $script:TcpkCvssRuleArchetype) {
         if ($rid -match $m.Rx) {
             return (New-TcpkCvssResult -Vector $script:TcpkCvssArchetypes[$m.A] -Source ("archetype:" + $m.A))

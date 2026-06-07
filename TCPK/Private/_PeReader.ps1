@@ -55,7 +55,7 @@ function Read-TcpkPe {
             return [pscustomobject]@{
                 Path=$Path; IsPE32Plus=$isPE32Plus; Machine=$machine
                 DllCharacteristics=$dllChar; SizeOfCode=$sizeOfCode; Imports=@()
-                SectionNames=@(); Exports=@(); SafeSeh='N/A'
+                SectionNames=@(); Exports=@(); SafeSeh='N/A'; StackCookie='N/A'
             }
         }
         $fs.Position = $ddRva + 0   # Export Directory (data dir index 0)
@@ -170,6 +170,33 @@ function Read-TcpkPe {
             } else { $safeSeh = 'No' }
         }
 
+        # --- /GS stack cookie (buffer security check) ---
+        # IMAGE_LOAD_CONFIG_DIRECTORY.SecurityCookie: a non-zero pointer means the
+        # binary was built with /GS (stack canaries). Offset 0x3C (PE32) / 0x58
+        # (PE32+). Trust it only when the load-config Size field actually covers the
+        # field, so a short/old load config does not yield a false positive from
+        # adjacent bytes. Same method winchecksec / PESecurity use.
+        $stackCookie = 'No'
+        if ($loadCfgRva -ne 0) {
+            $lcOff2 = _RvaToFile $loadCfgRva $secs
+            if ($lcOff2 -ge 0 -and ($lcOff2 + 4) -le $fs.Length) {
+                $fs.Position = $lcOff2; $lcSize = $br.ReadUInt32()
+                if ($isPE32Plus) {
+                    $ckOff = 0x58; $need = $ckOff + 8
+                    if ($lcSize -ge $need -and ($lcOff2 + $need) -le $fs.Length) {
+                        $fs.Position = $lcOff2 + $ckOff
+                        if ($br.ReadUInt64() -ne 0) { $stackCookie = 'Yes' }
+                    }
+                } else {
+                    $ckOff = 0x3C; $need = $ckOff + 4
+                    if ($lcSize -ge $need -and ($lcOff2 + $need) -le $fs.Length) {
+                        $fs.Position = $lcOff2 + $ckOff
+                        if ($br.ReadUInt32() -ne 0) { $stackCookie = 'Yes' }
+                    }
+                }
+            }
+        }
+
         return [pscustomobject]@{
             Path               = $Path
             IsPE32Plus         = $isPE32Plus
@@ -180,6 +207,7 @@ function Read-TcpkPe {
             SectionNames       = $sectionNames.ToArray()
             Exports            = $exports.ToArray()
             SafeSeh            = $safeSeh
+            StackCookie        = $stackCookie
         }
     } catch {
         return $null

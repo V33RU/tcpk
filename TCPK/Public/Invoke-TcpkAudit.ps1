@@ -200,6 +200,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkDebugFlags'          { Test-TcpkDebugFlags          -Path $expanded }
     _RunCheck 'Test-TcpkUiLeakSurface'       { Test-TcpkUiLeakSurface       -Path $expanded }
     _RunCheck 'Test-TcpkTauriConfig'         { Test-TcpkTauriConfig         -Path $expanded }
+    _RunCheck 'Test-TcpkCsvInjection'        { Test-TcpkCsvInjection        -Path $expanded }
 
     # ----- Single-file (.NET PublishSingleFile): extract bundled assemblies + re-scan -----
     # A single-file apphost embeds all managed assemblies inside the .exe, so the

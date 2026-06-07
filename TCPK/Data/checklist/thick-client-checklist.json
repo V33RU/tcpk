@@ -60,6 +60,7 @@
     { "id": "TC51", "name": "[Extended] Leftover dev / build artifacts shipped", "type": "Static", "coverage": "AUTO", "rule": "^devartifact\\.", "manual": "Confirm debug symbols / source / backups / .git / API specs are not shipped in the release." },
     { "id": "TC52", "name": "[Extended] Process environment-variable secrets", "type": "Runtime", "coverage": "PARTIAL", "rule": "^env\\.", "manual": "Inspect the running process environment for tokens/keys (needs -ProcessName)." },
     { "id": "TC53", "name": "[Extended] RPC interface surface", "type": "Static", "coverage": "PARTIAL", "rule": "^rpc\\.", "manual": "Enumerate RPC endpoints/interfaces; confirm authentication and ACLs on exposed methods." },
-    { "id": "TC54", "name": "[Extended] App Paths / shim-cache persistence & hijack", "type": "Runtime", "coverage": "PARTIAL", "rule": "^(app-paths|shim)\\.", "manual": "Review App Paths / shim entries for hijackable or persistence-relevant references." }
+    { "id": "TC54", "name": "[Extended] App Paths / shim-cache persistence & hijack", "type": "Runtime", "coverage": "PARTIAL", "rule": "^(app-paths|shim)\\.", "manual": "Review App Paths / shim entries for hijackable or persistence-relevant references." },
+    { "id": "TC55", "name": "[Extended] CSV / spreadsheet formula injection on export", "type": "Static", "coverage": "PARTIAL", "rule": "^csv\\.", "manual": "Export a field that begins with = + - @ (e.g. =1+1 or =HYPERLINK(...)) and open the file in Excel; confirm leading formula characters are escaped/neutralized before export." }
   ]
 }

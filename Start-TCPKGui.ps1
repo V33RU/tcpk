@@ -53,6 +53,14 @@ Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName PresentationFramework -ErrorAction SilentlyContinue
 Import-Module $tcpkPsd1 -Force
 
+# Real module version (from the manifest) -- shown in the audit banner. Falls back to
+# reading the .psd1 directly if the module object isn't queryable for any reason.
+$script:TcpkVersion = try {
+    $v = (Get-Module TCPK | Select-Object -First 1).Version
+    if (-not $v) { $v = (Import-PowerShellDataFile -Path $tcpkPsd1).ModuleVersion }
+    "$v"
+} catch { '' }
+
 # Severity colours
 $script:SevColour = @{
     'CRITICAL' = [System.Drawing.Color]::FromArgb(155, 0, 0)
@@ -124,18 +132,21 @@ $txtTarget = New-Object System.Windows.Forms.TextBox
 $txtTarget.Location = New-Object System.Drawing.Point(14, 32)
 $txtTarget.Size = New-Object System.Drawing.Size(800, 24)
 $txtTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtTarget.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($txtTarget)
 
 $btnBrowse = New-Object System.Windows.Forms.Button
 $btnBrowse.Text = "Browse..."
 $btnBrowse.Location = New-Object System.Drawing.Point(820, 30)
 $btnBrowse.Size = New-Object System.Drawing.Size(90, 28)
+$btnBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnBrowse)
 
 $btnAutoDetect = New-Object System.Windows.Forms.Button
 $btnAutoDetect.Text = "Auto-Detect"
 $btnAutoDetect.Location = New-Object System.Drawing.Point(916, 30)
 $btnAutoDetect.Size = New-Object System.Drawing.Size(90, 28)
+$btnAutoDetect.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnAutoDetect)
 
 $lblProfile = New-Object System.Windows.Forms.Label
@@ -181,6 +192,7 @@ $btnRun.Size = New-Object System.Drawing.Size(118, 32)
 $btnRun.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
 $btnRun.ForeColor = [System.Drawing.Color]::White
 $btnRun.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
+$btnRun.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnRun)
 
 # Pause / Resume the running audit. Pause holds the audit at the next check boundary
@@ -192,6 +204,7 @@ $btnPause.Text = "Pause"
 $btnPause.Location = New-Object System.Drawing.Point(942, 65)
 $btnPause.Size = New-Object System.Drawing.Size(64, 32)
 $btnPause.Enabled = $false
+$btnPause.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnPause)
 $btnPause.Add_Click({
     if (Test-Path -LiteralPath $script:PauseFlag) {
@@ -576,7 +589,7 @@ $hardHeader = New-Object System.Windows.Forms.Panel
 $hardHeader.Dock = 'Top'; $hardHeader.Height = 50
 $hardHint = New-Object System.Windows.Forms.Label
 $hardHint.AutoSize = $true; $hardHint.Location = New-Object System.Drawing.Point(6, 6)
-$hardHint.Text = "Run an audit -- per-DLL mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
+$hardHint.Text = "Run an audit -- per-DLL mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / GS stack cookie / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
 $hardLblF = New-Object System.Windows.Forms.Label
 $hardLblF.AutoSize = $true; $hardLblF.Location = New-Object System.Drawing.Point(6, 28); $hardLblF.Text = "Filter:"
 $txtHardFilter = New-Object System.Windows.Forms.TextBox
@@ -595,6 +608,7 @@ $lvHard.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 [void]$lvHard.Columns.Add('CFG', 55)
 [void]$lvHard.Columns.Add('HighEntropyVA', 100)
 [void]$lvHard.Columns.Add('SafeSEH', 70)
+[void]$lvHard.Columns.Add('GS', 55)
 [void]$lvHard.Columns.Add('ForceIntegrity', 95)
 [void]$lvHard.Columns.Add('Status', 80)
 [void]$lvHard.Columns.Add('Missing', 240)
@@ -627,6 +641,7 @@ $lvSign.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 [void]$lvSign.Columns.Add('Status', 95)
 [void]$lvSign.Columns.Add('Signer', 280)
 [void]$lvSign.Columns.Add('Algorithm', 110)
+[void]$lvSign.Columns.Add('Valid From', 90)
 [void]$lvSign.Columns.Add('Expires', 90)
 [void]$lvSign.Columns.Add('Type', 90)
 $tabSign.Controls.Add($lvSign)
@@ -688,19 +703,41 @@ $lvFindings.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $split.Panel2.Controls.Add($lvFindings)
 $lvFindings.BringToFront()
 
-# Bottom bar
+# Progress bar + live status -- placed in the appearance row of the header, just right
+# of the "Theme" button, instead of a separate full-width row. This fills the empty
+# space in that row and keeps the audit's progress next to the controls. The status
+# label is Left+Right anchored so it stretches to fill the empty band when the window
+# is widened (stopping short of the right-anchored logo).
+$pbar = New-Object System.Windows.Forms.ProgressBar
+$pbar.Location = New-Object System.Drawing.Point(466, 150)
+$pbar.Size = New-Object System.Drawing.Size(200, 16)
+$pbar.Minimum = 0; $pbar.Maximum = 100; $pbar.Value = 0
+$pbar.Style = 'Continuous'   # solid fill (no chunk animation / value-set lag)
+$pbar.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left)
+$topPanel.Controls.Add($pbar)
+
+$lblStatus = New-Object System.Windows.Forms.Label
+$lblStatus.Text = "Ready. Pick a target, then click Run Audit."
+$lblStatus.Location = New-Object System.Drawing.Point(674, 149)
+$lblStatus.Size = New-Object System.Drawing.Size(320, 18)
+$lblStatus.TextAlign = 'MiddleLeft'
+$lblStatus.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$topPanel.Controls.Add($lblStatus)
+
+# Footer -- shortcuts to the generated reports (enabled after an audit completes).
 $bottomPanel = New-Object System.Windows.Forms.Panel
 $bottomPanel.Dock = 'Bottom'
-$bottomPanel.Height = 36
+$bottomPanel.Height = 34
 $bottomPanel.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 $form.Controls.Add($bottomPanel)
 
-$lblStatus = New-Object System.Windows.Forms.Label
-$lblStatus.Dock = 'Fill'
-$lblStatus.TextAlign = 'MiddleLeft'
-$lblStatus.Text = "Ready. Pick a target, then click Run Audit."
-$lblStatus.Padding = New-Object System.Windows.Forms.Padding(10, 0, 0, 0)
-$bottomPanel.Controls.Add($lblStatus)
+$lblReports = New-Object System.Windows.Forms.Label
+$lblReports.Text = "Generated reports:"
+$lblReports.Dock = 'Left'
+$lblReports.Width = 150
+$lblReports.TextAlign = 'MiddleLeft'
+$lblReports.Padding = New-Object System.Windows.Forms.Padding(12, 0, 0, 0)
+$bottomPanel.Controls.Add($lblReports)
 
 $btnOpenHtml = New-Object System.Windows.Forms.Button
 $btnOpenHtml.Text = "Open HTML report"
@@ -752,6 +789,54 @@ function Add-Finding($f) {
 function Update-Status([string]$msg) {
     $lblStatus.Text = $msg
     [System.Windows.Forms.Application]::DoEvents()
+}
+
+# --- audit progress bar (0-100%) ---
+# Checks fill 0-88%; the post-check phases (triage / IL verify / LLM / reports)
+# carry 88-99%; the job ending snaps to 100. Progress is monotonic (never rewinds).
+$script:ChkDone  = 0
+$script:ChkTotal = 1
+$script:ProgPct  = 0
+
+function Reset-Progress([int]$total) {
+    $script:ChkDone  = 0
+    $script:ProgPct  = 0
+    $script:ChkTotal = [Math]::Max(1, $total)
+    $pbar.Value = 0
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function Set-Progress([int]$pct) {
+    if ($pct -lt 0) { $pct = 0 } elseif ($pct -gt 100) { $pct = 100 }
+    if ($pct -le $script:ProgPct) { return }    # never go backwards
+    $script:ProgPct = $pct
+    $pbar.Value = $pct
+    [System.Windows.Forms.Application]::DoEvents()
+}
+
+function Update-RunStatus {
+    $lblStatus.Text = "Running... $($script:ProgPct)%   |   Findings: $($lvFindings.Items.Count)"
+}
+
+# Advance the bar from a single streamed audit log line.
+function Step-ProgressFromLog([string]$msg) {
+    # A completed check prints e.g. "  Test-TcpkSecrets   3 findings  (   2s)" (or FAILED).
+    if ($msg -match '\d+ findings\s+\(\s*\d+s\)\s*$' -or $msg -match '\bFAILED\s+\(') {
+        $script:ChkDone++
+        $p = [int][Math]::Round(88.0 * $script:ChkDone / $script:ChkTotal)
+        Set-Progress ([Math]::Min(88, $p))
+        return
+    }
+    # Post-check phase milestones (substring match against the audit's own log lines).
+    switch -Regex ($msg) {
+        'Triaging via Resolve' { Set-Progress 90 }
+        'IL verify:'           { Set-Progress 92 }
+        'LLM Stage-2'          { Set-Progress 93 }
+        'LLM annotated'        { Set-Progress 95 }
+        'SBOM written'         { Set-Progress 96 }
+        'written:'             { Set-Progress 97 }   # "Excel written: ...", report lines
+        'Recon profile'        { Set-Progress 98 }
+    }
 }
 
 # --- Recon tab rendering ---
@@ -1047,6 +1132,7 @@ function Populate-Hardening([string]$OutDir) {
         [void]$row.SubItems.Add("$($h.CFG)")
         [void]$row.SubItems.Add("$($h.HighEntropyVA)")
         [void]$row.SubItems.Add("$($h.SafeSEH)")
+        [void]$row.SubItems.Add("$($h.GS)")
         [void]$row.SubItems.Add("$($h.ForceIntegrity)")
         [void]$row.SubItems.Add("$($h.Status)")
         [void]$row.SubItems.Add("$($h.Missing)")
@@ -1088,12 +1174,15 @@ function Populate-Signing([string]$OutDir) {
         [void]$row.SubItems.Add("$($s.Status)")
         [void]$row.SubItems.Add("$($s.Signer)")
         [void]$row.SubItems.Add("$($s.Algorithm)")
+        [void]$row.SubItems.Add("$($s.ValidFrom)")
         [void]$row.SubItems.Add("$($s.Expires)")
         [void]$row.SubItems.Add("$($s.Type)")
         switch ("$($s.Status)") {
             'UNSIGNED'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
             'TAMPERED'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
             'UNTRUSTED' { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+            'EXPIRED'    { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+            'EXPIRED-TS' { $row.ForeColor = [System.Drawing.Color]::FromArgb(214, 137, 16) }
             'SIGNED'    { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
             'CATALOG'   { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
         }
@@ -1686,7 +1775,7 @@ $btnRun.Add_Click({
     $txtLog.Clear()
     $lvFindings.Items.Clear()
 
-    Write-LogLine "TCPK v0.1 -- audit starting" ([System.Drawing.Color]::FromArgb(46, 204, 113))
+    Write-LogLine "TCPK $(if ($script:TcpkVersion) { "v$($script:TcpkVersion)" }) -- audit starting" ([System.Drawing.Color]::FromArgb(46, 204, 113))
     Write-LogLine "Target:    $target"
     Write-LogLine "Profile:   $($cmbProfile.SelectedItem)"
     Write-LogLine ""
@@ -1741,6 +1830,21 @@ $btnRun.Add_Click({
 
     Update-Status "Running audit..."
 
+    # Size the progress bar: count the audit's _RunCheck calls (= checks). The runtime
+    # bucket (E) is gated on -ProcessName, so subtract those when no live process is
+    # targeted. Self-adjusting (counts from the source), with a safe fallback.
+    $chkTotal = 110
+    try {
+        $auditFile = Join-Path (Split-Path $tcpkPsd1 -Parent) 'Public\Invoke-TcpkAudit.ps1'
+        if (Test-Path -LiteralPath $auditFile) {
+            $al  = Get-Content -LiteralPath $auditFile
+            $raw = @($al | Select-String -Pattern "^\s*_RunCheck '").Count
+            $rt  = @($al | Select-String -Pattern '_RunCheck.*-ProcessName \$ProcessName').Count
+            if ($raw -gt 0) { $chkTotal = if ($params.ProcessName) { $raw } else { [Math]::Max(1, $raw - $rt) } }
+        }
+    } catch { }
+    Reset-Progress $chkTotal
+
     # Run as job so we can stream output
     $jobScript = {
         param($modulePath, $params)
@@ -1770,6 +1874,8 @@ $btnRun.Add_Click({
                 elseif ($msg -match 'HIGH')   { $colour = $script:SevColour['HIGH'] }
                 elseif ($msg -match 'findings') { $colour = [System.Drawing.Color]::FromArgb(174, 214, 241) }
                 Write-LogLine $msg $colour
+                Step-ProgressFromLog $msg
+                Update-RunStatus
             }
             elseif ($line -match '^FND\t(.+?)\t(.+?)\t(.+?)\t(.+)$') {
                 $f = [pscustomobject]@{
@@ -1779,7 +1885,7 @@ $btnRun.Add_Click({
                     Title = $matches[4]
                 }
                 Add-Finding $f
-                Update-Status "Findings: $($lvFindings.Items.Count)"
+                Update-RunStatus
             }
         }
         Start-Sleep -Milliseconds 150
@@ -1789,9 +1895,14 @@ $btnRun.Add_Click({
     $remaining = Receive-Job -Job $job -Wait -AutoRemoveJob
     foreach ($line in $remaining) {
         if ($line -match '^LOG\t(.+)$') {
-            Write-LogLine $matches[1]
+            $dmsg = $matches[1]
+            Write-LogLine $dmsg
+            Step-ProgressFromLog $dmsg
         }
     }
+    # Audit job finished -> the run (including report writing) is complete.
+    Set-Progress 100
+    Update-RunStatus
 
     # Findings come from the JSON the audit writes -- more reliable than
     # PowerShell-job pipeline streaming for typed objects.

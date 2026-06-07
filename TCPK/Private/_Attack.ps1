@@ -35,6 +35,7 @@ $script:TcpkAttackMap = @(
     @{ rx = '^(wv2|webview)';                                                           tech = @('T1185 Browser Session Hijacking') }
     @{ rx = '^(piiinlogs|logfiles|telemetry|etw)';                                      tech = @('T1005 Data from Local System') }
     @{ rx = '^(deserial|xxe)';                                                          tech = @('T1059 Command and Scripting Interpreter') }
+    @{ rx = '^csv\.';                                                                   tech = @('T1059 Command and Scripting Interpreter','T1048 Exfiltration Over Alternative Protocol') }
 )
 
 function Get-TcpkAttackTechnique {

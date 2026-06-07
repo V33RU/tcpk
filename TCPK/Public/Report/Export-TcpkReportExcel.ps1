@@ -109,17 +109,17 @@ function Export-TcpkReportExcel {
         # ---------- DLL Hardening sheet ----------
         $hwSorted = $Hardening | Sort-Object @{ E = { switch ($_.Status) { 'WEAK' {0} 'PARTIAL' {1} default {2} } } }, DLL
         $hwRows = foreach ($h in $hwSorted) {
-            ,@("$($h.DLL)", "$($h.Arch)", "$($h.ASLR)", "$($h.DEP)", "$($h.CFG)", "$($h.HighEntropyVA)", "$($h.SafeSEH)", "$($h.ForceIntegrity)", "$($h.Status)", "$($h.Missing)", "$($h.DllCharacteristics)")
+            ,@("$($h.DLL)", "$($h.Arch)", "$($h.ASLR)", "$($h.DEP)", "$($h.CFG)", "$($h.HighEntropyVA)", "$($h.SafeSEH)", "$($h.GS)", "$($h.ForceIntegrity)", "$($h.Status)", "$($h.Missing)", "$($h.DllCharacteristics)")
         }
 
         # ---------- DLL Signing sheet (signed / not signed -- information only) ----------
-        $sgSorted = $Signing | Sort-Object @{ E = { switch ("$($_.Status)") { 'TAMPERED' {0} 'UNTRUSTED' {1} 'UNSIGNED' {2} 'UNKNOWN' {3} default {4} } } }, DLL
+        $sgSorted = $Signing | Sort-Object @{ E = { switch ("$($_.Status)") { 'TAMPERED' {0} 'UNTRUSTED' {1} 'UNSIGNED' {2} 'EXPIRED' {3} 'EXPIRED-TS' {4} 'UNKNOWN' {5} default {6} } } }, DLL
         $sgRows = foreach ($s in $sgSorted) {
-            ,@("$($s.DLL)", "$($s.Signed)", "$($s.Status)", "$($s.Signer)", "$($s.Algorithm)", "$($s.Expires)", "$($s.Type)", "$($s.Path)")
+            ,@("$($s.DLL)", "$($s.Signed)", "$($s.Status)", "$($s.Signer)", "$($s.Algorithm)", "$($s.ValidFrom)", "$($s.Expires)", "$($s.Type)", "$($s.Path)")
         }
 
         # ---------- Checklist sheet (thick-client test plan + auto-status) ----------
-        # Correlates findings to the 40-case manual methodology. Auto Status is TCPK's
+        # Correlates findings to the 55-case manual methodology. Auto Status is TCPK's
         # automated read; the tester completes the Result column. A NO-FINDINGS status
         # is NOT a pass -- it means nothing was auto-detected; confirm manually.
         $clRows = foreach ($row in (Get-TcpkChecklistStatus -Findings $all)) {
@@ -130,8 +130,8 @@ function Export-TcpkReportExcel {
             [ordered]@{ Name = 'Summary'; Headers = @('Metric','Value'); Rows = $sumRows; Widths = @(26, 90) }
             [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0 vector','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS / Desktop Top 10','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
             [ordered]@{ Name = 'Checklist'; Headers = @('Test #','Test Name','Type','TCPK Coverage','Auto Status','Findings','Related Rule IDs','Result (PASS/FAIL)','Manual confirmation step'); Rows = @($clRows); Widths = @(8, 44, 14, 13, 13, 9, 40, 17, 64) }
-            [ordered]@{ Name = 'DLL Hardening'; Headers = @('DLL','Arch','ASLR','DEP','CFG','HighEntropyVA','SafeSEH','ForceIntegrity','Status','Missing','Flags'); Rows = @($hwRows) }
-            [ordered]@{ Name = 'DLL Signing'; Headers = @('DLL','Signed','Status','Signer','Algorithm','Expires','Type','Path'); Rows = @($sgRows); Widths = @(34, 9, 12, 40, 16, 12, 12, 80) }
+            [ordered]@{ Name = 'DLL Hardening'; Headers = @('DLL','Arch','ASLR','DEP','CFG','HighEntropyVA','SafeSEH','GS','ForceIntegrity','Status','Missing','Flags'); Rows = @($hwRows) }
+            [ordered]@{ Name = 'DLL Signing'; Headers = @('DLL','Signed','Status','Signer','Algorithm','Valid From','Expires','Type','Path'); Rows = @($sgRows); Widths = @(34, 9, 12, 40, 16, 12, 12, 12, 80) }
         )
 
         # ---------- CVEs sheet (optional) ----------

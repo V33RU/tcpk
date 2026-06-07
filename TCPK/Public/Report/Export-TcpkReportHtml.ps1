@@ -397,6 +397,7 @@ $($cards -join "`n")
   $(& $cell $h.CFG)
   $(& $cell $h.HighEntropyVA)
   $(& $cell $h.SafeSEH)
+  $(& $cell $h.GS)
   $(& $cell $h.ForceIntegrity)
   <td><span class='badge' style='background:$stc'>$(ConvertTo-TcpkHtmlSafe ([string]$h.Status))</span></td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$h.Missing))</td>
@@ -411,7 +412,7 @@ $($cards -join "`n")
   <div class='hardbody'>
     <div class='filterbar'><input class='tabfilter' data-target='hardtab' type='text' placeholder='Filter DLLs by name / status / missing mitigation...'><span class='filtcount'></span></div>
     <table class='recontab hardtab'>
-      <thead><tr><th>DLL</th><th>Arch</th><th>ASLR</th><th>DEP</th><th>CFG</th><th>HighEntropyVA</th><th>SafeSEH</th><th>ForceIntegrity</th><th>Status</th><th>Missing</th></tr></thead>
+      <thead><tr><th>DLL</th><th>Arch</th><th>ASLR</th><th>DEP</th><th>CFG</th><th>HighEntropyVA</th><th>SafeSEH</th><th>GS</th><th>ForceIntegrity</th><th>Status</th><th>Missing</th></tr></thead>
       <tbody>
 $($hwRows -join "`n")
       </tbody>
@@ -424,8 +425,8 @@ $($hwRows -join "`n")
         # ---------------- DLL signing matrix (signed / not signed -- information only) ----------------
         $signingHtml = ''
         if ($Signing -and @($Signing).Count) {
-            $sgColor = { param($v) switch ("$v") { 'SIGNED' {'#117a65'} 'CATALOG' {'#117a65'} 'UNSIGNED' {'#c0392b'} 'TAMPERED' {'#c0392b'} 'UNTRUSTED' {'#c0392b'} default {'#566573'} } }
-            $sgSorted = $Signing | Sort-Object @{ E = { switch ("$($_.Status)") { 'TAMPERED' {0} 'UNTRUSTED' {1} 'UNSIGNED' {2} 'UNKNOWN' {3} default {4} } } }, DLL
+            $sgColor = { param($v) switch ("$v") { 'SIGNED' {'#117a65'} 'CATALOG' {'#117a65'} 'EXPIRED-TS' {'#d68910'} 'EXPIRED' {'#c0392b'} 'UNSIGNED' {'#c0392b'} 'TAMPERED' {'#c0392b'} 'UNTRUSTED' {'#c0392b'} default {'#566573'} } }
+            $sgSorted = $Signing | Sort-Object @{ E = { switch ("$($_.Status)") { 'TAMPERED' {0} 'UNTRUSTED' {1} 'UNSIGNED' {2} 'EXPIRED' {3} 'EXPIRED-TS' {4} 'UNKNOWN' {5} default {6} } } }, DLL
             $sgRows = foreach ($s in $sgSorted) {
                 $stc = & $sgColor $s.Status
                 @"
@@ -435,6 +436,7 @@ $($hwRows -join "`n")
   <td><span class='badge' style='background:$stc'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Status))</span></td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Signer))</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Algorithm))</td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.ValidFrom))</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Expires))</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Type))</td>
 </tr>
@@ -448,7 +450,7 @@ $($hwRows -join "`n")
   <div class='signbody'>
     <div class='filterbar'><input class='tabfilter' data-target='signtab' type='text' placeholder='Filter DLLs by name / signer / status...'><span class='filtcount'></span></div>
     <table class='recontab hardtab signtab'>
-      <thead><tr><th>DLL</th><th>Signed</th><th>Status</th><th>Signer</th><th>Algorithm</th><th>Expires</th><th>Type</th></tr></thead>
+      <thead><tr><th>DLL</th><th>Signed</th><th>Status</th><th>Signer</th><th>Algorithm</th><th>Valid From</th><th>Expires</th><th>Type</th></tr></thead>
       <tbody>
 $($sgRows -join "`n")
       </tbody>
@@ -536,7 +538,7 @@ h1{font-size:24px;margin:0}
 .sevsection{margin:10px 0}
 .sevhead{font-size:18px;margin:14px 0 8px;cursor:pointer;user-select:none;padding-bottom:6px;border-bottom:2px solid #e1e1e1}
 .caret{display:inline-block;width:16px;transition:transform .15s}
-.sevsection.collapsed .caret{transform:rotate(-90deg)}
+.collapsed .caret{transform:rotate(-90deg)}
 .sevsection.collapsed .sevbody{display:none}
 .seccount{color:#999;font-weight:400;font-size:14px}
 .finding{background:#fff;border:1px solid #e3e3e3;border-radius:6px;margin:8px 0;overflow:hidden}
@@ -604,8 +606,10 @@ h3{font-size:15px;margin:0 0 10px}
   var sections=Array.prototype.slice.call(document.querySelectorAll('.sevsection'));
   var activeSev='ALL';
   var query='';
+  var defaultOpen={CRITICAL:1,HIGH:1};   // sections open on load / on reset to "All"
 
   function apply(){
+    var filtering=(activeSev!=='ALL'||query!=='');
     findings.forEach(function(f){
       var okSev=(activeSev==='ALL'||f.getAttribute('data-sev')===activeSev);
       var okQ=(query===''||f.getAttribute('data-text').indexOf(query)>=0||f.getAttribute('data-rule').indexOf(query)>=0);
@@ -617,6 +621,15 @@ h3{font-size:15px;margin:0 0 10px}
       var cnt=s.querySelector('.seccount');
       if(cnt) cnt.textContent='('+vis+')';
       s.style.display=vis>0?'':'none';
+      // When filtering/searching, auto-expand any section that has matches (otherwise a
+      // section that was collapsed by default -- MEDIUM/LOW/INFO -- would show its header
+      // but hide every matching finding). With no filter, restore the default open state.
+      if(filtering){
+        if(vis>0) s.classList.remove('collapsed');
+      } else {
+        if(defaultOpen[s.getAttribute('data-sev')]) s.classList.remove('collapsed');
+        else s.classList.add('collapsed');
+      }
       totalVisible+=vis;
     });
     var nr=document.getElementById('nores');

@@ -40,13 +40,27 @@ function Test-TcpkSignature {
                 -Fix 'Counter-sign with a trusted timestamp authority (signtool /tr <ts-url> /td sha256).'
         }
         if ($cert.NotAfter -lt (Get-Date)) {
-            New-TcpkFinding -Module 'static' -RuleId 'authenticode.signer-expired' `
-                -Severity 'MEDIUM' -Confidence 'Confirmed' `
-                -Title "$label signing certificate is expired" `
-                -File $file -Evidence "signer=$($cert.Subject); expired=$($cert.NotAfter.ToString('u'))" `
-                -Cwe @('CWE-347','CWE-324') `
-                -Description 'The signing certificate has expired. Absent a trusted timestamp, the signature no longer establishes valid provenance.' `
-                -Fix 'Re-sign with a current certificate and a trusted timestamp.'
+            if ($sig.TimeStamperCertificate) {
+                # Timestamped: a trusted RFC3161 countersignature dated within the cert's
+                # validity keeps the signature valid AFTER the cert expires (that is the
+                # whole point of timestamping). So this is informational, NOT a real flaw
+                # -- flagging it MEDIUM would be a false positive on properly-signed code.
+                New-TcpkFinding -Module 'static' -RuleId 'authenticode.signer-expired' `
+                    -Severity 'INFO' -Confidence 'Confirmed' `
+                    -Title "$label signing certificate expired, but signature is timestamped (still valid)" `
+                    -File $file -Evidence "signer=$($cert.Subject); certExpired=$($cert.NotAfter.ToString('u')); timestamped=yes" `
+                    -Cwe @('CWE-347') `
+                    -Description 'The signing certificate is past its validity period, but the signature carries a trusted RFC3161 timestamp dated within that period, so it still establishes valid provenance. Informational only.' `
+                    -Fix 'No immediate action. Re-sign at the next release to keep the chain current.'
+            } else {
+                New-TcpkFinding -Module 'static' -RuleId 'authenticode.signer-expired' `
+                    -Severity 'MEDIUM' -Confidence 'Confirmed' `
+                    -Title "$label signing certificate is expired (no timestamp)" `
+                    -File $file -Evidence "signer=$($cert.Subject); expired=$($cert.NotAfter.ToString('u')); timestamped=no" `
+                    -Cwe @('CWE-347','CWE-324') `
+                    -Description 'The signing certificate has expired and the signature is NOT timestamped, so it no longer establishes valid provenance.' `
+                    -Fix 'Re-sign with a current certificate and a trusted RFC3161 timestamp.'
+            }
         }
         $algo = ''
         try { $algo = "$($cert.SignatureAlgorithm.FriendlyName)" } catch { }

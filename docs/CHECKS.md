@@ -19,6 +19,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkCallsites** - A11. Static reference scan for dangerous .NET API patterns.
 - **Test-TcpkCodeIntegrity** - A15. AppxMetadata\CodeIntegrity.cat signature status.
 - **Test-TcpkCryptoMisuse** - A13. Crypto-misuse hunter -- hardcoded key material + weak KDF / padding.
+- **Test-TcpkCsvInjection** - A39. CSV / spreadsheet formula injection on export (CWE-1236): export sink with no formula-character neutralization.
 - **Test-TcpkDebugFlags** - A16. Debug switches, security-disabling flags, and backdoor markers.
 - **Test-TcpkDependencyCves** - A19. Parse *.deps.json and flag bundled NuGet deps with known CVEs.
 - **Test-TcpkDeserialization** - A10. Static heuristic for unsafe .NET deserialization patterns.
@@ -219,4 +220,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**Total: 153 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (167 public cmdlets in v1.3.0).
+**Total: 154 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (168 public cmdlets in v1.3.0).

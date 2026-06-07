@@ -33,13 +33,26 @@ Describe 'Get-TcpkCvssVector - per-finding, attack-archetype based' {
         $v.Vector | Should -Not -Match 'AV:N'
         $v.Source | Should -Be 'archetype:local-privesc'
     }
-    It 'scores an on-disk shipped secret as local, confidentiality-only' {
+    It 'scores a shipped credential with a severity-matched, consistent vector' {
+        # Credential/secret family is severity-tiered so the CVSS band always matches the
+        # badge: CRITICAL -> live-credential (network read+write). A MEDIUM secret would
+        # instead map to shipped-secret (local, confidentiality-only).
         $v = & (Get-Module TCPK) {
-            $f = New-TcpkFinding -Module 'static' -RuleId 'secrets.azure-key' -Severity 'CRITICAL' -Title 't'
+            $f = New-TcpkFinding -Module 'static' -RuleId 'secrets.azure-storage-connection-string' -Severity 'CRITICAL' -Title 't'
             Get-TcpkCvssVector $f
         }
-        $v.Vector | Should -Match 'AV:L'
+        $v.Source | Should -Be 'archetype:live-credential'
+        $v.Rating | Should -Be 'Critical'
         $v.Vector | Should -Match 'VC:H'
+        $v.Vector | Should -Match 'VI:H'
+    }
+    It 'maps a MEDIUM secret to the local confidentiality-only archetype' {
+        $v = & (Get-Module TCPK) {
+            $f = New-TcpkFinding -Module 'static' -RuleId 'secrets.some-low-value-token' -Severity 'MEDIUM' -Title 't'
+            Get-TcpkCvssVector $f
+        }
+        $v.Source | Should -Be 'archetype:shipped-secret'
+        $v.Vector | Should -Match 'AV:L'
         $v.Vector | Should -Match 'VI:N'
     }
     It 'honours an explicit per-finding CVSS override' {

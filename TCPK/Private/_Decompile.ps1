@@ -408,6 +408,12 @@ $script:TcpkIlDynLoads = @(
     'ldfld','ldflda','ldsfld','ldsflda','ldelem','ldelem.ref','ldelema','ldobj','call','callvirt'
 )
 
+# External-INPUT source APIs (matched against a call target's "DeclaringType::Method").
+# A bounded taint signal: if the method that feeds a dangerous sink also pulls data
+# from one of these (file/console/env/registry/network/IPC/HTTP-request), the dynamic
+# argument is treated as potentially attacker-influenced ('tainted'), not just internal.
+$script:TcpkIlSourceApiRx = '(?i)(System\.IO\.File::(Read|Open)|StreamReader::(ReadToEnd|ReadLine|Read)|ReadAllText|ReadAllBytes|ReadAllLines|Console::(ReadLine|Read|get_In)|Environment::(GetEnvironmentVariable|ExpandEnvironmentStrings|GetCommandLineArgs)|Microsoft\.Win32\.Registry|RegistryKey::(GetValue|OpenSubKey)|WebClient::(DownloadString|DownloadData|OpenRead)|HttpClient::(GetString|GetByteArray|GetStream|Get|Send|PostAsync)|ReadAsStringAsync|ReadAsByteArrayAsync|ReadAsStream|NamedPipe|PipeStream::Read|Socket::(Receive|Read)|SqlDataReader|HttpRequest(Base)?::(get_Form|get_QueryString|get_Params|get_Item|get_InputStream)|::get_QueryString|HttpListenerRequest)'
+
 # Deterministic usage analysis for a dangerous-API "sink". Loads the assembly with
 # Cecil and answers three questions a substring scan cannot:
 #   1) Is the API ACTUALLY invoked (call/callvirt/newobj), or did the rule match a
@@ -429,6 +435,7 @@ function Get-TcpkCallsiteUsage {
         [Parameter(Mandatory)][string]$TypeFragment,
         [string]$MethodName,
         [switch]$Injection,
+        [switch]$MethodOnly,   # match by the called METHOD name (any declaring type) -- for P/Invoke sinks
         [int]$Max = 60
     )
     if (-not (Initialize-TcpkCecil)) { return $null }
@@ -463,13 +470,26 @@ function Get-TcpkCallsiteUsage {
             $t = $pair.T; $m = $pair.M
             if (-not $m.HasBody) { continue }
             $instrs = @($m.Body.Instructions)
+
+            # Does this method pull from a known external-input source? (taint signal)
+            $methodHasSource = $false
+            foreach ($ci in $instrs) {
+                if ($callOps -notcontains $ci.OpCode.Name) { continue }
+                $cr = $ci.Operand -as [Mono.Cecil.MethodReference]
+                if ($cr -and ("$($cr.DeclaringType.FullName)::$($cr.Name)" -match $script:TcpkIlSourceApiRx)) { $methodHasSource = $true; break }
+            }
+
             for ($i = 0; $i -lt $instrs.Count; $i++) {
                 $ins = $instrs[$i]
                 if ($callOps -notcontains $ins.OpCode.Name) { continue }
                 $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
                 if ($null -eq $mref) { continue }
-                if ("$($mref.DeclaringType.FullName)" -notmatch $typeRx) { continue }
-                if ($methodRx -and ("$($mref.Name)" -notmatch $methodRx)) { continue }
+                if ($MethodOnly) {
+                    if ("$($mref.Name)" -notmatch $typeRx) { continue }
+                } else {
+                    if ("$($mref.DeclaringType.FullName)" -notmatch $typeRx) { continue }
+                    if ($methodRx -and ("$($mref.Name)" -notmatch $methodRx)) { continue }
+                }
 
                 $reach = $m.IsPublic -or $m.IsVirtual -or ($entry -and $entry -eq $m) -or
                          $called.Contains($m.FullName) -or ("$($m.Name)" -match $handlerRx)
@@ -477,16 +497,27 @@ function Get-TcpkCallsiteUsage {
                 $argKind = 'n/a'
                 if ($Injection) {
                     $nargs = 0; try { $nargs = $mref.Parameters.Count } catch { }
-                    $seenDyn = $false; $seenConst = $false; $win = 0
+                    $seenDyn = $false; $seenConst = $false; $sawParam = $false; $win = 0
                     for ($j = $i - 1; $j -ge 0 -and $win -lt ($nargs + 5); $j--) {
                         $op = $instrs[$j].OpCode.Name
                         if ($op -eq 'nop' -or $op -eq 'dup' -or $op -like 'conv.*' -or $op -eq 'box') { continue }
-                        if ($script:TcpkIlDynLoads -contains $op)   { $seenDyn = $true;   $win++; continue }
+                        if ($script:TcpkIlDynLoads -contains $op) {
+                            $seenDyn = $true; $win++
+                            # a parameter load (not ldarg.0/'this') = caller-supplied input
+                            if ($op -in 'ldarg.1','ldarg.2','ldarg.3','ldarg.s','ldarg') { $sawParam = $true }
+                            continue
+                        }
                         if ($script:TcpkIlConstLoads -contains $op) { $seenConst = $true; $win++; continue }
                         # a store / branch / return marks a statement boundary
                         if ($op -match '^(st|br|ret|leave|switch|throw|endfinally)') { break }
                     }
-                    if ($seenDyn) { $argKind = 'dynamic' }
+                    if ($seenDyn) {
+                        # tainted = external input plausibly reaches the sink: the method
+                        # reads an external source, OR a reachable method's own parameter
+                        # feeds the call. Otherwise just 'dynamic' (non-constant, internal).
+                        $tainted = $methodHasSource -or ($sawParam -and $reach)
+                        $argKind = if ($tainted) { 'tainted' } else { 'dynamic' }
+                    }
                     elseif ($seenConst) { $argKind = 'constant' }
                     else { $argKind = 'unknown' }
                 }
@@ -502,12 +533,14 @@ function Get-TcpkCallsiteUsage {
             if ($sites.Count -ge $Max) { break }
         }
 
-        $dyn = @($sites | Where-Object { $_.ArgKind -eq 'dynamic' }).Count
+        $tnt = @($sites | Where-Object { $_.ArgKind -eq 'tainted' }).Count
+        $dyn = @($sites | Where-Object { $_.ArgKind -in 'dynamic','tainted' }).Count
         $con = @($sites | Where-Object { $_.ArgKind -eq 'constant' }).Count
         return [pscustomobject]@{
             CallSiteCount = $sites.Count
             AnyReachable  = [bool](@($sites | Where-Object { $_.Reachable }).Count)
             AnyDynamic    = [bool]$dyn
+            AnyTainted    = [bool]$tnt
             AllConstant   = ($sites.Count -gt 0 -and $dyn -eq 0 -and $con -gt 0)
             Sites         = $sites.ToArray()
         }

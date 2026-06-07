@@ -58,6 +58,7 @@ function Get-TcpkPeHardening {
                   else { 'PARTIAL' }
 
         $safeSeh = if ($info.PSObject.Properties['SafeSeh']) { "$($info.SafeSeh)".ToUpper() } else { 'N/A' }
+        $gs      = if ($info.PSObject.Properties['StackCookie']) { "$($info.StackCookie)".ToUpper() } else { 'N/A' }
         [pscustomobject]@{
             DLL            = $pe.Name
             Arch           = $arch
@@ -66,6 +67,7 @@ function Get-TcpkPeHardening {
             CFG            = if ($on['CFG'])  { 'YES' } else { 'NO' }
             HighEntropyVA  = if ($on['HighEntropyVA']) { 'YES' } else { 'NO' }
             SafeSEH        = $safeSeh
+            GS             = $gs
             ForceIntegrity = if ($on['ForceIntegrity']) { 'YES' } else { 'NO' }
             Status         = $status
             Missing        = ($missing -join ', ')

@@ -148,6 +148,19 @@ function Get-TcpkVerifyHint {
                 -Note "open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body." `
                 -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
         }
+        '^csv\.' {
+            Format-TcpkVerifyHint `
+                -What "Checks whether data the app exports to CSV/Excel could be interpreted as a spreadsheet FORMULA (CSV/formula injection)." `
+                -Manual @(
+                    "In the app, put a value that STARTS WITH = into a field that later gets exported -- e.g. type   =1+1   (or   =HYPERLINK('http://attacker/x','click')  ) into a name/comment/description field.",
+                    "Use the app's normal Export-to-CSV / Export-to-Excel feature to export that data.",
+                    "Open the exported .csv / .xlsx in Microsoft Excel and look at the cell you controlled."
+                ) `
+                -Vulnerable "Excel shows '2' (the formula ran) or a clickable hyperlink -- the leading '=' was NOT escaped, so =WEBSERVICE(...)/=HYPERLINK(...) can exfiltrate data and (older Excel) =cmd|... can run commands." `
+                -Ok "Excel shows the literal text   =1+1   (the cell was prefixed with a single quote or the formula characters were neutralized)." `
+                -Note "Also try leading   +   -   @   tab and carriage-return; all are treated as formula starters by spreadsheet apps." `
+                -Tool "the app + Microsoft Excel"
+        }
         '^(backend\.endpoint|endpoints\.|scheme\.)' {
             Format-TcpkVerifyHint `
                 -What "Confirms whether a backend host the app talks to is reachable, and how the connection is secured." `

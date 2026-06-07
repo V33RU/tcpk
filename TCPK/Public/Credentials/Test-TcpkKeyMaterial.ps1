@@ -106,7 +106,11 @@ function Test-TcpkKeyMaterial {
     }
 
     # ---- embedded PEM private keys inside first-party binaries / configs ----
-    $rxPem = [regex]'-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
+    # Require a real base64 KEY BODY and a matching END marker -- not just the header.
+    # A bare '-----BEGIN ... PRIVATE KEY-----' string is usually a UI placeholder, a
+    # format label, or a detection regex (false positive), so the header alone must NOT
+    # trigger a CRITICAL/HIGH leaked-key finding.
+    $rxPem = [regex]'-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[A-Za-z0-9+/=\s\\]{100,6000}-----END (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         if (Test-TcpkIsNativeNoise $pe.Name)   { continue }

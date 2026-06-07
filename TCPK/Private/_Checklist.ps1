@@ -1,5 +1,5 @@
 # Thick-client security test-plan correlation.
-# Maps audit findings onto the 40-case manual methodology (Data\checklist\
+# Maps audit findings onto the 55-case manual methodology (Data\checklist\
 # thick-client-checklist.json) to produce a per-case Auto Status. The tester sets
 # the final Result (PASS/FAIL) -- a NO-FINDINGS auto-status is deliberately NOT a
 # pass, because this is a manual methodology.
