@@ -16,7 +16,7 @@ AfterAll {
 
 Describe 'Finding aggregation (same rule -> one finding + Affected list)' {
     It 'collapses N occurrences of the same RuleId+Severity+Confidence into one with Affected=N' {
-        $hosts = 'crestron.com','storage.pardot.com','www.crestron.com','www.facebook.com','www.twitter.com','msdn.microsoft.com'
+        $hosts = 'api.example.com','cdn.example.net','www.example.com','telemetry.example.io','login.example.org','update.example.com'
         $res = & (Get-Module TCPK) {
             param($hosts)
             $list = foreach ($h in $hosts) {
@@ -28,7 +28,7 @@ Describe 'Finding aggregation (same rule -> one finding + Affected list)' {
         @($res).Count | Should -Be 1
         $res[0].Title | Should -Match 'Cleartext http:// endpoint \(6 affected\)'
         @($res[0].Affected).Count | Should -Be 6
-        ($res[0].Affected -join ',') | Should -Match 'crestron\.com'
+        ($res[0].Affected -join ',') | Should -Match 'api\.example\.com'
     }
 
     It 'keeps occurrences separate with -NoAggregate' {
