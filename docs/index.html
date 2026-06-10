@@ -79,7 +79,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <div class="wrap">
 <nav class="toc">
   <div class="brand">TC<span>PK</span></div>
-  <div class="ver">v1.3.0 &middot; 168 cmdlets</div>
+  <div class="ver">v1.4.0 &middot; 170 cmdlets</div>
   <a href="#tldr">TL;DR</a>
   <a href="#threat">Why thick clients</a>
   <a href="#principles">Design principles</a>
@@ -112,8 +112,8 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <p class="tag">Evidence over assertion. A scanner that proves its findings.</p>
   <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
   <div class="badges">
-    <span class="badge"><b>v1.3.0</b></span>
-    <span class="badge"><b>168</b> cmdlets</span>
+    <span class="badge"><b>v1.4.0</b></span>
+    <span class="badge"><b>170</b> cmdlets</span>
     <span class="badge">PowerShell <b>5.1+</b></span>
     <span class="badge">WinForms GUI + <b>MCP</b> server</span>
     <span class="badge">CVSS <b>v4.0</b> (computed)</span>
@@ -311,16 +311,27 @@ Start-TcpkMcpServer.ps1    # Model Context Protocol server for AI agents</code><
 <li><b>Is the enclosing method reachable?</b> public / virtual / entry-point / event-handler-shaped / has any in-assembly caller.</li>
 <li><b>Does external input reach the dangerous argument?</b> A bounded backward scan of the IL preceding the call, classifying the argument as <code>constant</code> (ldstr/ldc), <code>dynamic</code> (ldarg/ldloc/ldfld), or <code>tainted</code>.</li>
 </ol>
-<h4>Bounded source-to-sink taint</h4>
-<p>"Tainted" is the signal that turns a maybe into a finding. A call site is tainted when the enclosing method pulls from a known external-input source <em>and</em> a non-constant value flows into the sink, or when a reachable method's own parameter feeds the call:</p>
-<pre><code class="language-text">tainted = methodHasSource OR (callerParameter AND reachable)
+<h4>Interprocedural source-to-sink taint</h4>
+<p>"Tainted" is the signal that turns a maybe into a finding -- and it follows external input <em>across method boundaries</em>, not just within the sink's own method. A call site is tainted when:</p>
+<pre><code class="language-text">tainted = methodHasSource                  the sink's method itself reads a source
+       OR sourceOrTaintedReturningCall      inline:  Process.Start(ReadConfig())
+       OR taintedLocal                      via local: var x = ReadConfig(); Process.Start(x)
+       OR taintedField                      cross-method carrier:
+                                              Configure() { _cmd = ReadConfig(); }
+                                              Run()       { Process.Start(_cmd); }
+       OR (callerParameter AND reachable)    a reachable method's own parameter feeds it
 
 methodHasSource = the method calls one of:
   System.IO.File::Read*/Open*, StreamReader::Read*, ReadAllText/Bytes,
   Console::Read*, Environment::GetEnvironmentVariable/GetCommandLineArgs,
   Registry::GetValue/OpenSubKey, WebClient/HttpClient downloads,
   ReadAsStringAsync, NamedPipe/PipeStream::Read, Socket::Receive,
-  SqlDataReader, HttpRequest::get_Form/get_QueryString/get_InputStream, ...</code></pre>
+  SqlDataReader, HttpRequest::get_Form/get_QueryString/get_InputStream, ...
+
+A "tainted-returning method" (cached, 3-hop fixpoint over the call graph) is a
+value-returning method that transitively reads a source. A "tainted field" is one
+assigned such a value anywhere in the assembly. Both are PRECISE -- direct
+assignment from a known source only -- so recall rises without new false positives.</code></pre>
 <p>The classifier is deliberately biased safe: it only calls an argument <code>constant</code> when <em>no</em> dynamic load appears in the window, so a real bug is never demoted on a miss. The decision matrix for an injection-class sink:</p>
 <table>
 <thead><tr><th>IL observation</th><th>Verdict</th><th>Effect</th></tr></thead>
@@ -533,7 +544,7 @@ powershell -File .\Start-TcpkMcpServer.ps1</code></pre>
 </ul>
 <pre><code class="language-powershell"># clone / unzip, then:
 Import-Module .\TCPK\TCPK.psd1
-Get-Command -Module TCPK | Measure-Object   # 168 cmdlets
+Get-Command -Module TCPK | Measure-Object   # 170 cmdlets
 Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
@@ -543,7 +554,7 @@ Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
 <footer>
-<p><b>TCPK v1.3.0</b> &middot; Thick Client Pentest Kit &middot; 168 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+<p><b>TCPK v1.4.0</b> &middot; Thick Client Pentest Kit &middot; 170 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
 </footer>
 </main>
 </div>

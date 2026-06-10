@@ -41,6 +41,7 @@ function Get-TcpkSigningMatrix {
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         $signed = 'NO'; $status = 'UNKNOWN'; $signer = ''; $algo = ''; $validFrom = ''; $expires = ''; $type = 'None'; $ts = $false
+        $subject = ''; $issuer = ''; $serial = ''; $thumb = ''; $keySize = ''; $eku = ''
         $sig = $null
         try { $sig = Get-AuthenticodeSignature -FilePath $pe.FullName } catch { }
 
@@ -49,11 +50,16 @@ function Get-TcpkSigningMatrix {
             try { $ts = [bool]$sig.TimeStamperCertificate } catch { }
             $cert = $sig.SignerCertificate
             if ($cert) {
-                if ("$($cert.Subject)" -match 'CN=([^,]+)') { $signer = $matches[1].Trim('"').Trim() }
-                else { $signer = "$($cert.Subject)" }
+                $subject = "$($cert.Subject)"
+                if ($subject -match 'CN=([^,]+)') { $signer = $matches[1].Trim('"').Trim() } else { $signer = $subject }
+                $issuer = "$($cert.Issuer)"
                 try { $algo = "$($cert.SignatureAlgorithm.FriendlyName)" } catch { }
                 try { $validFrom = $cert.NotBefore.ToString('yyyy-MM-dd') } catch { }
                 try { $expires = $cert.NotAfter.ToString('yyyy-MM-dd') } catch { }
+                try { $serial = "$($cert.SerialNumber)" } catch { }
+                try { $thumb = "$($cert.Thumbprint)" } catch { }
+                try { $keySize = "$($cert.PublicKey.Key.KeySize)" } catch { }
+                try { $eku = (@($cert.EnhancedKeyUsageList | ForEach-Object { $_.FriendlyName } | Where-Object { $_ }) -join ', ') } catch { }
             }
             switch ("$($sig.Status)") {
                 'Valid'        { $signed = 'YES'; $status = if ($type -match '(?i)catalog') { 'CATALOG' } else { 'SIGNED' } }
@@ -81,15 +87,21 @@ function Get-TcpkSigningMatrix {
         }
 
         [pscustomobject]@{
-            DLL       = $pe.Name
-            Signed    = $signed
-            Status    = $status
-            Signer    = $signer
-            Algorithm = $algo
-            ValidFrom = $validFrom
-            Expires   = $expires
-            Type      = $type
-            Path      = $pe.FullName
+            DLL        = $pe.Name
+            Signed     = $signed
+            Status     = $status
+            Signer     = $signer
+            Issuer     = $issuer
+            Algorithm  = $algo
+            KeySize    = $keySize
+            ValidFrom  = $validFrom
+            Expires    = $expires
+            Serial     = $serial
+            Thumbprint = $thumb
+            Eku        = $eku
+            Type       = $type
+            Subject    = $subject
+            Path       = $pe.FullName
         }
     }
 }

@@ -19,6 +19,13 @@ BeforeAll {
     $body = ('A' * 1700)
     "-----BEGIN RSA PRIVATE KEY-----`n$body`n-----END RSA PRIVATE KEY-----" |
         Set-Content -LiteralPath (Join-Path $script:work 'realkey.txt') -Encoding UTF8
+
+    # (3) a legacy ENCRYPTED PKCS#1 key: RFC1421 "Proc-Type: 4,ENCRYPTED" / "DEK-Info:
+    # AES-128-CBC,<iv>" header lines sit between BEGIN and the base64. The ':' and ','
+    # in those lines used to break the body char-class, silently missing the key.
+    $eb = ('B' * 800)
+    "-----BEGIN RSA PRIVATE KEY-----`nProc-Type: 4,ENCRYPTED`nDEK-Info: AES-128-CBC,3F2504E0B7A1C9D2E5F6A7B8C9D0E1F2`n`n$eb`n-----END RSA PRIVATE KEY-----" |
+        Set-Content -LiteralPath (Join-Path $script:work 'encrypted.txt') -Encoding UTF8
 }
 
 AfterAll {
@@ -41,5 +48,11 @@ Describe 'secrets.pem-private-key false-positive guard' {
                Where-Object { $_.RuleId -eq 'secrets.pem-private-key' })
         $r.Count | Should -BeGreaterThan 0
         $r[0].Severity | Should -Be 'HIGH'
+    }
+
+    It 'DOES flag a legacy ENCRYPTED PKCS#1 key with Proc-Type/DEK-Info headers' {
+        $r = @(Test-TcpkSecrets -Path (Join-Path $script:work 'encrypted.txt') |
+               Where-Object { $_.RuleId -eq 'secrets.pem-private-key' })
+        $r.Count | Should -BeGreaterThan 0
     }
 }

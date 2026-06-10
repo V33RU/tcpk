@@ -87,7 +87,7 @@ Reply with ONLY this JSON (no prose, no code fences):
             # Symbol hint (regex alternation) + optional signature match for the
             # robust TLS path. The cert-validation callback can have any name, so
             # we identify it by its delegate signature (X509Chain + SslPolicyErrors).
-            $hint = $null; $sigMatch = $null
+            $hint = $null; $sigMatch = $null; $callsApi = $null
             switch -Regex ($f.RuleId) {
                 'tls-bypass|disabled-cert' {
                     $hint = 'CertificateValidation|CertValidation|ValidateCert|RemoteCertificate|ServerCertificate'
@@ -96,7 +96,14 @@ Reply with ONLY this JSON (no prose, no code fences):
                 'deser'    { $hint = 'Deserialize|ReadObject|FromJson|FromXml' }
                 'xxe'      { $hint = 'XmlReader|LoadXml|XmlDocument|XmlResolver' }
                 'webview2' { $hint = 'WebMessageReceived|CoreWebView2|WebResource' }
-                'callsites'{ $hint = ($f.RuleId -split '\.')[-1] }
+                'callsites'{
+                    # Generic callsite rules name the WEAKNESS, not a method, so a name
+                    # match never lands -- locate the enclosing method by the sink API it
+                    # INVOKES (the same shared sink map the deterministic verifier uses).
+                    $suffix = ($f.RuleId -split '\.', 2)[-1]
+                    $hint = $suffix
+                    try { $callsApi = Get-TcpkCallsiteSinkApiRegex $suffix } catch {}
+                }
                 default    { $hint = ($f.RuleId -split '\.')[-1] }
             }
 
@@ -104,6 +111,8 @@ Reply with ONLY this JSON (no prose, no code fences):
             try {
                 if ($sigMatch) {
                     $methods = Get-TcpkMethodIl -DllPath $f.File -SymbolHint $hint -SignatureContains $sigMatch -MaxMethods 2
+                } elseif ($callsApi) {
+                    $methods = Get-TcpkMethodIl -DllPath $f.File -SymbolHint $hint -CallsApi $callsApi -MaxMethods 2
                 } else {
                     $methods = Get-TcpkMethodIl -DllPath $f.File -SymbolHint $hint -MaxMethods 2
                 }

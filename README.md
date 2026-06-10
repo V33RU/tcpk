@@ -6,7 +6,7 @@
   Portable Windows thick-client / MSIX security audit tool.
   **Find. Verify. Report.**
 
-  PowerShell engine + WPF/WinForms GUI + native MCP server. 168 cmdlets.
+  PowerShell engine + WPF/WinForms GUI + native MCP server. 170 cmdlets.
   Authorized testing only.
 </div>
 
@@ -53,7 +53,9 @@ base score**, CWE, MITRE ATT&CK, and an OWASP TASVS / Desktop-App-Top-10 mapping
 `E` Runtime/live - `F` Network - `G` WebView2 - `H` Logging - `I` Memory -
 `J` Anti-debug - `K` Exploit (gated) - plus Recon / Report.
 
-See [`docs/CHECKS.md`](docs/CHECKS.md) for every check.
+See [`docs/CHECKS.md`](docs/CHECKS.md) for every check, or the full technical
+write-up in [`docs/index.html`](docs/index.html) (also published as a free GitHub
+Pages site -- Settings > Pages > Deploy from a branch > `/docs`).
 
 ## Test-plan coverage (55 cases)
 
@@ -162,4 +164,4 @@ violate computer-misuse law and licence terms. Provided **AS IS**, no warranty. 
 
 ---
 
-TCPK v1.3.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v1.4.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.

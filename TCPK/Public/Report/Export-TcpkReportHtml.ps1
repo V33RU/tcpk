@@ -429,15 +429,20 @@ $($hwRows -join "`n")
             $sgSorted = $Signing | Sort-Object @{ E = { switch ("$($_.Status)") { 'TAMPERED' {0} 'UNTRUSTED' {1} 'UNSIGNED' {2} 'EXPIRED' {3} 'EXPIRED-TS' {4} 'UNKNOWN' {5} default {6} } } }, DLL
             $sgRows = foreach ($s in $sgSorted) {
                 $stc = & $sgColor $s.Status
+                $issCn = if ("$($s.Issuer)" -match 'CN=([^,]+)') { $matches[1].Trim('"').Trim() } else { "$($s.Issuer)" }
+                $certTip = (("Subject: $($s.Subject)  |  Issuer: $($s.Issuer)  |  Serial: $($s.Serial)  |  EKU: $($s.Eku)") -replace '"', "'")
                 @"
-<tr>
+<tr title="$(ConvertTo-TcpkHtmlSafe $certTip)">
   <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$s.DLL))</code></td>
   <td style='color:$stc;font-weight:600'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Signed))</td>
   <td><span class='badge' style='background:$stc'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Status))</span></td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Signer))</td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$issCn))</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Algorithm))</td>
+  <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.KeySize))</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.ValidFrom))</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Expires))</td>
+  <td><code style='font-size:11px'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Thumbprint))</code></td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Type))</td>
 </tr>
 "@
@@ -449,8 +454,9 @@ $($hwRows -join "`n")
   <h3 class='signhead'><span class='caret'>&#9662;</span>DLL signing matrix (signed / not signed) <span class='seccount'>($(@($Signing).Count) binaries &middot; $sgnN signed &middot; $unsN unsigned)</span></h3>
   <div class='signbody'>
     <div class='filterbar'><input class='tabfilter' data-target='signtab' type='text' placeholder='Filter DLLs by name / signer / status...'><span class='filtcount'></span></div>
+    <div class='emptynote'>Hover a row for the full subject, issuer, serial and EKU. The complete certificate for every binary is also in signing.json and the Excel "DLL Signing" sheet.</div>
     <table class='recontab hardtab signtab'>
-      <thead><tr><th>DLL</th><th>Signed</th><th>Status</th><th>Signer</th><th>Algorithm</th><th>Valid From</th><th>Expires</th><th>Type</th></tr></thead>
+      <thead><tr><th>DLL</th><th>Signed</th><th>Status</th><th>Signer</th><th>Issuer</th><th>Algorithm</th><th>Key bits</th><th>Valid From</th><th>Expires</th><th>Thumbprint</th><th>Type</th></tr></thead>
       <tbody>
 $($sgRows -join "`n")
       </tbody>

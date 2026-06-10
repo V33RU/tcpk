@@ -144,9 +144,10 @@ function Invoke-TcpkAudit {
     Write-Information -MessageData "" -InformationAction Continue
     Write-Information -MessageData "Running checks..." -InformationAction Continue
 
-    # Reset structured run-log + per-audit file-text cache
+    # Reset structured run-log + per-audit file-text cache + IL assembly cache
     Clear-TcpkRunLog
     Clear-TcpkTextCache
+    Clear-TcpkCecilCache
     Write-TcpkLog -Level INFO -Component 'audit' -Message "Audit start: $Target" | Out-Null
     if ($idTerms.Count) {
         Write-Information -MessageData ("Identity search terms ({0}): {1}" -f $idTerms.Count, ($idTerms -join ', ')) -InformationAction Continue
@@ -201,6 +202,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkUiLeakSurface'       { Test-TcpkUiLeakSurface       -Path $expanded }
     _RunCheck 'Test-TcpkTauriConfig'         { Test-TcpkTauriConfig         -Path $expanded }
     _RunCheck 'Test-TcpkCsvInjection'        { Test-TcpkCsvInjection        -Path $expanded }
+    _RunCheck 'Test-TcpkAppStack'            { Test-TcpkAppStack            -Path $expanded }
 
     # ----- Single-file (.NET PublishSingleFile): extract bundled assemblies + re-scan -----
     # A single-file apphost embeds all managed assemblies inside the .exe, so the
@@ -593,7 +595,11 @@ function Invoke-TcpkAudit {
     try {
         $all | Export-TcpkReportExcel -OutFile $xlsxPath -Hardening $hardening -Signing $signing -Profile $targetProfile -CveMatches $cveMatches -Sbom $sbom -Target $Target
     } catch { Write-TcpkLog -Level ERROR -Component 'report.excel' -Message $_.Exception.Message | Out-Null }
-    Write-TcpkLog -Level SUCCESS -Component 'report' -Message "HTML + Excel written ($($all.Count) findings, $(@($hardening).Count) DLLs)" | Out-Null
+    # SARIF 2.1.0 sidecar for CI code-scanning ingest (GitHub Advanced Security / Azure DevOps).
+    try {
+        $all | Export-TcpkReportSarif -OutFile (Join-Path $OutDir 'report.sarif') -Target $Target
+    } catch { Write-TcpkLog -Level ERROR -Component 'report.sarif' -Message $_.Exception.Message | Out-Null }
+    Write-TcpkLog -Level SUCCESS -Component 'report' -Message "HTML + Excel + SARIF written ($($all.Count) findings, $(@($hardening).Count) DLLs)" | Out-Null
 
     # --- finalize structured run-log (drives the Logs / Runtime tab) ---
     foreach ($sev in 'CRITICAL','HIGH','MEDIUM','LOW','INFO') {
@@ -605,6 +611,7 @@ function Invoke-TcpkAudit {
         -Message "Audit complete in $([int]$auditSw.Elapsed.TotalSeconds)s -- $($all.Count) findings, $errCount check error(s)" `
         -DurationMs ([int]$auditSw.Elapsed.TotalMilliseconds) | Out-Null
     try { Save-TcpkRunLog -Dir $OutDir } catch { }
+    Clear-TcpkCecilCache   # release the cached IL assemblies (file handles) now the audit is done
 
     Write-Information -MessageData ("Reports written to: " + $OutDir) -InformationAction Continue
 

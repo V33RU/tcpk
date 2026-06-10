@@ -110,7 +110,11 @@ function Test-TcpkKeyMaterial {
     # A bare '-----BEGIN ... PRIVATE KEY-----' string is usually a UI placeholder, a
     # format label, or a detection regex (false positive), so the header alone must NOT
     # trigger a CRITICAL/HIGH leaked-key finding.
-    $rxPem = [regex]'-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----[A-Za-z0-9+/=\s\\]{100,6000}-----END (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
+    # The body class allows ':' ',' '.' '-' as well as base64 so a legacy PKCS#1
+    # ENCRYPTED key (RFC1421 "Proc-Type: 4,ENCRYPTED" / "DEK-Info: AES-128-CBC,<iv>"
+    # header lines between BEGIN and the base64) still matches -- those punctuation
+    # chars would otherwise break the body scan at the first ':' and miss the key.
+    $rxPem = [regex]'-----BEGIN (RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----[A-Za-z0-9+/=\s\\:,.-]{100,6000}-----END (RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----'
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         if (Test-TcpkIsNativeNoise $pe.Name)   { continue }

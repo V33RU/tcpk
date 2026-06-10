@@ -220,4 +220,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**Total: 154 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (168 public cmdlets in v1.3.0).
+**Total: 154 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (170 public cmdlets in v1.4.0).

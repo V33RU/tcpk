@@ -27,6 +27,41 @@ function Initialize-TcpkCecil {
 
 function Test-TcpkCecilAvailable { Initialize-TcpkCecil }
 
+# --- per-run assembly cache ---------------------------------------------------
+# Verification calls Get-TcpkCallsiteUsage once PER SINK, so a single DLL with a
+# multi-sink rule (e.g. command-execution: Process/ProcessStartInfo/CreateProcess/
+# WinExec/ShellExecute) was re-parsed 5x. Cache the parsed AssemblyDefinition per
+# path so it is read once; Clear-TcpkCecilCache disposes them at the audit boundary.
+$script:TcpkCecilAsmCache = @{}
+
+function Get-TcpkCecilAssembly {
+    [CmdletBinding()] param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return $null }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return $null }
+    $key = $DllPath
+    try { $key = (Resolve-Path -LiteralPath $DllPath -ErrorAction Stop).Path } catch { }
+    if ($script:TcpkCecilAsmCache.ContainsKey($key)) { return $script:TcpkCecilAsmCache[$key] }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($key) } catch { $asm = $null }
+    if ($asm) { $script:TcpkCecilAsmCache[$key] = $asm }
+    return $asm
+}
+
+# Per-run caches of the interprocedural taint sets (tainted-returning methods and
+# tainted fields), keyed by the same resolved path as the assembly cache (each computed
+# once, reused across every sink).
+$script:TcpkTaintedReturningCache = @{}
+$script:TcpkTaintedFieldCache = @{}
+
+# Dispose every cached assembly and reset. Called at the audit boundary so file
+# handles are released and a fresh run never reuses a stale parse.
+function Clear-TcpkCecilCache {
+    foreach ($a in @($script:TcpkCecilAsmCache.Values)) { try { if ($a) { $a.Dispose() } } catch { } }
+    $script:TcpkCecilAsmCache = @{}
+    $script:TcpkTaintedReturningCache = @{}
+    $script:TcpkTaintedFieldCache = @{}
+}
+
 # Find a method whose name (or a method that references a token) matches a needle,
 # and return its disassembled IL as text. Returns $null if not found.
 # $SymbolHint: the symbol the finding flagged (e.g. a property/method name).
@@ -36,6 +71,7 @@ function Get-TcpkMethodIl {
         [Parameter(Mandatory)][string]$DllPath,
         [Parameter(Mandatory)][string]$SymbolHint,
         [string[]]$SignatureContains,   # type-name fragments that must ALL appear in param types
+        [string]$CallsApi,              # regex on a CALL target (DeclaringType::Name) -- locate a method by the sink it INVOKES
         [int]$MaxMethods = 3
     )
     if (-not (Initialize-TcpkCecil)) { return $null }
@@ -72,6 +108,19 @@ function Get-TcpkMethodIl {
                         if ($null -ne $ins.Operand -and ($ins.Operand.ToString() -match "(?i)$SymbolHint")) {
                             $isMatch = $true; break
                         }
+                    }
+                }
+
+                # 4) Or by a CALL to a sink API (the method INVOKES the dangerous API) --
+                #    the robust path for generic callsites.* findings whose own method name
+                #    says nothing (e.g. command-execution: find the method that calls
+                #    Process::Start). Matches only call/callvirt/newobj TARGETS, so it is
+                #    precise -- not any operand text.
+                if (-not $isMatch -and $CallsApi) {
+                    foreach ($ins in $m.Body.Instructions) {
+                        if ($ins.OpCode.Name -notin 'call','callvirt','newobj') { continue }
+                        $cr = $ins.Operand -as [Mono.Cecil.MethodReference]
+                        if ($cr -and ("$($cr.DeclaringType.FullName)::$($cr.Name)" -match $CallsApi)) { $isMatch = $true; break }
                     }
                 }
                 if (-not $isMatch) { continue }
@@ -414,6 +463,229 @@ $script:TcpkIlDynLoads = @(
 # argument is treated as potentially attacker-influenced ('tainted'), not just internal.
 $script:TcpkIlSourceApiRx = '(?i)(System\.IO\.File::(Read|Open)|StreamReader::(ReadToEnd|ReadLine|Read)|ReadAllText|ReadAllBytes|ReadAllLines|Console::(ReadLine|Read|get_In)|Environment::(GetEnvironmentVariable|ExpandEnvironmentStrings|GetCommandLineArgs)|Microsoft\.Win32\.Registry|RegistryKey::(GetValue|OpenSubKey)|WebClient::(DownloadString|DownloadData|OpenRead)|HttpClient::(GetString|GetByteArray|GetStream|Get|Send|PostAsync)|ReadAsStringAsync|ReadAsByteArrayAsync|ReadAsStream|NamedPipe|PipeStream::Read|Socket::(Receive|Read)|SqlDataReader|HttpRequest(Base)?::(get_Form|get_QueryString|get_Params|get_Item|get_InputStream)|::get_QueryString|HttpListenerRequest)'
 
+# --- interprocedural taint helpers -------------------------------------------
+# Resolve the local-variable slot index an ldloc/stloc opcode refers to (-1 if the
+# instruction is not a local load/store). Handles both the packed forms (ldloc.0..3)
+# and the operand forms (ldloc / ldloc.s -> VariableDefinition.Index).
+function Get-TcpkIlLocalIndex {
+    param($Ins)
+    switch ($Ins.OpCode.Name) {
+        'ldloc.0' { return 0 } 'ldloc.1' { return 1 } 'ldloc.2' { return 2 } 'ldloc.3' { return 3 }
+        'stloc.0' { return 0 } 'stloc.1' { return 1 } 'stloc.2' { return 2 } 'stloc.3' { return 3 }
+    }
+    if ($Ins.OpCode.Name -in 'ldloc','ldloc.s','stloc','stloc.s') {
+        $v = $Ins.Operand -as [Mono.Cecil.Cil.VariableDefinition]
+        if ($v) { return $v.Index }
+    }
+    return -1
+}
+
+# Build (cached per assembly) the set of "tainted-returning" methods: value-returning
+# methods whose body transitively reaches an external-input source API. This is the
+# interprocedural backbone -- it lets a sink fed by the RESULT of another method
+# (var x = ReadConfig(); Process.Start(x)) be recognised as tainted even though the
+# source read lives in a different method. Bounded to a 3-pass fixpoint over the call
+# graph so it always terminates quickly even on pathological recursion.
+function Get-TcpkTaintedReturningMethods {
+    [CmdletBinding()] param([Parameter(Mandatory)]$Asm, [Parameter(Mandatory)][string]$Key)
+    # ,return the set (comma-wrap) so PowerShell does NOT unroll the HashSet to its elements
+    if ($script:TcpkTaintedReturningCache.ContainsKey($Key)) { return ,$script:TcpkTaintedReturningCache[$Key] }
+    $set = New-Object 'System.Collections.Generic.HashSet[string]'
+    $callOps = @('call','callvirt','newobj')
+    $valueMethods = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($t in $Asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                $rt = ''; try { $rt = "$($m.ReturnType.FullName)" } catch { }
+                if ($rt -eq 'System.Void' -or $rt -eq '') { continue }  # only value-returning methods carry taint OUT
+                $direct = $false
+                $calls = New-Object 'System.Collections.Generic.List[string]'
+                foreach ($ins in $m.Body.Instructions) {
+                    if ($callOps -notcontains $ins.OpCode.Name) { continue }
+                    $r = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if (-not $r) { continue }
+                    if ("$($r.DeclaringType.FullName)::$($r.Name)" -match $script:TcpkIlSourceApiRx) { $direct = $true }
+                    $calls.Add("$($r.FullName)")
+                }
+                if ($direct) { [void]$set.Add("$($m.FullName)") }
+                $valueMethods.Add([pscustomobject]@{ Full = "$($m.FullName)"; Calls = $calls })
+            }
+        }
+        # Transitive closure: a value-returning method that calls a tainted-returning
+        # method is itself tainted-returning. Fixpoint capped at 3 passes.
+        for ($pass = 0; $pass -lt 3; $pass++) {
+            $changed = $false
+            foreach ($vm in $valueMethods) {
+                if ($set.Contains($vm.Full)) { continue }
+                foreach ($c in $vm.Calls) { if ($set.Contains($c)) { [void]$set.Add($vm.Full); $changed = $true; break } }
+            }
+            if (-not $changed) { break }
+        }
+    } catch { }
+    $script:TcpkTaintedReturningCache[$Key] = $set
+    return ,$set
+}
+
+# Forward intra-method dataflow: which local slots end up holding external-input-
+# derived ("tainted") values. A local is tainted when assigned directly from (a) a
+# source-API or tainted-returning call, (b) a caller parameter in a reachable method,
+# or (c) another already-tainted local. Iterated to a 3-pass fixpoint so assignment
+# order does not matter. Deliberately PRECISE (direct assignment only) to avoid
+# re-introducing false positives -- it completes the interprocedural signal so a
+# cross-method source can reach a sink through an intermediate local.
+function Get-TcpkMethodTaintedLocals {
+    [CmdletBinding()] param([Parameter(Mandatory)]$Instrs, [bool]$Reachable, $TaintedReturning, $TaintedFields)
+    $tl = New-Object 'System.Collections.Generic.HashSet[int]'
+    if ($null -eq $TaintedReturning) { $TaintedReturning = New-Object 'System.Collections.Generic.HashSet[string]' }
+    if ($null -eq $TaintedFields)    { $TaintedFields    = New-Object 'System.Collections.Generic.HashSet[string]' }
+    for ($pass = 0; $pass -lt 3; $pass++) {
+        $changed = $false
+        for ($k = 1; $k -lt $Instrs.Count; $k++) {
+            $st = $Instrs[$k]
+            if ($st.OpCode.Name -notlike 'stloc*') { continue }
+            $li = Get-TcpkIlLocalIndex $st
+            if ($li -lt 0 -or $tl.Contains($li)) { continue }
+            # nearest preceding value-producing instruction (skip nop/dup/conv/box)
+            $p = $k - 1
+            while ($p -ge 0) {
+                $pnm = $Instrs[$p].OpCode.Name
+                if ($pnm -eq 'nop' -or $pnm -eq 'dup' -or $pnm -eq 'box' -or $pnm -like 'conv.*') { $p--; continue }
+                break
+            }
+            if ($p -lt 0) { continue }
+            $pin = $Instrs[$p]; $pn = $pin.OpCode.Name; $isT = $false
+            if ($pn -eq 'call' -or $pn -eq 'callvirt' -or $pn -eq 'newobj') {
+                $pr = $pin.Operand -as [Mono.Cecil.MethodReference]
+                if ($pr -and ("$($pr.DeclaringType.FullName)::$($pr.Name)" -match $script:TcpkIlSourceApiRx -or $TaintedReturning.Contains("$($pr.FullName)"))) { $isT = $true }
+            }
+            elseif ($pn -in 'ldarg.1','ldarg.2','ldarg.3','ldarg.s','ldarg') { if ($Reachable) { $isT = $true } }
+            elseif ($pn -like 'ldloc*') {
+                $pli = Get-TcpkIlLocalIndex $pin
+                if ($pli -ge 0 -and $tl.Contains($pli)) { $isT = $true }
+            }
+            elseif ($pn -eq 'ldfld' -or $pn -eq 'ldsfld') {
+                $fr = $pin.Operand -as [Mono.Cecil.FieldReference]
+                if ($fr -and $TaintedFields.Contains("$($fr.FullName)")) { $isT = $true }
+            }
+            if ($isT) { [void]$tl.Add($li); $changed = $true }
+        }
+        if (-not $changed) { break }
+    }
+    return ,$tl
+}
+
+# Build (cached per assembly) the set of "tainted FIELDS": instance/static fields that
+# get ASSIGNED an external-input-derived value anywhere in the assembly (stfld/stsfld
+# whose stored value is a source / tainted-returning call, a caller parameter, or a
+# tainted local). A field is the classic cross-method carrier -- input is stashed in a
+# field in one method (Configure) and read into a sink in another (Run) -- so tracking
+# it lets the taint follow. Bounded 2-pass fixpoint (field <- field). PRECISE: direct
+# assignment only, to avoid re-introducing false positives.
+function Get-TcpkTaintedFields {
+    [CmdletBinding()] param([Parameter(Mandatory)]$Asm, [Parameter(Mandatory)][string]$Key)
+    if ($script:TcpkTaintedFieldCache.ContainsKey($Key)) { return ,$script:TcpkTaintedFieldCache[$Key] }
+    $set = New-Object 'System.Collections.Generic.HashSet[string]'
+    $tr  = $null
+    try { $tr = Get-TcpkTaintedReturningMethods -Asm $Asm -Key $Key } catch { }
+    if ($null -eq $tr) { $tr = New-Object 'System.Collections.Generic.HashSet[string]' }
+    try {
+        $methods = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($t in $Asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) { if ($m.HasBody) { $methods.Add($m) } }
+        }
+        for ($pass = 0; $pass -lt 2; $pass++) {
+            $changed = $false
+            foreach ($m in $methods) {
+                $instrs = @($m.Body.Instructions)
+                # field-aware tainted locals for this method (uses the set built so far).
+                # Reachable=$true is a deliberate, slightly-permissive proxy: we lack the
+                # call graph in this pass, and the field indirection is itself the strong
+                # signal, so treat a param-fed store as a possible taint carrier.
+                $tl = Get-TcpkMethodTaintedLocals -Instrs $instrs -Reachable $true -TaintedReturning $tr -TaintedFields $set
+                for ($k = 1; $k -lt $instrs.Count; $k++) {
+                    $st = $instrs[$k]
+                    if ($st.OpCode.Name -ne 'stfld' -and $st.OpCode.Name -ne 'stsfld') { continue }
+                    $fr = $st.Operand -as [Mono.Cecil.FieldReference]
+                    if (-not $fr) { continue }
+                    $fk = "$($fr.FullName)"
+                    if ($set.Contains($fk)) { continue }
+                    $p = $k - 1
+                    while ($p -ge 0) {
+                        $pnm = $instrs[$p].OpCode.Name
+                        if ($pnm -eq 'nop' -or $pnm -eq 'dup' -or $pnm -eq 'box' -or $pnm -like 'conv.*') { $p--; continue }
+                        break
+                    }
+                    if ($p -lt 0) { continue }
+                    $pin = $instrs[$p]; $pn = $pin.OpCode.Name; $isT = $false
+                    if ($pn -eq 'call' -or $pn -eq 'callvirt' -or $pn -eq 'newobj') {
+                        $pr = $pin.Operand -as [Mono.Cecil.MethodReference]
+                        if ($pr -and ("$($pr.DeclaringType.FullName)::$($pr.Name)" -match $script:TcpkIlSourceApiRx -or $tr.Contains("$($pr.FullName)"))) { $isT = $true }
+                    }
+                    elseif ($pn -in 'ldarg.1','ldarg.2','ldarg.3','ldarg.s','ldarg') { $isT = $true }
+                    elseif ($pn -like 'ldloc*') {
+                        $pli = Get-TcpkIlLocalIndex $pin
+                        if ($pli -ge 0 -and $tl.Contains($pli)) { $isT = $true }
+                    }
+                    elseif ($pn -eq 'ldfld' -or $pn -eq 'ldsfld') {
+                        $fr2 = $pin.Operand -as [Mono.Cecil.FieldReference]
+                        if ($fr2 -and $set.Contains("$($fr2.FullName)")) { $isT = $true }
+                    }
+                    if ($isT) { [void]$set.Add($fk); $changed = $true }
+                }
+            }
+            if (-not $changed) { break }
+        }
+    } catch { }
+    $script:TcpkTaintedFieldCache[$Key] = $set
+    return ,$set
+}
+
+# Callsite sink map: callsites.<suffix> -> the sink type(s)/method(s) to look for and
+# whether the dangerous ARGUMENT carries external input (injection-class). SHARED by the
+# deterministic verifier (Confirm-TcpkCallsiteUsage) and the LLM judge, so the two never
+# drift on which APIs count as sinks. Each sink: T = type fragment (managed BCL) OR, with
+# Mo, a method-name fragment; M = a SINGLE method-name token (it is regex-ESCAPED, so an
+# alternation 'A|B' would never match -- split into two sinks); Mo = match by called
+# METHOD name (any declaring type), for P/Invoke sinks.
+function Get-TcpkCallsiteSinkMap {
+    @{
+        'command-execution'          = @{ Inj = $true;  Sinks = @(@{T='System.Diagnostics.Process'},@{T='System.Diagnostics.ProcessStartInfo'},@{T='CreateProcess';Mo=$true},@{T='WinExec';Mo=$true},@{T='ShellExecute';Mo=$true}) }
+        'sql-command-construction'   = @{ Inj = $true;  Sinks = @(@{T='SqlCommand'},@{T='OleDbCommand'},@{T='OdbcCommand'},@{T='MySqlCommand'},@{T='NpgsqlCommand'},@{T='SqliteCommand'},@{T='SQLiteCommand'}) }
+        'ssrf-request-build'         = @{ Inj = $true;  Sinks = @(@{T='System.Net.WebRequest'},@{T='System.Net.Http.HttpClient'},@{T='System.Net.WebClient'},@{T='System.Net.Http.HttpRequestMessage'},@{T='RestClient'}) }
+        'nosql-command-construction' = @{ Inj = $true;  Sinks = @(@{T='MongoCollection'},@{T='IMongoCollection'},@{T='BsonJavaScript'},@{T='FilterDefinition'},@{T='LiteCollection'}) }
+        'ldap-query'                 = @{ Inj = $true;  Sinks = @(@{T='DirectorySearcher'},@{T='DirectoryEntry'}) }
+        'xaml-objectdataprovider-rce'= @{ Inj = $true;  Sinks = @(@{T='XamlReader'},@{T='XamlServices'},@{T='ObjectDataProvider'}) }
+        'path-traversal-build'       = @{ Inj = $true;  Sinks = @(@{T='System.IO.Path';M='Combine'},@{T='System.IO.Path';M='GetFullPath'},@{T='ZipFile'}) }
+        'weak-symmetric-crypto'      = @{ Inj = $false; Sinks = @(@{T='DESCryptoServiceProvider'},@{T='TripleDESCryptoServiceProvider'},@{T='RC2CryptoServiceProvider'},@{T='Cryptography.DES'},@{T='Cryptography.TripleDES'},@{T='Cryptography.RC2'}) }
+        'weak-hash-md5-sha1'         = @{ Inj = $false; Sinks = @(@{T='Cryptography.MD5'},@{T='MD5CryptoServiceProvider'},@{T='SHA1Managed'},@{T='SHA1CryptoServiceProvider'},@{T='Cryptography.SHA1'}) }
+        'weak-rng'                   = @{ Inj = $false; Sinks = @(@{T='System.Random'}) }
+        'base64-as-encryption'       = @{ Inj = $false; Sinks = @(@{T='System.Convert';M='ToBase64String'},@{T='System.Convert';M='FromBase64String'}) }
+        'env-var-path-use'           = @{ Inj = $false; Sinks = @(@{T='System.Environment';M='GetEnvironmentVariable'},@{T='System.Environment';M='ExpandEnvironmentStrings'}) }
+        'input-capture'              = @{ Inj = $false; Sinks = @(@{T='SetWindowsHookEx';Mo=$true},@{T='GetAsyncKeyState';Mo=$true},@{T='GetKeyboardState';Mo=$true},@{T='keybd_event';Mo=$true},@{T='RegisterRawInputDevices';Mo=$true},@{T='BitBlt';Mo=$true},@{T='PrintWindow';Mo=$true},@{T='CopyFromScreen';Mo=$true}) }
+        'token-impersonation'        = @{ Inj = $false; Sinks = @(@{T='LogonUser';Mo=$true},@{T='ImpersonateLoggedOnUser';Mo=$true},@{T='ImpersonateNamedPipeClient';Mo=$true},@{T='SetThreadToken';Mo=$true},@{T='DuplicateTokenEx';Mo=$true},@{T='WindowsIdentity';M='Impersonate'}) }
+        'clipboard-access'           = @{ Inj = $false; Sinks = @(@{T='Clipboard'},@{T='OpenClipboard';Mo=$true},@{T='GetClipboardData';Mo=$true},@{T='SetClipboardData';Mo=$true}) }
+    }
+}
+
+# Build a case-insensitive regex over a callsite suffix's sink API name fragments (the
+# type leaf, e.g. Process, or the method token, e.g. Combine) for Get-TcpkMethodIl
+# -CallsApi -- so the LLM judge can locate the method that INVOKES the sink. $null if
+# the suffix is not a known sink family.
+function Get-TcpkCallsiteSinkApiRegex {
+    param([Parameter(Mandatory)][string]$Suffix)
+    $spec = (Get-TcpkCallsiteSinkMap)[$Suffix]
+    if (-not $spec) { return $null }
+    $frags = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($s in $spec.Sinks) {
+        if ($s.M) { [void]$frags.Add([regex]::Escape("$($s.M)")) }
+        else      { [void]$frags.Add([regex]::Escape((("$($s.T)") -split '\.')[-1])) }
+    }
+    $uniq = @($frags | Where-Object { $_ } | Select-Object -Unique)
+    if (-not $uniq.Count) { return $null }
+    '(?i)(' + ($uniq -join '|') + ')'
+}
+
 # Deterministic usage analysis for a dangerous-API "sink". Loads the assembly with
 # Cecil and answers three questions a substring scan cannot:
 #   1) Is the API ACTUALLY invoked (call/callvirt/newobj), or did the rule match a
@@ -421,13 +693,21 @@ $script:TcpkIlSourceApiRx = '(?i)(System\.IO\.File::(Read|Open)|StreamReader::(R
 #   2) Is the enclosing method REACHABLE -- public / virtual / entry point / event-
 #      handler-shaped / has any in-assembly caller?  (AnyReachable)
 #   3) For an injection-class sink, is the argument a hardcoded CONSTANT (ldstr/ldc:
-#      not attacker-controllable) or DYNAMIC (ldarg/ldloc/ldfld/call: external input
-#      may reach it)?  (AllConstant / AnyDynamic)
+#      not attacker-controllable), DYNAMIC (non-constant, internal), or TAINTED --
+#      external input plausibly reaches it?  (AllConstant / AnyDynamic / AnyTainted)
 #
 # The argument check is a bounded backward scan over the IL preceding the call -- a
 # heuristic, deliberately biased SAFE: any dynamic load in the window => 'dynamic'
 # (we only call it 'constant' when NO dynamic source is present), so a real bug is
-# never demoted on a miss. Returns $null if Cecil is unavailable / file unreadable.
+# never demoted on a miss. Taint is INTERPROCEDURAL: a sink is tainted not only when
+# its own method reads a source (or a reachable method's parameter feeds it), but
+# also when the value comes from another method that reads input and returns it --
+# directly inline (Process.Start(ReadConfig())) or through a local (var x =
+# ReadConfig(); Process.Start(x)). The cross-method signal is built by
+# Get-TcpkTaintedReturningMethods (a cached, 3-hop fixpoint over the call graph) and
+# completed per method by Get-TcpkMethodTaintedLocals (tainted-local dataflow), both
+# kept PRECISE (direct assignment from a known source/tainted-returning call only) so
+# the win in recall does not re-introduce false positives. $null if Cecil unavailable.
 function Get-TcpkCallsiteUsage {
     [CmdletBinding()]
     param(
@@ -441,7 +721,21 @@ function Get-TcpkCallsiteUsage {
     if (-not (Initialize-TcpkCecil)) { return $null }
     if (-not (Test-Path -LiteralPath $DllPath)) { return $null }
     $asm = $null
-    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return $null }
+    $asm = Get-TcpkCecilAssembly $DllPath
+    if ($null -eq $asm) { return $null }
+
+    # interprocedural taint backbone: methods that read external input and return it,
+    # so a sink fed by the result of such a method (possibly several hops away) is
+    # recognised as tainted. Computed once per assembly and cached.
+    $key = $DllPath; try { $key = (Resolve-Path -LiteralPath $DllPath -ErrorAction Stop).Path } catch { }
+    $taintedReturning = $null
+    try { $taintedReturning = Get-TcpkTaintedReturningMethods -Asm $asm -Key $key } catch { }
+    if ($null -eq $taintedReturning) { $taintedReturning = New-Object 'System.Collections.Generic.HashSet[string]' }
+    # cross-method carrier: fields that hold external input (set in one method, read in
+    # another). Built once per assembly and cached.
+    $taintedFields = $null
+    try { $taintedFields = Get-TcpkTaintedFields -Asm $asm -Key $key } catch { }
+    if ($null -eq $taintedFields) { $taintedFields = New-Object 'System.Collections.Generic.HashSet[string]' }
 
     $callOps = @('call','callvirt','newobj')
     $refOps  = @('call','callvirt','newobj','ldftn','ldvirtftn')
@@ -479,6 +773,12 @@ function Get-TcpkCallsiteUsage {
                 if ($cr -and ("$($cr.DeclaringType.FullName)::$($cr.Name)" -match $script:TcpkIlSourceApiRx)) { $methodHasSource = $true; break }
             }
 
+            # reachability is a property of the method, not the call site -- compute once
+            $reachMethod = $m.IsPublic -or $m.IsVirtual -or ($entry -and $entry -eq $m) -or
+                           $called.Contains($m.FullName) -or ("$($m.Name)" -match $handlerRx)
+            # interprocedural tainted locals, computed lazily on the first injection sink
+            $taintedLocals = $null
+
             for ($i = 0; $i -lt $instrs.Count; $i++) {
                 $ins = $instrs[$i]
                 if ($callOps -notcontains $ins.OpCode.Name) { continue }
@@ -491,13 +791,16 @@ function Get-TcpkCallsiteUsage {
                     if ($methodRx -and ("$($mref.Name)" -notmatch $methodRx)) { continue }
                 }
 
-                $reach = $m.IsPublic -or $m.IsVirtual -or ($entry -and $entry -eq $m) -or
-                         $called.Contains($m.FullName) -or ("$($m.Name)" -match $handlerRx)
+                $reach = $reachMethod
 
                 $argKind = 'n/a'
                 if ($Injection) {
+                    if ($null -eq $taintedLocals) {
+                        $taintedLocals = Get-TcpkMethodTaintedLocals -Instrs $instrs -Reachable ([bool]$reachMethod) -TaintedReturning $taintedReturning -TaintedFields $taintedFields
+                    }
                     $nargs = 0; try { $nargs = $mref.Parameters.Count } catch { }
-                    $seenDyn = $false; $seenConst = $false; $sawParam = $false; $win = 0
+                    $seenDyn = $false; $seenConst = $false; $sawParam = $false
+                    $sawTaintLocal = $false; $sawSourceCall = $false; $sawTaintField = $false; $win = 0
                     for ($j = $i - 1; $j -ge 0 -and $win -lt ($nargs + 5); $j--) {
                         $op = $instrs[$j].OpCode.Name
                         if ($op -eq 'nop' -or $op -eq 'dup' -or $op -like 'conv.*' -or $op -eq 'box') { continue }
@@ -505,6 +808,22 @@ function Get-TcpkCallsiteUsage {
                             $seenDyn = $true; $win++
                             # a parameter load (not ldarg.0/'this') = caller-supplied input
                             if ($op -in 'ldarg.1','ldarg.2','ldarg.3','ldarg.s','ldarg') { $sawParam = $true }
+                            # interprocedural: the arg is a local that holds external input
+                            elseif ($op -like 'ldloc*') {
+                                $li2 = Get-TcpkIlLocalIndex $instrs[$j]
+                                if ($li2 -ge 0 -and $taintedLocals.Contains($li2)) { $sawTaintLocal = $true }
+                            }
+                            # inline: the arg is the direct result of a source / tainted-returning call
+                            elseif ($op -in 'call','callvirt') {
+                                $cr2 = $instrs[$j].Operand -as [Mono.Cecil.MethodReference]
+                                if ($cr2 -and ("$($cr2.DeclaringType.FullName)::$($cr2.Name)" -match $script:TcpkIlSourceApiRx -or $taintedReturning.Contains("$($cr2.FullName)"))) { $sawSourceCall = $true }
+                            }
+                            # interprocedural: the arg is a field that holds external input
+                            # (set in another method -- the classic cross-method carrier)
+                            elseif ($op -in 'ldfld','ldsfld') {
+                                $fr3 = $instrs[$j].Operand -as [Mono.Cecil.FieldReference]
+                                if ($fr3 -and $taintedFields.Contains("$($fr3.FullName)")) { $sawTaintField = $true }
+                            }
                             continue
                         }
                         if ($script:TcpkIlConstLoads -contains $op) { $seenConst = $true; $win++; continue }
@@ -512,10 +831,11 @@ function Get-TcpkCallsiteUsage {
                         if ($op -match '^(st|br|ret|leave|switch|throw|endfinally)') { break }
                     }
                     if ($seenDyn) {
-                        # tainted = external input plausibly reaches the sink: the method
-                        # reads an external source, OR a reachable method's own parameter
-                        # feeds the call. Otherwise just 'dynamic' (non-constant, internal).
-                        $tainted = $methodHasSource -or ($sawParam -and $reach)
+                        # tainted = external input plausibly reaches the sink: the method reads
+                        # an external source; a tainted local, a tainted field, or a source /
+                        # tainted-returning call result feeds the sink (interprocedural); or a
+                        # reachable method's own parameter feeds it. Otherwise 'dynamic'.
+                        $tainted = $methodHasSource -or $sawSourceCall -or $sawTaintLocal -or $sawTaintField -or ($sawParam -and $reachMethod)
                         $argKind = if ($tainted) { 'tainted' } else { 'dynamic' }
                     }
                     elseif ($seenConst) { $argKind = 'constant' }
@@ -545,6 +865,7 @@ function Get-TcpkCallsiteUsage {
             Sites         = $sites.ToArray()
         }
     } finally {
-        if ($asm) { $asm.Dispose() }
+        # $asm is cached by Get-TcpkCecilAssembly; disposed at the audit boundary
+        # (Clear-TcpkCecilCache) -- do NOT dispose here or the next sink reuses a dead handle.
     }
 }

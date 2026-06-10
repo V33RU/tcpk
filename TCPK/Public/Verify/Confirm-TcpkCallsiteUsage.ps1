@@ -44,33 +44,11 @@ function Confirm-TcpkCallsiteUsage {
     begin {
         $all = New-Object 'System.Collections.Generic.List[object]'
 
-        # callsites.<suffix> -> the sink type(s)/method(s) to look for, and whether the
-        # dangerous ARGUMENT carries external input (injection-class). Each sink is:
-        #   T  = type fragment (managed BCL) OR, with Mo, a method-name fragment
-        #   M  = method-name fragment (single token only -- it is regex-ESCAPED, so an
-        #        alternation like 'A|B' would never match; split into two sinks instead)
-        #   Mo = match by called METHOD name (any declaring type) -- for P/Invoke sinks
-        #        (CreateProcess/WinExec/ShellExecute, SetWindowsHookEx, LogonUser, ...)
-        $map = @{
-            'command-execution'          = @{ Inj = $true;  Sinks = @(@{T='System.Diagnostics.Process'},@{T='System.Diagnostics.ProcessStartInfo'},@{T='CreateProcess';Mo=$true},@{T='WinExec';Mo=$true},@{T='ShellExecute';Mo=$true}) }
-            'sql-command-construction'   = @{ Inj = $true;  Sinks = @(@{T='SqlCommand'},@{T='OleDbCommand'},@{T='OdbcCommand'},@{T='MySqlCommand'},@{T='NpgsqlCommand'},@{T='SqliteCommand'},@{T='SQLiteCommand'}) }
-            'ssrf-request-build'         = @{ Inj = $true;  Sinks = @(@{T='System.Net.WebRequest'},@{T='System.Net.Http.HttpClient'},@{T='System.Net.WebClient'},@{T='System.Net.Http.HttpRequestMessage'},@{T='RestClient'}) }
-            'nosql-command-construction' = @{ Inj = $true;  Sinks = @(@{T='MongoCollection'},@{T='IMongoCollection'},@{T='BsonJavaScript'},@{T='FilterDefinition'},@{T='LiteCollection'}) }
-            'ldap-query'                 = @{ Inj = $true;  Sinks = @(@{T='DirectorySearcher'},@{T='DirectoryEntry'}) }
-            'xaml-objectdataprovider-rce'= @{ Inj = $true;  Sinks = @(@{T='XamlReader'},@{T='XamlServices'},@{T='ObjectDataProvider'}) }
-            'path-traversal-build'       = @{ Inj = $true;  Sinks = @(@{T='System.IO.Path';M='Combine'},@{T='System.IO.Path';M='GetFullPath'},@{T='ZipFile'}) }
-            'weak-symmetric-crypto'      = @{ Inj = $false; Sinks = @(@{T='DESCryptoServiceProvider'},@{T='TripleDESCryptoServiceProvider'},@{T='RC2CryptoServiceProvider'},@{T='Cryptography.DES'},@{T='Cryptography.TripleDES'},@{T='Cryptography.RC2'}) }
-            'weak-hash-md5-sha1'         = @{ Inj = $false; Sinks = @(@{T='Cryptography.MD5'},@{T='MD5CryptoServiceProvider'},@{T='SHA1Managed'},@{T='SHA1CryptoServiceProvider'},@{T='Cryptography.SHA1'}) }
-            'weak-rng'                   = @{ Inj = $false; Sinks = @(@{T='System.Random'}) }
-            'base64-as-encryption'       = @{ Inj = $false; Sinks = @(@{T='System.Convert';M='ToBase64String'},@{T='System.Convert';M='FromBase64String'}) }
-            'env-var-path-use'           = @{ Inj = $false; Sinks = @(@{T='System.Environment';M='GetEnvironmentVariable'},@{T='System.Environment';M='ExpandEnvironmentStrings'}) }
-            # capability rules (Inj=$false): invocation proof kills string/DllImport-only
-            # FPs. A keyboard hook / screen grab / token impersonation that is declared
-            # but never called is demoted to INFO; an actually-invoked one keeps its note.
-            'input-capture'              = @{ Inj = $false; Sinks = @(@{T='SetWindowsHookEx';Mo=$true},@{T='GetAsyncKeyState';Mo=$true},@{T='GetKeyboardState';Mo=$true},@{T='keybd_event';Mo=$true},@{T='RegisterRawInputDevices';Mo=$true},@{T='BitBlt';Mo=$true},@{T='PrintWindow';Mo=$true},@{T='CopyFromScreen';Mo=$true}) }
-            'token-impersonation'        = @{ Inj = $false; Sinks = @(@{T='LogonUser';Mo=$true},@{T='ImpersonateLoggedOnUser';Mo=$true},@{T='ImpersonateNamedPipeClient';Mo=$true},@{T='SetThreadToken';Mo=$true},@{T='DuplicateTokenEx';Mo=$true},@{T='WindowsIdentity';M='Impersonate'}) }
-            'clipboard-access'           = @{ Inj = $false; Sinks = @(@{T='Clipboard'},@{T='OpenClipboard';Mo=$true},@{T='GetClipboardData';Mo=$true},@{T='SetClipboardData';Mo=$true}) }
-        }
+        # callsites.<suffix> -> sink type(s)/method(s) + whether the dangerous ARGUMENT
+        # carries external input (injection-class). Defined once in the shared private
+        # Get-TcpkCallsiteSinkMap so the LLM judge (Invoke-TcpkLlmCodeJudgment) locates
+        # the same sinks and the two never drift. See that helper for the T/M/Mo schema.
+        $map = Get-TcpkCallsiteSinkMap
         # deser.<token> tokens that ARE a formatter type exposing Deserialize()/
         # ReadObject(). Tokens NOT here (e.g. 'typenamehandling', a Json.NET enum flag
         # whose real sink is JsonConvert.DeserializeObject) are left untouched -- the

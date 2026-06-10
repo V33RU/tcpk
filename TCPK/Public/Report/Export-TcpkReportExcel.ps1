@@ -115,7 +115,7 @@ function Export-TcpkReportExcel {
         # ---------- DLL Signing sheet (signed / not signed -- information only) ----------
         $sgSorted = $Signing | Sort-Object @{ E = { switch ("$($_.Status)") { 'TAMPERED' {0} 'UNTRUSTED' {1} 'UNSIGNED' {2} 'EXPIRED' {3} 'EXPIRED-TS' {4} 'UNKNOWN' {5} default {6} } } }, DLL
         $sgRows = foreach ($s in $sgSorted) {
-            ,@("$($s.DLL)", "$($s.Signed)", "$($s.Status)", "$($s.Signer)", "$($s.Algorithm)", "$($s.ValidFrom)", "$($s.Expires)", "$($s.Type)", "$($s.Path)")
+            ,@("$($s.DLL)", "$($s.Signed)", "$($s.Status)", "$($s.Signer)", "$($s.Issuer)", "$($s.Algorithm)", "$($s.KeySize)", "$($s.ValidFrom)", "$($s.Expires)", "$($s.Serial)", "$($s.Thumbprint)", "$($s.Eku)", "$($s.Type)", "$($s.Subject)", "$($s.Path)")
         }
 
         # ---------- Checklist sheet (thick-client test plan + auto-status) ----------
@@ -131,7 +131,7 @@ function Export-TcpkReportExcel {
             [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0 vector','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS / Desktop Top 10','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
             [ordered]@{ Name = 'Checklist'; Headers = @('Test #','Test Name','Type','TCPK Coverage','Auto Status','Findings','Related Rule IDs','Result (PASS/FAIL)','Manual confirmation step'); Rows = @($clRows); Widths = @(8, 44, 14, 13, 13, 9, 40, 17, 64) }
             [ordered]@{ Name = 'DLL Hardening'; Headers = @('DLL','Arch','ASLR','DEP','CFG','HighEntropyVA','SafeSEH','GS','ForceIntegrity','Status','Missing','Flags'); Rows = @($hwRows) }
-            [ordered]@{ Name = 'DLL Signing'; Headers = @('DLL','Signed','Status','Signer','Algorithm','Valid From','Expires','Type','Path'); Rows = @($sgRows); Widths = @(34, 9, 12, 40, 16, 12, 12, 12, 80) }
+            [ordered]@{ Name = 'DLL Signing'; Headers = @('DLL','Signed','Status','Signer','Issuer','Algorithm','Key bits','Valid From','Expires','Serial','Thumbprint','EKU','Type','Subject','Path'); Rows = @($sgRows); Widths = @(34, 9, 12, 40, 40, 16, 8, 12, 12, 30, 44, 22, 12, 60, 80) }
         )
 
         # ---------- CVEs sheet (optional) ----------
