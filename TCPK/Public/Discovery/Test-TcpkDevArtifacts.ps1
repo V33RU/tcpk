@@ -95,4 +95,38 @@ function Test-TcpkDevArtifacts {
             $n++
         }
     }
+
+    # --- internal dev / spec / threat docs leaked into the bundle (content-based) ---
+    # User-facing README / EULA / user guides are fine to ship; this looks for INTERNAL
+    # development artifacts: Gherkin/QE acceptance criteria, user-story IDs, source-tree
+    # paths, CI/build-pipeline references, and threat-model / wiki notes. Require >= 2
+    # distinct categories so a normal README does not trip it. Scans markdown/text files
+    # AND *.asar (Electron bundles carry docs as plaintext inside the archive).
+    $docCats = @(
+        @{ k='gherkin';      rx='(?im)^\s*(Scenario:|Feature:|Acceptance Criteria|Given |When |Then )' }
+        @{ k='scope-spec';   rx='(?i)\b(In Scope|Out of Scope|Scope Clarification|Technical Notes:|Designs:)\b' }
+        @{ k='story-id';     rx='\bUS-[A-Z0-9]{1,8}-?\d{2,}\b' }
+        @{ k='src-paths';    rx='(?i)\bsrc[\\/](main|renderer|app|lib|core)[\\/][\w.\-/]+\.(js|ts|tsx|jsx|cs|py)\b' }
+        @{ k='ci-build';     rx='(?i)(\.github[\\/]workflows|release\.yml|afterPack|notariz|bump-version)' }
+        @{ k='internal-ref'; rx='(?i)(\bthreat model\b|docs[\\/]Security\.md|\bConfluence\b|\bJIRA\b)' }
+    )
+    $docExt = @('.md','.markdown','.txt','.rst','.adoc')
+    foreach ($t in (Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue)) {
+        if ($n -ge $cap) { break }
+        if (-not (($t.Extension.ToLowerInvariant() -in $docExt) -or ($t.Name -like '*.asar'))) { continue }
+        $blob = ''
+        try { $blob = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($t.FullName)) } catch { continue }
+        if (-not $blob) { continue }
+        $hits = @(); foreach ($c in $docCats) { if ([regex]::IsMatch($blob, $c.rx)) { $hits += $c.k } }
+        if ($hits.Count -ge 2) {
+            $sev = if (($hits -contains 'src-paths') -or ($hits -contains 'internal-ref') -or ($hits -contains 'ci-build')) { 'MEDIUM' } else { 'LOW' }
+            New-TcpkFinding -Module 'static' -RuleId 'devartifact.internal-docs' `
+                -Severity $sev -Confidence 'Confirmed' `
+                -Title "Internal dev/spec docs shipped: $($t.Name)" `
+                -File $t.FullName -Evidence ("internal-doc signals: " + ($hits -join ', ')) -Cwe @('CWE-540','CWE-538') `
+                -Description 'The shipped bundle contains internal development artifacts (Gherkin/QE acceptance criteria, user-story IDs, source-tree paths, CI/build-pipeline references, or threat-model notes) -- not user documentation. These hand an attacker the application architecture, where the security controls live, the build/signing pipeline, and planned/known weak points: a recon map.' `
+                -Fix 'Exclude internal design/spec/threat docs and developer markdown from the production bundle (e.g. add them to the electron-builder files-ignore list / .npmignore / publish exclusions).'
+            $n++
+        }
+    }
 }

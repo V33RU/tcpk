@@ -26,7 +26,7 @@ function New-TcpkFinding {
         [string] $Severity,
         [Parameter(Mandatory)][string] $Title,
 
-        [ValidateSet('Confirmed','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (LLM)','Uncertain (LLM)','Confirmed (IL)','Likely-FP (IL)')]
+        [ValidateSet('Confirmed','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (LLM)','Uncertain (LLM)','Confirmed (IL)','Likely-FP (IL)','Confirmed (dynamic)')]
         [string] $Confidence = 'Confirmed',
 
         [string]   $Description,

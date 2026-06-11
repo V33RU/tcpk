@@ -12,7 +12,11 @@ function Invoke-TcpkAudit {
     than aborting the audit.
 
 .PARAMETER Target
-    MSIX file or extracted install directory.
+    What to audit. Accepts: an install / extracted directory; a single EXE/DLL; or a
+    sealed container that TCPK unwraps automatically -- MSIX/AppX (Expand-TcpkMsix),
+    MSI (msiexec /a administrative install), or ZIP (safe, zip-slip-guarded extraction).
+    NSIS / Inno / other installers are not auto-unwrapped: extract them first, then point
+    -Target at the folder.
 
 .PARAMETER ProcessName
     Optional. If supplied, runtime checks (Phase 5+) will target the
@@ -94,8 +98,9 @@ function Invoke-TcpkAudit {
     }
     if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
 
-    # Expand MSIX if needed
-    $expanded = try { Expand-TcpkMsix -Path $Target } catch { $Target }
+    # Unwrap a sealed container target (MSIX / MSI / ZIP) to a folder to scan; a directory,
+    # a single exe, or anything else is scanned as-is. Degrades to $Target on any failure.
+    $expanded = try { Expand-TcpkTarget -Path $Target } catch { $Target }
 
     # --- application-identity search terms (drives the OS / registry bucket) ---
     # Apps store data under product codes, CLSIDs, ProgIDs and brand names that

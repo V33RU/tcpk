@@ -115,6 +115,7 @@ function Test-TcpkSignature {
     }
 
     # --- Case 3: non-MSIX --- per-PE Authenticode validation ---
+    $unsigned = 0
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         $sig = Get-AuthenticodeSignature -FilePath $pe.FullName
         switch ($sig.Status) {
@@ -125,6 +126,7 @@ function Test-TcpkSignature {
                     -Title "$($pe.Name) is not Authenticode-signed" `
                     -File $pe.FullName -Cwe @('CWE-347','CWE-494') `
                     -Fix 'Sign every shipped EXE/DLL with the company code-signing certificate.'
+                $unsigned++
             }
             'HashMismatch' {
                 New-TcpkFinding -Module 'static' -RuleId 'authenticode.tampered' `
@@ -143,6 +145,31 @@ function Test-TcpkSignature {
                     -Title "$($pe.Name) signature status = $($sig.Status)" `
                     -File $pe.FullName -Evidence $sig.StatusMessage -Cwe @('CWE-347')
             }
+        }
+    }
+
+    # --- G8: unsigned binaries DESPITE a code-signing pipeline reference in the bundle ---
+    # If primary binaries are unsigned but the shipped tree references a signing /
+    # notarization pipeline, the signing step likely failed or was bypassed -- users get
+    # an unsigned, unverifiable binary while the project believes it ships signed.
+    if ($unsigned -gt 0) {
+        $rx = '(?i)(signtool|codesign|notarytool|notariz|azuresigntool|certificateFile|certificateSubjectName|signingHashAlgorithms|afterSign|release\.ya?ml|workflows[\\/][^''")]*sign)'
+        $marker = $null
+        $scan = @(Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue |
+                  Where-Object { ($_.Extension.ToLowerInvariant() -in '.yml','.yaml','.json','.md','.markdown','.txt') -or ($_.Name -like '*.asar') } |
+                  Select-Object -First 400)
+        foreach ($f in $scan) {
+            $b = ''; try { $b = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($f.FullName)) } catch { continue }
+            $m = [regex]::Match($b, $rx)
+            if ($m.Success) { $marker = $m.Value; break }
+        }
+        if ($marker) {
+            New-TcpkFinding -Module 'static' -RuleId 'authenticode.unsigned-despite-pipeline' `
+                -Severity 'MEDIUM' -Confidence 'Inferred' `
+                -Title 'Binaries unsigned despite a code-signing pipeline reference' `
+                -File $Path -Evidence "unsigned primary binaries + signing reference: '$marker'" -Cwe @('CWE-347','CWE-494') `
+                -Description "Shipped binaries are not Authenticode-signed, yet the bundle references a code-signing / notarization pipeline ($marker). Either signing failed for this build or it was bypassed -- users receive an unsigned, unverifiable binary while the project believes it ships signed." `
+                -Fix 'Verify the release pipeline signs EVERY shipped binary (and the installer); fail the build when signing is skipped.'
         }
     }
 }

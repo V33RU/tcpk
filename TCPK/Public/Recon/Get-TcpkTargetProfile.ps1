@@ -337,11 +337,19 @@ function Get-TcpkTargetProfile {
     function _Find([string]$regex) { return @($Findings | Where-Object { $_.RuleId -match $regex }) }
     function _Leaf($p) { if ($p) { return (Split-Path -Leaf $p) } return '' }
 
-    # Network endpoints (backend hosts the app talks to)
+    # Network endpoints (backend hosts the app talks to) -- normalized + classified
+    # (first-party / telemetry / cloud-storage / cdn / auth / update) with risk flags.
+    # The classification is folded into Detail so existing report tables show it.
     $endpoints = _Find '^backend\.endpoint$' | ForEach-Object {
         $hostName = if ($_.Title -match 'Backend host:\s*([^\s(]+)') { $matches[1] } else { $_.Title }
-        [pscustomobject]@{ Host = $hostName; Detail = $_.Evidence; File = (_Leaf $_.File) }
+        $info = Get-TcpkEndpointInfo -HostName $hostName -Raw "$($_.Evidence) $($_.Title)"
+        $tag  = '[' + $info.Category + $(if ($info.Flags.Count) { '; ' + ($info.Flags -join ', ') } else { '' }) + ']'
+        [pscustomobject]@{
+            Host = $hostName; Detail = ("$($_.Evidence)  $tag").Trim(); File = (_Leaf $_.File)
+            Category = $info.Category; Scheme = $info.Scheme; Cleartext = $info.Cleartext; Flags = $info.Flags
+        }
     }
+    $endpointMap = Get-TcpkEndpointMap -Endpoints @($endpoints)
     # Listening ports / UDP endpoints (live-process only)
     $listening = _Find '^ports\.(tcp-listening|udp-endpoint)$' | ForEach-Object {
         [pscustomobject]@{
@@ -416,6 +424,7 @@ function Get-TcpkTargetProfile {
         Counts          = $counts
         # ---- detailed recon (end-to-end attack surface) ----
         Endpoints        = @($endpoints)
+        EndpointMap      = @($endpointMap)
         ListeningPorts   = @($listening)
         ProtocolHandlers = @($protoHandlers)
         ComServers       = @($comServers)
