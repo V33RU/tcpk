@@ -18,6 +18,8 @@ $script:CvssCases = @(
     @{ Rule = 'keymaterial.private-key';                Sev = 'HIGH' }
     @{ Rule = 'scheme.cleartext-http';                  Sev = 'MEDIUM' }   # was net-mitm Critical, now cleartext-net Medium
     @{ Rule = 'dns.pre-resolution';                     Sev = 'LOW' }      # same family fix
+    @{ Rule = 'tls.pinning-absent';                     Sev = 'LOW' }      # posture, not active MITM
+    @{ Rule = 'tls.revocation-disabled';               Sev = 'MEDIUM' }   # posture, not active MITM
     @{ Rule = 'pe.missing-mitigations';                 Sev = 'LOW' }
     @{ Rule = 'dpapi.blob';                             Sev = 'MEDIUM' }
 )
