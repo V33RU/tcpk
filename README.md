@@ -21,6 +21,11 @@ and TCPK runs ~168 checks across 10+ buckets, streams findings live, and writes
 HTML + Excel reports. Every finding carries a confidence label, a **computed CVSS v4.0
 base score**, CWE, MITRE ATT&CK, and an OWASP TASVS / Desktop-App-Top-10 mapping.
 
+The same audit also drives a **loopback web control panel** (new in v1.5.0) --
+discovery-only, token-gated, bound to `127.0.0.1`:
+
+![TCPK web control panel](assets/tcpk-webui.png)
+
 ## What makes it different
 
 - **Evidence over guessing.** Substring/regex hits are labelled `Inferred`. A Mono.Cecil
