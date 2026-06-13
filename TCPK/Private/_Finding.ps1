@@ -88,13 +88,15 @@ $script:TcpkCvssArchetypes = [ordered]@{
     'client-bypass'   = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N'  # client-side licensing / auth decision flipped locally
     'weak-crypto'     = 'CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N'  # cryptographic weakness (conditions / effort required)
     'hardening'       = 'CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N'  # missing mitigation / posture gap (contributory)
+    'cleartext-net'   = 'CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N'  # cleartext transport / DNS leak: on-path attacker can read/tamper (AT:P) -> 6.3 Medium
 }
 
 # Rule-family -> archetype. First match wins; families are matched on the RuleId prefix.
 # Families that are genuinely mixed (callsites, registry, raw endpoints) deliberately
 # fall through to the 'per-finding' note rather than be assigned a misleading vector.
 $script:TcpkCvssRuleArchetype = @(
-    @{ Rx = '^(tls|tls-bypass|tls-handshake|scheme|dns|wcf|truststore)\.';                                                                                          A = 'net-mitm' }
+    @{ Rx = '^(tls|tls-bypass|tls-handshake|wcf|truststore)\.';                                                                                                     A = 'net-mitm' }
+    @{ Rx = '^(scheme|dns)\.';                                                                                                                                       A = 'cleartext-net' }
     @{ Rx = '^(deser|update|electron)\.';                                                                                                                           A = 'net-rce' }
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
@@ -103,6 +105,11 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^(dpapi|token-cache|credman|localdb|env|memory|memsecret|pii|log)\.';                                                                                  A = 'local-at-rest' }
     @{ Rx = '^(authflags|guiunlock|flagflip)\.';                                                                                                                    A = 'client-bypass' }
     @{ Rx = '^(crypto)\.';                                                                                                                                          A = 'weak-crypto' }
+    # debugflags.security-off / .backdoor disable a security control or hide a backdoor --
+    # a locally-flipped integrity compromise, NOT a posture gap. Matched BEFORE 'hardening'
+    # (which also lists debugflags) so the HIGH badge agrees with the computed CVSS instead
+    # of showing HIGH next to a 2.0-Low 'hardening' score.
+    @{ Rx = '^debugflags\.(security-off|backdoor)';                                                                                                                 A = 'client-bypass' }
     @{ Rx = '^(pe|pe-imports|pe-exports|strongname|authenticode|codeintegrity|packer|obfuscation|antidebug|antiinjection|timing|integrity|debugflags|devartifact|native|pinvoke|interop|reflection|sxs|mem|pagefile|wer)\.'; A = 'hardening' }
 )
 

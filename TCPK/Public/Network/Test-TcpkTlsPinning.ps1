@@ -34,6 +34,9 @@ function Test-TcpkTlsPinning {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        # Skip the bundled Chromium/Electron runtime -- its string table is framework code,
+        # not first-party (a stray 'Thumbprint' there is not evidence the APP pins).
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }
         foreach ($m in $pinningMarkers) {
             if ($text.Contains($m)) {
                 $foundPinning = $true

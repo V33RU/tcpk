@@ -35,13 +35,10 @@ function Test-TcpkSecureStringUsage {
         if ($foundHygiene) { break }
     }
 
-    if ($foundHygiene) {
-        New-TcpkFinding -Module 'memory' -RuleId 'mem.hygiene-present' `
-            -Severity 'INFO' -Confidence 'Inferred' `
-            -Title 'Memory-hygiene primitives referenced in first-party code' `
-            -File $foundHygieneIn `
-            -Description 'At least one first-party PE references SecureString / ProtectedData. Confirm in ILSpy that these are used on the secret-handling path, not just imported.'
-    } else {
+    # Only the ABSENCE is a (low) triage signal. A single-string "primitives referenced"
+    # note falsely reassures (the marker may be imported but never used on the secret path),
+    # so the positive case is no longer emitted as a finding.
+    if (-not $foundHygiene) {
         New-TcpkFinding -Module 'memory' -RuleId 'mem.hygiene-absent' `
             -Severity 'LOW' -Confidence 'Inferred' `
             -Title 'No SecureString / ProtectedData markers in any first-party PE' `

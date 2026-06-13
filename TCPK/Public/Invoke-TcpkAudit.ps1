@@ -69,7 +69,11 @@ function Invoke-TcpkAudit {
         [switch]$EnableLlm,
         [switch]$AllowCloudLlm,
         [string]$PauseSignalPath,
-        [ValidateSet('INFO','LOW','MEDIUM','HIGH','CRITICAL')][string]$FailOn
+        [ValidateSet('INFO','LOW','MEDIUM','HIGH','CRITICAL')][string]$FailOn,
+        # Scan profile. Full/Standard run every check; Quick skips the slow, whole-machine
+        # OS-integration / persistence enumeration to focus on the target app (named
+        # -ScanProfile, not -Profile, to avoid shadowing the automatic $Profile variable).
+        [ValidateSet('Quick','Standard','Full')][string]$ScanProfile = 'Full'
     )
 
     # --- preflight ---
@@ -111,8 +115,27 @@ function Invoke-TcpkAudit {
     # --- collected findings ---
     $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
 
+    # Quick profile: skip the slow, whole-machine OS-integration / persistence enumeration
+    # (these scan the SYSTEM, not the target) so a fast pass focuses on the app itself.
+    # Full/Standard leave this empty -> every check runs (unchanged default behavior).
+    $quickSkip = @(
+        'Test-TcpkRegistryFootprint','Test-TcpkRegistryAcl','Test-TcpkRegistryValues',
+        'Test-TcpkFirewallRules','Test-TcpkAvExclusions','Test-TcpkServiceBinaryAcl',
+        'Test-TcpkServicePermissions','Test-TcpkUnquotedServicePath','Test-TcpkAutoStart',
+        'Test-TcpkProgramDataAcls','Test-TcpkScheduledTaskAcl','Test-TcpkWmiPersistence',
+        'Test-TcpkProtocolHandlers','Test-TcpkShimCache','Test-TcpkAppPaths',
+        'Test-TcpkIfeoHijack','Test-TcpkComObjects','Test-TcpkKernelDrivers',
+        'Test-TcpkTrustStore','Test-TcpkNamedPipes','Test-TcpkNamedPipeDacl'
+    )
+
     # --- per-check runner ---
     function _RunCheck([string]$Name, [scriptblock]$Block) {
+        # Quick profile: skip the slow whole-machine OS-integration checks above.
+        if ($ScanProfile -eq 'Quick' -and ($quickSkip -contains $Name)) {
+            Write-Information -MessageData ("  {0,-32}  skipped (Quick profile)" -f $Name) -InformationAction Continue
+            Write-TcpkLog -Level INFO -Component $Name -Message 'skipped (Quick profile)' | Out-Null
+            return
+        }
         # Cooperative pause: while the GUI's pause-signal file exists, hold here at the
         # check boundary (capped at 30 min so a stale flag can't hang the audit forever).
         # No PauseSignalPath (CLI default) -> never pauses.
@@ -604,7 +627,12 @@ function Invoke-TcpkAudit {
     try {
         $all | Export-TcpkReportSarif -OutFile (Join-Path $OutDir 'report.sarif') -Target $Target
     } catch { Write-TcpkLog -Level ERROR -Component 'report.sarif' -Message $_.Exception.Message | Out-Null }
-    Write-TcpkLog -Level SUCCESS -Component 'report' -Message "HTML + Excel + SARIF written ($($all.Count) findings, $(@($hardening).Count) DLLs)" | Out-Null
+    # Self-contained offline "program intelligence" dashboard (severity/confidence + evidence
+    # ladder, recon endpoint map, filterable finding cards). One file, no server, no CDN.
+    try {
+        $all | Export-TcpkReportIntel -OutFile (Join-Path $OutDir 'intel.html') -Target $Target -Profile $targetProfile
+    } catch { Write-TcpkLog -Level ERROR -Component 'report.intel' -Message $_.Exception.Message | Out-Null }
+    Write-TcpkLog -Level SUCCESS -Component 'report' -Message "HTML + Excel + SARIF + intel written ($($all.Count) findings, $(@($hardening).Count) DLLs)" | Out-Null
 
     # --- finalize structured run-log (drives the Logs / Runtime tab) ---
     foreach ($sev in 'CRITICAL','HIGH','MEDIUM','LOW','INFO') {

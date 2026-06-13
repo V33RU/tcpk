@@ -38,6 +38,7 @@ WHAT'S IN HERE
 --------------
 
   TCPK.bat          Recommended launcher (runs the GUI script in STA mode).
+  TCPK-WebUI.bat    Web control panel -- loopback 127.0.0.1, token-gated, discovery-only.
   Start-TCPKGui.ps1 The GUI source script (run directly with -STA if you prefer).
   TCPK.exe          Compiled launcher (branded icon). Must sit beside the TCPK\
                     module folder AND be rebuilt from Start-TCPKGui.ps1 to find it.
@@ -130,7 +131,7 @@ TROUBLESHOOTING
 COVERAGE
 --------
 
-172 cmdlets across buckets A to L. See docs\CHECKS.md for the full list of
+174 cmdlets across buckets A to L. See docs\CHECKS.md for the full list of
 every check and which bucket it lives in (run Get-TcpkInfo for live counts).
 
   A Static binary   B MSIX manifest   C OS integration   D Credentials
@@ -147,7 +148,7 @@ read-only live tools (memory/env secret scan, process DACL) need no gate.
 VERSION
 -------
 
-  TCPK v1.4.1, June 2026. 172 cmdlets; HTML + Excel
+  TCPK v1.5.0, June 2026. 174 cmdlets; HTML + Excel
   reports with COMPUTED CVSS v4.0 base scores (FIRST.org algorithm),
   MITRE ATT&CK, OWASP TASVS / Desktop Top 10, SBOM and an attack-surface
   map. Optional local-LLM triage (-EnableLlm / GUI "AI-verify findings").

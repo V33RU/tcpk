@@ -6,7 +6,7 @@
   Portable Windows thick-client / MSIX security audit tool.
   **Find. Verify. Report.**
 
-  PowerShell engine + WPF/WinForms GUI + native MCP server. 172 cmdlets.
+  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, and a native MCP server. 174 cmdlets.
   Authorized testing only.
 </div>
 
@@ -40,6 +40,12 @@ base score**, CWE, MITRE ATT&CK, and an OWASP TASVS / Desktop-App-Top-10 mapping
   pipes code-construct findings through a local Ollama model to annotate confidence.
   Cloud providers are gated behind an explicit opt-in (the decompiled IL never leaves
   the machine by default).
+- **Run it your way, read it anywhere.** Drive an audit from the WinForms GUI, the CLI, or
+  a **loopback-only web control panel** (`TCPK-WebUI.bat` -- binds 127.0.0.1, token-gated,
+  discovery-only) with live progress, pause/resume, and result tabs. Every audit also writes
+  a self-contained offline **`intel.html`** dashboard (severity + the evidence ladder, a
+  classified recon endpoint map, filterable per-finding cards) next to the HTML / Excel /
+  SARIF / SBOM outputs -- one file, no server, no CDN.
 - **Engagement-ready reports.** HTML + multi-sheet Excel, including a **Checklist** sheet
   that auto-correlates findings to a 55-case thick-client test plan (with an honest
   auto-status; the tester sets the final PASS/FAIL), a **DLL Hardening** matrix
@@ -164,4 +170,4 @@ violate computer-misuse law and licence terms. Provided **AS IS**, no warranty. 
 
 ---
 
-TCPK v1.4.1 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v1.5.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.

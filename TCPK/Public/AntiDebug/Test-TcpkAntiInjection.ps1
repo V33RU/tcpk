@@ -27,6 +27,7 @@ function Test-TcpkAntiInjection {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }   # Chromium's SetProcessMitigationPolicy != app hardening
         $hits = @()
         foreach ($m in $markers) {
             if ($text.Contains($m)) { $hits += $m }

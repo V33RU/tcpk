@@ -153,7 +153,10 @@ function Test-TcpkSignature {
     # notarization pipeline, the signing step likely failed or was bypassed -- users get
     # an unsigned, unverifiable binary while the project believes it ships signed.
     if ($unsigned -gt 0) {
-        $rx = '(?i)(signtool|codesign|notarytool|notariz|azuresigntool|certificateFile|certificateSubjectName|signingHashAlgorithms|afterSign|release\.ya?ml|workflows[\\/][^''")]*sign)'
+        # WINDOWS Authenticode signing signals only. macOS-only terms (codesign, notarytool,
+        # notariz, afterSign) are dropped: Electron apps reference macOS notarization in their
+        # build config, which does NOT imply a skipped Windows signing step -> false positive.
+        $rx = '(?i)(signtool|azuresigntool|certificateFile|certificateSubjectName|signingHashAlgorithms|release\.ya?ml|workflows[\\/][^''")]*sign)'
         $marker = $null
         $scan = @(Get-ChildItem -LiteralPath $Path -Recurse -File -Force -ErrorAction SilentlyContinue |
                   Where-Object { ($_.Extension.ToLowerInvariant() -in '.yml','.yaml','.json','.md','.markdown','.txt') -or ($_.Name -like '*.asar') } |

@@ -25,6 +25,7 @@ function Test-TcpkAntiDebugRefs {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }   # every Chromium binary references these APIs
         $hits = @()
         foreach ($a in $apis) {
             $c = ([regex]::Matches($text, "\b$a\b")).Count

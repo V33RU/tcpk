@@ -26,6 +26,8 @@ function Test-TcpkDnsLeakage {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        # DNS API strings live in the bundled Chromium runtime; not the app's choice.
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }
         $hits = @()
         foreach ($n in $needles) {
             if ($text.Contains($n)) { $hits += $n }

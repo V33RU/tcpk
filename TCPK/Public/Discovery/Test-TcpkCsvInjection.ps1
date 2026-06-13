@@ -49,6 +49,9 @@ function Test-TcpkCsvInjection {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        # A CSV-export string in the bundled Chromium runtime is not the app exporting CSV;
+        # a real Electron export shows up in the app.asar JS scanned below.
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }
         if ($neutralizeMarkers | Where-Object { $text.Contains($_) }) { $neutralized = $true }
         if ($exportMarkers   | Where-Object { $text.Contains($_) }) { $exportFiles.Add($pe.Name) }
     }

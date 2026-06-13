@@ -28,6 +28,9 @@ function Test-TcpkBackendEndpoints {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        # Skip the bundled Chromium runtime: its string table holds hundreds of built-in
+        # search-engine / Google URLs that are not the app's backends (pure noise here).
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }
         foreach ($m in $urlRx.Matches($text)) {
             try { $h = ([Uri]$m.Value).Host } catch { continue }
             if (-not $h) { continue }

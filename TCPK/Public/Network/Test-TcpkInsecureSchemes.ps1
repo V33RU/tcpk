@@ -41,6 +41,9 @@ function Test-TcpkInsecureSchemes {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        # The Chromium/Electron runtime binary embeds the whole CA OCSP/CRL/AIA URL list
+        # from its root store (http:// by design); those are not the app's endpoints.
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }
 
         # --- http:// ---
         $httpHosts = @{}

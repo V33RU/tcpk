@@ -136,6 +136,10 @@ function Test-TcpkSessionHandling {
             try { [IO.File]::ReadAllText($t.FullName) } catch { $null }
         }
         if (-not $text) { continue }
+        # The bundled Chromium runtime binary contains cookie-attribute / token strings
+        # (SameSite=None, etc.) that are Chromium's own, not the app's session logic; the
+        # app's cookies are governed by the shipped JS/config, still scanned below.
+        if (($ext -in $peExt) -and (Test-TcpkIsChromiumRuntime -Name $t.Name -Text $text)) { continue }
 
         foreach ($r in $rules) {
             $m = [regex]::Match($text, $r.Rx)

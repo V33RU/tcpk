@@ -94,11 +94,6 @@ function Test-TcpkUpdateFlow {
             -Description 'If downloaded update content is not signature-verified before execution, anyone who can write to the update origin (or MITM the channel) achieves persistent RCE on every client. Confirm in ILSpy that DownloadUpdate / CheckForUpdate methods do not call any cryptographic verification path.' `
             -Fix 'Sign update manifests with an offline-keyed RSA signature; sign each downloaded payload (Authenticode or detached PKCS#7); verify before any extract/exec.'
     }
-    elseif ($hasUpdateFlow -and $hasSigVerification) {
-        New-TcpkFinding -Module 'network' -RuleId 'update.signature-verification-present' `
-            -Severity 'INFO' -Confidence 'Inferred' `
-            -Title 'Update flow present and signature-verification primitives are referenced' `
-            -File $updatePeSample `
-            -Description 'Reference != actual use. Confirm in ILSpy that the verify call is on the download path, not stale code.'
-    }
+    # The positive "sig-verification referenced" case is NOT emitted as a finding: a single
+    # string match falsely reassures (the verify call may be stale / off the download path).
 }

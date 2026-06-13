@@ -22,6 +22,7 @@ function Test-TcpkTimingAntiDebug {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }   # Chromium uses timing APIs everywhere (perf, not anti-debug)
         $hits = @()
         foreach ($m in $markers) {
             $c = ([regex]::Matches($text, "\b$m\b")).Count

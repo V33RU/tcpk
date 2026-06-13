@@ -71,6 +71,11 @@ function Test-TcpkDebugFlags {
         if (Test-TcpkIsNativeNoise $pe.Name)   { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        # The bundled Chromium/Electron runtime contains EVERY CLI flag string
+        # (--no-sandbox, --inspect-brk, ...) as recognized-flag literals -- matching them
+        # here is a guaranteed false positive. The app's real launch args are covered by
+        # the Electron checks (electron.argv-session-override) from app.asar / shortcuts.
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }
         $low = $text.ToLowerInvariant()
         foreach ($mk in $markers) {
             if ($low.IndexOf($mk.s.ToLowerInvariant(), [StringComparison]::Ordinal) -lt 0) { continue }

@@ -1793,6 +1793,7 @@ $btnRun.Add_Click({
         InformationAction = 'Continue'
         PauseSignalPath = $script:PauseFlag
     }
+    if ($cmbProfile.SelectedItem) { $params.ScanProfile = "$($cmbProfile.SelectedItem)" }
     if ($txtProc.Text) { $params.ProcessName = $txtProc.Text }
     if ($txtPkg.Text)  { $params.PackageName = $txtPkg.Text }
 

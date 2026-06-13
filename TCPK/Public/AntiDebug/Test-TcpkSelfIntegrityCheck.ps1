@@ -26,6 +26,7 @@ function Test-TcpkSelfIntegrityCheck {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }   # Chromium's ComputeHash != app self-check
         foreach ($m in $markers) {
             if ($text.Contains($m)) {
                 if (-not $foundIn.ContainsKey($pe.Name)) { $foundIn[$pe.Name] = @() }
