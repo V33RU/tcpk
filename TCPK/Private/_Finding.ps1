@@ -95,8 +95,8 @@ $script:TcpkCvssArchetypes = [ordered]@{
 # Families that are genuinely mixed (callsites, registry, raw endpoints) deliberately
 # fall through to the 'per-finding' note rather than be assigned a misleading vector.
 $script:TcpkCvssRuleArchetype = @(
-    @{ Rx = '^(tls|tls-bypass|tls-handshake|wcf|truststore)\.';                                                                                                     A = 'net-mitm' }
-    @{ Rx = '^(scheme|dns)\.';                                                                                                                                       A = 'cleartext-net' }
+    @{ Rx = '^(tls-bypass|tls-handshake|wcf|truststore)\.';                                                                                                         A = 'net-mitm' }
+    @{ Rx = '^(scheme|dns|tls)\.';                                                                                                                                   A = 'cleartext-net' }
     @{ Rx = '^(deser|update|electron)\.';                                                                                                                           A = 'net-rce' }
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
