@@ -37,11 +37,15 @@ function Test-TcpkPlaintextConfigs {
     $scan = Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Length -lt 512KB -and $_.Extension -in $candidateExts }
 
+    # Placeholder / template values are not real secrets -- skip them so we do not fire HIGH on
+    # password=REDACTED, ${PASSWORD}, <your-key>, %TOKEN%, changeme, example, etc.
+    $placeholderRx = '(?i)(redact|example|sample|dummy|placeholder|changeme|change[_-]?this|your[_-]?|xxxx+|\btodo\b|\bfixme\b|\bnull\b|\bnone\b|<[^>]*>|\$\{[^}]*\}|%[A-Za-z0-9_]+%)'
     foreach ($f in $scan) {
         try { $t = Get-Content -LiteralPath $f.FullName -Raw -ErrorAction Stop } catch { continue }
         foreach ($r in $tokenRx) {
             if ($t -match $r.R) {
                 $hit = $matches[0]
+                if ($hit -match $placeholderRx) { continue }   # template/placeholder, not a real secret
                 if ($hit.Length -gt 30) { $hit = $hit.Substring(0,18) + '...(len=' + $hit.Length + ')' }
                 New-TcpkFinding -Module 'creds' -RuleId "config.$($r.N)" `
                     -Severity 'HIGH' -Confidence 'Confirmed' `
@@ -49,6 +53,7 @@ function Test-TcpkPlaintextConfigs {
                     -File $f.FullName -Evidence $hit `
                     -Cwe @('CWE-256','CWE-312') `
                     -Fix 'Move the secret to DPAPI / Credential Manager / a remote secret store; never check it in.'
+                break   # one secret finding per file is enough; do not drown the report
             }
         }
     }

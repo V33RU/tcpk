@@ -3,8 +3,10 @@
 # Uses PrintWindow (renders the window even if partially occluded); falls back to a
 # foreground screen-grab. No computer-use / approval needed.
 param(
-    [string]$Gui = 'C:\Users\admin\Desktop\TCPK\Start-TCPKGui.ps1',
-    [string]$Out = 'C:\Users\admin\Desktop\TCPK\assets\tcpk-gui-new.png'
+    # default to paths relative to this script (tools\ lives under the repo root) so this
+    # works on any machine -- no hardcoded user profile.
+    [string]$Gui = (Join-Path (Split-Path $PSScriptRoot -Parent) 'Start-TCPKGui.ps1'),
+    [string]$Out = (Join-Path (Split-Path $PSScriptRoot -Parent) 'assets\tcpk-gui-new.png')
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing

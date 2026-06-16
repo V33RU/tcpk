@@ -13,7 +13,7 @@ $script:TcpkSeverityRank = @{
 # Invoke-TcpkLlmCodeJudgment writes the '(LLM)' variants, and findings round-trip
 # through New-TcpkFinding when the GUI/report layer rebuilds them, so the factory
 # must accept these too.
-$script:TcpkValidConfidence = @('Confirmed','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (LLM)','Uncertain (LLM)')
+$script:TcpkValidConfidence = @('Confirmed','Confirmed (IL)','Confirmed (dynamic)','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (IL)','Likely-FP (LLM)','Uncertain (LLM)')
 
 function New-TcpkFinding {
     [CmdletBinding()]

@@ -564,7 +564,16 @@ $sbomLblF.AutoSize = $true; $sbomLblF.Location = New-Object System.Drawing.Point
 $txtSbomFilter = New-Object System.Windows.Forms.TextBox
 $txtSbomFilter.Location = New-Object System.Drawing.Point(52, 25); $txtSbomFilter.Size = New-Object System.Drawing.Size(470, 22)
 $txtSbomFilter.Add_TextChanged({ Filter-Sbom })
-$sbomHeader.Controls.AddRange(@($sbomHint, $sbomLblF, $txtSbomFilter))
+# Live-CVE (OSV) toggle. OFF by default = offline catalog only. Ticking it makes the NEXT
+# audit ALSO query the OSV API for the shipped NuGet components (sends only package
+# name + version). It lives on this tab because CVE matches surface here, and its state
+# persists for the session -- one tick covers every audit you run.
+$chkOnlineCve = New-Object System.Windows.Forms.CheckBox
+$chkOnlineCve.Text = "Online CVE lookup (OSV) -- queries api.osv.dev (off = offline catalog only)"
+$chkOnlineCve.Location = New-Object System.Drawing.Point(540, 26)
+$chkOnlineCve.Size = New-Object System.Drawing.Size(440, 22)
+$chkOnlineCve.Checked = $false
+$sbomHeader.Controls.AddRange(@($sbomHint, $sbomLblF, $txtSbomFilter, $chkOnlineCve))
 $tabSbom.Controls.Add($sbomHeader)
 $lvSbom = New-Object System.Windows.Forms.ListView
 $lvSbom.Dock = 'Fill'; $lvSbom.View = 'Details'; $lvSbom.FullRowSelect = $true; $lvSbom.GridLines = $true
@@ -1794,6 +1803,7 @@ $btnRun.Add_Click({
         PauseSignalPath = $script:PauseFlag
     }
     if ($cmbProfile.SelectedItem) { $params.ScanProfile = "$($cmbProfile.SelectedItem)" }
+    if ($chkOnlineCve.Checked) { $params.OnlineCve = $true }   # opt-in OSV live CVE (sends pkg names to osv.dev)
     if ($txtProc.Text) { $params.ProcessName = $txtProc.Text }
     if ($txtPkg.Text)  { $params.PackageName = $txtPkg.Text }
 

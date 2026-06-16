@@ -57,6 +57,50 @@ Describe 'target validation (pure)' {
     }
 }
 
+Describe 'installed-app discovery + identity (pure)' {
+    BeforeAll {
+        $script:idfx = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-idfx-" + [guid]::NewGuid().ToString('N'))
+        $script:waDir = Join-Path $script:idfx 'WindowsApps\Acme.Demo_1.0.0.0_x64__abcd1234efgh'
+        New-Item -ItemType Directory -Path $script:waDir -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $script:waDir 'Acme.exe') -Value 'x' -Encoding ASCII
+        $script:clDir = Join-Path $script:idfx 'AcmeApp'
+        New-Item -ItemType Directory -Path $script:clDir -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $script:clDir 'AcmeApp.exe') -Value 'x' -Encoding ASCII
+    }
+    AfterAll { if ($script:idfx -and (Test-Path $script:idfx)) { Remove-Item -LiteralPath $script:idfx -Recurse -Force } }
+
+    It 'Get-TcpkInstalledApps returns a FLAT array of app objects (regression: ,@() nesting)' {
+        $apps = & (Get-Module TCPK) { @(Get-TcpkInstalledApps) }
+        # when the host has apps, each element must be a flat object with a string path,
+        # NOT a nested array (the ,@(...) bug made @(...) collapse to a single inner array)
+        foreach ($a in (@($apps) | Select-Object -First 3)) { $a.path | Should -BeOfType [string] }
+    }
+    It 'Find-TcpkWebApps returns objects with non-empty name+path, [] for empty query' {
+        (& (Get-Module TCPK) { @(Find-TcpkWebApps '').Count }) | Should -Be 0
+        $hits = & (Get-Module TCPK) { @(Find-TcpkWebApps 'Microsoft') }
+        foreach ($h in (@($hits) | Select-Object -First 3)) {
+            $h.name | Should -Not -BeNullOrEmpty
+            $h.path | Should -Not -BeNullOrEmpty
+        }
+    }
+    It 'Resolve-TcpkWebIdentity derives package identity from a WindowsApps path' {
+        $id = & (Get-Module TCPK) { param($p) Resolve-TcpkWebIdentity -Path $p } $script:waDir
+        $id.packageName | Should -Be 'Acme.Demo'
+        $id.packageFamilyName | Should -Be 'Acme.Demo_abcd1234efgh'
+        $id.processName | Should -Be 'Acme'
+    }
+    It 'Resolve-TcpkWebIdentity derives identity from a classic install folder' {
+        $id = & (Get-Module TCPK) { param($p) Resolve-TcpkWebIdentity -Path $p } $script:clDir
+        $id.packageName | Should -Be 'AcmeApp'
+        $id.processName | Should -Be 'AcmeApp'
+    }
+    It 'Resolve-TcpkWebIdentity returns a not-found note for a missing target' {
+        $id = & (Get-Module TCPK) { Resolve-TcpkWebIdentity -Path 'Z:\nope_nope_12345' }
+        $id.packageName | Should -BeNullOrEmpty
+        $id.note | Should -Match 'not found'
+    }
+}
+
 Describe 'request dispatcher (no socket)' {
     BeforeAll { $script:port = 54999; $script:tok = 'SECRET-tok-123'; $script:state = New-State $script:port $script:tok }
 
@@ -65,6 +109,7 @@ Describe 'request dispatcher (no socket)' {
         $resp.Status | Should -Be 200
         $resp.ContentType | Should -Match 'text/html'
         $resp.Body | Should -Match 'TCPK'
+        $resp.Body | Should -Match 'id="onlineCve"'   # live-CVE (OSV) opt-in toggle present in the SPA
         $resp.Body | Should -Not -Match '<script[^>]+src='
         $resp.Body | Should -Not -Match '<link\b'
     }
@@ -84,6 +129,11 @@ Describe 'request dispatcher (no socket)' {
         $resp = Invoke-Api (New-Req 'GET' '/api/apps' $script:port $script:tok @{} '') $script:state
         $resp.Status | Should -Be 200
         (($resp.Body | ConvertFrom-Json).PSObject.Properties.Name) | Should -Contain 'apps'
+    }
+    It 'auto-detects package/process identity on POST /api/identify' {
+        $resp = Invoke-Api (New-Req 'POST' '/api/identify' $script:port $script:tok @{} ('{"path":' + ($script:fx | ConvertTo-Json) + '}')) $script:state
+        $resp.Status | Should -Be 200
+        ($resp.Body | ConvertFrom-Json).PSObject.Properties.Name | Should -Contain 'packageName'
     }
     It '404s an unknown api verb' {
         (Invoke-Api (New-Req 'GET' '/api/nope' $script:port $script:tok @{} '') $script:state).Status | Should -Be 404

@@ -107,7 +107,11 @@ Every audit writes these to its own out\ folder:
                      (ASLR/DEP/CFG/HighEntropyVA/SafeSEH matrix), CVEs.
 
   attack-surface.json  Ranked entry-point map (protocols, IPC, listeners).
-  sbom.cdx.json        CycloneDX software bill of materials.
+  sbom.cdx.json        CycloneDX bill of materials, with a vulnerabilities[]
+                       array of matched CVEs. CVE matching is OFFLINE by default
+                       (curated catalog vs deps.json + native DLLs); add -OnlineCve
+                       to also query the OSV API (opt-in; sends only the package
+                       name + version, fails closed with no network).
   findings.json        Machine-readable findings (CI / GUI / MCP).
   strings.json, exploits.json, run.jsonl   recon strings, exploit plan, trace.
 
@@ -148,7 +152,7 @@ read-only live tools (memory/env secret scan, process DACL) need no gate.
 VERSION
 -------
 
-  TCPK v1.5.0, June 2026. 174 cmdlets; HTML + Excel
+  TCPK v1.6.0, June 2026. 174 cmdlets; HTML + Excel
   reports with COMPUTED CVSS v4.0 base scores (FIRST.org algorithm),
   MITRE ATT&CK, OWASP TASVS / Desktop Top 10, SBOM and an attack-surface
   map. Optional local-LLM triage (-EnableLlm / GUI "AI-verify findings").

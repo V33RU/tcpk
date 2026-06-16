@@ -36,7 +36,7 @@ clean. Diagnostics go to `stderr`.
 One-liner:
 
 ```bash
-claude mcp add tcpk -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\admin\Desktop\TCPK\Start-TcpkMcpServer.ps1"
+claude mcp add tcpk -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\TCPK\Start-TcpkMcpServer.ps1"
 ```
 
 ...or drop a `.mcp.json` in your project root:
@@ -49,7 +49,7 @@ claude mcp add tcpk -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File "
       "args": [
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
-        "-File", "C:\\Users\\admin\\Desktop\\TCPK\\Start-TcpkMcpServer.ps1"
+        "-File", "C:\\path\\to\\TCPK\\Start-TcpkMcpServer.ps1"
       ]
     }
   }
@@ -68,7 +68,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
       "args": [
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
-        "-File", "C:\\Users\\admin\\Desktop\\TCPK\\Start-TcpkMcpServer.ps1"
+        "-File", "C:\\path\\to\\TCPK\\Start-TcpkMcpServer.ps1"
       ]
     }
   }

@@ -59,9 +59,12 @@ function Test-TcpkMemorySecrets {
                 if (-not $bytes) { continue }
                 $scanned += $bytes.Length
 
-                $ascii = [Text.Encoding]::ASCII.GetString($bytes)
-                $wide  = [Text.Encoding]::Unicode.GetString($bytes)
-                foreach ($view in @(@{ S='ascii'; T=$ascii }, @{ S='utf16'; T=$wide })) {
+                $ascii   = [Text.Encoding]::ASCII.GetString($bytes)
+                $wide    = [Text.Encoding]::Unicode.GetString($bytes)
+                # odd-byte-aligned wide strings: decode from offset 1 too (~half of wide
+                # strings begin at an odd offset and are missed by the offset-0 decode).
+                $wideOdd = if ($bytes.Length -gt 1) { [Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1) } else { '' }
+                foreach ($view in @(@{ S='ascii'; T=$ascii }, @{ S='utf16'; T=$wide }, @{ S='utf16-odd'; T=$wideOdd })) {
                     foreach ($r in $rules) {
                         foreach ($m in $r._RX.Matches($view.T)) {
                             $hit = $m.Value

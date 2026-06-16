@@ -33,8 +33,25 @@ function Test-TcpkSecrets {
             )) -Force
         }
         if (-not $r.PSObject.Properties['_QuickLit']) {
-            $litMatch = [regex]::Match($r.pattern, '[A-Za-z0-9._=/+:\-]{4,}')
-            $lit = if ($litMatch.Success) { $litMatch.Value } else { $null }
+            # Pre-filter literal = the MANDATORY literal run at the START of the pattern, after
+            # stripping leading inline-flags / anchors. We take ONLY a leading literal because the
+            # old extractor pulled regex SYNTAX from the middle of the pattern -- \b -> 'b'
+            # ('bsk_', 'bgithub_pat_'), (?: -> ':' (':AKIA'), [A-Z0-9] -> 'A-Z0-9' -- none of which
+            # appear in real data, so the rule was silently skipped and AWS / GitHub-PAT / Stripe /
+            # Aptabase detection was ZEROED OUT. If the pattern opens with a group/class/short
+            # literal we set $null = no pre-filter (the rule always runs -- correctness over speed).
+            $p = $r.pattern
+            $p = [regex]::Replace($p, '^\(\?[a-zA-Z]+\)', '')   # leading inline flags e.g. (?i)
+            $p = [regex]::Replace($p, '^(?:\\b|\^)+', '')        # leading anchors \b ^
+            $lit = $null
+            $lm = [regex]::Match($p, '^[A-Za-z0-9_./=:\-]{4,}')
+            if ($lm.Success) {
+                $cand = $lm.Value
+                # if the char after the run is a quantifier, its last char is optional/variable -> drop it
+                $next = if ($p.Length -gt $cand.Length) { $p[$cand.Length] } else { [char]0 }
+                if ($next -eq '?' -or $next -eq '*' -or $next -eq '{') { $cand = $cand.Substring(0, $cand.Length - 1) }
+                if ($cand.Length -ge 4) { $lit = $cand }
+            }
             $r | Add-Member -NotePropertyName _QuickLit -NotePropertyValue $lit -Force
         }
     }
@@ -57,8 +74,9 @@ function Test-TcpkSecrets {
 
         $seen = @{}
         foreach ($view in @(
-            @{ Src='utf8';    T=$views.Utf8    },
-            @{ Src='utf16le'; T=$views.Utf16Le }
+            @{ Src='utf8';        T=$views.Utf8       },
+            @{ Src='utf16le';     T=$views.Utf16Le    },
+            @{ Src='utf16le-odd'; T=$views.Utf16LeOdd }   # odd-byte-aligned wide strings (~half of them) -- the view was decoded but never scanned
         )) {
             foreach ($r in $rules) {
                 # Cheap pre-filter: skip rule if its literal prefix isn't in the view.

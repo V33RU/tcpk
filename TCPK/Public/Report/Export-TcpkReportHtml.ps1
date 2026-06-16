@@ -63,9 +63,16 @@ function Export-TcpkReportHtml {
     end {
         $sevOrder = @('CRITICAL','HIGH','MEDIUM','LOW','INFO')
         $sevColor = @{ CRITICAL='#9b0000'; HIGH='#c0392b'; MEDIUM='#d68910'; LOW='#117a65'; INFO='#566573' }
+        # Confidence colours. The proven tiers (IL / dynamic / Confirmed) get strong green/blue so
+        # they POP; Inferred is amber (means: verify manually); Likely-FP / Uncertain / Skipped are
+        # muted grey/red. NOTE: 'Confirmed (IL)', 'Confirmed (dynamic)' and 'Likely-FP (IL)' were
+        # MISSING here and fell through to the default grey -- so the flagship IL-proven findings
+        # were visually indistinguishable from INFO/Skipped. That is fixed below.
         $confColor = @{
-            'Confirmed'='#1b4f72'; 'Inferred'='#7d6608'; 'Unverified'='#7e5109'; 'Skipped'='#566573'
-            'Confirmed (LLM)'='#0e6655'; 'Likely-FP (LLM)'='#7b241c'; 'Uncertain (LLM)'='#5b2c6f'
+            'Confirmed (IL)'='#0b6e4f'; 'Confirmed (dynamic)'='#0e6655'; 'Confirmed'='#1b4f72'; 'Confirmed (LLM)'='#2471a3'
+            'Inferred'='#7d6608'; 'Unverified'='#7e5109'
+            'Likely-FP (IL)'='#5d6d7e'; 'Likely-FP (LLM)'='#7b241c'; 'Uncertain (LLM)'='#5b2c6f'
+            'Skipped'='#566573'
         }
         $esc = { param($t) ConvertTo-TcpkHtmlSafe $t }
 
@@ -76,6 +83,25 @@ function Export-TcpkReportHtml {
         foreach ($s in $sevOrder) { $sevCounts[$s] = ($all | Where-Object Severity -eq $s).Count }
         $maxCount = ($sevCounts.Values | Measure-Object -Maximum).Maximum
         if (-not $maxCount -or $maxCount -lt 1) { $maxCount = 1 }
+
+        # evidence-tier rollup (honest confidence summary -- so a reader does not treat an Inferred
+        # string-scan hit the same as an IL-proven one). Proven = IL or dynamic; Confirmed = other
+        # Confirmed tiers; Inferred = unverified heuristic; Weak = Likely-FP / Uncertain.
+        $confProven    = @($all | Where-Object { "$($_.Confidence)" -like 'Confirmed (IL)*' -or "$($_.Confidence)" -like 'Confirmed (dynamic)*' }).Count
+        $confConfirmed = @($all | Where-Object { "$($_.Confidence)" -like 'Confirmed*' -and "$($_.Confidence)" -notlike 'Confirmed (IL)*' -and "$($_.Confidence)" -notlike 'Confirmed (dynamic)*' }).Count
+        $confInferred  = @($all | Where-Object { "$($_.Confidence)" -eq 'Inferred' -or "$($_.Confidence)" -eq 'Unverified' }).Count
+        $confWeak      = @($all | Where-Object { "$($_.Confidence)" -like 'Likely-FP*' -or "$($_.Confidence)" -like 'Uncertain*' }).Count
+        $confSummaryHtml = @"
+<section class='card confsum'>
+  <div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center'>
+    <span style='opacity:.7;font-size:13px'>Evidence:</span>
+    <span class='badge' style='background:#0b6e4f'>Proven (IL/dynamic): $confProven</span>
+    <span class='badge' style='background:#1b4f72'>Confirmed: $confConfirmed</span>
+    <span class='badge' style='background:#7d6608'>Inferred -- verify manually: $confInferred</span>
+    <span class='badge' style='background:#5d6d7e'>Likely-FP / Uncertain: $confWeak</span>
+  </div>
+</section>
+"@
 
         # ---------------- header card ----------------
         $cardHtml = ''
@@ -234,7 +260,7 @@ $($rowsKv -join "`n")
             $pct = [int](100 * $cnt / $maxCount)
             "<div class='bar' data-sev='$s'><span class='barlabel'>$s</span><span class='bartrack'><span class='barfill' style='width:${pct}%;background:$($sevColor[$s])'></span></span><span class='barcount'>$cnt</span></div>"
         }
-        $chartHtml = "<section class='card'><div class='chart'>" + ($barRows -join "`n") + "</div></section>"
+        $chartHtml = "<section class='card'><div class='chart'>" + ($barRows -join "`n") + "</div></section>" + $confSummaryHtml
 
         # ---------------- CVE matches (parity with Excel CVEs sheet) ----------------
         $cveHtml = ''
@@ -320,7 +346,21 @@ $($ruleRows -join "`n")
         # ---------------- findings ----------------
         $idx = 0
         $sectionHtml = foreach ($sev in $sevOrder) {
-            $group = $all | Where-Object Severity -eq $sev
+            # Within a severity, show PROVEN findings first (IL > dynamic > Confirmed > Confirmed(LLM)),
+            # then Inferred, then Likely-FP / Uncertain last -- so the reader's eye lands on what is
+            # actually proven, not on raw string-scan guesses. Secondary keys keep it deterministic.
+            $group = $all | Where-Object Severity -eq $sev | Sort-Object `
+                @{ E = {
+                    $c = "$($_.Confidence)"
+                    if     ($c -like 'Confirmed (IL)*')      { 0 }
+                    elseif ($c -like 'Confirmed (dynamic)*') { 1 }
+                    elseif ($c -eq   'Confirmed')            { 2 }
+                    elseif ($c -like 'Confirmed*')           { 3 }
+                    elseif ($c -eq   'Inferred' -or $c -eq 'Unverified') { 5 }
+                    elseif ($c -like 'Uncertain*')           { 6 }
+                    elseif ($c -like 'Likely-FP*')           { 8 }
+                    else { 7 }
+                } }, @{ E = { "$($_.RuleId)" } }, @{ E = { "$($_.Title)" } }
             if (-not $group) { continue }
             $cards = foreach ($f in $group) {
                 $idx++
@@ -352,7 +392,7 @@ $($ruleRows -join "`n")
                 $verify = ConvertTo-TcpkHtmlSafe (Get-TcpkVerifyHint -RuleId $f.RuleId -File $f.File -Evidence $f.Evidence)
                 if ($verify) { $kv.Add("<tr><th>Verify</th><td><code class='verify'>$verify</code></td></tr>") }
 @"
-<article class='finding' data-sev='$($f.Severity)' data-rule='$rule' data-text='$searchText'>
+<article class='finding' data-sev='$($f.Severity)' data-proven='$(if ("$($f.Confidence)" -like 'Confirmed*') { '1' } else { '0' })' data-rule='$rule' data-text='$searchText'>
   <div class='fhead'>
     <span class='fid'>#$fid</span>
     <span class='badge' style='background:$sevHex'>$($f.Severity)</span>
@@ -612,14 +652,16 @@ h3{font-size:15px;margin:0 0 10px}
   var sections=Array.prototype.slice.call(document.querySelectorAll('.sevsection'));
   var activeSev='ALL';
   var query='';
+  var confOnly=false;
   var defaultOpen={CRITICAL:1,HIGH:1};   // sections open on load / on reset to "All"
 
   function apply(){
-    var filtering=(activeSev!=='ALL'||query!=='');
+    var filtering=(activeSev!=='ALL'||query!==''||confOnly);
     findings.forEach(function(f){
       var okSev=(activeSev==='ALL'||f.getAttribute('data-sev')===activeSev);
       var okQ=(query===''||f.getAttribute('data-text').indexOf(query)>=0||f.getAttribute('data-rule').indexOf(query)>=0);
-      f.style.display=(okSev&&okQ)?'':'none';
+      var okConf=(!confOnly||f.getAttribute('data-proven')==='1');
+      f.style.display=(okSev&&okQ&&okConf)?'':'none';
     });
     var totalVisible=0;
     sections.forEach(function(s){
@@ -643,6 +685,8 @@ h3{font-size:15px;margin:0 0 10px}
   }
 
   if(search) search.addEventListener('input',function(){query=search.value.toLowerCase().trim();apply();});
+  var confOnlyBox=document.getElementById('confOnly');
+  if(confOnlyBox) confOnlyBox.addEventListener('change',function(){confOnly=confOnlyBox.checked;apply();});
 
   // per-table filters (SBOM + DLL hardening): hide non-matching tbody rows live
   document.querySelectorAll('.tabfilter').forEach(function(inp){
@@ -716,6 +760,7 @@ h3{font-size:15px;margin:0 0 10px}
   <button class='btn' id='expandAll'>Expand all</button>
   <button class='btn' id='collapseAll'>Collapse all</button>
   <button class='btn' id='ruleToggle'>Group by rule</button>
+  <label class='cobtn' style='display:inline-flex;align-items:center;gap:5px;font-size:13px;opacity:.85;cursor:pointer' title='Show only IL/dynamic-proven and Confirmed findings; hide Inferred string-scan hits'><input type='checkbox' id='confOnly'> Confirmed only</label>
 </div>
 "@
 

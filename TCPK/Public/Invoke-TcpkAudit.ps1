@@ -73,7 +73,12 @@ function Invoke-TcpkAudit {
         # Scan profile. Full/Standard run every check; Quick skips the slow, whole-machine
         # OS-integration / persistence enumeration to focus on the target app (named
         # -ScanProfile, not -Profile, to avoid shadowing the automatic $Profile variable).
-        [ValidateSet('Quick','Standard','Full')][string]$ScanProfile = 'Full'
+        [ValidateSet('Quick','Standard','Full')][string]$ScanProfile = 'Full',
+        # OPT-IN online CVE enrichment. Default OFF keeps the audit fully offline. When set, the
+        # shipped NuGet components (name+version) are sent to the OSV API (api.osv.dev) for live
+        # vulnerability matching on top of the offline catalog. No findings/secrets/target name
+        # leave the box -- only public package identifiers.
+        [switch]$OnlineCve
     )
 
     # --- preflight ---
@@ -461,7 +466,7 @@ function Invoke-TcpkAudit {
     # --- CVE exposure: match shipped components vs the offline CVE catalog ---
     $cveMatches = @()
     try {
-        $cveMatches = @(Get-TcpkCveMatches -Path $expanded)
+        $cveMatches = @(Get-TcpkCveMatches -Path $expanded -OnlineCve:$OnlineCve)
         $vulnCount = 0
         foreach ($m in $cveMatches) {
             if ($m.Status -ne 'Vulnerable') { continue }   # only emit confirmed vulnerable as findings

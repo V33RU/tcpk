@@ -41,6 +41,11 @@ discovery-only, token-gated, bound to `127.0.0.1`:
 - **Real CVSS v4.0 scores.** A faithful port of the FIRST.org reference algorithm +
   macrovector lookup computes the base score from each finding's vector -- a *local*
   issue is scored `AV:L`, not mislabelled like a network one. No fabricated numbers.
+- **Supply-chain CVE matching.** Shipped components are matched against an offline, curated
+  CVE catalog by exact `deps.json` version (native libraries by name). An optional
+  `-OnlineCve` switch additionally queries the OSV API -- off by default, sends only the
+  package name + version, fails closed with no network. Either way the matches are embedded
+  in a **CycloneDX** `sbom.cdx.json` for hand-off to Grype / OSV-Scanner / Dependency-Track.
 - **Optional local-first AI triage.** `-EnableLlm` (or the GUI "AI-verify findings" box)
   pipes code-construct findings through a local Ollama model to annotate confidence.
   Cloud providers are gated behind an explicit opt-in (the decompiled IL never leaves
@@ -55,6 +60,9 @@ discovery-only, token-gated, bound to `127.0.0.1`:
   that auto-correlates findings to a 55-case thick-client test plan (with an honest
   auto-status; the tester sets the final PASS/FAIL), a **DLL Hardening** matrix
   (ASLR/DEP/CFG/HighEntropyVA/SafeSEH/GS/ForceIntegrity) and a **DLL Signing** matrix.
+  The HTML report **segregates by confidence** -- IL/dynamic-proven findings sort first, with
+  an evidence-tier summary and a "Confirmed only" filter, so an `Inferred` pattern hit is
+  never mistaken for a proven one.
 - **Honest about scope.** It automates the *detection* layer. Dynamic confirmation
   (Burp, mimikatz, EICAR, modify-and-relaunch) stays manual -- and the tool says so.
 
@@ -175,4 +183,4 @@ violate computer-misuse law and licence terms. Provided **AS IS**, no warranty. 
 
 ---
 
-TCPK v1.5.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v1.6.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.

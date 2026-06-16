@@ -1,0 +1,12 @@
+# Normalize text files to LF; prevents LF<->CRLF churn across machines/editors.
+* text=auto eol=lf
+
+# Windows batch launchers stay CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets: leave untouched.
+*.png binary
+*.ico binary
+*.jpg binary
+*.xlsx binary

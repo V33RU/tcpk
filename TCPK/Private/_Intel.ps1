@@ -57,7 +57,7 @@ function Get-TcpkIntelModel {
         }
     }
 
-    $ver = '1.5.0-dev'; try { $v = (Get-Module TCPK | Select-Object -First 1).Version; if ($v) { $ver = "$v" } } catch { }
+    $ver = '1.6.0-dev'; try { $v = (Get-Module TCPK | Select-Object -First 1).Version; if ($v) { $ver = "$v" } } catch { }
     [ordered]@{
         meta     = [ordered]@{ target = "$Target"; version = $ver; generated = (Get-Date).ToUniversalTime().ToString('u'); total = $all.Count }
         summary  = [ordered]@{ severity = $sevCounts; confidence = $confCounts }

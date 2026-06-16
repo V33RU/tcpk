@@ -39,9 +39,13 @@ function Test-TcpkLogFiles {
         # Quick scan first 50 KB for sensitive keywords
         try {
             $head = Get-Content -LiteralPath $f.FullName -TotalCount 500 -ErrorAction Stop | Out-String
+            # Require the keyword to be followed by an actual value (>=6 chars, not a placeholder),
+            # so prose like "user changed password" / "token refresh started" no longer fires HIGH.
+            $placeholderRx = '(?i)(redact|example|sample|dummy|placeholder|changeme|your[_-]?|xxxx+|<[^>]*>|\$\{[^}]*\}|%[A-Za-z0-9_]+%|\bnull\b|\bnone\b)'
             $hits = @()
             foreach ($k in $sensitiveKw) {
-                if ($head -match "(?i)$k") { $hits += $k }
+                $km = [regex]::Match($head, "(?i)\b$k\b\s*[=:]\s*[`"']?([^\s`"',;<>&]{6,})")
+                if ($km.Success -and ($km.Groups[1].Value -notmatch $placeholderRx)) { $hits += $k }
             }
             if ($hits.Count -gt 0) {
                 New-TcpkFinding -Module 'logging' -RuleId 'log.sensitive-keywords' `

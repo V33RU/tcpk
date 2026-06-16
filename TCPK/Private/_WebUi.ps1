@@ -69,11 +69,23 @@ function New-TcpkWebJson {
 function Find-TcpkWebApps {
     [CmdletBinding()] param([string]$Query)
     if ([string]::IsNullOrWhiteSpace($Query)) { return @() }
-    $hits = @()
-    try { $hits = @(Get-TcpkInstallLocations -AppName $Query) } catch { return @() }
-    foreach ($h in $hits) {
-        [ordered]@{ name = "$($h.Name)"; path = "$($h.Path)"; publisher = "$($h.Publisher)"; version = "$($h.Version)" }
+    $q = $Query.Trim()
+    # Primary: filter the registry-derived list (rich name/path/publisher/version).
+    $hits = @(@(Get-TcpkInstalledApps) | Where-Object { "$($_.name)" -like "*$q*" -or "$($_.path)" -like "*$q*" })
+    if ($hits.Count) { return $hits }
+    # Fallback: scan common install roots for a folder whose NAME matches. Note:
+    # Get-TcpkInstallLocations returns PATH STRINGS (not objects), and ',@()'-wraps its
+    # result, so flatten defensively and build the display object from each path.
+    $dirs = @(); try { $dirs = @(Get-TcpkInstallLocations -AppName $q) } catch { }
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($d in $dirs) {
+        if ($d -is [System.Array]) { $paths = $d } else { $paths = @($d) }
+        foreach ($pp in $paths) {
+            $p = "$pp"; if ([string]::IsNullOrWhiteSpace($p)) { continue }
+            $out.Add([ordered]@{ name = (Split-Path $p -Leaf); path = $p; publisher = ''; version = '' })
+        }
     }
+    @($out.ToArray())
 }
 
 # --- installed-app enumeration: list ALL (registry Uninstall) for auto-detect --
@@ -99,7 +111,50 @@ function Get-TcpkInstalledApps {
         }
         if ($out.Count -ge $Max) { break }
     }
-    , @($out | Sort-Object { "$($_.name)" })
+    # Emit the items individually (NOT ',@(...)') so a caller's @(...) collects a FLAT
+    # array of app objects. The leading-comma idiom double-wrapped this into [[...]],
+    # which made /api/apps return a nested array the SPA could not render.
+    $out | Sort-Object { "$($_.name)" }
+}
+
+# --- target identity auto-detect (mirror of the desktop GUI Auto-Detect) -------
+# Derive PackageName / PackageFamilyName / ProcessName from a target path. A WindowsApps
+# MSIX path yields the package identity by regex; a classic install folder uses the leaf
+# folder name + the largest top-level .exe as the process guess. Operator-editable hints,
+# not authoritative -- same behaviour as the desktop GUI's Auto-Detect button.
+function Resolve-TcpkWebIdentity {
+    [CmdletBinding()] param([AllowNull()][string]$Path)
+    $res = [ordered]@{ packageName = ''; packageFamilyName = ''; processName = ''; note = '' }
+    $p = Resolve-TcpkWebTarget $Path
+    if (-not $p) { $res.note = 'target not found -- enter a valid path first'; return $res }
+    if ($p -match 'WindowsApps\\([A-Za-z0-9.\-]+)_[\d.]+_[a-z0-9]+__([a-z0-9]+)') {
+        $res.packageName = $matches[1]
+        $res.packageFamilyName = "$($matches[1])_$($matches[2])"
+    } elseif (Test-Path -LiteralPath $p -PathType Container) {
+        $res.packageName = (Split-Path $p -Leaf)
+    } else {
+        $res.packageName = [System.IO.Path]::GetFileNameWithoutExtension($p)
+    }
+    try {
+        if (Test-Path -LiteralPath $p -PathType Container) {
+            $exe = Get-ChildItem -LiteralPath $p -Filter '*.exe' -File -ErrorAction SilentlyContinue |
+                   Sort-Object Length -Descending | Select-Object -First 1
+            if ($exe) { $res.processName = $exe.BaseName }
+        } elseif ($p -match '\.exe$') {
+            $res.processName = [System.IO.Path]::GetFileNameWithoutExtension($p)
+        }
+    } catch { }
+    $res.note = if ($res.processName) { "detected: $($res.packageName) / process '$($res.processName)' -- edit if wrong" }
+                else { "detected package '$($res.packageName)'; no top-level .exe -- set ProcessName manually" }
+    return $res
+}
+
+# POST /api/identify {path} -- auto-detect the package/process identity for a target.
+function Invoke-TcpkWebIdentify {
+    [CmdletBinding()] param([Parameter(Mandatory)]$Request)
+    $b = $null; try { $b = $Request.Body | ConvertFrom-Json } catch { }
+    $path = if ($b) { "$($b.path)" } else { '' }
+    return (New-TcpkWebJson 200 (Resolve-TcpkWebIdentity -Path $path))
 }
 
 # --- AI provider config + connectivity test ------------------------------------
@@ -169,6 +224,7 @@ function Start-TcpkWebAuditJob {
         if ("$($bodyObj.processName)")       { $params.ProcessName = "$($bodyObj.processName)" }
         if ("$($bodyObj.profile)" -in 'Quick', 'Standard', 'Full') { $params.ScanProfile = "$($bodyObj.profile)" }
         if ($bodyObj.deepRuntime) { $params.EnableDeepRuntime = $true }
+        if ($bodyObj.onlineCve)   { $params.OnlineCve = $true }   # opt-in OSV live CVE (discovery-only)
         if ($bodyObj.enableLlm) {
             $params.EnableLlm = $true
             # Apply the chosen provider/model/key to llm-config.json so the audit job (a
@@ -347,6 +403,7 @@ function Invoke-TcpkWebApi {
             'GET /api/discover'  { return (New-TcpkWebJson 200 @{ apps = @(Find-TcpkWebApps "$($Request.Query['q'])") }) }
             'GET /api/apps'      { return (New-TcpkWebJson 200 @{ apps = @(Get-TcpkInstalledApps) }) }
             'POST /api/run'      { return (Start-TcpkWebAuditJob -Request $Request -State $State) }
+            'POST /api/identify' { return (Invoke-TcpkWebIdentify -Request $Request) }
             'POST /api/testai'   { return (Test-TcpkWebLlm -Request $Request) }
             'GET /api/status'    { return (Get-TcpkWebJobStatus -State $State -JobId $job) }
             'POST /api/pause'    { return (Invoke-TcpkWebJobControl -State $State -JobId $job -Action 'pause') }
@@ -563,12 +620,12 @@ a.lnk{color:#58a6ff;cursor:pointer}
 <div class="hd"><div><div class="brand">TC<span>PK</span> control panel</div><div class="tagline">drive a discovery audit -- loopback only, exploit bucket disabled</div></div><div class="safe" id="safe">127.0.0.1 -- discovery only</div></div>
 
 <div class="panel" id="runpanel">
-<div class="row"><div class="grow2"><label>Target -- install dir, EXE/DLL, or MSIX/MSI/ZIP (auto-unwrapped)</label><input type="text" id="target" placeholder="C:\Program Files\Acme\Desktop"/></div><div style="flex:0 0 auto;min-width:0"><button class="go" id="run">Run audit</button></div></div>
+<div class="row"><div class="grow2"><label>Target -- install dir, EXE/DLL, or MSIX/MSI/ZIP (auto-unwrapped)</label><input type="text" id="target" placeholder="C:\Program Files\Acme\Desktop"/></div><div style="flex:0 0 auto;min-width:0"><button class="mini" id="detect">Auto-Detect</button> <button class="go" id="run">Run audit</button></div></div>
 <div class="opttoggle" id="optTog">- options (package / process / AI verify)</div>
 <div class="opts show" id="opts">
 <div class="row"><div><label>Profile (scan depth)</label><select id="profile"><option value="Full">Full</option><option value="Standard">Standard</option><option value="Quick">Quick -- skip slow OS scans</option></select></div><div class="g2"></div></div>
 <div class="row"><div><label>PackageName (MSIX, optional)</label><input type="text" id="packageName"/></div><div><label>PackageFamilyName (MSIX, optional)</label><input type="text" id="packageFamilyName"/></div><div><label>ProcessName (runtime, optional)</label><input type="text" id="processName"/></div></div>
-<div class="chkrow"><label class="chk"><input type="checkbox" id="deepRuntime"/> deep runtime checks</label><label class="chk"><input type="checkbox" id="enableLlm"/> AI-verify findings</label></div>
+<div class="chkrow"><label class="chk"><input type="checkbox" id="deepRuntime"/> deep runtime checks</label><label class="chk"><input type="checkbox" id="enableLlm"/> AI-verify findings</label><label class="chk" title="Query the OSV API for the shipped NuGet components -- OFF = offline catalog only; ON sends only package name+version to api.osv.dev"><input type="checkbox" id="onlineCve"/> online CVE (OSV)</label></div>
 <div class="row" id="aiRow" style="display:none"><div><label>AI provider</label><select id="provider"><option value="ollama">ollama (local)</option><option value="claude">claude</option><option value="openai">openai</option><option value="gemini">gemini</option><option value="grok">grok</option><option value="deepseek">deepseek</option><option value="custom">custom endpoint</option></select></div><div><label>model</label><input type="text" id="model" placeholder="qwen2.5-coder:7b"/></div><div><label>API key</label><input type="password" id="apiKey" placeholder="for cloud providers"/></div><div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="mini" id="testai">Test AI</button></div></div>
 <div class="row" id="urlRow" style="display:none"><div class="g2"><label>custom OpenAI-compatible base URL</label><input type="text" id="baseUrl" placeholder="https://host/v1"/></div></div>
 <div id="aiTest" style="color:var(--muted);font:11px Consolas,monospace;margin:2px 0"></div>
@@ -620,6 +677,12 @@ a.lnk{color:#58a6ff;cursor:pointer}
 
   $('find').onclick=function(){doFind('/api/discover?q='+encodeURIComponent($('q').value.trim()),$('q').value.trim());};
   $('auto').onclick=function(){doFind('/api/apps','all installed apps');};
+  $('detect').onclick=function(){var t=$('target').value.trim();if(!t){status('enter a target path first.');return;}status('auto-detecting identity...',true);
+    api('/api/identify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:t})}).then(function(r){return r.json();}).then(function(d){
+      $('packageName').value=d.packageName||'';$('packageFamilyName').value=d.packageFamilyName||'';$('processName').value=d.processName||'';
+      if(!$('opts').classList.contains('show')){$('opts').classList.add('show');$('optTog').textContent='- options (package / process / AI verify)';}
+      status(d.note||'identity detected.');
+    }).catch(function(){status('auto-detect failed.');});};
   function doFind(url,what){if(url.indexOf('discover')>=0 && !$('q').value.trim()){return;}status('listing '+esc(what)+'...',true);$('apps').innerHTML='';
     api(url).then(function(r){return r.json();}).then(function(d){var apps=arr(d.apps);if(!apps.length){status('nothing matched. Type a path above.');return;}
       status(apps.length+' app(s). Click one to use its path.');
@@ -629,7 +692,7 @@ a.lnk{color:#58a6ff;cursor:pointer}
 
   $('run').onclick=function(){
     var t=$('target').value.trim();if(!t){status('enter a target path first.');return;}
-    var body={target:t,profile:$('profile').value,packageName:$('packageName').value.trim(),packageFamilyName:$('packageFamilyName').value.trim(),processName:$('processName').value.trim(),deepRuntime:$('deepRuntime').checked,enableLlm:$('enableLlm').checked,allowCloudLlm:$('allowCloudLlm').checked,provider:$('provider').value,model:$('model').value.trim(),apiKey:$('apiKey').value,baseUrl:$('baseUrl')?$('baseUrl').value.trim():''};
+    var body={target:t,profile:$('profile').value,packageName:$('packageName').value.trim(),packageFamilyName:$('packageFamilyName').value.trim(),processName:$('processName').value.trim(),deepRuntime:$('deepRuntime').checked,onlineCve:$('onlineCve').checked,enableLlm:$('enableLlm').checked,allowCloudLlm:$('allowCloudLlm').checked,provider:$('provider').value,model:$('model').value.trim(),apiKey:$('apiKey').value,baseUrl:$('baseUrl')?$('baseUrl').value.trim():''};
     $('run').disabled=true;$('results').style.display='none';$('panes').innerHTML='';$('tabs').innerHTML='';$('log').innerHTML='';
     status('starting audit...',true);
     api('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});}).then(function(res){
