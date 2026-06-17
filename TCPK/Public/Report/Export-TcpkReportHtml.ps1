@@ -76,6 +76,31 @@ function Export-TcpkReportHtml {
         }
         $esc = { param($t) ConvertTo-TcpkHtmlSafe $t }
 
+        # Split internal process/meta notes ([TCPK ...] / [LLM ...]) out of a Description so
+        # the card shows a clean explanation and the meta-noise drops to a muted footer
+        # instead of polluting the "What" text (the #013 complaint).
+        function _SplitNotes {
+            param([string]$Desc)
+            $d = "$Desc"
+            $rx = '\s*\[(?:TCPK|LLM)\b[^\]]*\]'
+            $notes = @([regex]::Matches($d, $rx) | ForEach-Object { $_.Value.Trim() })
+            $clean = ([regex]::Replace($d, $rx, '')).Trim()
+            return [pscustomobject]@{ Clean = $clean; Notes = $notes }
+        }
+        # One honest sentence on WHY this finding sits at its confidence tier (proof vs lead).
+        function _WhyHere {
+            param([string]$Confidence)
+            switch -Regex ("$Confidence") {
+                'Confirmed \(IL\)'      { 'Proven by IL analysis: the flagged sink is reachable and, where applicable, reached by tainted/external input.'; break }
+                'Confirmed \(dynamic\)' { 'Proven dynamically: TCPK observed the behaviour at runtime against a controlled harness.'; break }
+                'Confirmed \(LLM\)'     { 'An LLM reviewed the decompiled method and judged this a real issue (model-assisted -- still verify).'; break }
+                'Likely-FP'             { 'A verifier judged this a likely false positive; kept for transparency at reduced confidence.'; break }
+                'Uncertain'             { 'A verifier could not decide; treat this as a lead and confirm manually.'; break }
+                '^Confirmed$'           { 'Deterministically confirmed by the check (no heuristic).'; break }
+                default                 { 'Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.'; break }
+            }
+        }
+
         $generatedAt = (Get-Date).ToUniversalTime().ToString('u')
 
         # severity counts
@@ -93,12 +118,11 @@ function Export-TcpkReportHtml {
         $confWeak      = @($all | Where-Object { "$($_.Confidence)" -like 'Likely-FP*' -or "$($_.Confidence)" -like 'Uncertain*' }).Count
         $confSummaryHtml = @"
 <section class='card confsum'>
-  <div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center'>
-    <span style='opacity:.7;font-size:13px'>Evidence:</span>
-    <span class='badge' style='background:#0b6e4f'>Proven (IL/dynamic): $confProven</span>
-    <span class='badge' style='background:#1b4f72'>Confirmed: $confConfirmed</span>
-    <span class='badge' style='background:#7d6608'>Inferred -- verify manually: $confInferred</span>
-    <span class='badge' style='background:#5d6d7e'>Likely-FP / Uncertain: $confWeak</span>
+  <div class='confgrid'>
+    <div class='cmetric'><span class='cmlabel'>Proven (IL/dynamic)</span><span class='cmval' style='color:#0b6e4f'>$confProven</span></div>
+    <div class='cmetric'><span class='cmlabel'>Confirmed</span><span class='cmval' style='color:#1b4f72'>$confConfirmed</span></div>
+    <div class='cmetric'><span class='cmlabel'>Inferred -- verify</span><span class='cmval' style='color:#7d6608'>$confInferred</span></div>
+    <div class='cmetric'><span class='cmlabel'>Likely-FP / Uncertain</span><span class='cmval' style='color:#5d6d7e'>$confWeak</span></div>
   </div>
 </section>
 "@
@@ -262,6 +286,28 @@ $($rowsKv -join "`n")
         }
         $chartHtml = "<section class='card'><div class='chart'>" + ($barRows -join "`n") + "</div></section>" + $confSummaryHtml
 
+        # ---------------- attack-path callout (correlated exploit chains) ----------------
+        # chain.* findings (from Get-TcpkExploitChains) are already raised above their parts;
+        # surface them as a prominent banner so the report LEADS with the attack narrative
+        # instead of leaving the reader to correlate scattered findings by hand.
+        $attackPathHtml = ''
+        $chainF = @($all | Where-Object { "$($_.RuleId)" -like 'chain.*' -or "$($_.Module)" -eq 'chain' })
+        if ($chainF.Count) {
+            $apItems = foreach ($cf in ($chainF | Sort-Object @{ E = { Get-TcpkSeverityRank $_.Severity }; Descending = $true })) {
+                $sc = if ($sevColor.ContainsKey("$($cf.Severity)")) { $sevColor["$($cf.Severity)"] } else { '#566573' }
+                $fixLine = if ($cf.Fix) { "<div class='apath-fix'>" + (ConvertTo-TcpkHtmlSafe ([string]$cf.Fix)) + "</div>" } else { '' }
+                "<div class='apath-item'><div class='apath-top'><span class='badge' style='background:$sc'>$($cf.Severity)</span> <span class='apath-title'>$(ConvertTo-TcpkHtmlSafe ([string]$cf.Title))</span></div>$fixLine</div>"
+            }
+            $attackPathHtml = @"
+<section class='card apath'>
+  <h3 class='apathhead'><span class='caret'>&#9662;</span>Likely attack paths <span class='seccount'>($($chainF.Count) correlated $(if ($chainF.Count -eq 1) { 'chain' } else { 'chains' }))</span></h3>
+  <div class='apathbody'>
+$($apItems -join "`n")
+  </div>
+</section>
+"@
+        }
+
         # ---------------- CVE matches (parity with Excel CVEs sheet) ----------------
         $cveHtml = ''
         if ($CveMatches -and @($CveMatches).Count) {
@@ -371,26 +417,67 @@ $($ruleRows -join "`n")
                 $rule    = ConvertTo-TcpkHtmlSafe $f.RuleId
                 $file    = ConvertTo-TcpkHtmlSafe $f.File
                 $evid    = ConvertTo-TcpkHtmlSafe $f.Evidence
-                $desc    = ConvertTo-TcpkHtmlSafe $f.Description
                 $fix     = ConvertTo-TcpkHtmlSafe $f.Fix
-                $cwe     = if ($f.Cwe) { ConvertTo-TcpkHtmlSafe ($f.Cwe -join ', ') } else { '' }
                 $searchText = ConvertTo-TcpkHtmlSafe (("$($f.Title) $($f.RuleId) $($f.File) $($f.Evidence) $($f.Description)").ToLowerInvariant())
+
+                # Standards mapping as compact tags under the header (CWE + MITRE ATT&CK
+                # techniques + OWASP TASVS / Desktop Top 10) -- kept, not dropped, just tighter.
+                $tagItems = New-Object 'System.Collections.Generic.List[string]'
+                foreach ($cw in @($f.Cwe))                              { if ($cw) { $tagItems.Add("<span class='ftag ftag-cwe'>$(ConvertTo-TcpkHtmlSafe ([string]$cw))</span>") } }
+                foreach ($at in @(Get-TcpkAttackTechnique -RuleId $f.RuleId)) { if ($at) { $tagItems.Add("<span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>$(ConvertTo-TcpkHtmlSafe ([string]$at))</span>") } }
+                foreach ($tv in @(Get-TcpkTasvsControl -RuleId $f.RuleId))    { if ($tv) { $tagItems.Add("<span class='ftag ftag-tasvs' title='OWASP TASVS / Desktop Top 10'>$(ConvertTo-TcpkHtmlSafe ([string]$tv))</span>") } }
+                $tagRow = if ($tagItems.Count) { "<div class='ftags'>" + ($tagItems -join '') + "</div>" } else { '' }
+
                 $kv = New-Object 'System.Collections.Generic.List[string]'
-                if ($file) { $kv.Add("<tr><th>File</th><td><code>$file</code></td></tr>") }
-                if ($evid) { $kv.Add("<tr><th>Evidence</th><td><code>$evid</code></td></tr>") }
-                $cvssDisp = (Get-TcpkCvssVector $f).Display
-                if ($cvssDisp) { $kv.Add("<tr><th>CVSS v4.0 vector</th><td>$(ConvertTo-TcpkHtmlSafe $cvssDisp)</td></tr>") }
-                if ($cwe)  { $kv.Add("<tr><th>CWE</th><td>$cwe</td></tr>") }
-                $attack = ConvertTo-TcpkHtmlSafe (Get-TcpkAttackText $f.RuleId)
-                if ($attack) { $kv.Add("<tr><th>ATT&amp;CK</th><td>$attack</td></tr>") }
-                $tasvs = ConvertTo-TcpkHtmlSafe (Get-TcpkTasvsText $f.RuleId)
-                if ($tasvs) { $kv.Add("<tr><th>OWASP TASVS / Desktop Top 10</th><td>$tasvs</td></tr>") }
+
+                # CVSS v4.0: score + vector only -- the severity band already lives on the badge.
+                $cvss = Get-TcpkCvssVector $f
+                if ($cvss.Vector) {
+                    $scoreTxt = if ($null -ne $cvss.Score) { ('{0:0.0} &middot; ' -f $cvss.Score) } else { '' }
+                    $kv.Add("<tr><th>CVSS v4.0</th><td>$scoreTxt<code>$(ConvertTo-TcpkHtmlSafe $cvss.Vector)</code></td></tr>")
+                } elseif ($cvss.Source -ne 'info' -and $cvss.Display) {
+                    $kv.Add("<tr><th>CVSS v4.0</th><td><span class='muted'>$(ConvertTo-TcpkHtmlSafe $cvss.Display)</span></td></tr>")
+                }
+
+                # What: the real explanation, with internal [TCPK]/[LLM] notes split off to a footer.
+                $split = _SplitNotes $f.Description
+                if ($split.Clean) { $kv.Add("<tr><th>What</th><td>$(ConvertTo-TcpkHtmlSafe $split.Clean)</td></tr>") }
+
+                # Impact (the consequence) -- distinct from Why-here (why it applies here).
                 $impact = ConvertTo-TcpkHtmlSafe (Get-TcpkImpactText $f)
                 if ($impact) { $kv.Add("<tr><th>Impact</th><td>$impact</td></tr>") }
-                if ($desc) { $kv.Add("<tr><th>Description</th><td>$desc</td></tr>") }
-                if ($fix)  { $kv.Add("<tr><th>Fix</th><td>$fix</td></tr>") }
-                $verify = ConvertTo-TcpkHtmlSafe (Get-TcpkVerifyHint -RuleId $f.RuleId -File $f.File -Evidence $f.Evidence)
+
+                $why = ConvertTo-TcpkHtmlSafe (_WhyHere $f.Confidence)
+                if ($why) { $kv.Add("<tr><th>Why here</th><td>$why</td></tr>") }
+
+                if ($file) { $kv.Add("<tr><th>File</th><td><code class='path'>$file</code></td></tr>") }
+
+                # Affected: full path (or URL/param) per occurrence when this finding aggregates many.
+                if ($f.Affected -and @($f.Affected).Count) {
+                    $affItems = (@($f.Affected) | ForEach-Object { "<li><code class='path'>$(ConvertTo-TcpkHtmlSafe ([string]$_))</code></li>" }) -join ''
+                    $kv.Add("<tr><th>Affected ($(@($f.Affected).Count))</th><td><ul class='afflist'>$affItems</ul></td></tr>")
+                }
+
+                if ($evid) { $kv.Add("<tr><th>Evidence</th><td><code class='evidence'>$evid</code></td></tr>") }
+
+                # Verify: use a REAL path. After aggregation File is 'N files', so reach into the
+                # Affected list for the first concrete path; otherwise use File. (Fixes the old
+                # broken "Test-TcpkCallsites -Path '3 files'".)
+                $verifyFile = "$($f.File)"
+                if ($f.Affected -and @($f.Affected).Count -and $verifyFile -match '^\d+\s+(files|occurrences)') {
+                    $vp = @($f.Affected | Where-Object { "$_" -match '[\\/]' } | Select-Object -First 1)
+                    if ($vp) { $verifyFile = "$vp" }
+                }
+                $verify = ConvertTo-TcpkHtmlSafe (Get-TcpkVerifyHint -RuleId $f.RuleId -File $verifyFile -Evidence $f.Evidence)
                 if ($verify) { $kv.Add("<tr><th>Verify</th><td><code class='verify'>$verify</code></td></tr>") }
+
+                if ($fix)  { $kv.Add("<tr><th>Fix</th><td>$fix</td></tr>") }
+
+                # Audit notes footer: the TCPK/LLM process notes pulled out of the description above.
+                $notesHtml = ''
+                if (@($split.Notes).Count) {
+                    $notesHtml = "<div class='auditnotes'><span class='anlabel'>Audit notes</span> " + (ConvertTo-TcpkHtmlSafe (($split.Notes -join ' '))) + "</div>"
+                }
 @"
 <article class='finding' data-sev='$($f.Severity)' data-proven='$(if ("$($f.Confidence)" -like 'Confirmed*') { '1' } else { '0' })' data-rule='$rule' data-text='$searchText'>
   <div class='fhead'>
@@ -401,9 +488,11 @@ $($ruleRows -join "`n")
     <span class='frule'>$rule</span>
   </div>
   <div class='fbody'>
+    $tagRow
     <table class='kv'>
 $($kv -join "`n")
     </table>
+    $notesHtml
   </div>
 </article>
 "@
@@ -599,6 +688,7 @@ h1{font-size:24px;margin:0}
 .kv{width:100%;border-collapse:collapse;margin-top:8px}
 .kv th{text-align:left;vertical-align:top;padding:4px 12px 4px 0;font-weight:600;font-size:12px;color:#666;width:100px}
 .kv td{padding:4px 0;font-size:13px;vertical-align:top}
+code.evidence{background:#fff3bf;color:#7a4d00;font-weight:700;padding:2px 6px;border-radius:3px;border:1px solid #f0c000}
 code{font-family:Consolas,Menlo,monospace;font-size:12px;background:#f4f4f4;padding:1px 5px;border-radius:3px;word-break:break-word}
 code.verify{display:block;white-space:pre-wrap;padding:8px 10px;background:#1e1e1e;color:#d4d4d4;line-height:1.5;border-left:3px solid #2874a6}
 .ruletable{width:100%;border-collapse:collapse;font-size:13px}
@@ -632,6 +722,29 @@ h3{font-size:15px;margin:0 0 10px}
 .sbomtab code.sha{font-size:10.5px;color:#566573;word-break:break-all}
 .sbomtab code.path{font-size:11px;word-break:break-all}
 .nores{padding:20px;text-align:center;color:#999;display:none}
+.ftags{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
+.ftag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:#eef0f3;color:#33415c;border:1px solid #dde1e7}
+.ftag-cwe{background:#fdecea;border-color:#f5c6cb;color:#8a2a22}
+.ftag-attack{background:#f3eefb;border-color:#e2d4f5;color:#5b2c87}
+.ftag-tasvs{background:#eaf2fb;border-color:#cfe0f5;color:#1c4f80}
+.afflist{margin:4px 0 0;padding-left:18px}
+.afflist li{margin:2px 0}
+code.path{font-size:11.5px;word-break:break-all}
+.muted{color:#888;font-style:italic}
+.auditnotes{margin-top:10px;padding-top:8px;border-top:1px dashed #e3e3e3;font-size:11.5px;color:#8a8a8a;line-height:1.5}
+.auditnotes .anlabel{font-weight:700;color:#9a8a3a;text-transform:uppercase;letter-spacing:.04em;font-size:10.5px;margin-right:6px}
+.confsum .confgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.cmetric{display:flex;flex-direction:column;gap:2px;background:#fafbfc;border:1px solid #ececec;border-radius:6px;padding:9px 11px}
+.cmlabel{font-size:11px;color:#888}
+.cmval{font-size:22px;font-weight:700}
+.apath{border-color:#e3b7b7;background:#fdf6f6}
+.apath .apathhead{cursor:pointer;user-select:none;margin:0 0 10px;color:#9b0000}
+.apath.collapsed .apathbody{display:none}
+.apath-item{padding:8px 0;border-bottom:1px solid #f3e3e3}
+.apath-item:last-child{border-bottom:none}
+.apath-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.apath-title{font-weight:600;font-size:13.5px;color:#7a2020}
+.apath-fix{font-size:12px;color:#666;margin:4px 0 0 2px}
 .disclaimer{margin-top:40px;padding:14px 16px;border:1px solid #e3b7b7;background:#fdf3f3;border-radius:6px;font-size:11.5px;line-height:1.6;color:#7b241c}
 .disclaimer strong{color:#9b0000}
 @media print{
@@ -720,7 +833,7 @@ h3{font-size:15px;margin:0 0 10px}
   });
   var rh=document.querySelector('.recon .reconhead');
   if(rh) rh.addEventListener('click',function(){rh.parentNode.classList.toggle('collapsed');});
-  document.querySelectorAll('.cve .cvehead,.hardening .hardhead,.signing .signhead,.sbom .sbomhead').forEach(function(h){
+  document.querySelectorAll('.cve .cvehead,.hardening .hardhead,.signing .signhead,.sbom .sbomhead,.apath .apathhead').forEach(function(h){
     h.addEventListener('click',function(){h.parentNode.classList.toggle('collapsed');});
   });
 
@@ -794,8 +907,9 @@ $css
   <div class='sub'>Generated $generatedAt UTC &middot; $($all.Count) findings</div>
 
 $cardHtml
-$reconHtml
 $chartHtml
+$attackPathHtml
+$reconHtml
 $cveHtml
 $ruleSummaryHtml
 $toolbarHtml

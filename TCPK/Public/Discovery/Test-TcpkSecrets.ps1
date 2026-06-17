@@ -56,7 +56,10 @@ function Test-TcpkSecrets {
         }
     }
 
-    $skipExt = @('.png','.jpg','.jpeg','.ico','.otf','.ttf','.pri','.cat','.p7x','.woff','.woff2','.svg','.gif','.bmp','.tif','.tiff','.webp','.mp3','.mp4','.wav','.ogg','.m4a')
+    # .pak = Chromium/Electron resource+locale packs (UI strings in dozens of languages, no app
+    # secrets) -- scanning them produced natural-language false positives (e.g. German 'anpassen...'
+    # matching the AWS 'ANPA' prefix). Treat them like the other Chromium runtime data we skip.
+    $skipExt = @('.png','.jpg','.jpeg','.ico','.otf','.ttf','.pri','.cat','.p7x','.woff','.woff2','.svg','.gif','.bmp','.tif','.tiff','.webp','.mp3','.mp4','.wav','.ogg','.m4a','.pak')
 
     $files = if ((Get-Item -LiteralPath $Path).PSIsContainer) {
         Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue
@@ -99,10 +102,10 @@ function Test-TcpkSecrets {
                     if ($seen.ContainsKey($key)) { continue }
                     $seen[$key] = $true
 
-                    # Redact: keep prefix/suffix only
-                    $redacted = if ($hit.Length -gt 16) {
-                        $hit.Substring(0,6) + '...' + $hit.Substring($hit.Length-6) + " (len=$($hit.Length))"
-                    } else { $hit }
+                    # Show the FULL matched value (un-redacted). This is a local, operator-run
+                    # audit tool, so the operator needs to see/verify the actual secret. NOTE: the
+                    # report files now contain live secret values -- treat the output as sensitive.
+                    $redacted = $hit
 
                     # A regex match confirms the secret FORMAT is present, not that
                     # the credential is live. Per the liveness rule, this is Inferred

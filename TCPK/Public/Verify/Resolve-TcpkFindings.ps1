@@ -45,9 +45,11 @@ function Resolve-TcpkFindings {
             $t = "$($f.Title)"
             $ci = $t.IndexOf(': ')
             if ($ci -ge 0) { $detail = $t.Substring($ci + 2).Trim() }
-            $leaf = if ($f.File) { Split-Path $f.File -Leaf } else { '' }
-            if ($detail) { return $detail }
-            if ($leaf)   { return $leaf }
+            # Title-detail wins (so endpoint/URL findings keep the URL). Otherwise use the
+            # FULL file path, not just the leaf -- a pentester needs the exact location, and
+            # the leaf alone made the affected list (and the Verify command) ambiguous.
+            if ($detail)  { return $detail }
+            if ($f.File)  { return "$($f.File)" }
             $ev = "$($f.Evidence)"; if ($ev.Length -gt 80) { $ev = $ev.Substring(0, 80) + '...' }
             if ($ev) { return $ev }
             return '(unspecified)'

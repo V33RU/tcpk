@@ -13,6 +13,21 @@ function Test-TcpkLoadedModuleSignatures {
     )
 
     if (-not (Assert-TcpkWindows 'Test-TcpkLoadedModuleSignatures')) { return }
+
+    # Get-AuthenticodeSignature (Microsoft.PowerShell.Security) does not always auto-load in
+    # background-job runspaces. The module psm1 imports it eagerly; if it STILL is not present
+    # (a genuinely locked-down host), skip honestly with one finding rather than throwing.
+    if (-not (Get-Command Get-AuthenticodeSignature -ErrorAction SilentlyContinue)) {
+        try { Import-Module Microsoft.PowerShell.Security -ErrorAction Stop } catch { }
+    }
+    if (-not (Get-Command Get-AuthenticodeSignature -ErrorAction SilentlyContinue)) {
+        New-TcpkFinding -Module 'runtime' -RuleId 'loaded.unsigned' -Severity 'INFO' -Confidence 'Skipped' `
+            -Title 'Loaded-module signature check skipped (Microsoft.PowerShell.Security unavailable)' `
+            -Evidence 'Get-AuthenticodeSignature could not be loaded in this runspace' `
+            -Description 'The Authenticode cmdlet did not load in this session, so live loaded-module signatures were not verified. Re-run from a normal PowerShell host; the on-disk DLL signing matrix (Get-TcpkSigningMatrix) is unaffected.'
+        return
+    }
+
     $procs = if ($PSCmdlet.ParameterSetName -eq 'ByName') {
         Get-TcpkProcess -ProcessName $ProcessName
     } else {
@@ -46,7 +61,9 @@ function Test-TcpkLoadedModuleSignatures {
             # Skip catalog-covered MSIX-internal modules: per-PE Authenticode is N/A for them.
             if (_IsMsixCatalogCovered $m.FileName) { continue }
 
-            $sig = Get-AuthenticodeSignature -FilePath $m.FileName
+            $sig = $null
+            try { $sig = Get-AuthenticodeSignature -FilePath $m.FileName -ErrorAction Stop } catch { continue }
+            if (-not $sig) { continue }
             if ($sig.Status -eq 'Valid') { continue }
             # UnknownError on a non-MSIX path is still suspicious enough to surface as INFO.
             if ($sig.Status -eq 'UnknownError') {

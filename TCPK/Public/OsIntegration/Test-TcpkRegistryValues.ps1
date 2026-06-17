@@ -50,7 +50,7 @@ function Test-TcpkRegistryValues {
                     $isSecret = $true; $why = "secret-named value holds a long base64 blob"
                 }
                 if ($isSecret) {
-                    $redacted = if ($val.Length -gt 12) { $val.Substring(0,6) + '...(' + $val.Length + ' chars)' } else { '(short)' }
+                    $redacted = $val   # un-redacted: show the full value (local operator tool)
 
                     # Is the key readable by all/standard users? A secret in a
                     # world-readable key is exposed to every local account -> CRITICAL.

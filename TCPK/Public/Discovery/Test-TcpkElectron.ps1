@@ -37,6 +37,50 @@ function Test-TcpkElectron {
     if ($asars.Count) { $isElectron = $true }
     if (-not $isElectron) { return }   # not an Electron-family app -> nothing to check
 
+    # --- bundled runtime version: Electron / Chromium / Node (the biggest CVE surface) ---
+    # The embedded Chromium version is NOT in any deps.json -- it is a string in the main exe.
+    # Extract it and flag an outdated bundle (Chromium ships security fixes EVERY major, so a
+    # build several majors behind is missing many High/Critical renderer-RCE fixes). The exact
+    # advisories come from the OSV electron@<ver> lookup in Get-TcpkCveMatches (-OnlineCve).
+    $rv = Get-TcpkRuntimeVersions -Path $dir
+    if ($rv) {
+        $verEvid = "Electron=$($rv.Electron); Chromium=$($rv.Chromium); Node=$($rv.Node)"
+        New-TcpkFinding -Module 'static' -RuleId 'electron.runtime-version' `
+            -Severity 'INFO' -Confidence 'Confirmed' `
+            -Title "Bundled runtime: Electron $($rv.Electron), Chromium $($rv.Chromium), Node $($rv.Node)" `
+            -File $rv.File -Evidence $verEvid `
+            -Description 'Detected the embedded Electron/Chromium/Node version from the main binary. The embedded Chromium is the primary CVE surface for an Electron app; see electron.outdated-runtime and run with -OnlineCve for the matching advisories.'
+
+        $bl = $null
+        try { $bl = Get-Content -LiteralPath (Join-Path $script:TcpkRoot 'Data\runtime-baseline.json') -Raw | ConvertFrom-Json } catch { }
+        if ($bl) {
+            $shipMaj = Get-TcpkVersionMajor $rv.Chromium
+            $latMaj  = Get-TcpkVersionMajor $bl.chromium.latestStable
+            $eMaj    = Get-TcpkVersionMajor $rv.Electron
+            $eFloor  = [int]$bl.electron.supportedFloorMajor
+            $delta   = if ($null -ne $shipMaj -and $null -ne $latMaj) { $latMaj - $shipMaj } else { $null }
+
+            $sev = $null; $why = ''
+            if ($null -ne $eMaj -and $eMaj -lt $eFloor) {
+                $sev = 'MEDIUM'; $why = "Electron $($rv.Electron) is past end-of-support (supported majors are >= $eFloor), so it receives no further security backports."
+            } elseif ($null -ne $delta -and $delta -ge 3) {
+                $sev = 'MEDIUM'; $why = "the embedded Chromium ($($rv.Chromium)) is $delta major versions behind the current stable ($($bl.chromium.latestStable)); Chromium ships security fixes every major."
+            } elseif ($null -ne $delta -and $delta -ge 1) {
+                $sev = 'LOW'; $why = "the embedded Chromium ($($rv.Chromium)) is $delta major version(s) behind the current stable ($($bl.chromium.latestStable))."
+            }
+            if ($sev) {
+                New-TcpkFinding -Module 'static' -RuleId 'electron.outdated-runtime' `
+                    -Severity $sev -Confidence 'Inferred' `
+                    -Title "Outdated bundled runtime: Electron $($rv.Electron) / Chromium $($rv.Chromium)" `
+                    -File $rv.File `
+                    -Evidence "$verEvid | baseline asOf=$($bl.asOf): electron latest=$($bl.electron.latestStable), chromium latest=$($bl.chromium.latestStable)" `
+                    -Cwe @('CWE-1104','CWE-1395') `
+                    -Description ("The app bundles its own Chromium/Node runtime, and $why As of the TCPK baseline ($($bl.asOf)), this build is behind current stable, so it is likely missing Chromium/V8 and Node security fixes released since -- several of which are typically remote code execution in the renderer (most relevant when the app loads remote or attacker-influenced web content). Run with -OnlineCve to enumerate the specific advisories (OSV electron@$($rv.Electron)), or check electronjs.org/releases.") `
+                    -Fix 'Upgrade the bundled Electron to the latest supported release (it carries the patched Chromium + Node) and rebuild; track Electron security releases.'
+            }
+        }
+    }
+
     $bad = @{
         'nodeIntegration'              = @{ rx = 'nodeIntegration["'']?\s*:\s*true';                sev='CRITICAL'; desc='Renderer has full Node.js access; any XSS becomes RCE.' }
         'contextIsolation'             = @{ rx = 'contextIsolation["'']?\s*:\s*false';              sev='HIGH';     desc='Preload and page JS share a context; enables prototype-pollution -> RCE.' }

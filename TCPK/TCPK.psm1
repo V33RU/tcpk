@@ -11,6 +11,14 @@
 
 $script:TcpkRoot = $PSScriptRoot
 
+# Authenticode cmdlets (Get-AuthenticodeSignature) live in Microsoft.PowerShell.Security.
+# In some runspaces -- notably the web UI's background Start-Job -- that module does NOT
+# auto-load on first use and throws "command was found in the module ... but the module
+# could not be loaded". Import it eagerly here so every signing/integrity check that loads
+# TCPK has it available. Best-effort: if the host genuinely cannot load it, the individual
+# checks degrade gracefully (see Get-TcpkAuthenticode).
+try { Import-Module Microsoft.PowerShell.Security -ErrorAction SilentlyContinue } catch { }
+
 # Exploit-bucket gate. Off by default. Enable-TcpkExploit flips this on
 # for the session; each exploit cmdlet calls Assert-TcpkExploitEnabled at entry.
 $script:TcpkExploitEnabled = $false

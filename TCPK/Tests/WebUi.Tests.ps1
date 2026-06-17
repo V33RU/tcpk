@@ -12,6 +12,9 @@ BeforeAll {
 
     $script:fx = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-webfx-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx -Force | Out-Null
+    # web audits now write to <OutRoot>\out\<target>_<stamp> (GUI scheme); redirect to a temp
+    # OutRoot so the suite never writes into the real out\ folder, and clean it in AfterAll.
+    $script:webOutRoot = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-weboutroot-" + [guid]::NewGuid().ToString('N'))
     Set-Content -LiteralPath (Join-Path $script:fx 'app.js') -Encoding ASCII `
         -Value 'const u = "http://updates.insecure.test/feed"; fetch(u);'
 
@@ -19,14 +22,14 @@ BeforeAll {
         & (Get-Module TCPK) { param($r, $s) Invoke-TcpkWebApi -Request $r -State $s } $req $state
     }
     function New-State($port, $tok) {
-        & (Get-Module TCPK) { param($p, $t, $d) @{ Token = $t; Port = $p; Version = '9.9.9-test'; Stop = $false; Jobs = @{}; Psd1 = $d; ChkTotal = 135 } } $port $tok $script:psd1
+        & (Get-Module TCPK) { param($p, $t, $d, $o) @{ Token = $t; Port = $p; Version = '9.9.9-test'; Stop = $false; Jobs = @{}; Psd1 = $d; ChkTotal = 135; OutRoot = $o } } $port $tok $script:psd1 $script:webOutRoot
     }
     function New-Req($method, $path, $port, $tok, $query, $body) {
         $h = @{ host = "127.0.0.1:$port" }; if ($tok) { $h['x-tcpk-token'] = $tok }
         @{ Method = $method; Path = $path; Query = $query; Body = "$body"; Headers = $h }
     }
 }
-AfterAll { if ($script:fx -and (Test-Path $script:fx)) { Remove-Item -LiteralPath $script:fx -Recurse -Force } }
+AfterAll { foreach ($d in @($script:fx, $script:webOutRoot)) { if ($d -and (Test-Path $d)) { Remove-Item -LiteralPath $d -Recurse -Force } } }
 
 Describe 'web token + host + auth (pure)' {
     It 'mints a long, unique session token' {

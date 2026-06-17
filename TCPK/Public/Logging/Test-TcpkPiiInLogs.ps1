@@ -64,7 +64,7 @@ function Test-TcpkPiiInLogs {
                 if ($m.Success) { $sample = $m.Value }
             }
             if (-not $sample) { continue }
-            if ($sample.Length -gt 24) { $sample = $sample.Substring(0,8) + '...' + $sample.Substring($sample.Length-6) }
+            # PII value shown in full (un-redacted)
             New-TcpkFinding -Module 'logging' -RuleId "pii.$($p.N)" `
                 -Severity 'LOW' -Confidence 'Inferred' `
                 -Title "PII pattern ($($p.N)) found in $($f.Name)" `

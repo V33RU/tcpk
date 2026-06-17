@@ -24,6 +24,11 @@ function Test-TcpkCallsites {
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
+        # Skip bundled third-party NATIVE runtimes (Chromium/GPU/C-runtime libs:
+        # libGLESv2, d3dcompiler, ffmpeg, vulkan-1, ...). These are not first-party
+        # code, yet they import Win32 APIs (GetTempFileName, etc.) that match the
+        # callsite patterns -- scanning them is a false-positive factory.
+        if (Test-TcpkIsNativeNoise $pe.Name) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 

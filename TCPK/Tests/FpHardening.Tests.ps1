@@ -57,3 +57,24 @@ Describe 'Test-TcpkLogFiles sensitive-keyword hardening' {
         finally { Remove-Item -LiteralPath $d -Recurse -Force }
     }
 }
+
+Describe 'Test-TcpkSecrets AWS rule precision (case-sensitive + .pak skip)' {
+    It 'does NOT flag lowercase natural-language text matching an AWS prefix (e.g. German anpassen...)' {
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'strings.txt') -Encoding ASCII -Value 'menu anpassenSchriftarten anpassenSeitenleiste options'
+        try { @(Test-TcpkSecrets -Path $d | Where-Object RuleId -eq 'secrets.aws-access-key-id').Count | Should -Be 0 }
+        finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+    It 'STILL flags a real UPPERCASE AWS access key in app code' {
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'config.json') -Encoding ASCII -Value '{"awsKey":"AKIA1234567890ABCDEF"}'
+        try { @(Test-TcpkSecrets -Path $d | Where-Object RuleId -eq 'secrets.aws-access-key-id').Count | Should -BeGreaterThan 0 }
+        finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+    It 'skips Chromium .pak locale packs entirely' {
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'de.pak') -Encoding ASCII -Value 'AKIA1234567890ABCDEF'
+        try { @(Test-TcpkSecrets -Path $d | Where-Object RuleId -eq 'secrets.aws-access-key-id').Count | Should -Be 0 }
+        finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+}

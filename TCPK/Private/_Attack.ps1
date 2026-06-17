@@ -27,6 +27,7 @@ $script:TcpkAttackMap = @(
     @{ rx = '^uac';                                                                     tech = @('T1548.002 Bypass User Account Control') }
     @{ rx = '^callsites';                                                               tech = @('T1059 Command and Scripting Interpreter') }
     @{ rx = '^(updateflow|poisonedupdate|cve\.)';                                       tech = @('T1195.002 Compromise Software Supply Chain') }
+    @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
     @{ rx = '^kerneldrivers';                                                           tech = @('T1068 Exploitation for Privilege Escalation') }
     @{ rx = '^(comobjects|comhijack|msixcom)';                                          tech = @('T1559.001 Component Object Model','T1546.015 COM Hijacking') }
     @{ rx = '^(namedpipe|rpcsurface|mailslot|namedobjects)';                            tech = @('T1559 Inter-Process Communication') }

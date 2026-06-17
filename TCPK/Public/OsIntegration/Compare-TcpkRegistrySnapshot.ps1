@@ -46,7 +46,7 @@ function Compare-TcpkRegistrySnapshot {
             $bVal = if ($bVals.PSObject.Properties[$name]) { "$($bVals.$name)" } else { $null }
             if ($null -eq $bVal) {
                 $sev = if (($name -match $secretRx) -or ($aVal -match $secretRx)) { 'HIGH' } else { 'INFO' }
-                $red = if ($aVal.Length -gt 12) { $aVal.Substring(0,6) + '...(' + $aVal.Length + ')' } else { $aVal }
+                $red = $aVal   # un-redacted: show the full value (local operator tool)
                 New-TcpkFinding -Module 'os' -RuleId 'registry.diff.added-value' -Severity $sev -Confidence 'Confirmed' `
                     -Title "App wrote new registry value: $name" -File "$key\$name" -Evidence $red -Cwe @('CWE-312') `
                     -Description 'The app persisted this value at runtime. If it is a credential/token/license, it is now stored (and may be readable by other users / survive uninstall).'

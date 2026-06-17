@@ -46,7 +46,7 @@ function Test-TcpkPlaintextConfigs {
             if ($t -match $r.R) {
                 $hit = $matches[0]
                 if ($hit -match $placeholderRx) { continue }   # template/placeholder, not a real secret
-                if ($hit.Length -gt 30) { $hit = $hit.Substring(0,18) + '...(len=' + $hit.Length + ')' }
+                # value shown in full (un-redacted)
                 New-TcpkFinding -Module 'creds' -RuleId "config.$($r.N)" `
                     -Severity 'HIGH' -Confidence 'Confirmed' `
                     -Title "Token-shaped string in $($f.Name)" `

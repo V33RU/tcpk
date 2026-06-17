@@ -73,7 +73,7 @@ function Test-TcpkMemorySecrets {
                             $key = "$($r.id)::" + $hit.Substring(0, [Math]::Min(60, $hit.Length))
                             if ($seen.ContainsKey($key)) { continue }
                             $seen[$key] = $true
-                            $red = if ($hit.Length -gt 16) { $hit.Substring(0,6) + '...' + $hit.Substring($hit.Length-6) + " (len=$($hit.Length))" } else { $hit }
+                            $red = $hit   # un-redacted: show the full value (local operator tool)
                             New-TcpkFinding -Module 'memory' -RuleId "memsecret.$($r.id)" `
                                 -Severity $r.severity -Confidence 'Confirmed' `
                                 -Title "$($r.title) in live memory of $($p.Name)" `

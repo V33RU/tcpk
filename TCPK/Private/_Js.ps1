@@ -50,3 +50,48 @@ function Test-TcpkIsChromiumRuntime {
     }
     return $false
 }
+
+# Extract the bundled Electron / Chromium / Node version from an Electron app's MAIN exe.
+# On Windows the Electron framework is statically linked into the main .exe, so the version
+# markers ("Chrome/<v>", "Electron/<v>", "node.js/v<v>") live in that binary -- NOT in any
+# deps.json. This is the single most CVE-relevant version in an Electron app and is otherwise
+# invisible to the SBOM/CVE pass. Returns $null for a non-Electron target.
+# Used by Test-TcpkElectron (electron.outdated-runtime) and Get-TcpkCveMatches (OSV electron@ver).
+function Get-TcpkRuntimeVersions {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+    $dir = $Path
+    try { if (-not (Get-Item -LiteralPath $Path).PSIsContainer) { $dir = Split-Path -Parent $Path } } catch { return $null }
+
+    # An Electron root contains app.asar and/or the Chromium resource paks / v8 snapshot.
+    $marker = Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -eq 'app.asar' -or $_.Name -eq 'v8_context_snapshot.bin' -or $_.Name -like 'chrome_*.pak' } |
+        Select-Object -First 1
+    if (-not $marker) { return $null }
+    $eroot = Split-Path -Parent $marker.FullName
+    if ((Split-Path -Leaf $eroot) -ieq 'resources') { $eroot = Split-Path -Parent $eroot }
+
+    # main exe = the largest non-Uninstall .exe at the Electron root (the framework is linked in)
+    $exe = Get-ChildItem -LiteralPath $eroot -File -Filter '*.exe' -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -notmatch '^(?i:Uninstall)' } | Sort-Object Length -Descending | Select-Object -First 1
+    if (-not $exe) { return $null }
+    if ($exe.Length -gt 800MB) { return $null }   # guard: do not slurp a pathologically large file
+
+    $txt = ''
+    try { $txt = [IO.File]::ReadAllText($exe.FullName, [Text.Encoding]::GetEncoding('ISO-8859-1')) } catch { return $null }
+    if (-not $txt) { return $null }
+
+    $chrome   = ([regex]::Match($txt, 'Chrome/(\d+\.\d+\.\d+\.\d+)')).Groups[1].Value
+    $electron = ([regex]::Match($txt, 'Electron/(\d+\.\d+\.\d+)')).Groups[1].Value
+    $node     = ([regex]::Match($txt, '(?i)node\.js/v?(\d+\.\d+\.\d+)')).Groups[1].Value
+    if (-not ($chrome -or $electron)) { return $null }
+
+    [pscustomobject]@{ Electron = $electron; Chromium = $chrome; Node = $node; File = $exe.FullName }
+}
+
+# Integer major version from a dotted version string ('146.0.7680.179' -> 146). $null if unparseable.
+function Get-TcpkVersionMajor {
+    [CmdletBinding()] param([string]$Version)
+    if ("$Version" -match '^\s*(\d+)') { return [int]$matches[1] }
+    return $null
+}

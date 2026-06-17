@@ -17,7 +17,7 @@ $script:TcpkTasvsMap = @(
     @{ rx='^(antidebug|timing|selfintegrity|antiinjection)';                              tasvs=@('TASVS-RESILIENCE Resilience / Anti-tampering'); da=@('DA8 Poor Code Quality') }
     @{ rx='^(registry|autostart|scheduledtask|wmipersistence|ifeo|apppaths|shimcache|unquoted|service|servicebin|taskbin|acl\.|installdir|folderacls|programdata|kerneldrivers|driver|dllsearch|proxydll|sxs|firewall|avexclusion|uac)'; tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA6 Security Misconfiguration','DA5 Improper Authorization') }
     @{ rx='^(namedpipe|pipe|rpc|mailslot|com\.|comobjects|comhijack|msixcom|namedobjects)'; tasvs=@('TASVS-PLATFORM Platform Interaction / IPC'); da=@('DA6 Security Misconfiguration') }
-    @{ rx='^(deps\.cve|pkgmanifest\.cve|cve\.)';                                          tasvs=@('TASVS-CODE Dependencies'); da=@('DA9 Using Components with Known Vulnerabilities') }
+    @{ rx='^(deps\.cve|pkgmanifest\.cve|cve\.)|outdated-runtime';                          tasvs=@('TASVS-CODE Dependencies'); da=@('DA9 Using Components with Known Vulnerabilities') }
     @{ rx='^(logfiles|log\.|piiinlogs|telemetry|etw)';                                    tasvs=@('TASVS-STORAGE Data Storage & Privacy'); da=@('DA10 Insufficient Logging & Monitoring','DA3 Sensitive Data Exposure') }
     @{ rx='^(updateflow|update|poisonedupdate)';                                          tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA7 Insecure Communication','DA9 Using Components with Known Vulnerabilities') }
     @{ rx='^(wv2|webview)';                                                               tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA1 Injection','DA6 Security Misconfiguration') }

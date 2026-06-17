@@ -31,8 +31,9 @@ Describe 'HTML report confidence segregation (audit #2)' {
         $script:html | Should -Match "data-proven='0'"
     }
     It 'shows an evidence-tier summary (proven + inferred counts)' {
-        $script:html | Should -Match 'Proven \(IL/dynamic\): 1'
-        $script:html | Should -Match 'Inferred -- verify manually: 1'
+        # rendered as metric cards: <span class='cmlabel'>Proven (IL/dynamic)</span><span class='cmval' ...>1</span>
+        $script:html | Should -Match "Proven \(IL/dynamic\)</span><span class='cmval'[^>]*>1<"
+        $script:html | Should -Match "Inferred -- verify</span><span class='cmval'[^>]*>1<"
     }
     It 'renders a Confirmed-only toggle' {
         $script:html | Should -Match "id='confOnly'"

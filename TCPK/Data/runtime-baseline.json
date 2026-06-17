@@ -1,0 +1,7 @@
+{
+  "asOf": "2026-06-17",
+  "note": "Latest-stable reference versions used to flag an OUTDATED bundled runtime (Electron / Chromium / Node) in a thick-client app. TCPK cannot enumerate the exact CVEs offline, so the offline finding states a version-age fact against this asOf date; run with -OnlineCve to pull the specific advisories from OSV (electron@<version>, npm ecosystem). Update these values periodically; the finding always prints the asOf date so its reference point is explicit.",
+  "electron": { "latestStable": "42.4.1", "supportedFloorMajor": 40 },
+  "chromium": { "latestStable": "149.0.7827.156" },
+  "node":     { "latestStable": "24.14.1" }
+}

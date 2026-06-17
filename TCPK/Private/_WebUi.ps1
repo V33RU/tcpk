@@ -214,7 +214,14 @@ function Start-TcpkWebAuditJob {
     if (-not $target) { return (New-TcpkWebJson 400 @{ error = "target not found or invalid: $rawTarget" }) }
 
     $jobId = [guid]::NewGuid().ToString('N')
-    $outDir = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-web-" + $jobId)
+    # Write reports to a persistent, discoverable <repo-parent>\out\<target>_<stamp> folder -- the
+    # SAME location the desktop GUI uses -- instead of a throwaway %TEMP% dir. Tests pass
+    # $State.OutRoot to redirect into a temp dir; falls back to %TEMP% if the root cannot resolve.
+    $stamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
+    $leaf = try { Split-Path $target -Leaf } catch { '' }; if (-not $leaf) { $leaf = 'audit' }
+    $outRoot = if ("$($State.OutRoot)") { "$($State.OutRoot)" } else { try { Split-Path -Parent (Split-Path -Parent $script:TcpkRoot) } catch { $null } }
+    $outDir = if ($outRoot) { Join-Path $outRoot "out\${leaf}_$stamp" } else { Join-Path ([IO.Path]::GetTempPath()) ("tcpk-web-" + $jobId) }
+    if (-not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
     $pauseFlag = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-webpause-" + $jobId + ".flag")
 
     $params = @{ Target = $target; OutDir = $outDir; Acknowledge = $true; PauseSignalPath = $pauseFlag }

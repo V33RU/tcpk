@@ -89,15 +89,24 @@ $script:TcpkCvssArchetypes = [ordered]@{
     'weak-crypto'     = 'CVSS:4.0/AV:N/AC:H/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N'  # cryptographic weakness (conditions / effort required)
     'hardening'       = 'CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N'  # missing mitigation / posture gap (contributory)
     'cleartext-net'   = 'CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N'  # cleartext transport / DNS leak: on-path attacker can read/tamper (AT:P) -> 6.3 Medium
+    'local-tempfile'  = 'CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N'  # predictable / world-readable temp file: a local user races/hijacks it (integrity-only, high effort) -> ~2.1 Low
 }
 
 # Rule-family -> archetype. First match wins; families are matched on the RuleId prefix.
 # Families that are genuinely mixed (callsites, registry, raw endpoints) deliberately
 # fall through to the 'per-finding' note rather than be assigned a misleading vector.
+# EXCEPTION: a few callsites.* subrules ARE single-archetype (e.g. insecure-temp is
+# always a local temp-file race), so they get a real, tier-matched vector here.
 $script:TcpkCvssRuleArchetype = @(
+    @{ Rx = '^callsites\.insecure-temp';                                                                                                                            A = 'local-tempfile' }
     @{ Rx = '^(tls-bypass|tls-handshake|wcf|truststore)\.';                                                                                                         A = 'net-mitm' }
     @{ Rx = '^(scheme|dns|tls)\.';                                                                                                                                   A = 'cleartext-net' }
-    @{ Rx = '^(deser|update|electron)\.';                                                                                                                           A = 'net-rce' }
+    @{ Rx = '^(deser|update)\.';                                                                                                                                    A = 'net-rce' }
+    # electron.* renderer-config flaws are RCE-class -- EXCEPT electron.outdated-runtime, whose
+    # exact CVSS depends on which Chromium/Node CVEs apply (the OSV electron@ver list carries
+    # per-CVE scores), so it deliberately falls through to the 'assign per finding' note rather
+    # than inheriting a misleading net-rce 9.x next to its version-age severity.
+    @{ Rx = '^electron\.(?!outdated-runtime)';                                                                                                                      A = 'net-rce' }
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
     @{ Rx = '^(install-dir|acl|service|driver|ifeo|scheduled-task|app-paths|autostart|com|named-object|pipe-dacl|dll-search|shim|avexclusion|firewall|wmi|uac)\.'; A = 'local-privesc' }
@@ -154,9 +163,9 @@ function Get-TcpkCvssVector {
         }
     }
     if ($rid -match '^(cve|deps|pkgmanifest)\.') {
-        return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = 'use the official CVSS v4.0 score from the linked NVD / GHSA advisory'; Source = 'nvd' }
+        return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = 'See the linked NVD / GHSA advisory for the official CVSS v4.0 score'; Source = 'nvd' }
     }
-    return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = 'assign exact CVSS v4.0 vector per finding (mixed / context-dependent class)'; Source = 'per-finding' }
+    return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = 'Not auto-scored (mixed class) -- assign per finding'; Source = 'per-finding' }
 }
 
 # Build a CVSS result for a known vector: compute the REAL v4.0 base score from the
