@@ -26,6 +26,7 @@ function Test-TcpkBackendEndpoints {
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
+        if (Test-TcpkIsNativeNoise $pe.Name) { continue }   # bundled native runtimes are not the app's backends
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
         # Skip the bundled Chromium runtime: its string table holds hundreds of built-in
@@ -34,7 +35,9 @@ function Test-TcpkBackendEndpoints {
         foreach ($m in $urlRx.Matches($text)) {
             try { $h = ([Uri]$m.Value).Host } catch { continue }
             if (-not $h) { continue }
-            if ($h -match '(?i)(microsoft|w3\.org|xmlsoap|schemas\.|github\.io|aka\.ms|gnu\.org|tools\.ietf|skiasharp|harfbuzz|wikipedia|json-schema|nuget)') { continue }
+            # stock-tool homepages baked into bundled helper binaries (NSIS stub, the stock
+            # elevate.exe) are not the audited app's backends.
+            if ($h -match '(?i)(microsoft|w3\.org|xmlsoap|schemas\.|github\.io|aka\.ms|gnu\.org|tools\.ietf|skiasharp|harfbuzz|wikipedia|json-schema|nuget|nsis\.sf\.net|sourceforge\.net|int3\.de)') { continue }
             if (-not $byHost.ContainsKey($h)) { $byHost[$h] = @{Count=0; SamplePe=$pe.FullName; SampleUrl=$m.Value} }
             $byHost[$h].Count++
         }

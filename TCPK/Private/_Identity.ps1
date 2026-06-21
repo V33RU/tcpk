@@ -14,9 +14,22 @@
 # A term is dropped only if it EQUALS one of these (a longer phrase that merely
 # contains one, e.g. "Acme Corp", is kept).
 $script:TcpkIdentityStopwords = @(
+    # vendor / legal suffixes
     'microsoft','windows','corporation','corp','inc','incorporated','llc','ltd',
     'limited','company','co','gmbh','software','technologies','technology','systems',
-    'solutions','app','application','the','and','llp','plc','group','labs','services'
+    'solutions','app','application','the','and','llp','plc','group','labs','services',
+    # generic product / component tokens -- on their own these substring-match a huge
+    # swath of unrelated system entries (e.g. the exe base "installer" matches
+    # DesktopAppInstaller / LanguageComponentsInstaller / SurfaceCaptureAPOSWCInstaller).
+    # Only an EXACT match drops; a longer phrase that merely contains one
+    # (e.g. "Acme Desktop", "Acme Updater") is still kept.
+    'install','installer','uninstall','uninstaller','setup','update','updater','upgrade',
+    'patch','desktop','host','service','server','client','manager','management','tool',
+    'tools','toolkit','agent','launcher','helper','core','common','shared','runtime',
+    'viewer','editor','monitor','controller','console','config','configuration','settings',
+    'main','native','electron','node','nodejs','chromium','cef','bin','data','driver',
+    'drivers','plugin','plugins','module','modules','framework','redist','program',
+    'programs','product','suite','x64','x86','amd64','arm64','win32','win64','win'
 )
 
 # Derive deduplicated, noise-filtered identity search terms for a target.
@@ -118,6 +131,33 @@ function Test-TcpkTermMatch {
         if ($Text.IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
     }
     return $false
+}
+
+# Path-anchored attribution: does $Value (a registry value / firewall App= / service
+# binary path -- possibly quoted, with trailing args, or using %env% vars) resolve to a
+# file INSIDE the target install dir? This is the strongest "belongs to the target"
+# signal and excludes system components (System32, the DriverStore/WinSxS, other
+# products) that a generic name token might otherwise match. Returns $false when either
+# input is empty or no path can be extracted. Never throws.
+function Test-TcpkPathUnderTarget {
+    [CmdletBinding()]
+    param([AllowNull()][string]$Value, [AllowNull()][string]$InstallDir)
+    if (-not $Value -or -not $InstallDir) { return $false }
+    $v = ([System.Environment]::ExpandEnvironmentVariables($Value)).Trim()
+    if ($v.StartsWith('"')) {
+        $end = $v.IndexOf('"', 1)
+        if ($end -gt 1) { $v = $v.Substring(1, $end - 1) }
+    } else {
+        $m = [regex]::Match($v, '^(?<p>.*?\.(exe|dll|ocx|sys|ps1|bat|cmd|scr|com))', 'IgnoreCase')
+        if ($m.Success) { $v = $m.Groups['p'].Value }
+    }
+    try {
+        $full = [System.IO.Path]::GetFullPath($v)
+        $root = ([System.IO.Path]::GetFullPath($InstallDir)).TrimEnd('\')
+        if (-not $root) { return $false }
+        return $full.Equals($root, [System.StringComparison]::OrdinalIgnoreCase) -or
+               $full.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)
+    } catch { return $false }
 }
 
 # Normalize a -NameLike term set: drop blanks and the legacy '*' wildcard sentinel.

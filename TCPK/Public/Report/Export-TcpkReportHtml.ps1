@@ -425,7 +425,10 @@ $($ruleRows -join "`n")
                 $tagItems = New-Object 'System.Collections.Generic.List[string]'
                 foreach ($cw in @($f.Cwe))                              { if ($cw) { $tagItems.Add("<span class='ftag ftag-cwe'>$(ConvertTo-TcpkHtmlSafe ([string]$cw))</span>") } }
                 foreach ($at in @(Get-TcpkAttackTechnique -RuleId $f.RuleId)) { if ($at) { $tagItems.Add("<span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>$(ConvertTo-TcpkHtmlSafe ([string]$at))</span>") } }
-                foreach ($tv in @(Get-TcpkTasvsControl -RuleId $f.RuleId))    { if ($tv) { $tagItems.Add("<span class='ftag ftag-tasvs' title='OWASP TASVS / Desktop Top 10'>$(ConvertTo-TcpkHtmlSafe ([string]$tv))</span>") } }
+                # TASVS tags show ONLY TASVS-* categories; the Desktop Top 10 (DA*) now comes
+                # solely from Get-TcpkOwaspDa below, so the two no longer disagree on a card.
+                foreach ($tv in @(Get-TcpkTasvsControl -RuleId $f.RuleId | Where-Object { $_ -notmatch '^DA\d' })) { if ($tv) { $tagItems.Add("<span class='ftag ftag-tasvs' title='OWASP TASVS'>$(ConvertTo-TcpkHtmlSafe ([string]$tv))</span>") } }
+                $oda = Get-TcpkOwaspDa -RuleId $f.RuleId; if ($oda) { $tagItems.Add("<span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>$(ConvertTo-TcpkHtmlSafe ([string]$oda))</span>") }
                 $tagRow = if ($tagItems.Count) { "<div class='ftags'>" + ($tagItems -join '') + "</div>" } else { '' }
 
                 $kv = New-Object 'System.Collections.Generic.List[string]'
@@ -727,6 +730,7 @@ h3{font-size:15px;margin:0 0 10px}
 .ftag-cwe{background:#fdecea;border-color:#f5c6cb;color:#8a2a22}
 .ftag-attack{background:#f3eefb;border-color:#e2d4f5;color:#5b2c87}
 .ftag-tasvs{background:#eaf2fb;border-color:#cfe0f5;color:#1c4f80}
+.ftag-owasp{background:#eafaf1;border-color:#cdeedd;color:#1d6b45}
 .afflist{margin:4px 0 0;padding-left:18px}
 .afflist li{margin:2px 0}
 code.path{font-size:11.5px;word-break:break-all}

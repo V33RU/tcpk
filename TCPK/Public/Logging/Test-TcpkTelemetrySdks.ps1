@@ -46,8 +46,13 @@ function Test-TcpkTelemetrySdks {
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
+        if (Test-TcpkIsNativeNoise $pe.Name) { continue }   # bundled native runtimes are not the app's telemetry
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
+        # Telemetry-SDK domains (google-analytics.com, sentry.io, ...) are baked into the bundled
+        # Chromium runtime -- that is Chromium's own code, not the app author's integration. Skip it
+        # so an Electron app is not mislabelled as shipping a telemetry SDK it never wired up.
+        if (Test-TcpkIsChromiumRuntime -Name $pe.Name -Text $text) { continue }
         foreach ($sdk in $sdks) {
             $local = 0
             $hitPat = $null

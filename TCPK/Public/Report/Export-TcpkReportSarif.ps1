@@ -38,8 +38,8 @@ function Export-TcpkReportSarif {
         $ver = try {
             $v = (Get-Module TCPK | Select-Object -First 1).Version
             if (-not $v -and $script:TcpkRoot) { $v = (Import-PowerShellDataFile -Path (Join-Path $script:TcpkRoot 'TCPK.psd1')).ModuleVersion }
-            if ($v) { "$v" } else { '1.6.1' }
-        } catch { '1.6.1' }
+            if ($v) { "$v" } else { '1.7.0' }
+        } catch { '1.7.0' }
 
         $levelOf = @{ CRITICAL='error'; HIGH='error'; MEDIUM='warning'; LOW='note'; INFO='note' }
         $bandScore = @{ CRITICAL='9.5'; HIGH='8.0'; MEDIUM='5.5'; LOW='2.0'; INFO='0.0' }
@@ -54,6 +54,7 @@ function Export-TcpkReportSarif {
             $tags.Add('security')
             if ($f.Cwe) { foreach ($c in @($f.Cwe)) { if ($c) { $tags.Add("external/cwe/$($c.ToLowerInvariant())") } } }
             $atk = "$(Get-TcpkAttackText $rid)"; if ($atk) { $tags.Add('attack') }
+            $oda = "$(Get-TcpkOwaspDa -RuleId $rid)"; if ($oda) { $tags.Add('owasp-desktop') }
             $rules.Add([ordered]@{
                 id              = $rid
                 name            = ($rid -replace '[^A-Za-z0-9]', '')
@@ -89,6 +90,7 @@ function Export-TcpkReportSarif {
                     severity            = $sev
                     confidence          = "$($f.Confidence)"
                     cwe                 = @(if ($f.Cwe) { @($f.Cwe) } else { @() })
+                    owaspDa             = "$(Get-TcpkOwaspDa -RuleId $rid)"
                 }
             }
         }

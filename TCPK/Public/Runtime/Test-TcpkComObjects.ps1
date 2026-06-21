@@ -12,11 +12,15 @@ function Test-TcpkComObjects {
 .PARAMETER NameLike
     Substring to match in the (default) value (case-insensitive).
 
+.PARAMETER Path
+    Target install dir. When set, only COM servers whose binary resolves INSIDE this
+    dir are reported -- excludes System32 / DriverStore CLSIDs a generic token matched.
+
 .OUTPUTS
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string[]]$NameLike)
+    param([string[]]$NameLike, [string]$Path)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkComObjects')) { return }
 
@@ -44,6 +48,10 @@ function Test-TcpkComObjects {
         if ($line -match '^\s+\(Default\)\s+REG_[A-Z_]+\s+(.+)$' -and $currentKey) {
             $val = $matches[1]
             if (-not (Test-TcpkTermMatch -Text $val -Terms $terms)) { continue }
+            # Attribute strictly: only COM servers whose binary lives inside the target
+            # install dir are the target's. Excludes System32 / DriverStore CLSIDs a
+            # generic token matched (SurfaceCaptureAPO, LanguageComponentsInstaller, ...).
+            if ($Path -and -not (Test-TcpkPathUnderTarget -Value $val -InstallDir $Path)) { continue }
             # Distinguish InprocServer32 vs LocalServer32 based on the current key path
             $serverType = if ($currentKey -match '\\InprocServer32') { 'InprocServer32' }
                           elseif ($currentKey -match '\\LocalServer32') { 'LocalServer32' }

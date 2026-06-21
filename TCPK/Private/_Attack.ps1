@@ -58,3 +58,33 @@ function Get-TcpkAttackText {
     param([Parameter(Mandatory)][AllowEmptyString()][string]$RuleId)
     (Get-TcpkAttackTechnique -RuleId $RuleId) -join '; '
 }
+
+# --- OWASP Desktop Application Top 10 (2021) mapping -----------------------------
+# Pure lookup, computed at report time from a finding's RuleId (same convention as
+# ATT&CK / TASVS / CVSS), so the [TcpkFinding] class is unchanged. Returns the single
+# best-fit (primary) DA category; FIRST matching entry wins, so order = most-specific
+# first. Returns '' when no family matches.
+$script:TcpkOwaspDaMap = @(
+    @{ rx = 'session-override|argv-session';                                                                          da = 'DA2 Broken Authentication and Session Management' }
+    @{ rx = '^(cve|deps|dependencycves|sbom|pkgmanifest|osv)\.|outdated-runtime';                                     da = 'DA9 Using Components with Known Vulnerabilities' }
+    @{ rx = '^(tls|tlsbypass|tlspinning|tlsprotocols|scheme|insecureschemes|backend|crlocsp|dns|truststore)|cleartext|update\.url'; da = 'DA7 Insecure Communication' }
+    @{ rx = '^crypto\.|weak-symmetric-crypto|^pem|weak-crypto';                                                       da = 'DA4 Improper Cryptography Usage' }
+    @{ rx = '^(authflags|jwt|session|login)|auth-bypass';                                                             da = 'DA2 Broken Authentication and Session Management' }
+    @{ rx = '^(deser|xxe|csv)\.|callsites\.(command-execution|ldap-query|ssrf|format-string|sql|xpath)|injection';    da = 'DA1 Injections' }
+    @{ rx = '^(secrets|entropy|appconfigsecrets|dpapiblobs|tokencaches|webviewcreds|processenvsecrets|piiinlogs|memsecret|pii)|^browser\.|^strings\.|devartifact|internal-docs|mem\.hygiene|^pagefile|^memory|wer\.'; da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^(authenticode|strongname|codeintegrity|pe-|pe\.|peimports|peexports|native|antidebug|antiinjection|timing|selfintegrity|packer|obfusc|debugflags|procmit|integrity)|loaded\.(unsigned|non-system)|signing'; da = 'DA8 Poor Code Quality' }
+    @{ rx = '^(installdir|folderacl|registry|servicepermissions|servicebin|unquoted|processtoken|process\.dacl|uac|programdata|scheduledtaskacl|kerneldrivers)';            da = 'DA5 Improper Authorization' }
+    @{ rx = '^(firewall|namedpipe|named-object|com|comobjects|electron|avexclusion|autostart|scheduledtask|wmi|protocolhandlers|shimcache|apppaths|ifeo|selfhost|ports|sxs|rpcsurface|mailslot|wv2|webview|window)'; da = 'DA6 Security Misconfiguration' }
+    @{ rx = '^(log|logfiles|etw)|telemetry';                                                                          da = 'DA10 Insufficient Logging and Monitoring' }
+)
+
+# Single primary OWASP Desktop Top 10 category for a RuleId (e.g. 'DA7 Insecure Communication').
+function Get-TcpkOwaspDa {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowEmptyString()][string]$RuleId)
+    if ([string]::IsNullOrEmpty($RuleId)) { return '' }
+    foreach ($m in $script:TcpkOwaspDaMap) {
+        if ($RuleId -match $m.rx) { return $m.da }
+    }
+    return ''
+}

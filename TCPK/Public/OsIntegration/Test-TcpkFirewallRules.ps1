@@ -54,12 +54,24 @@ function Test-TcpkFirewallRules {
         $dir  = "$($h['Dir'])"
         $act  = "$($h['Action'])"
 
-        # attribute to this app
+        # Attribute strictly to this app. A rule that names a program (App=) must point
+        # INSIDE the target install dir; a rule with no program path falls back to a
+        # name-term match. This stops a generic token (e.g. the exe base "installer")
+        # from matching unrelated system rules such as DesktopAppInstaller whose App=
+        # lives elsewhere.
         $match = $false
-        if ($terms.Count) {
-            if ((Test-TcpkTermMatch -Text $app -Terms $terms) -or (Test-TcpkTermMatch -Text $name -Terms $terms)) { $match = $true }
+        if ($app) {
+            if ($Path) {
+                if (Test-TcpkPathUnderTarget -Value $app -InstallDir $Path) { $match = $true }
+            } elseif ($terms.Count -and ((Test-TcpkTermMatch -Text $app -Terms $terms) -or (Test-TcpkTermMatch -Text $name -Terms $terms))) {
+                $match = $true   # no install dir to anchor against -> best-effort term match
+            }
+        } elseif ($terms.Count -and -not $name.StartsWith('@{') -and (Test-TcpkTermMatch -Text $name -Terms $terms)) {
+            # App-less rule: attribute by name term, but skip packaged-app MRT resource
+            # names ("@{Package_...}") -- those are Windows packaged-app firewall rules,
+            # never a Win32 install-dir target's.
+            $match = $true
         }
-        if ($Path -and $app -and $app -like "$Path*") { $match = $true }
         if (-not $match) { continue }
         if ($act -ne 'Allow') { continue }
 

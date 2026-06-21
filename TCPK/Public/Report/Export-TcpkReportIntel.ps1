@@ -183,7 +183,7 @@ pre.ev{background:#010409;border:1px solid var(--border);border-radius:7px;paddi
     if(arr(f.affected).length) s+='<div class="sec"><h4>AFFECTED ('+arr(f.affected).length+')</h4><pre class="ev">'+esc(arr(f.affected).join('\n'))+'</pre></div>';
     if(f.verify) s+='<div class="sec"><h4>HOW TO VERIFY</h4><pre class="ev">'+esc(f.verify)+'</pre></div>';
     if(f.fix) s+='<div class="sec"><h4>FIX</h4><p>'+esc(f.fix)+'</p></div>';
-    s+='<div class="sec"><div class="kv">'+(cwe?'CWE: <b>'+esc(cwe)+'</b> &middot; ':'')+(f.attack?'ATT&amp;CK: <b>'+esc(f.attack)+'</b> &middot; ':'')+(f.tasvs?'TASVS: <b>'+esc(f.tasvs)+'</b> &middot; ':'')+'file: <b>'+esc(f.file||'-')+'</b></div></div>';
+    s+='<div class="sec"><div class="kv">'+(cwe?'CWE: <b>'+esc(cwe)+'</b> &middot; ':'')+(f.attack?'ATT&amp;CK: <b>'+esc(f.attack)+'</b> &middot; ':'')+(f.tasvs?'TASVS: <b>'+esc(f.tasvs)+'</b> &middot; ':'')+(f.owaspDa?'OWASP: <b>'+esc(f.owaspDa)+'</b> &middot; ':'')+'file: <b>'+esc(f.file||'-')+'</b></div></div>';
     s+='</div></div>'; return s; }
 
   function list(){ var shown=findings.filter(match);

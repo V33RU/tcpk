@@ -24,8 +24,11 @@ function Test-TcpkInsecureSchemes {
     $httpRx = [regex]'http://[A-Za-z0-9.\-]+(?::\d+)?(?:/[A-Za-z0-9./?_=&%:#@~+\-]*)?'
     $wsRx   = [regex]'ws://[A-Za-z0-9.\-]+(?::\d+)?(?:/[A-Za-z0-9./?_=&%:#@~+\-]*)?'
 
-    # Namespace / documentation hosts that are not live network endpoints.
-    $skipHost = '(?i)(w3\.org|xmlsoap\.org|schemas\.|purl\.org|ns\.adobe\.com|aiim\.org|color\.org|iec\.ch|openxmlformats|oasis-open|docbook|relaxng|json-schema\.org|tools\.ietf|gnu\.org|whatwg\.org|wikipedia|example\.(com|org)|localhost|127\.0\.0\.1|crbug\.com|anglebug\.com|issuetracker\.google)'
+    # Namespace / documentation hosts that are not live network endpoints. Also includes
+    # stock-tool homepages baked into bundled helper binaries -- nsis.sf.net (the NSIS
+    # installer/uninstaller stub) and int3.de (the author site embedded in the stock
+    # elevate.exe helper) -- which are NOT the audited app's endpoints.
+    $skipHost = '(?i)(w3\.org|xmlsoap\.org|schemas\.|purl\.org|ns\.adobe\.com|aiim\.org|color\.org|iec\.ch|openxmlformats|oasis-open|docbook|relaxng|json-schema\.org|tools\.ietf|gnu\.org|whatwg\.org|wikipedia|example\.(com|org)|localhost|127\.0\.0\.1|crbug\.com|anglebug\.com|issuetracker\.google|nsis\.sf\.net|sourceforge\.net|int3\.de)'
 
     # PKI / certificate-revocation hosts. CRL, OCSP, AIA (CA issuer) and CA
     # distribution URLs are http:// BY DESIGN (RFC 5280 / 6960) and almost always
@@ -39,6 +42,7 @@ function Test-TcpkInsecureSchemes {
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
+        if (Test-TcpkIsNativeNoise $pe.Name) { continue }   # bundled native runtimes are not the app's endpoints
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
         # The Chromium/Electron runtime binary embeds the whole CA OCSP/CRL/AIA URL list

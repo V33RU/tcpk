@@ -99,7 +99,8 @@ function Export-TcpkReportExcel {
                 "$($f.Evidence)",
                 "$(if ($f.Cwe) { ($f.Cwe -join ', ') } else { '' })",
                 "$(Get-TcpkAttackText $f.RuleId)",
-                "$(Get-TcpkTasvsText $f.RuleId)",
+                "$((Get-TcpkTasvsControl $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; ')",
+                "$(Get-TcpkOwaspDa $f.RuleId)",
                 "$(Get-TcpkImpactText $f)",
                 "$($f.Fix)",
                 "$(Get-TcpkVerifyHint -RuleId $f.RuleId -File $f.File -Evidence $f.Evidence)"
@@ -128,7 +129,7 @@ function Export-TcpkReportExcel {
 
         $sheets = @(
             [ordered]@{ Name = 'Summary'; Headers = @('Metric','Value'); Rows = $sumRows; Widths = @(26, 90) }
-            [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0 vector','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS / Desktop Top 10','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
+            [ordered]@{ Name = 'Findings'; Headers = @('Severity','Confidence','CVSS v4.0 vector','Module','Rule','Title','File','Evidence','CWE','ATT&CK','OWASP TASVS','OWASP DA','Impact','Fix','Verify (manual)'); Rows = @($findRows) }
             [ordered]@{ Name = 'Checklist'; Headers = @('Test #','Test Name','Type','TCPK Coverage','Auto Status','Findings','Related Rule IDs','Result (PASS/FAIL)','Manual confirmation step'); Rows = @($clRows); Widths = @(8, 44, 14, 13, 13, 9, 40, 17, 64) }
             [ordered]@{ Name = 'DLL Hardening'; Headers = @('DLL','Arch','ASLR','DEP','CFG','HighEntropyVA','SafeSEH','GS','ForceIntegrity','Status','Missing','Flags'); Rows = @($hwRows) }
             [ordered]@{ Name = 'DLL Signing'; Headers = @('DLL','Signed','Status','Signer','Issuer','Algorithm','Key bits','Valid From','Expires','Serial','Thumbprint','EKU','Type','Subject','Path'); Rows = @($sgRows); Widths = @(34, 9, 12, 40, 40, 16, 8, 12, 12, 30, 44, 22, 12, 60, 80) }

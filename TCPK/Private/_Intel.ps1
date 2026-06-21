@@ -25,14 +25,17 @@ function Get-TcpkIntelModel {
     $records = foreach ($f in $sorted) {
         $cvss = ''; try { $cvss = "$((Get-TcpkCvssVector $f).Display)" } catch { }
         $attack = ''; try { $attack = "$(Get-TcpkAttackText $f.RuleId)" } catch { }
-        $tasvs  = ''; try { $tasvs  = "$(Get-TcpkTasvsText $f.RuleId)" } catch { }
+        # TASVS string keeps only TASVS-* categories; the OWASP Desktop Top 10 (DA*) comes from
+        # the single authoritative Get-TcpkOwaspDa, so the intel report matches HTML/Excel/SARIF.
+        $tasvs  = ''; try { $tasvs  = "$((Get-TcpkTasvsControl $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; ')" } catch { }
+        $owaspDa = ''; try { $owaspDa = "$(Get-TcpkOwaspDa $f.RuleId)" } catch { }
         $impact = ''; try { $impact = "$(Get-TcpkImpactText $f)" } catch { }
         $verify = ''; try { $verify = "$(Get-TcpkVerifyHint -RuleId $f.RuleId -File $f.File -Evidence $f.Evidence)" } catch { }
         [pscustomobject]@{
             sev = "$($f.Severity)"; conf = "$($f.Confidence)"; rule = "$($f.RuleId)"
             title = "$($f.Title)"; desc = "$($f.Description)"; file = "$($f.File)"
             evidence = "$($f.Evidence)"; cwe = @($f.Cwe); cvss = $cvss; attack = $attack
-            tasvs = $tasvs; impact = $impact; fix = "$($f.Fix)"; verify = $verify
+            tasvs = $tasvs; owaspDa = $owaspDa; impact = $impact; fix = "$($f.Fix)"; verify = $verify
             affected = @($f.Affected); module = "$($f.Module)"
         }
     }
@@ -57,7 +60,7 @@ function Get-TcpkIntelModel {
         }
     }
 
-    $ver = '1.6.1-dev'; try { $v = (Get-Module TCPK | Select-Object -First 1).Version; if ($v) { $ver = "$v" } } catch { }
+    $ver = '1.7.0-dev'; try { $v = (Get-Module TCPK | Select-Object -First 1).Version; if ($v) { $ver = "$v" } } catch { }
     [ordered]@{
         meta     = [ordered]@{ target = "$Target"; version = $ver; generated = (Get-Date).ToUniversalTime().ToString('u'); total = $all.Count }
         summary  = [ordered]@{ severity = $sevCounts; confidence = $confCounts }

@@ -53,6 +53,9 @@ function Test-TcpkEntropySecrets {
         if (Test-TcpkIsFrameworkFile $f.Name) { continue }
         # NuGet/runtime manifests are full of package hashes + long identifiers, not secrets
         if ($f.Name -match '(?i)\.(deps|runtimeconfig|nuspec)\.json$') { continue }
+        # Certificate-pin / public-key trust stores hold base64 SHA-256 cert FINGERPRINTS
+        # (public data, not secrets) -- a known false-positive class (e.g. cert-pins.json).
+        if ($f.Name -match '(?i)(cert-?pins?|pinned-?certs?|known_?hosts|trusted-?certs?)') { continue }
 
         $v = Read-TcpkStringViews -Path $f.FullName
         if (-not $v) { continue }

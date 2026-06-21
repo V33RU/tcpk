@@ -14,7 +14,7 @@ BeforeAll {
         param([string]$Dir, [string]$ExeBody)
         New-Item -ItemType Directory -Path $Dir -Force | Out-Null
         [IO.File]::WriteAllText((Join-Path $Dir 'app.asar'), 'dummy asar without any js config flags')
-        [IO.File]::WriteAllText((Join-Path $Dir 'CH5 Desktop.exe'), $ExeBody)
+        [IO.File]::WriteAllText((Join-Path $Dir 'Acme Desktop.exe'), $ExeBody)
     }
     # outdated: Chromium 146 vs baseline 149 -> 3 majors behind
     $script:old = Join-Path $script:work 'old'
