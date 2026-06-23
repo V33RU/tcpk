@@ -49,7 +49,6 @@ function Test-TcpkEntropySecrets {
     foreach ($f in $files) {
         if ($emitted -ge $cap) { break }
         if ($f.Extension.ToLowerInvariant() -notin $textExt) { continue }
-        if ($f.Length -gt 8MB) { continue }
         if (Test-TcpkIsFrameworkFile $f.Name) { continue }
         # NuGet/runtime manifests are full of package hashes + long identifiers, not secrets
         if ($f.Name -match '(?i)\.(deps|runtimeconfig|nuspec)\.json$') { continue }

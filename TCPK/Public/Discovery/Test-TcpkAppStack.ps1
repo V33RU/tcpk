@@ -68,6 +68,18 @@ function Test-TcpkAppStack {
 
     # ---- string-marker stacks (first-party binaries) ----
     $go=$false; $rust=$false; $nuitka=$false; $pyi=$false
+    # Bundled native third-party libraries are a common CVE source and are NOT reached by the
+    # managed-IL analysis. Fingerprint the common ones by their embedded version string -- the
+    # library NAME must be adjacent to the version, so this stays low-false-positive.
+    $libRx = @(
+        @{ id='openssl';  name='OpenSSL';  rx='OpenSSL\s+(\d+\.\d+\.\d+[a-z]?)' }
+        @{ id='sqlite';   name='SQLite';   rx='SQLite\s+(?:version\s+)?(\d+\.\d+\.\d+)' }
+        @{ id='zlib';     name='zlib';     rx='(?:in|de)flate\s+(\d+\.\d+\.\d+(?:\.\d+)?)\s+Copyright' }
+        @{ id='libpng';   name='libpng';   rx='libpng\s+(?:version\s+)?(\d+\.\d+\.\d+)' }
+        @{ id='libcurl';  name='libcurl';  rx='libcurl/(\d+\.\d+\.\d+)' }
+        @{ id='freetype'; name='FreeType'; rx='FreeType\s+(\d+\.\d+\.\d+)' }
+    )
+    $nativeLibs = [ordered]@{}
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $t = Read-TcpkAllText -Path $pe.FullName
@@ -76,7 +88,13 @@ function Test-TcpkAppStack {
         if (-not $rust   -and ($t.Contains('/rustc/') -or $t.Contains('cargo/registry'))) { $rust = $true }
         if (-not $nuitka -and ($t.Contains('__nuitka') -or $t.Contains('Nuitka'))) { $nuitka = $true }
         if (-not $pyi    -and ($t.Contains('PyInstaller') -or $t.Contains('pyi-bootloader'))) { $pyi = $true }
-        if ($go -and $rust -and $nuitka -and $pyi) { break }
+        foreach ($lr in $libRx) {
+            if (-not $nativeLibs.Contains($lr.id)) {
+                $mm = [regex]::Match($t, $lr.rx, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                if ($mm.Success) { $nativeLibs[$lr.id] = [pscustomobject]@{ Name=$lr.name; Ver=$mm.Groups[1].Value; File=$pe.Name } }
+            }
+        }
+        if ($go -and $rust -and $nuitka -and $pyi -and $nativeLibs.Count -ge $libRx.Count) { break }
     }
     if ($go) {
         $stacks.Add([pscustomobject]@{ id='go-binary'; name='Go (statically-linked native binary)';
@@ -102,5 +120,15 @@ function Test-TcpkAppStack {
             -Evidence $s.name `
             -Description "Technology-stack fingerprint (so you know which TCPK checks actually apply). $($s.note)" `
             -Fix 'Informational. Use the noted tooling to cover the parts of this stack that TCPK''s managed-IL analysis does not reach.'
+    }
+
+    foreach ($k in $nativeLibs.Keys) {
+        $nl = $nativeLibs[$k]
+        New-TcpkFinding -Module 'static' -RuleId "appstack.native-$k" `
+            -Severity 'INFO' -Confidence 'Inferred' `
+            -Title "Bundled native library: $($nl.Name) $($nl.Ver)" -File $Path `
+            -Evidence "$($nl.Name) $($nl.Ver) (in $($nl.File))" -Cwe @('CWE-1395') `
+            -Description "A bundled native third-party library was fingerprinted by its embedded version string. Native C/C++ libraries are a common source of known CVEs and are NOT covered by the managed-IL analysis. Cross-check $($nl.Name) $($nl.Ver) against vendor advisories / OSV (run the audit with -OnlineCve, or Get-TcpkCveMatches) and keep bundled libraries patched." `
+            -Fix "Track and patch bundled native libraries; verify $($nl.Name) $($nl.Ver) is not affected by known CVEs and update if so."
     }
 }

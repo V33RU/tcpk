@@ -1,0 +1,95 @@
+{
+  "_comment": "Data-driven Electron/JS vulnerable-code-pattern rules consumed by Test-TcpkElectronJs (A41). These are LEADS (Inferred) -- a JS string-scan, not proof; TCPK has no JS taint/AST engine. Patterns also match bundled third-party libraries, so the check reports an occurrence count per file. Add/tune patterns here without touching the cmdlet. Pure ASCII.",
+  "rules": [
+    {
+      "id": "exec-sink",
+      "title": "JavaScript code/command-execution sink",
+      "severity": "MEDIUM",
+      "cwe": ["CWE-94", "CWE-95"],
+      "pattern": "(?i)require\\s*\\(\\s*['\"]child_process['\"]\\s*\\)|\\bchild_process\\s*\\.\\s*(?:exec|execSync|execFile|execFileSync|spawn|spawnSync|fork)\\b|\\beval\\s*\\(|\\bnew\\s+Function\\s*\\(|\\brunIn(?:This|New)Context\\s*\\(|\\b(?:setTimeout|setInterval)\\s*\\(\\s*[\"']",
+      "fix": "Never pass renderer/remote/message-derived data to child_process / eval / new Function / vm. If a renderer can reach this (nodeIntegration or a leaky preload/contextBridge), any XSS becomes RCE -- remove the sink, isolate the renderer, or use a fixed, argument-validated command.",
+      "desc": "A JavaScript code- or command-execution sink (child_process exec/spawn, eval, new Function, vm.runInThisContext) is present in the bundled JS. Combined with any XSS or a leaky preload/contextBridge this is the standard Electron XSS-to-RCE primitive."
+    },
+    {
+      "id": "dom-xss-sink",
+      "title": "DOM XSS sink (HTML injection)",
+      "severity": "LOW",
+      "cwe": ["CWE-79"],
+      "pattern": "(?i)\\.\\s*(?:innerHTML|outerHTML)\\s*=|\\.\\s*insertAdjacentHTML\\s*\\(|\\bdocument\\s*\\.\\s*write(?:ln)?\\s*\\(|\\bdangerouslySetInnerHTML\\b|\\bv-html\\b|\\bsrcdoc\\s*=",
+      "fix": "Render untrusted content as text, or sanitize with a vetted library (DOMPurify) before assigning to an HTML sink. In Electron a renderer XSS commonly chains to RCE, so treat DOM XSS as high-impact.",
+      "desc": "An HTML-injection sink (innerHTML / outerHTML / insertAdjacentHTML / document.write / dangerouslySetInnerHTML / Vue v-html / iframe srcdoc) is present. If any value reaching it comes from user / remote / message content without sanitization it is a DOM XSS -- the entry point for the Electron attack chains."
+    },
+    {
+      "id": "css-injection-sink",
+      "title": "CSS-injection sink (scriptless attack surface)",
+      "severity": "LOW",
+      "cwe": ["CWE-79", "CWE-83"],
+      "pattern": "(?i)\\.\\s*style\\s*\\.\\s*cssText\\s*=|\\.\\s*setAttribute\\s*\\(\\s*['\"]style['\"]|\\.\\s*insertRule\\s*\\(|\\.\\s*insertCSS\\s*\\(|\\bcssText\\s*=",
+      "fix": "Do not build CSS / the style attribute from untrusted input. Set discrete, validated style properties instead of assigning cssText or the whole style attribute, and avoid insertRule on attacker data.",
+      "desc": "A CSS-injection sink (style.cssText, setAttribute('style', ...), or CSSOM insertRule) is present. Even without script execution, attacker-controlled CSS enables scriptless attacks: background-image url() exfiltration of data/IP, and position:fixed / z-index overlays that spoof UI (the fake-message class). Confirm the style value is not attacker-influenced."
+    },
+    {
+      "id": "csp-unsafe",
+      "title": "Weak Content-Security-Policy (unsafe-inline / unsafe-eval)",
+      "severity": "MEDIUM",
+      "cwe": ["CWE-1021", "CWE-79"],
+      "pattern": "(?i)content-security-policy[\\s\\S]{0,400}?(?:unsafe-inline|unsafe-eval)",
+      "fix": "Remove unsafe-inline / unsafe-eval from the CSP; use nonces/hashes only if generated per-load -- a hardcoded nonce shipped in an Electron client is static and therefore bypassable. A strict CSP is a key defense against the XSS that drives Electron RCE.",
+      "desc": "A Content-Security-Policy allowing 'unsafe-inline' or 'unsafe-eval' was found. In an Electron app this materially weakens the last line of defense against injected script (and any hardcoded CSP nonce shipped in the client is itself bypassable, since it is static). Confirm the CSP forbids inline/eval and is actually applied to the app's BrowserWindows."
+    },
+    {
+      "id": "csp-hardcoded-nonce",
+      "title": "Hardcoded CSP nonce (bypassable in a shipped client)",
+      "severity": "MEDIUM",
+      "cwe": ["CWE-330", "CWE-1021"],
+      "pattern": "(?i)content-security-policy[\\s\\S]{0,400}?'nonce-[A-Za-z0-9+/=_-]{8,}'",
+      "fix": "Do not hardcode a CSP nonce in a desktop/client bundle -- a static nonce is readable by an attacker and defeats the nonce mechanism. Generate the nonce per page load, or rely on strict source allow-lists / hashes instead.",
+      "desc": "The CSP uses a hardcoded script nonce ('nonce-...'). Unlike a web app where the server mints a fresh nonce per request, an Electron client's CSP and its nonce are static and shipped in the bundle, so an attacker can read the nonce and attach it to an injected <script> to satisfy the CSP -- exactly the GraSSHopper CSP bypass. Confirm the nonce is generated at runtime, not baked into the client."
+    },
+    {
+      "id": "proto-pollution-sink",
+      "title": "Prototype-pollution sink",
+      "severity": "LOW",
+      "cwe": ["CWE-1321"],
+      "pattern": "(?i)\\[\\s*['\"]__proto__['\"]\\s*\\]|\\.__proto__\\s*=|\\bObject\\s*\\.\\s*prototype\\s*\\.\\s*[A-Za-z_$][\\w$]*\\s*=|\\.\\s*constructor\\s*\\.\\s*prototype\\b",
+      "fix": "Avoid writing to __proto__ / Object.prototype / constructor.prototype, use null-prototype objects or a safe merge for untrusted data. Prototype pollution is the common bypass for allow-list checks (e.g. overriding Array.prototype.includes) in the published RCE chains.",
+      "desc": "A prototype-pollution sink (write to __proto__, Object.prototype, or constructor.prototype) is present. Low-confidence lead: such writes can let an attacker override a security check (e.g. [].includes used as an allow-list) -- review whether the target object/key is attacker-influenced."
+    },
+    {
+      "id": "webview-tag-unsafe",
+      "title": "Unsafe <webview> tag (nodeintegration / disablewebsecurity)",
+      "severity": "MEDIUM",
+      "cwe": ["CWE-1188", "CWE-829"],
+      "pattern": "(?i)<webview\\b[^>]{0,300}?\\b(?:nodeintegration|disablewebsecurity|allowpopups|blinkfeatures)\\b",
+      "fix": "Do not enable nodeintegration / disablewebsecurity / allowpopups on a <webview>; pin the webview src to trusted origins, set a restrictive webpreferences, and prefer a sandboxed iframe or BrowserView. Treat any remote content loaded in a Node-enabled webview as RCE.",
+      "desc": "An Electron <webview> tag enables a dangerous attribute (nodeintegration / disablewebsecurity / allowpopups). A webview that can load remote or attacker-influenced content with Node integration or the same-origin policy disabled is a direct RCE path -- the published 'RCE via webView' technique. Confirm the webview only loads trusted, fixed origins."
+    },
+    {
+      "id": "postmessage-star-origin",
+      "title": "postMessage with wildcard target origin",
+      "severity": "LOW",
+      "cwe": ["CWE-345"],
+      "pattern": "(?i)\\.postMessage\\s*\\([^)]{0,200}?,\\s*['\"]\\*['\"]",
+      "fix": "Pin the target origin in postMessage (never '*'), and validate event.origin on the receiving side before trusting message data.",
+      "desc": "A postMessage call uses '*' as the target origin, so it does not restrict which window/origin receives the message (and often the receiver does not check event.origin either). Unrestricted cross-context messaging is the message-injection vector behind webview/postMessage RCEs (e.g. the VSCode CVE-2021-43908 chain). Confirm the target origin is pinned and event.origin is verified."
+    },
+    {
+      "id": "cmdline-switch-unsafe",
+      "title": "Dangerous Chromium/Node command-line switch",
+      "severity": "MEDIUM",
+      "cwe": ["CWE-16", "CWE-1188"],
+      "pattern": "(?i)appendSwitch\\s*\\(\\s*['\"](?:disable-web-security|ignore-certificate-errors|allow-running-insecure-content|remote-debugging-port|inspect|inspect-brk|no-sandbox|disable-site-isolation-trials|debug-brk|debug)['\"]",
+      "fix": "Remove security-disabling command-line switches from production builds. Never ship --disable-web-security / --ignore-certificate-errors / --no-sandbox / a remote-debugging port -- they disable Chromium's security boundaries app-wide or expose a CDP remote-debugging channel that yields code execution.",
+      "desc": "The app appends a dangerous Chromium/Node command-line switch (disable-web-security, ignore-certificate-errors, no-sandbox, remote-debugging-port, inspect, ...). These disable security boundaries for the whole app or open a debugging port that yields code execution. Confirm the switch is dev-only and not shipped."
+    },
+    {
+      "id": "permission-allow-all",
+      "title": "Permission request handler grants all requests",
+      "severity": "LOW",
+      "cwe": ["CWE-862", "CWE-285"],
+      "pattern": "(?i)setPermissionRequestHandler\\s*\\(\\s*(?:async\\s*)?\\([^)]*\\)\\s*=>\\s*(?:return\\s+)?(?:[A-Za-z_$][\\w$]*\\s*\\(\\s*true\\s*\\)|true\\b)",
+      "fix": "In setPermissionRequestHandler, allow only the specific permissions the app needs and verify the requesting origin; deny by default.",
+      "desc": "An Electron permission request handler unconditionally grants the request (callback(true) / => true). Electron auto-approves device permissions (camera, microphone, screen, geolocation, ...) by default, and a handler that always allows adds no protection -- remote or untrusted content loaded by the app can silently access these. Validate the permission type and requesting origin before granting."
+    }
+  ]
+}

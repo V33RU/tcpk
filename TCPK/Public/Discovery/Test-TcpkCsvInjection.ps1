@@ -60,7 +60,7 @@ function Test-TcpkCsvInjection {
     $item = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
     if ($item -and $item.PSIsContainer) {
         $js = Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension.ToLowerInvariant() -in '.js', '.mjs', '.cjs', '.ts' -and $_.Length -lt 4MB }
+            Where-Object { $_.Extension.ToLowerInvariant() -in '.js', '.mjs', '.cjs', '.ts' }
         foreach ($f in $js) {
             $t = $null; try { $t = [IO.File]::ReadAllText($f.FullName) } catch { continue }
             if (-not $t) { continue }

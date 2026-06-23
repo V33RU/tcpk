@@ -21,8 +21,20 @@ function Read-TcpkStringViews {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
     if ($script:TcpkViewCache.ContainsKey($Path)) { return $script:TcpkViewCache[$Path] }
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
+    # Open with FileShare.ReadWrite|Delete so we can read files a RUNNING target holds open
+    # (Chromium cache block files, logs, SQLite WAL/journal, ...). The default
+    # File.ReadAllBytes uses FileShare.Read, which a process that has the file open for WRITE
+    # denies -- so live artifacts were silently skipped and their secrets never scanned. This
+    # is strictly read-only on our side.
     try {
-        $bytes = [IO.File]::ReadAllBytes($Path)
+        $fs = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+              ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+        try {
+            $ms = New-Object System.IO.MemoryStream
+            $fs.CopyTo($ms)
+            $bytes = $ms.ToArray()
+            $ms.Dispose()
+        } finally { $fs.Dispose() }
     } catch {
         return $null
     }

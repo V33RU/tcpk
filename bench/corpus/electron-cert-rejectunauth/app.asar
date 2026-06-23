@@ -1,0 +1,4 @@
+const https = require("https");
+function fetchInsecure(u) {
+  return https.request(u, { rejectUnauthorized: false });
+}

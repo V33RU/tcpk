@@ -1,0 +1,4 @@
+const { BrowserWindow } = require("electron");
+const win = new BrowserWindow({
+  webPreferences: { webSecurity: false, sandbox: true }
+});

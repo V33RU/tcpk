@@ -268,6 +268,7 @@ function Build-TcpkWebResult {
     $reportFiles = @(
         @{ file = 'index.html';   label = 'HTML report' },
         @{ file = 'intel.html';   label = 'Intel report (dashboard)' },
+        @{ file = 'report.md';    label = 'Markdown report' },
         @{ file = 'report.xlsx';  label = 'Excel report' },
         @{ file = 'report.sarif'; label = 'SARIF (code-scanning)' },
         @{ file = 'sbom.cdx.json';label = 'SBOM (CycloneDX)' },
@@ -364,6 +365,7 @@ function Get-TcpkWebReportResponse {
     $allow = @{
         'index.html'    = 'text/html'
         'intel.html'    = 'text/html'
+        'report.md'     = 'text/markdown'
         'report.xlsx'   = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         'report.sarif'  = 'application/json'
         'sbom.cdx.json' = 'application/json'

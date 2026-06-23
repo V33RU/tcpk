@@ -35,7 +35,6 @@ function Test-TcpkJwt {
     foreach ($f in $files) {
         if ($n -ge $cap) { break }
         if ($f.Extension.ToLowerInvariant() -in $skipExt) { continue }
-        if ($f.Length -gt 16MB) { continue }
         $v = Read-TcpkStringViews -Path $f.FullName
         if (-not $v) { continue }
 

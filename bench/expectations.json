@@ -1,0 +1,106 @@
+[
+  {
+    "case": "electron-cert-no-reject",
+    "dir": "electron-cert-no-reject",
+    "check": "Test-TcpkElectron",
+    "why": "setCertificateVerifyProc with no callback(-2) reject path -> accepts any cert",
+    "detect": ["^electron\\.cert-validation-bypass$"],
+    "forbid": []
+  },
+  {
+    "case": "electron-cert-rejectunauth",
+    "dir": "electron-cert-rejectunauth",
+    "check": "Test-TcpkElectron",
+    "why": "rejectUnauthorized:false disables TLS validation",
+    "detect": ["^electron\\.cert-validation-bypass$"],
+    "forbid": []
+  },
+  {
+    "case": "electron-nodeintegration",
+    "dir": "electron-nodeintegration",
+    "check": "Test-TcpkElectron",
+    "why": "nodeIntegration:true + contextIsolation:false -> XSS becomes RCE",
+    "detect": ["^electron\\.nodeIntegration$", "^electron\\.contextIsolation$"],
+    "forbid": []
+  },
+  {
+    "case": "electron-websecurity",
+    "dir": "electron-websecurity",
+    "check": "Test-TcpkElectron",
+    "why": "webSecurity:false disables same-origin policy",
+    "detect": ["^electron\\.webSecurity$"],
+    "forbid": []
+  },
+  {
+    "case": "electron-clean",
+    "dir": "electron-clean",
+    "check": "Test-TcpkElectron",
+    "why": "secure webPreferences + a verifier that rejects with callback(-2) -> nothing to flag",
+    "detect": [],
+    "forbid": ["^electron\\.(cert-validation-bypass|nodeIntegration|contextIsolation|webSecurity|sandbox)$"]
+  },
+  {
+    "case": "secret-aws",
+    "dir": "secret-aws",
+    "check": "Test-TcpkSecrets",
+    "why": "a real AWS access key id is present",
+    "detect": ["^secrets\\.aws-access-key-id$"],
+    "forbid": []
+  },
+  {
+    "case": "secret-placeholder",
+    "dir": "secret-placeholder",
+    "check": "Test-TcpkSecrets",
+    "why": "obvious placeholders (AKIAX..., your-access-key-here, REPLACE_ME) must NOT be reported",
+    "detect": [],
+    "forbid": ["^secrets\\."]
+  },
+  {
+    "case": "cred-cleartext",
+    "dir": "cred-cleartext",
+    "check": "Test-TcpkSecrets",
+    "why": "a plaintext password sits in a cached HTTP response (Chromium cache data_2)",
+    "detect": ["^secrets\\.cleartext-credential$"],
+    "forbid": []
+  },
+  {
+    "case": "cred-placeholder",
+    "dir": "cred-placeholder",
+    "check": "Test-TcpkSecrets",
+    "why": "templated / placeholder / empty passwords must NOT be reported as cleartext credentials",
+    "detect": [],
+    "forbid": ["^secrets\\.cleartext-credential$"]
+  },
+  {
+    "case": "cred-encoded",
+    "dir": "cred-encoded",
+    "check": "Test-TcpkSecrets",
+    "why": "stored bcrypt / LDAP-{SSHA} password hashes are credential material at rest (not plaintext)",
+    "detect": ["^secrets\\.credential-encoded$"],
+    "forbid": []
+  },
+  {
+    "case": "electronjs-sinks",
+    "dir": "electronjs-sinks",
+    "check": "Test-TcpkElectronJs",
+    "why": "Electron JS with child_process exec, innerHTML XSS sink, openExternal(file://), unsanitized markdown",
+    "detect": ["^electronjs\\.exec-sink$", "^electronjs\\.open-external-untrusted$", "^electronjs\\.markdown-unsanitized$", "^electronjs\\.nav-injection-sink$", "^electronjs\\.css-injection-sink$", "^electronjs\\.csp-unsafe$", "^electronjs\\.webview-tag-unsafe$", "^electronjs\\.postmessage-star-origin$", "^electronjs\\.cmdline-switch-unsafe$", "^electronjs\\.execute-js-dynamic$"],
+    "forbid": []
+  },
+  {
+    "case": "electronjs-clean",
+    "dir": "electronjs-clean",
+    "check": "Test-TcpkElectronJs",
+    "why": "guards present (DOMPurify, path.resolve+startsWith, will-navigate, https-only openExternal) -> no JS-sink leads",
+    "detect": [],
+    "forbid": ["^electronjs\\."]
+  },
+  {
+    "case": "electron-nisf",
+    "dir": "electron-nisf",
+    "check": "Test-TcpkElectron",
+    "why": "nodeIntegrationInSubFrames / experimentalFeatures / enableBlinkFeatures BrowserWindow options (the Element / CVE-2022-29247 surface)",
+    "detect": ["^electron\\.nodeIntegrationInSubframes$", "^electron\\.experimentalFeatures$", "^electron\\.enableBlinkFeatures$", "^electron\\.nodeIntegrationInWorkers$", "^electron\\.webviewTag$", "^electron\\.enableWebSQL$", "^electron\\.experimentalCanvasFeatures$"],
+    "forbid": []
+  }
+]

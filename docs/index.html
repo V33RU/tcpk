@@ -79,7 +79,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <div class="wrap">
 <nav class="toc">
   <div class="brand">TC<span>PK</span></div>
-  <div class="ver">v1.7.0 &middot; 174 cmdlets</div>
+  <div class="ver">v1.8.0 &middot; 178 cmdlets</div>
   <a href="#tldr">TL;DR</a>
   <a href="#threat">Why thick clients</a>
   <a href="#principles">Design principles</a>
@@ -112,8 +112,8 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <p class="tag">Evidence over assertion. A scanner that proves its findings.</p>
   <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
   <div class="badges">
-    <span class="badge"><b>v1.7.0</b></span>
-    <span class="badge"><b>174</b> cmdlets</span>
+    <span class="badge"><b>v1.8.0</b></span>
+    <span class="badge"><b>178</b> cmdlets</span>
     <span class="badge">PowerShell <b>5.1+</b></span>
     <span class="badge">WinForms GUI + <b>MCP</b> server</span>
     <span class="badge">CVSS <b>v4.0</b> (computed)</span>
@@ -549,7 +549,7 @@ powershell -File .\Start-TcpkMcpServer.ps1</code></pre>
 </ul>
 <pre><code class="language-powershell"># clone / unzip, then:
 Import-Module .\TCPK\TCPK.psd1
-Get-Command -Module TCPK | Measure-Object   # 174 cmdlets
+Get-Command -Module TCPK | Measure-Object   # 178 cmdlets
 Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
@@ -559,7 +559,7 @@ Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
 <footer>
-<p><b>TCPK v1.7.0</b> &middot; Thick Client Pentest Kit &middot; 174 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+<p><b>TCPK v1.8.0</b> &middot; Thick Client Pentest Kit &middot; 178 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
 </footer>
 </main>
 </div>

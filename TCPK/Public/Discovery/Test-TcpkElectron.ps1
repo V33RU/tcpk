@@ -88,6 +88,13 @@ function Test-TcpkElectron {
         'allowRunningInsecureContent'  = @{ rx = 'allowRunningInsecureContent["'']?\s*:\s*true';    sev='MEDIUM';   desc='Mixed/insecure content allowed (downgrade).' }
         'sandbox'                      = @{ rx = 'sandbox["'']?\s*:\s*false';                       sev='MEDIUM';   desc='Renderer process not sandboxed.' }
         'enableRemoteModule'           = @{ rx = 'enableRemoteModule["'']?\s*:\s*true';             sev='HIGH';     desc='Legacy remote module exposed to the renderer.' }
+        'nodeIntegrationInSubframes'   = @{ rx = 'nodeIntegrationInSub[fF]rames["'']?\s*:\s*true';  sev='HIGH';     desc='Node.js enabled in child frames/iframes; an iframe to attacker content gains Node -> RCE (the Element / CVE-2022-29247 vector).' }
+        'experimentalFeatures'         = @{ rx = 'experimentalFeatures["'']?\s*:\s*true';           sev='MEDIUM';   desc='Unstable/experimental Chromium features enabled -- unvetted behavior expands the attack surface.' }
+        'experimentalCanvasFeatures'   = @{ rx = 'experimentalCanvasFeatures["'']?\s*:\s*true';     sev='MEDIUM';   desc='Experimental Chromium canvas features enabled -- unvetted behavior expands the attack surface.' }
+        'enableBlinkFeatures'          = @{ rx = 'enableBlinkFeatures["'']?\s*:\s*["''][^"'']';     sev='MEDIUM';   desc='Non-default Blink features force-enabled; can re-expose disabled/insecure web behaviors.' }
+        'nodeIntegrationInWorkers'     = @{ rx = 'nodeIntegrationInWorkers["'']?\s*:\s*true';       sev='HIGH';     desc='Node.js enabled inside web workers; an attacker-controlled worker gains Node -> RCE.' }
+        'webviewTag'                   = @{ rx = 'webviewTag["'']?\s*:\s*true';                     sev='MEDIUM';   desc='The <webview> tag is enabled; a webview can spawn higher-privileged renderers and load remote content (the RCE-via-webView surface).' }
+        'enableWebSQL'                 = @{ rx = '\bwebSQL["'']?\s*:\s*true';                        sev='LOW';      desc='Deprecated WebSQL storage enabled -- an obsolete, removed-from-browsers engine; disable to shrink the attack surface.' }
     }
 
     # search targets: every .asar (JS is plaintext inside) + loose main/preload JS.
@@ -121,6 +128,53 @@ function Test-TcpkElectron {
                 -File $t.FullName -Evidence $m.Value -Cwe @('CWE-1188','CWE-94') `
                 -Description ($bad[$k].desc + $note) `
                 -Fix 'Set nodeIntegration:false, contextIsolation:true, sandbox:true, webSecurity:true; expose only a minimal preload API via contextBridge.'
+        }
+
+        # --- TLS certificate-validation bypass (JS) ---
+        # The custom cert-verify path is the highest-impact Electron footgun and is INVISIBLE
+        # to the .NET IL prover, so this JS-aware check is what catches it. Accept-all shapes:
+        #   * setCertificateVerifyProc present but NO callback(-2) reject path -> every cert is
+        #     accepted (the trust-on-first-use-that-never-rejects shape).
+        #   * rejectUnauthorized:false / NODE_TLS_REJECT_UNAUTHORIZED=0 -> validation disabled.
+        #   * an unconditional certificate-error handler that calls callback(true).
+        if ([regex]::IsMatch($code, 'setCertificateVerifyProc\s*\(')) {
+            # A safe custom verifier rejects a mismatch with callback(-2). If none exists, the
+            # callback can only ever succeed -> any server certificate is trusted.
+            $hasReject = [regex]::IsMatch($code, 'callback\s*\(\s*-\s*2\b')
+            if (-not $hasReject) {
+                New-TcpkFinding -Module 'static' -RuleId 'electron.cert-validation-bypass' `
+                    -Severity 'HIGH' -Confidence 'Inferred' `
+                    -Title "Electron certificate verification has no reject path (accepts any cert) in $($t.Name)" `
+                    -File $t.FullName -Evidence 'session.setCertificateVerifyProc present; no callback(-2) reject path found' -Cwe @('CWE-295','CWE-297') `
+                    -Description 'The app overrides Chromium certificate verification via session.setCertificateVerifyProc, but no callback(-2) reject path was found -- so the callback can only succeed and ANY server certificate is trusted. A network/on-path attacker can present a forged certificate and MITM the app''s TLS (credentials, session/WS tokens, control traffic). Trust-on-first-use pinning that re-pins instead of rejecting on mismatch has the same effect. Open the verify callback and confirm it returns callback(-2) on a fingerprint/chain mismatch.' `
+                    -Fix 'Return callback(-2) when the certificate chain or pinned fingerprint does not match; never succeed unconditionally. Scope any self-signed allowance to a verified, exact-matched host.'
+            }
+        }
+        if ([regex]::IsMatch($code, 'rejectUnauthorized["'']?\s*:\s*false')) {
+            New-TcpkFinding -Module 'static' -RuleId 'electron.cert-validation-bypass' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title "TLS validation disabled (rejectUnauthorized:false) in $($t.Name)" `
+                -File $t.FullName -Evidence ([regex]::Match($code, 'rejectUnauthorized["'']?\s*:\s*false').Value) -Cwe @('CWE-295') `
+                -Description 'A TLS request sets rejectUnauthorized:false, disabling certificate validation for that connection -- any server certificate is accepted, so the connection is trivially MITM-able.' `
+                -Fix 'Remove rejectUnauthorized:false; validate (and, if needed, pin) the server certificate.'
+        }
+        if ([regex]::IsMatch($code, 'NODE_TLS_REJECT_UNAUTHORIZED["'']?\s*[:=]\s*["'']?0')) {
+            New-TcpkFinding -Module 'static' -RuleId 'electron.cert-validation-bypass' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title "Process-wide TLS validation disabled (NODE_TLS_REJECT_UNAUTHORIZED=0) in $($t.Name)" `
+                -File $t.FullName -Evidence ([regex]::Match($code, 'NODE_TLS_REJECT_UNAUTHORIZED["'']?\s*[:=]\s*["'']?0').Value) -Cwe @('CWE-295') `
+                -Description 'NODE_TLS_REJECT_UNAUTHORIZED is set to 0, disabling certificate validation for EVERY TLS connection in the Node process -- all HTTPS/WSS traffic becomes MITM-able.' `
+                -Fix 'Never set NODE_TLS_REJECT_UNAUTHORIZED=0 in shipped code; validate certificates per connection.'
+        }
+        if ([regex]::IsMatch($code, 'certificate-error') -and
+            [regex]::IsMatch($code, 'event\.preventDefault\s*\(') -and
+            [regex]::IsMatch($code, 'callback\s*\(\s*true\s*\)')) {
+            New-TcpkFinding -Module 'static' -RuleId 'electron.cert-error-accept-all' `
+                -Severity 'HIGH' -Confidence 'Inferred' `
+                -Title "Electron certificate-error handler trusts the cert in $($t.Name)" `
+                -File $t.FullName -Evidence "certificate-error + event.preventDefault() + callback(true)" -Cwe @('CWE-295') `
+                -Description 'The app handles the certificate-error event with event.preventDefault() + callback(true), overriding Chromium to trust a certificate it rejected. If unconditional, this accepts ANY invalid certificate (MITM). Confirm the handler trusts only a specific, fingerprint-verified certificate.' `
+                -Fix 'Do not override certificate-error to trust rejected certs; if pinning a known self-signed cert, compare its fingerprint and accept only on an exact match.'
         }
 
         # --- preload / contextBridge exposure analysis (G2) ---

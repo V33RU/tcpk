@@ -35,7 +35,7 @@ function Test-TcpkPlaintextConfigs {
 
     $candidateExts = @('.json','.xml','.config','.ini','.txt','.settings','.user','.dat')
     $scan = Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Length -lt 512KB -and $_.Extension -in $candidateExts }
+        Where-Object { $_.Extension -in $candidateExts }
 
     # Placeholder / template values are not real secrets -- skip them so we do not fire HIGH on
     # password=REDACTED, ${PASSWORD}, <your-key>, %TOKEN%, changeme, example, etc.

@@ -56,6 +56,35 @@ claude mcp add tcpk -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File "
 }
 ```
 
+### Optional: auto-approve the read-only tools (Claude Code)
+
+By default Claude Code prompts before each MCP tool call. To run the read-only
+TCPK tools without a prompt, add them to the `permissions.allow` array in your
+own Claude Code settings (`~/.claude/settings.json`). This is YOUR config and is
+opt-in per machine -- TCPK never changes your Claude settings for you.
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "mcp__tcpk__tcpk_info",
+      "mcp__tcpk__tcpk_recon_profile",
+      "mcp__tcpk__tcpk_strings",
+      "mcp__tcpk__tcpk_cve_match",
+      "mcp__tcpk__tcpk_audit",
+      "mcp__tcpk__tcpk_get_findings",
+      "mcp__tcpk__tcpk_exploit_plan"
+    ]
+  }
+}
+```
+
+- It must be STRICT JSON -- no `//` comments and no trailing commas, or Claude
+  Code silently ignores the ENTIRE settings file.
+- Merge into any existing `allow` array; do not replace it.
+- Leave `mcp__tcpk__tcpk_generate_poc` OUT so the gated PoC tool still prompts --
+  it is authorization-gated by design.
+
 ### Claude Desktop
 
 Edit `%APPDATA%\Claude\claude_desktop_config.json`:

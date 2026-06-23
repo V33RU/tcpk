@@ -27,7 +27,7 @@ function Test-TcpkDpapiBlobs {
     $magic = [byte[]](0x01,0x00,0x00,0x00,0xD0,0x8C,0x9D,0xDF,0x01,0x15,0xD1,0x11)
 
     foreach ($f in (Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue)) {
-        if ($f.Length -lt 32 -or $f.Length -gt 16MB) { continue }
+        if ($f.Length -lt 32) { continue }
         try { $head = [IO.File]::ReadAllBytes($f.FullName) | Select-Object -First 12 } catch { continue }
 
         $isDpapi = $true

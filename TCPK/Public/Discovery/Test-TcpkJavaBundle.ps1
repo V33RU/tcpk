@@ -58,7 +58,7 @@ function Test-TcpkJavaBundle {
             $n = 0
             foreach ($entry in $zip.Entries) {
                 if ($n -ge $MaxEntries) { break }
-                if ($entry.Length -le 0 -or $entry.Length -gt 4MB) { continue }
+                if ($entry.Length -le 0) { continue }
                 $isText  = $entry.FullName -match $textRx
                 $isClass = $entry.FullName.ToLowerInvariant().EndsWith('.class')
                 if (-not ($isText -or $isClass)) { continue }

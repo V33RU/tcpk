@@ -24,7 +24,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkDependencyCves** - A19. Parse *.deps.json and flag bundled NuGet deps with known CVEs.
 - **Test-TcpkDeserialization** - A10. Static heuristic for unsafe .NET deserialization patterns.
 - **Test-TcpkDevArtifacts** - A36. Leftover dev/build artifacts shipped in the release (TASVS-CONF-1.4): debug symbols, source, backups, dev-config, API specs, .git/IDE dirs.
-- **Test-TcpkElectron** - A24. Electron / Chromium-embedded insecure configuration.
+- **Test-TcpkElectron** - A24. Electron / Chromium-embedded insecure configuration (renderer flags incl. nodeIntegration / contextIsolation / sandbox / webSecurity / nodeIntegrationInSubFrames / experimentalFeatures / enableBlinkFeatures / nodeIntegrationInWorkers / webviewTag / webSQL / experimentalCanvasFeatures). Also flags TLS certificate-validation bypass in the bundled JS (electron.cert-validation-bypass, electron.cert-error-accept-all): a setCertificateVerifyProc with no callback(-2) reject path, rejectUnauthorized:false, NODE_TLS_REJECT_UNAUTHORIZED=0, or an accept-all certificate-error handler.
+- **Test-TcpkElectronFuses** - A42. Electron Fuses audit: parses the @electron/fuses wire from the app binary and flags insecure fuse states as Confirmed facts (EnableCookieEncryption off = plaintext cookies; RunAsNode / EnableNodeCliInspectArguments on = node-exec / --inspect LOLBins; EnableEmbeddedAsarIntegrityValidation off = tamperable app.asar) plus a full fuse-posture summary.
+- **Test-TcpkElectronJs** - A41. Electron/JS vulnerable-code-pattern scan: dangerous sinks in the bundled JS (child_process/eval/Function/string-setTimeout exec, shell.openExternal file://, innerHTML/document.write/v-html DOM XSS, unsanitized markdown, resource-protocol path traversal, missing navigation guard, prototype pollution, script-initiated navigation (location.href/window.open/javascript:), CSS-injection/scriptless, weak CSP unsafe-inline/eval/hardcoded-nonce, unsafe <webview> tag, wildcard postMessage, dangerous command-line switches, dynamic executeJavaScript, insertCSS, always-allow permission handler) emitted as Inferred leads. Rules in Data/electron-js-sinks.json.
 - **Test-TcpkEmbeddedScripts** - A20. Embedded script files shipped in the package.
 - **Test-TcpkEndpoints** - A09 -- URL extraction + dev / qe / staging classifier.
 - **Test-TcpkEntropySecrets** - A12. Entropy-based secret detection in text / config / source files.
@@ -203,11 +205,15 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Invoke-TcpkDecompile** - Drive ILSpy CLI to decompile and return source context for a method.
 - **Resolve-TcpkFindings** - Triage pipeline: dedupe + false-positive killers + confidence refinement.
 
-## Reporting  (4)
+## Reporting  (8)
 
+- **Compare-TcpkAudit** - Diff two audits (baseline vs current) into NEW / FIXED / REGRESSED / unchanged at rule+location granularity; optional Markdown delta report.
 - **Export-TcpkReportExcel** - Export a multi-sheet .xlsx report: Summary, Findings, DLL Hardening (+ CVEs).
-- **Export-TcpkReportHtml** - Export TCPK findings as a self-contained, interactive HTML report.
+- **Export-TcpkReportHtml** - Export TCPK findings as a self-contained, interactive HTML report (leads with an executive summary + attack-path callout).
+- **Export-TcpkReportIntel** - Export a self-contained offline intel.html dashboard (severity/confidence + evidence ladder, recon endpoint map, filterable cards).
 - **Export-TcpkReportJson** - Export TCPK findings as JSON for CI / re-processing.
+- **Export-TcpkReportMarkdown** - Export findings as a plain-text Markdown report (exec summary + severity-grouped findings with full CVSS / CWE / ATT&CK / TASVS / Desktop-Top-10 mapping).
+- **Export-TcpkReportSarif** - Export SARIF 2.1.0 for GitHub / Azure DevOps code-scanning ingest.
 - **Export-TcpkSbom** - Export a CycloneDX 1.5 SBOM (software bill of materials) of bundled components.
 
 ## LLM (optional, local-first)  (6)
@@ -220,4 +226,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**Total: 154 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (174 public cmdlets in v1.7.0).
+**Total: 156 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (178 public cmdlets in v1.8.0).

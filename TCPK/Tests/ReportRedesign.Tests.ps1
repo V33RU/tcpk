@@ -109,3 +109,19 @@ Describe 'Test-TcpkCallsites skips bundled native runtimes' {
         (Split-Path $hits[0].File -Leaf) | Should -Be 'MyApp.dll'
     }
 }
+
+Describe 'Executive summary narrative (always-on)' {
+    It 'leads with an executive-summary paragraph' {
+        $script:html | Should -Match "class='card execsum'"
+        $script:html | Should -Match 'Executive summary'
+        $script:html | Should -Match 'This audit of'
+    }
+    It 'states the finding count and severity shape' {
+        $script:html | Should -Match 'produced <b>2</b> findings'
+        $script:html | Should -Match '1 critical'
+    }
+    It 'mentions the correlated attack path and the top finding' {
+        $script:html | Should -Match 'correlated attack path'
+        $script:html | Should -Match 'Most significant: Unsigned update'
+    }
+}

@@ -99,7 +99,7 @@ $script:TcpkCvssArchetypes = [ordered]@{
 # always a local temp-file race), so they get a real, tier-matched vector here.
 $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^callsites\.insecure-temp';                                                                                                                            A = 'local-tempfile' }
-    @{ Rx = '^(tls-bypass|tls-handshake|wcf|truststore)\.';                                                                                                         A = 'net-mitm' }
+    @{ Rx = '^(tls-bypass|tls-handshake|wcf|truststore)\.|^electron\.cert';                                                                                                         A = 'net-mitm' }
     @{ Rx = '^(scheme|dns|tls)\.';                                                                                                                                   A = 'cleartext-net' }
     @{ Rx = '^(deser|update)\.';                                                                                                                                    A = 'net-rce' }
     # electron.* renderer-config flaws are RCE-class -- EXCEPT electron.outdated-runtime, whose
@@ -107,6 +107,11 @@ $script:TcpkCvssRuleArchetype = @(
     # per-CVE scores), so it deliberately falls through to the 'assign per finding' note rather
     # than inheriting a misleading net-rce 9.x next to its version-age severity.
     @{ Rx = '^electron\.(?!outdated-runtime)';                                                                                                                      A = 'net-rce' }
+    @{ Rx = '^electronjs\.(exec-sink|open-external|nav-injection|webview-tag|execute-js)';                                                                           A = 'net-rce' }
+    @{ Rx = '^electronjs\.resource-path-traversal';                                                                                                                 A = 'untrusted-parse' }
+    @{ Rx = '^electronjs\.';                                                                                                                                         A = 'web-bridge' }
+    @{ Rx = '^fuses\.cookie';                                                                                                                                       A = 'local-at-rest' }
+    @{ Rx = '^fuses\.';                                                                                                                                             A = 'local-privesc' }
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
     @{ Rx = '^(install-dir|acl|service|driver|ifeo|scheduled-task|app-paths|autostart|com|named-object|pipe-dacl|dll-search|shim|avexclusion|firewall|wmi|uac)\.'; A = 'local-privesc' }

@@ -48,7 +48,6 @@ function Test-TcpkPiiInLogs {
 
     $candidates = Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object {
-            $_.Length -lt 512KB -and
             $_.Extension -in '.log','.txt','.json','.xml','.csv'
         }
 

@@ -224,6 +224,8 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkPacker'              { Test-TcpkPacker              -Path $expanded }
     _RunCheck 'Test-TcpkAuthFlags'           { Test-TcpkAuthFlags           -Path $expanded }
     _RunCheck 'Test-TcpkElectron'            { Test-TcpkElectron            -Path $expanded }
+    _RunCheck 'Test-TcpkElectronJs'          { Test-TcpkElectronJs          -Path $expanded }
+    _RunCheck 'Test-TcpkElectronFuses'       { Test-TcpkElectronFuses       -Path $expanded }
     _RunCheck 'Test-TcpkUnsafeNativeApis'    { Test-TcpkUnsafeNativeApis    -Path $expanded }
     _RunCheck 'Test-TcpkRpcSurface'          { Test-TcpkRpcSurface          -Path $expanded }
     _RunCheck 'Test-TcpkEntropySecrets'      { Test-TcpkEntropySecrets      -Path $expanded }
@@ -599,9 +601,9 @@ function Invoke-TcpkAudit {
     }
 
     # --- write reports ---
-    # Deliverables: HTML + Excel. findings.json stays as the INTERNAL data file
-    # the GUI tabs (Recon/Exploit/Logs) and the MCP server read -- it is not a
-    # "report". Markdown was dropped per requirements.
+    # Deliverables: HTML + Markdown + Excel (+ SARIF + intel). findings.json stays as the
+    # INTERNAL data file the GUI tabs (Recon/Exploit/Logs) and the MCP server read -- it is
+    # not a "report".
     $jsonPath = Join-Path $OutDir 'findings.json'
     $htmlPath = Join-Path $OutDir 'index.html'
     $xlsxPath = Join-Path $OutDir 'report.xlsx'
@@ -625,6 +627,10 @@ function Invoke-TcpkAudit {
     catch { Write-TcpkLog -Level ERROR -Component 'signing.json' -Message $_.Exception.Message | Out-Null }
 
     $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Signing $signing -Sbom $sbom
+    # Markdown deliverable (plain-text, client-facing) alongside the HTML.
+    try {
+        $all | Export-TcpkReportMarkdown -OutFile (Join-Path $OutDir 'report.md') -Target $Target -Profile $targetProfile | Out-Null
+    } catch { Write-TcpkLog -Level ERROR -Component 'report.md' -Message $_.Exception.Message | Out-Null }
     try {
         $all | Export-TcpkReportExcel -OutFile $xlsxPath -Hardening $hardening -Signing $signing -Profile $targetProfile -CveMatches $cveMatches -Sbom $sbom -Target $Target
     } catch { Write-TcpkLog -Level ERROR -Component 'report.excel' -Message $_.Exception.Message | Out-Null }
@@ -637,7 +643,7 @@ function Invoke-TcpkAudit {
     try {
         $all | Export-TcpkReportIntel -OutFile (Join-Path $OutDir 'intel.html') -Target $Target -Profile $targetProfile
     } catch { Write-TcpkLog -Level ERROR -Component 'report.intel' -Message $_.Exception.Message | Out-Null }
-    Write-TcpkLog -Level SUCCESS -Component 'report' -Message "HTML + Excel + SARIF + intel written ($($all.Count) findings, $(@($hardening).Count) DLLs)" | Out-Null
+    Write-TcpkLog -Level SUCCESS -Component 'report' -Message "HTML + Markdown + Excel + SARIF + intel written ($($all.Count) findings, $(@($hardening).Count) DLLs)" | Out-Null
 
     # --- finalize structured run-log (drives the Logs / Runtime tab) ---
     foreach ($sev in 'CRITICAL','HIGH','MEDIUM','LOW','INFO') {

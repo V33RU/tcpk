@@ -23,7 +23,7 @@ $script:TcpkAttackMap = @(
     @{ rx = '^process\.dacl|antiinjection';                                             tech = @('T1055 Process Injection') }
     @{ rx = '^(packer|obfusc)';                                                         tech = @('T1027.002 Software Packing') }
     @{ rx = '^(antidebug|timing|selfintegrity)';                                        tech = @('T1622 Debugger Evasion','T1497 Virtualization/Sandbox Evasion') }
-    @{ rx = '^(tlsbypass|tlspinning|tlsprotocols|insecureschemes|crlocsp|selfhost)';    tech = @('T1557 Adversary-in-the-Middle','T1040 Network Sniffing') }
+    @{ rx = '^(tlsbypass|tlspinning|tlsprotocols|insecureschemes|crlocsp|selfhost)|^electron\.cert';    tech = @('T1557 Adversary-in-the-Middle','T1040 Network Sniffing') }
     @{ rx = '^uac';                                                                     tech = @('T1548.002 Bypass User Account Control') }
     @{ rx = '^callsites';                                                               tech = @('T1059 Command and Scripting Interpreter') }
     @{ rx = '^(updateflow|poisonedupdate|cve\.)';                                       tech = @('T1195.002 Compromise Software Supply Chain') }
@@ -37,6 +37,11 @@ $script:TcpkAttackMap = @(
     @{ rx = '^(piiinlogs|logfiles|telemetry|etw)';                                      tech = @('T1005 Data from Local System') }
     @{ rx = '^(deserial|xxe)';                                                          tech = @('T1059 Command and Scripting Interpreter') }
     @{ rx = '^csv\.';                                                                   tech = @('T1059 Command and Scripting Interpreter','T1048 Exfiltration Over Alternative Protocol') }
+    @{ rx = '^electronjs\.(exec-sink|open-external|proto-pollution|resource-path|nav-injection|webview-tag|execute-js)'; tech = @('T1059 Command and Scripting Interpreter','T1203 Exploitation for Client Execution') }
+    @{ rx = '^electronjs\.(dom-xss|markdown|css-injection)';                                            tech = @('T1059.007 JavaScript') }
+    @{ rx = '^fuses\.cookie';                                                                            tech = @('T1539 Steal Web Session Cookie') }
+    @{ rx = '^fuses\.(run-as-node|node-inspect|node-options)';                                           tech = @('T1218 System Binary Proxy Execution') }
+    @{ rx = '^fuses\.(asar-integrity|load-outside)';                                                     tech = @('T1554 Compromise Host Software Binary') }
 )
 
 function Get-TcpkAttackTechnique {
@@ -67,15 +72,19 @@ function Get-TcpkAttackText {
 $script:TcpkOwaspDaMap = @(
     @{ rx = 'session-override|argv-session';                                                                          da = 'DA2 Broken Authentication and Session Management' }
     @{ rx = '^(cve|deps|dependencycves|sbom|pkgmanifest|osv)\.|outdated-runtime';                                     da = 'DA9 Using Components with Known Vulnerabilities' }
-    @{ rx = '^(tls|tlsbypass|tlspinning|tlsprotocols|scheme|insecureschemes|backend|crlocsp|dns|truststore)|cleartext|update\.url'; da = 'DA7 Insecure Communication' }
+    @{ rx = '^(tls|tlsbypass|tlspinning|tlsprotocols|scheme|insecureschemes|backend|crlocsp|dns|truststore)|cleartext|update\.url|^electron\.cert'; da = 'DA7 Insecure Communication' }
     @{ rx = '^crypto\.|weak-symmetric-crypto|^pem|weak-crypto';                                                       da = 'DA4 Improper Cryptography Usage' }
     @{ rx = '^(authflags|jwt|session|login)|auth-bypass';                                                             da = 'DA2 Broken Authentication and Session Management' }
     @{ rx = '^(deser|xxe|csv)\.|callsites\.(command-execution|ldap-query|ssrf|format-string|sql|xpath)|injection';    da = 'DA1 Injections' }
+    @{ rx = '^electronjs\.(missing-nav|csp|cmdline|permission)';                                                      da = 'DA6 Security Misconfiguration' }
+    @{ rx = '^electronjs\.';                                                                                          da = 'DA1 Injections' }
     @{ rx = '^(secrets|entropy|appconfigsecrets|dpapiblobs|tokencaches|webviewcreds|processenvsecrets|piiinlogs|memsecret|pii)|^browser\.|^strings\.|devartifact|internal-docs|mem\.hygiene|^pagefile|^memory|wer\.'; da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^(authenticode|strongname|codeintegrity|pe-|pe\.|peimports|peexports|native|antidebug|antiinjection|timing|selfintegrity|packer|obfusc|debugflags|procmit|integrity)|loaded\.(unsigned|non-system)|signing'; da = 'DA8 Poor Code Quality' }
     @{ rx = '^(installdir|folderacl|registry|servicepermissions|servicebin|unquoted|processtoken|process\.dacl|uac|programdata|scheduledtaskacl|kerneldrivers)';            da = 'DA5 Improper Authorization' }
     @{ rx = '^(firewall|namedpipe|named-object|com|comobjects|electron|avexclusion|autostart|scheduledtask|wmi|protocolhandlers|shimcache|apppaths|ifeo|selfhost|ports|sxs|rpcsurface|mailslot|wv2|webview|window)'; da = 'DA6 Security Misconfiguration' }
     @{ rx = '^(log|logfiles|etw)|telemetry';                                                                          da = 'DA10 Insufficient Logging and Monitoring' }
+    @{ rx = '^fuses\.cookie';                                                                                          da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^fuses\.';                                                                                                da = 'DA6 Security Misconfiguration' }
 )
 
 # Single primary OWASP Desktop Top 10 category for a RuleId (e.g. 'DA7 Insecure Communication').

@@ -1,0 +1,8 @@
+const { BrowserWindow, session } = require("electron");
+const PIN = "AA:BB:CC";
+const win = new BrowserWindow({
+  webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true }
+});
+session.defaultSession.setCertificateVerifyProc((request, callback) => {
+  if (request.certificate.fingerprint === PIN) { callback(0); } else { callback(-2); }
+});

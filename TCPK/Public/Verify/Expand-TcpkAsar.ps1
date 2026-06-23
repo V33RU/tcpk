@@ -103,7 +103,7 @@ function Expand-TcpkAsar {
         # --- scan extracted text for secrets + insecure Electron flags ---
         if ($extracted -gt 0 -and (Test-Path -LiteralPath $outRoot)) {
             foreach ($ef in (Get-ChildItem -LiteralPath $outRoot -Recurse -File -ErrorAction SilentlyContinue |
-                              Where-Object { $_.Extension.ToLowerInvariant() -in $scanExt -and $_.Length -lt 4MB })) {
+                              Where-Object { $_.Extension.ToLowerInvariant() -in $scanExt })) {
                 $t = $null; try { $t = [IO.File]::ReadAllText($ef.FullName) } catch { continue }
                 if (-not $t) { continue }
                 foreach ($r in $rules) {

@@ -54,7 +54,7 @@ function Test-TcpkRpcChannels {
     if (-not $item) { return }
     $textFiles = if ($item.PSIsContainer) {
         Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension.ToLowerInvariant() -in $scanExt -and $_.Length -lt 6MB }
+            Where-Object { $_.Extension.ToLowerInvariant() -in $scanExt }
     } else { @($item) }
 
     $signalrRx = [regex]'(?i)withUrl\s*\(\s*["''](ws|http)://[^"'']+'

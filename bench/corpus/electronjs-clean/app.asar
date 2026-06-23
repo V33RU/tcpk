@@ -1,0 +1,12 @@
+const { shell, BrowserWindow, protocol } = require("electron");
+const DOMPurify = require("dompurify");
+const marked = require("marked");
+const path = require("path");
+function safe(n) { return DOMPurify.sanitize(marked(n)); }
+function help() { shell.openExternal("https://help.example.com"); }
+protocol.registerFileProtocol("app", (req, cb) => {
+  const p = path.resolve(ROOT, req.url);
+  if (p.startsWith(ROOT)) { cb({ path: p }); }
+});
+const win = new BrowserWindow({ webPreferences: { contextIsolation: true, sandbox: true } });
+win.webContents.on("will-navigate", (e) => e.preventDefault());

@@ -762,6 +762,13 @@ $btnOpenExcel.Width = 140
 $btnOpenExcel.Enabled = $false
 $bottomPanel.Controls.Add($btnOpenExcel)
 
+$btnOpenMarkdown = New-Object System.Windows.Forms.Button
+$btnOpenMarkdown.Text = "Open Markdown"
+$btnOpenMarkdown.Dock = 'Right'
+$btnOpenMarkdown.Width = 130
+$btnOpenMarkdown.Enabled = $false
+$bottomPanel.Controls.Add($btnOpenMarkdown)
+
 $btnOpenFolder = New-Object System.Windows.Forms.Button
 $btnOpenFolder.Text = "Open output folder"
 $btnOpenFolder.Dock = 'Right'
@@ -1466,7 +1473,7 @@ function Enable-ReadableDisabled($b) {
 }
 function Wire-ReadableDisabledButtons {
     if ($script:ReadableDisabledWired) { return }
-    foreach ($b in @($btnRun, $btnPause, $btnOpenHtml, $btnOpenExcel, $btnOpenFolder, $btnTestAi, $btnBrowse, $btnAutoDetect, $btnExpRun)) {
+    foreach ($b in @($btnRun, $btnPause, $btnOpenHtml, $btnOpenExcel, $btnOpenMarkdown, $btnOpenFolder, $btnTestAi, $btnBrowse, $btnAutoDetect, $btnExpRun)) {
         Enable-ReadableDisabled $b
     }
     $script:ReadableDisabledWired = $true
@@ -1525,7 +1532,7 @@ function Apply-ModernStyle {
     $btnRun.Tag = 'keep'
     Style-FlatBtn $btnRun $script:Accent $script:AccentText $script:Accent
     $btnRun.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
-    foreach ($b in @($btnBrowse, $btnAutoDetect, $btnTestAi, $btnTheme, $btnPause, $btnOpenHtml, $btnOpenExcel, $btnOpenFolder)) {
+    foreach ($b in @($btnBrowse, $btnAutoDetect, $btnTestAi, $btnTheme, $btnPause, $btnOpenHtml, $btnOpenExcel, $btnOpenMarkdown, $btnOpenFolder)) {
         Style-FlatBtn $b $pal.PanelBg $pal.LabelFg $script:Accent
     }
     if ($btnExpRun) {
@@ -1777,6 +1784,7 @@ $btnRun.Add_Click({
     $btnRun.Enabled = $false
     $btnOpenHtml.Enabled = $false
     $btnOpenExcel.Enabled = $false
+    $btnOpenMarkdown.Enabled = $false
     $btnOpenFolder.Enabled = $false
     # pause/resume: clear any stale signal, then enable Pause for this run
     Remove-Item -LiteralPath $script:PauseFlag -Force -ErrorAction SilentlyContinue
@@ -2003,6 +2011,7 @@ $btnRun.Add_Click({
     Remove-Item -LiteralPath $script:PauseFlag -Force -ErrorAction SilentlyContinue
     $btnOpenHtml.Enabled = (Test-Path (Join-Path $outDir 'index.html'))
     $btnOpenExcel.Enabled = (Test-Path (Join-Path $outDir 'report.xlsx'))
+    $btnOpenMarkdown.Enabled = (Test-Path (Join-Path $outDir 'report.md'))
     $btnOpenFolder.Enabled = $true
 })
 
@@ -2014,6 +2023,11 @@ $btnOpenHtml.Add_Click({
 $btnOpenExcel.Add_Click({
     $xl = Join-Path $script:CurrentOutDir 'report.xlsx'
     if (Test-Path $xl) { Start-Process $xl }
+})
+
+$btnOpenMarkdown.Add_Click({
+    $md = Join-Path $script:CurrentOutDir 'report.md'
+    if (Test-Path $md) { Start-Process $md }
 })
 
 $btnOpenFolder.Add_Click({

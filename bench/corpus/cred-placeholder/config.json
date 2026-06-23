@@ -1,0 +1,6 @@
+{
+  "db":   { "password": "${DB_PASSWORD}" },
+  "demo": { "password": "changeme" },
+  "tmpl": { "password": "<your-password>" },
+  "empty":{ "password": "" }
+}

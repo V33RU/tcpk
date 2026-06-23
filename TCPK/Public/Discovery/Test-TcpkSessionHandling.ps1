@@ -121,7 +121,7 @@ function Test-TcpkSessionHandling {
     }
     if ((Get-Item -LiteralPath $Path).PSIsContainer) {
         Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension.ToLowerInvariant() -in $textExt -and $_.Length -lt 4MB } |
+            Where-Object { $_.Extension.ToLowerInvariant() -in $textExt } |
             ForEach-Object { $targets.Add($_) }
     } elseif ((Get-Item -LiteralPath $Path).Extension.ToLowerInvariant() -in $textExt) {
         $targets.Add((Get-Item -LiteralPath $Path))

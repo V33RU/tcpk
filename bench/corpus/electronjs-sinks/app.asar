@@ -1,0 +1,14 @@
+const { shell, session, app } = require("electron");
+const cp = require("child_process");
+cp.exec(userControlledCommand);
+target.innerHTML = userControlledHtml;
+shell.openExternal("file:///Applications/Calculator.app");
+const md = require("marked");
+container.innerHTML = md(noteFromServer);
+location.href = goToPage;
+el.style.cssText = injectedCss;
+session.defaultSession.webRequest.onHeadersReceived((d, cb) => cb({ responseHeaders: { "Content-Security-Policy": ["script-src 'unsafe-eval'"] } }));
+const wv = '<webview src="https://x" nodeintegration></webview>';
+frame.postMessage(payload, "*");
+app.commandLine.appendSwitch("ignore-certificate-errors");
+wc.executeJavaScript(remoteCode);

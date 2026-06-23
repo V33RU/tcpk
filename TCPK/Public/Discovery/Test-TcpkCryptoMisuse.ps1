@@ -39,7 +39,6 @@ function Test-TcpkCryptoMisuse {
     foreach ($f in $files) {
         if ($n -ge $cap) { break }
         if ($f.Extension.ToLowerInvariant() -notin $textExt) { continue }
-        if ($f.Length -gt 8MB) { continue }
         if (Test-TcpkIsFrameworkFile $f.Name) { continue }
         if ($f.Name -match '(?i)\.(deps|runtimeconfig|nuspec)\.json$') { continue }
         $v = Read-TcpkStringViews -Path $f.FullName

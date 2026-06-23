@@ -127,6 +127,24 @@ function Export-TcpkReportHtml {
 </section>
 "@
 
+        # ---------------- executive summary narrative (always-on) ----------------
+        # Lead the report with the story, not a table: what was audited, the severity shape,
+        # how much is proven vs needs manual verification, whether correlated attack paths
+        # exist, and the few findings that matter most.
+        $execTarget = if ($Profile -and $Profile.Name) { ConvertTo-TcpkHtmlSafe ([string]$Profile.Name) } elseif ($Target) { ConvertTo-TcpkHtmlSafe ([string]$Target) } else { 'the target' }
+        $sevPhrase = (@(foreach ($s in $sevOrder) { if ($sevCounts[$s] -gt 0) { "$($sevCounts[$s]) $($s.ToLower())" } }) -join ', ')
+        if (-not $sevPhrase) { $sevPhrase = 'no' }
+        $evidBits = @()
+        if ($confProven    -gt 0) { $evidBits += "$confProven proven by IL/dynamic analysis" }
+        if ($confConfirmed -gt 0) { $evidBits += "$confConfirmed confirmed" }
+        if ($confInferred  -gt 0) { $evidBits += "$confInferred to verify manually" }
+        $evidPhrase = if ($evidBits.Count) { ' Evidence grade: ' + ($evidBits -join '; ') + '.' } else { '' }
+        $chainCount = @($all | Where-Object { "$($_.RuleId)" -like 'chain.*' -or "$($_.Module)" -eq 'chain' }).Count
+        $chainPhrase = if ($chainCount -gt 0) { " $chainCount correlated attack path$(if ($chainCount -ne 1){'s'}) identified (see Likely attack paths below)." } else { '' }
+        $topF = @($all | Where-Object { "$($_.Severity)" -in 'CRITICAL','HIGH' } | Sort-Object @{ E = { Get-TcpkSeverityRank $_.Severity }; Descending = $true } | Select-Object -First 3)
+        $topPhrase = if ($topF.Count) { ' Most significant: ' + (($topF | ForEach-Object { ConvertTo-TcpkHtmlSafe ([string]$_.Title) }) -join '; ') + '.' } else { '' }
+        $execSummaryHtml = "<section class='card execsum'><h3 class='exechead'>Executive summary</h3><p class='exectext'>This audit of <b>$execTarget</b> produced <b>$($all.Count)</b> finding$(if ($all.Count -ne 1){'s'}) ($sevPhrase).$evidPhrase$chainPhrase$topPhrase</p></section>"
+
         # ---------------- header card ----------------
         $cardHtml = ''
         if ($Profile) {
@@ -739,6 +757,7 @@ code.path{font-size:11.5px;word-break:break-all}
 .auditnotes .anlabel{font-weight:700;color:#9a8a3a;text-transform:uppercase;letter-spacing:.04em;font-size:10.5px;margin-right:6px}
 .confsum .confgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
 .cmetric{display:flex;flex-direction:column;gap:2px;background:#fafbfc;border:1px solid #ececec;border-radius:6px;padding:9px 11px}
+.execsum{background:#fbfcfe}.exechead{margin:0 0 6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:#34495e}.exectext{margin:0;line-height:1.55;color:#2c3e50;font-size:13.5px}
 .cmlabel{font-size:11px;color:#888}
 .cmval{font-size:22px;font-weight:700}
 .apath{border-color:#e3b7b7;background:#fdf6f6}
@@ -910,6 +929,7 @@ $css
   <h1>TCPK Security Audit Report</h1>
   <div class='sub'>Generated $generatedAt UTC &middot; $($all.Count) findings</div>
 
+$execSummaryHtml
 $cardHtml
 $chartHtml
 $attackPathHtml

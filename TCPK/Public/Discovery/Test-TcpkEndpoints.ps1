@@ -30,7 +30,6 @@ function Test-TcpkEndpoints {
     $all = @{}
     foreach ($f in $files) {
         if (Test-TcpkIsFrameworkFile $f.Name) { continue }
-        if ($f.Length -gt 32MB) { continue }
         $views = Read-TcpkStringViews -Path $f.FullName
         if (-not $views) { continue }
         foreach ($view in @($views.Utf8, $views.Utf16Le)) {

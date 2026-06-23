@@ -1,0 +1,4 @@
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"userid":"svc_report","password":"Bench-Synthetic-7Q","remember":true}

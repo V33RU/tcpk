@@ -1,0 +1,12 @@
+const { BrowserWindow } = require("electron");
+const win = new BrowserWindow({
+  webPreferences: {
+    nodeIntegrationInSubFrames: true,
+    experimentalFeatures: true,
+    enableBlinkFeatures: "CSSVariables,LayoutNG",
+    nodeIntegrationInWorkers: true,
+    webviewTag: true,
+    webSQL: true,
+    experimentalCanvasFeatures: true
+  }
+});

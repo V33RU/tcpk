@@ -67,56 +67,75 @@ function Test-TcpkSecrets {
         Get-Item -LiteralPath $Path
     }
 
+    # Scan one decoded text view against every rule, emitting findings. Shared by the
+    # full-load path (normal files) and the chunked-streaming path (large files). Reads
+    # $rules / $seen / $f from the enclosing scope; $seen dedupes within a file (and across
+    # the overlapping chunks of a large file). The matched value is shown un-redacted --
+    # this is a local operator-run tool, so treat the report files as sensitive.
+    $scanText = {
+        param([string]$Text, [string]$Src)
+        if ([string]::IsNullOrEmpty($Text)) { return }
+        foreach ($r in $rules) {
+            # Cheap, case-insensitive literal pre-filter (skip a rule whose literal prefix
+            # is nowhere in the view). Case-insensitive because the rules use IgnoreCase.
+            if ($r._QuickLit -and ($Text.IndexOf($r._QuickLit, [System.StringComparison]::OrdinalIgnoreCase) -lt 0)) { continue }
+            foreach ($m in $r._RX.Matches($Text)) {
+                $hit = $m.Value
+                # Placeholder / documentation guard: skip format examples, not real credentials
+                # (HTML entities, angle-bracket templates, common filler words).
+                if ($hit -match '(?i)(&lt|&gt|&amp|<[a-z_ ]{2,}>|\bsnipped\b|\bplaceholder\b|\bexample\b|\byour[-_ ]|\bchange[-_ ]?me\b|\breplace[-_ ]?me\b|\bdummy\b|\bsample\b|\bredacted\b|x{6,}|\.\.\.|\*{4,})') { continue }
+                $key = "$($r.id)::" + $hit.Substring(0, [Math]::Min(80, $hit.Length))
+                if ($seen.ContainsKey($key)) { continue }
+                $seen[$key] = $true
+                # Inferred: a regex match confirms the FORMAT is present, not that the credential is live.
+                New-TcpkFinding -Module 'static' -RuleId "secrets.$($r.id)" `
+                    -Severity $r.severity -Confidence 'Inferred' `
+                    -Title $r.title -File $f.FullName `
+                    -Evidence "$hit [src=$Src]" `
+                    -Cwe ([string[]]$r.cwe) -Fix $r.fix
+            }
+        }
+    }
+
     foreach ($f in $files) {
         if ($f.Extension.ToLowerInvariant() -in $skipExt) { continue }
         if (Test-TcpkIsFrameworkFile $f.Name)             { continue }
-        if ($f.Length -gt 16MB)                            { continue }
 
-        $views = Read-TcpkStringViews -Path $f.FullName
-        if (-not $views) { continue }
-
+        # NO size cap: EVERY file is analyzed regardless of size. Files up to a memory-safe
+        # threshold are loaded whole (and view-cached); larger files are streamed in bounded
+        # OVERLAPPING chunks -- so nothing is ever skipped for being big, and a multi-GB file
+        # cannot exhaust memory. The overlap (64KB) exceeds the longest rule match, so a secret
+        # straddling a chunk boundary is still caught.
         $seen = @{}
-        foreach ($view in @(
-            @{ Src='utf8';        T=$views.Utf8       },
-            @{ Src='utf16le';     T=$views.Utf16Le    },
-            @{ Src='utf16le-odd'; T=$views.Utf16LeOdd }   # odd-byte-aligned wide strings (~half of them) -- the view was decoded but never scanned
-        )) {
-            foreach ($r in $rules) {
-                # Cheap pre-filter: skip rule if its literal prefix isn't in the view.
-                # MUST be case-insensitive -- the rules use IgnoreCase, so a literal
-                # like 'server' must still match 'Server' in the file. A case-sensitive
-                # Contains() here silently skips rules and MISSES real secrets.
-                if ($r._QuickLit -and ($view.T.IndexOf($r._QuickLit, [System.StringComparison]::OrdinalIgnoreCase) -lt 0)) { continue }
-                foreach ($m in $r._RX.Matches($view.T)) {
-                    $hit = $m.Value
-
-                    # Placeholder / documentation guard: skip matches that are
-                    # clearly format examples, not real credentials. Catches HTML
-                    # entity placeholders (Pwd=&lt;snipped&gt;), angle-bracket
-                    # templates (pwd=<password>), and common doc filler words.
-                    if ($hit -match '(?i)(&lt|&gt|&amp|<[a-z_ ]{2,}>|\bsnipped\b|\bplaceholder\b|\bexample\b|\byour[-_ ]|\bchange[-_ ]?me\b|\bdummy\b|\bsample\b|\bredacted\b|x{6,}|\.\.\.|\*{4,})') {
-                        continue
+        if ($f.Length -le 64MB) {
+            $views = Read-TcpkStringViews -Path $f.FullName
+            if (-not $views) { continue }
+            & $scanText $views.Utf8       'utf8'
+            & $scanText $views.Utf16Le    'utf16le'
+            & $scanText $views.Utf16LeOdd 'utf16le-odd'
+        }
+        else {
+            try {
+                $fsr = [System.IO.FileStream]::new($f.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+                       ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+                try {
+                    $chunkSize = 16MB; $overlap = 64KB
+                    $buf = New-Object byte[] ([int](16MB + 64KB))
+                    $carry = 0
+                    while ($true) {
+                        $n = $fsr.Read($buf, $carry, $chunkSize)
+                        $total = $carry + $n
+                        if ($total -le 0) { break }
+                        & $scanText ([System.Text.Encoding]::UTF8.GetString($buf, 0, $total))    'utf8'
+                        & $scanText ([System.Text.Encoding]::Unicode.GetString($buf, 0, $total)) 'utf16le'
+                        if ($total -gt 1) { & $scanText ([System.Text.Encoding]::Unicode.GetString($buf, 1, $total - 1)) 'utf16le-odd' }
+                        if ($n -le 0) { break }
+                        $keep = [Math]::Min($overlap, $total)
+                        [Array]::Copy($buf, $total - $keep, $buf, 0, $keep)
+                        $carry = $keep
                     }
-
-                    $key = "$($r.id)::" + $hit.Substring(0, [Math]::Min(80, $hit.Length))
-                    if ($seen.ContainsKey($key)) { continue }
-                    $seen[$key] = $true
-
-                    # Show the FULL matched value (un-redacted). This is a local, operator-run
-                    # audit tool, so the operator needs to see/verify the actual secret. NOTE: the
-                    # report files now contain live secret values -- treat the output as sensitive.
-                    $redacted = $hit
-
-                    # A regex match confirms the secret FORMAT is present, not that
-                    # the credential is live. Per the liveness rule, this is Inferred
-                    # until a confirmation step proves the key authenticates.
-                    New-TcpkFinding -Module 'static' -RuleId "secrets.$($r.id)" `
-                        -Severity $r.severity -Confidence 'Inferred' `
-                        -Title $r.title -File $f.FullName `
-                        -Evidence "$redacted [src=$($view.Src)]" `
-                        -Cwe ([string[]]$r.cwe) -Fix $r.fix
-                }
-            }
+                } finally { $fsr.Dispose() }
+            } catch { }
         }
     }
 }
