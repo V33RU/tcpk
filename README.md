@@ -183,4 +183,4 @@ violate computer-misuse law and licence terms. Provided **AS IS**, no warranty. 
 
 ---
 
-TCPK v1.8.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v1.8.1 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.

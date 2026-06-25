@@ -78,7 +78,16 @@ function Invoke-TcpkAudit {
         # shipped NuGet components (name+version) are sent to the OSV API (api.osv.dev) for live
         # vulnerability matching on top of the offline catalog. No findings/secrets/target name
         # leave the box -- only public package identifiers.
-        [switch]$OnlineCve
+        [switch]$OnlineCve,
+        # Auto-attach: when -ProcessName is NOT supplied, TCPK tries to find the target's own
+        # running process (install-dir exe intersected with the running process list) so the
+        # live-process (Bucket E) checks fire automatically. -NoAutoProcess disables that; an
+        # explicit -ProcessName always wins.
+        [switch]$NoAutoProcess,
+        # Self-elevation: if set AND the current session is not elevated, relaunch the same
+        # audit as admin via UAC (Start-Process -Verb RunAs) so the elevation-gated checks
+        # (Defender exclusions, deeper ACLs) actually run. Never auto-elevates without this.
+        [switch]$Elevate
     )
 
     # --- preflight ---
@@ -106,6 +115,54 @@ function Invoke-TcpkAudit {
         $OutDir = Join-Path (Get-Location) ("out\${leaf}_${stamp}")
     }
     if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
+
+    # --- self-elevation (opt-in via -Elevate): relaunch as admin so elevation-gated checks
+    # (Defender exclusions, deeper ACLs) actually run. Never auto-elevates without the flag.
+    # On a successful relaunch the parent waits, then returns the elevated child's findings.
+    # On UAC decline / failure it falls through and continues NON-elevated (coverage.json will
+    # show the NeedsElevation rows). ---
+    $isElevated = $false
+    try {
+        $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltinRole]::Administrator)
+    } catch { }
+    if ($Elevate -and -not $isElevated) {
+        Write-TcpkInfo "Self-elevation requested (-Elevate); session is not elevated. Relaunching as admin via UAC..."
+        $fwd = @{}
+        foreach ($k in $PSBoundParameters.Keys) { if ($k -ne 'Elevate') { $fwd[$k] = $PSBoundParameters[$k] } }
+        $fwd['OutDir'] = $OutDir
+        $fwd['Acknowledge'] = $true
+        $manifest = Join-Path $script:TcpkRoot 'TCPK.psd1'
+        # Build a self-contained launcher (.ps1) -- avoids all -Command quoting pitfalls.
+        $sb = New-Object System.Text.StringBuilder
+        [void]$sb.AppendLine('$p = @{')
+        foreach ($k in $fwd.Keys) {
+            $v = $fwd[$k]
+            if ($v -is [switch]) { if ($v.IsPresent) { [void]$sb.AppendLine("  $k = `$true") } }
+            elseif ($v -is [bool]) { [void]$sb.AppendLine("  $k = `$" + $v.ToString().ToLowerInvariant()) }
+            else { [void]$sb.AppendLine("  $k = '" + ("$v" -replace "'", "''") + "'") }
+        }
+        [void]$sb.AppendLine('}')
+        [void]$sb.AppendLine("Import-Module '$manifest' -Force")
+        [void]$sb.AppendLine('Invoke-TcpkAudit @p')
+        $launcher = Join-Path $OutDir '_tcpk-elevated-launch.ps1'
+        Set-Content -LiteralPath $launcher -Value $sb.ToString() -Encoding UTF8
+        $relaunched = $false
+        try {
+            $proc = Start-Process powershell.exe -Verb RunAs -PassThru -Wait `
+                -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $launcher -ErrorAction Stop
+            $relaunched = $true
+            Write-TcpkInfo "Elevated audit finished (exit $($proc.ExitCode)). Reading its reports from $OutDir."
+        } catch {
+            Write-TcpkInfo "Elevation declined or failed ($($_.Exception.Message)); continuing NON-elevated. Elevation-gated checks will be flagged in coverage.json."
+        }
+        if ($relaunched) {
+            $jf = Join-Path $OutDir 'findings.json'
+            if (Test-Path -LiteralPath $jf) {
+                try { return , (@(Get-Content -LiteralPath $jf -Raw | ConvertFrom-Json)) } catch { return }
+            }
+            return
+        }
+    }
 
     # Unwrap a sealed container target (MSIX / MSI / ZIP) to a folder to scan; a directory,
     # a single exe, or anything else is scanned as-is. Degrades to $Target on any failure.
@@ -139,6 +196,7 @@ function Invoke-TcpkAudit {
         if ($ScanProfile -eq 'Quick' -and ($quickSkip -contains $Name)) {
             Write-Information -MessageData ("  {0,-32}  skipped (Quick profile)" -f $Name) -InformationAction Continue
             Write-TcpkLog -Level INFO -Component $Name -Message 'skipped (Quick profile)' | Out-Null
+            Add-TcpkCoverage -Name $Name -Status 'SkippedQuickProfile'
             return
         }
         # Cooperative pause: while the GUI's pause-signal file exists, hold here at the
@@ -161,11 +219,16 @@ function Invoke-TcpkAudit {
             Write-Information -MessageData $msg -InformationAction Continue
             $lvl = if ($count -gt 0) { 'SUCCESS' } else { 'INFO' }
             Write-TcpkLog -Level $lvl -Component $Name -Message "$count findings" -DurationMs ([int]$sw.Elapsed.TotalMilliseconds) | Out-Null
+            # Coverage: Ran, unless the check emitted only a self-skip stub (needs-elevation /
+            # not-implemented) -- classify so coverage.json reflects what truly executed.
+            $covStatus = Get-TcpkCoverageStatusFromFindings -Findings $r
+            Add-TcpkCoverage -Name $Name -Status $covStatus -Count $count -DurationMs ([int]$sw.Elapsed.TotalMilliseconds)
         } catch {
             $sw.Stop()
             $msg = "  {0,-32}  FAILED  ({1})" -f $Name, $_.Exception.Message
             Write-Information -MessageData $msg -InformationAction Continue
             Write-TcpkLog -Level ERROR -Component $Name -Message $_.Exception.Message -DurationMs ([int]$sw.Elapsed.TotalMilliseconds) | Out-Null
+            Add-TcpkCoverage -Name $Name -Status 'Failed' -DurationMs ([int]$sw.Elapsed.TotalMilliseconds)
             $all.Add( (New-TcpkFinding -Module 'meta' -RuleId 'meta.cmdlet-failed' `
                 -Severity 'INFO' -Confidence 'Skipped' `
                 -Title "Check '$Name' did not complete" `
@@ -177,10 +240,12 @@ function Invoke-TcpkAudit {
     Write-Information -MessageData "" -InformationAction Continue
     Write-Information -MessageData "Running checks..." -InformationAction Continue
 
-    # Reset structured run-log + per-audit file-text cache + IL assembly cache
+    # Reset structured run-log + per-audit file-text cache + IL assembly cache + coverage manifest
     Clear-TcpkRunLog
     Clear-TcpkTextCache
     Clear-TcpkCecilCache
+    Clear-TcpkCoverage
+    $script:TcpkAutoProcess = $null
     Write-TcpkLog -Level INFO -Component 'audit' -Message "Audit start: $Target" | Out-Null
     if ($idTerms.Count) {
         Write-Information -MessageData ("Identity search terms ({0}): {1}" -f $idTerms.Count, ($idTerms -join ', ')) -InformationAction Continue
@@ -319,7 +384,26 @@ function Invoke-TcpkAudit {
     }
 
     # ----- Bucket E (runtime / live process, 14 cmdlets) -----
-    if ($ProcessName -and (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)) {
+    # Auto-attach: if the caller did not name a process (and did not opt out), find the
+    # target's own running process so these checks fire without -ProcessName. Read-only.
+    if (-not $ProcessName -and -not $NoAutoProcess) {
+        $auto = $null
+        try { $auto = Resolve-TcpkTargetProcess -Path $expanded -IdTerms $idTerms } catch { }
+        if ($auto -and $auto.Name) {
+            $ProcessName = $auto.Name
+            $script:TcpkAutoProcess = $auto
+            Write-Information -MessageData ("  [auto-process] attached to '{0}' (PID {1}); live-process checks enabled. -NoAutoProcess to disable." -f $auto.Name, $auto.ProcId) -InformationAction Continue
+            Write-TcpkLog -Level INFO -Component 'audit.autoprocess' -Message "attached to $($auto.Name) (PID $($auto.ProcId))" | Out-Null
+        }
+    }
+    $liveProcChecks = @(
+        'Test-TcpkProcessMitigations','Test-TcpkLoadedModuleSignatures','Test-TcpkListeningPorts',
+        'Test-TcpkLoadedModulePaths','Test-TcpkHandleEnumeration','Test-TcpkWindowEnumeration',
+        'Test-TcpkGuiInspector','Test-TcpkProcessToken','Test-TcpkChildProcesses',
+        'Test-TcpkProcessDacl','Test-TcpkProcessEnvSecrets'
+    )
+    $liveProcOn = [bool]($ProcessName -and (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue))
+    if ($liveProcOn) {
         _RunCheck 'Test-TcpkProcessMitigations'      { Test-TcpkProcessMitigations      -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkLoadedModuleSignatures'  { Test-TcpkLoadedModuleSignatures  -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkListeningPorts'          { Test-TcpkListeningPorts          -ProcessName $ProcessName }
@@ -331,6 +415,10 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkChildProcesses'          { Test-TcpkChildProcesses          -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkProcessDacl'             { Test-TcpkProcessDacl             -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkProcessEnvSecrets'       { Test-TcpkProcessEnvSecrets       -ProcessName $ProcessName }
+    } else {
+        # No live process resolved -> record the gated live-process checks so coverage.json
+        # shows them as GatedNoProcess instead of silently omitting them.
+        foreach ($n in $liveProcChecks) { Add-TcpkCoverage -Name $n -Status 'GatedNoProcess' }
     }
     if ($idTerms.Count) {
         _RunCheck 'Test-TcpkNamedPipes'              { Test-TcpkNamedPipes              -NameLike $idTerms }
@@ -487,6 +575,17 @@ function Invoke-TcpkAudit {
         Write-TcpkLog -Level ERROR -Component 'cve.match' -Message $_.Exception.Message | Out-Null
     }
 
+    # Make the electron.outdated-runtime finding REPORT WHAT THE OSV CHECK ACTUALLY DID (advisories
+    # found / queried-but-empty / offline) instead of always showing the static "Run with -OnlineCve"
+    # hint -- see Update-TcpkRuntimeCveText. Best-effort; never breaks the audit.
+    try {
+        $ort = $all | Where-Object { "$($_.RuleId)" -eq 'electron.outdated-runtime' } | Select-Object -First 1
+        if ($ort) {
+            Update-TcpkRuntimeCveText -Finding $ort -CveMatches $cveMatches -OnlineCve ([bool]$OnlineCve) | Out-Null
+            Write-TcpkLog -Level INFO -Component 'cve.electron-wire' -Message "outdated-runtime text reconciled with OSV result (online=$([bool]$OnlineCve))" | Out-Null
+        }
+    } catch { }
+
     # --- correlate findings into exploit chains (raises co-occurring conditions
     #     to their true, combined severity; appended so reports + summary see them) ---
     try {
@@ -594,10 +693,20 @@ function Invoke-TcpkAudit {
         if ($llmRan) { $llmInfo = "$($lc.provider) / $($lc.model) (ran inline; code-construct findings annotated)" }
         elseif ($lc -and $lc.enabled) { $llmInfo = "$($lc.provider) / $($lc.model) (available; pass -EnableLlm or pipe to Invoke-TcpkLlmCodeJudgment)" }
     } catch { }
+    # Coverage summary + the non-Ran checks (gated / needs-elevation / skipped / failed), so the
+    # report itself answers "was this 100%?" -- full per-check detail lives in coverage.json.
+    $covLine = ''; $covGaps = ''
+    try { $covLine = Get-TcpkCoverageSummaryLine } catch { }
+    try {
+        $gapNames = @(Get-TcpkCoverage | Where-Object { $_.status -ne 'Ran' } | ForEach-Object { "$($_.name) [$($_.status)]" })
+        if ($gapNames.Count) { $covGaps = ($gapNames -join ', ') }
+    } catch { }
     $scope = [pscustomobject]@{
-        Buckets = $bucketsRun
-        Llm     = $llmInfo
-        Timing  = "scan $([int]$auditSw.Elapsed.TotalSeconds)s"
+        Buckets      = $bucketsRun
+        Llm          = $llmInfo
+        Timing       = "scan $([int]$auditSw.Elapsed.TotalSeconds)s"
+        Coverage     = $covLine
+        CoverageGaps = $covGaps
     }
 
     # --- write reports ---
@@ -655,6 +764,21 @@ function Invoke-TcpkAudit {
         -Message "Audit complete in $([int]$auditSw.Elapsed.TotalSeconds)s -- $($all.Count) findings, $errCount check error(s)" `
         -DurationMs ([int]$auditSw.Elapsed.TotalMilliseconds) | Out-Null
     try { Save-TcpkRunLog -Dir $OutDir } catch { }
+
+    # --- coverage manifest (which checks ran / were gated / skipped / failed) ---
+    try {
+        $attachedPid = $null
+        if ($script:TcpkAutoProcess -and $script:TcpkAutoProcess.ProcId) { $attachedPid = $script:TcpkAutoProcess.ProcId }
+        elseif ($ProcessName) { try { $attachedPid = (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Select-Object -First 1).Id } catch { } }
+        Save-TcpkCoverage -Dir $OutDir -Elevated $isElevated -ProcessAttached "$ProcessName" `
+            -AttachedPid $attachedPid -OnlineCve ([bool]$OnlineCve) -ScanProfile $ScanProfile `
+            -GeneratedAt ((Get-Date).ToString('o')) | Out-Null
+        Write-Information -MessageData ("  " + (Get-TcpkCoverageSummaryLine)) -InformationAction Continue
+        Write-TcpkLog -Level INFO -Component 'coverage' -Message (Get-TcpkCoverageSummaryLine) | Out-Null
+    } catch {
+        Write-TcpkLog -Level ERROR -Component 'coverage' -Message $_.Exception.Message | Out-Null
+    }
+
     Clear-TcpkCecilCache   # release the cached IL assemblies (file handles) now the audit is done
 
     Write-Information -MessageData ("Reports written to: " + $OutDir) -InformationAction Continue

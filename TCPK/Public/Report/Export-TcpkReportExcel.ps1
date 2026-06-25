@@ -164,6 +164,18 @@ function Export-TcpkReportExcel {
             }
         }
 
+        # ---------- Coverage sheet (which checks ran / gated / skipped / failed) ----------
+        # Read from the in-module coverage manifest populated during the audit (same run).
+        $covData = @()
+        try { $covData = @(Get-TcpkCoverage) } catch { }
+        if ($covData.Count) {
+            $covRows = New-Object 'System.Collections.Generic.List[object]'
+            foreach ($c in ($covData | Sort-Object @{e={ if ($_.status -eq 'Ran') { 1 } else { 0 } }}, name)) {
+                $covRows.Add(@("$($c.name)", "$($c.status)", "$($c.count)", "$($c.durationMs)"))
+            }
+            $sheets += [ordered]@{ Name = 'Coverage'; Headers = @('Check','Status','Findings','Duration (ms)'); Rows = $covRows; Widths = @(36, 22, 10, 14) }
+        }
+
         # ---------- SBOM sheet (parity with HTML SBOM + sbom.cdx.json) ----------
         if ($Sbom -and @($Sbom).Count) {
             $sbomRows = foreach ($s in @($Sbom)) {

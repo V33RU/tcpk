@@ -205,7 +205,15 @@ function Export-TcpkReportHtml {
                 if ($Scope.Buckets) { $parts.Add("<b>Buckets:</b> " + (ConvertTo-TcpkHtmlSafe ([string]$Scope.Buckets))) }
                 if ($Scope.Llm)     { $parts.Add("<b>LLM:</b> "     + (ConvertTo-TcpkHtmlSafe ([string]$Scope.Llm))) }
                 if ($Scope.Timing)  { $parts.Add("<b>Time:</b> "    + (ConvertTo-TcpkHtmlSafe ([string]$Scope.Timing))) }
+                if ($Scope.PSObject.Properties['Coverage'] -and $Scope.Coverage) {
+                    $parts.Add("<b>Coverage:</b> " + (ConvertTo-TcpkHtmlSafe ([string]$Scope.Coverage)))
+                }
                 if ($parts.Count) { $scopeHtml = "<div class='scope'>" + ($parts -join '  &middot;  ') + "</div>" }
+                # Non-Ran checks (gated / needs-elevation / skipped / failed), listed so a
+                # less-than-100% run is visible rather than implied. Full detail in coverage.json.
+                if ($Scope.PSObject.Properties['CoverageGaps'] -and $Scope.CoverageGaps) {
+                    $scopeHtml += "<div class='scope covgaps'><b>Coverage gaps:</b> " + (ConvertTo-TcpkHtmlSafe ([string]$Scope.CoverageGaps)) + "</div>"
+                }
             }
 
             $cardHtml = @"

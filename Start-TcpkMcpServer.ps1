@@ -291,7 +291,7 @@ while ($true) {
                 Send-Result $id ([ordered]@{
                     protocolVersion = '2024-11-05'
                     capabilities    = @{ tools = @{} }
-                    serverInfo      = @{ name = 'tcpk'; version = '1.8.0' }
+                    serverInfo      = @{ name = 'tcpk'; version = '1.8.1' }
                 })
             }
             'notifications/initialized' { }          # notification -> no reply

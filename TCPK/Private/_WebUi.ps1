@@ -272,6 +272,7 @@ function Build-TcpkWebResult {
         @{ file = 'report.xlsx';  label = 'Excel report' },
         @{ file = 'report.sarif'; label = 'SARIF (code-scanning)' },
         @{ file = 'sbom.cdx.json';label = 'SBOM (CycloneDX)' },
+        @{ file = 'coverage.json';label = 'Coverage manifest' },
         @{ file = 'run.log';      label = 'Run log (text)' }
     )
     $reports = New-Object System.Collections.Generic.List[object]
@@ -369,6 +370,7 @@ function Get-TcpkWebReportResponse {
         'report.xlsx'   = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         'report.sarif'  = 'application/json'
         'sbom.cdx.json' = 'application/json'
+        'coverage.json' = 'application/json'
         'run.log'       = 'text/plain'
     }
     $name = [IO.Path]::GetFileName("$File")
