@@ -62,17 +62,17 @@ function Export-TcpkReportHtml {
     process { foreach ($f in $Findings) { $all.Add($f) } }
     end {
         $sevOrder = @('CRITICAL','HIGH','MEDIUM','LOW','INFO')
-        $sevColor = @{ CRITICAL='#9b0000'; HIGH='#c0392b'; MEDIUM='#d68910'; LOW='#117a65'; INFO='#566573' }
+        $sevColor = @{ CRITICAL='#f85149'; HIGH='#db6d28'; MEDIUM='#d29922'; LOW='#3fb950'; INFO='#6a7585' }
         # Confidence colours. The proven tiers (IL / dynamic / Confirmed) get strong green/blue so
         # they POP; Inferred is amber (means: verify manually); Likely-FP / Uncertain / Skipped are
         # muted grey/red. NOTE: 'Confirmed (IL)', 'Confirmed (dynamic)' and 'Likely-FP (IL)' were
         # MISSING here and fell through to the default grey -- so the flagship IL-proven findings
         # were visually indistinguishable from INFO/Skipped. That is fixed below.
         $confColor = @{
-            'Confirmed (IL)'='#0b6e4f'; 'Confirmed (dynamic)'='#0e6655'; 'Confirmed'='#1b4f72'; 'Confirmed (LLM)'='#2471a3'
-            'Inferred'='#7d6608'; 'Unverified'='#7e5109'
-            'Likely-FP (IL)'='#5d6d7e'; 'Likely-FP (LLM)'='#7b241c'; 'Uncertain (LLM)'='#5b2c6f'
-            'Skipped'='#566573'
+            'Confirmed (IL)'='#2ea043'; 'Confirmed (dynamic)'='#1f9c8a'; 'Confirmed'='#388bfd'; 'Confirmed (LLM)'='#58a6ff'
+            'Inferred'='#d29922'; 'Unverified'='#bb8009'
+            'Likely-FP (IL)'='#6a7585'; 'Likely-FP (LLM)'='#da3633'; 'Uncertain (LLM)'='#a371f7'
+            'Skipped'='#6a7585'
         }
         $esc = { param($t) ConvertTo-TcpkHtmlSafe $t }
 
@@ -119,10 +119,10 @@ function Export-TcpkReportHtml {
         $confSummaryHtml = @"
 <section class='card confsum'>
   <div class='confgrid'>
-    <div class='cmetric'><span class='cmlabel'>Proven (IL/dynamic)</span><span class='cmval' style='color:#0b6e4f'>$confProven</span></div>
-    <div class='cmetric'><span class='cmlabel'>Confirmed</span><span class='cmval' style='color:#1b4f72'>$confConfirmed</span></div>
-    <div class='cmetric'><span class='cmlabel'>Inferred -- verify</span><span class='cmval' style='color:#7d6608'>$confInferred</span></div>
-    <div class='cmetric'><span class='cmlabel'>Likely-FP / Uncertain</span><span class='cmval' style='color:#5d6d7e'>$confWeak</span></div>
+    <div class='cmetric'><span class='cmlabel'>Proven (IL/dynamic)</span><span class='cmval' style='color:#3fb950'>$confProven</span></div>
+    <div class='cmetric'><span class='cmlabel'>Confirmed</span><span class='cmval' style='color:#58a6ff'>$confConfirmed</span></div>
+    <div class='cmetric'><span class='cmlabel'>Inferred -- verify</span><span class='cmval' style='color:#d29922'>$confInferred</span></div>
+    <div class='cmetric'><span class='cmlabel'>Likely-FP / Uncertain</span><span class='cmval' style='color:#8b949e'>$confWeak</span></div>
   </div>
 </section>
 "@
@@ -202,18 +202,12 @@ function Export-TcpkReportHtml {
             $scopeHtml = ''
             if ($Scope) {
                 $parts = New-Object 'System.Collections.Generic.List[string]'
-                if ($Scope.Buckets) { $parts.Add("<b>Buckets:</b> " + (ConvertTo-TcpkHtmlSafe ([string]$Scope.Buckets))) }
                 if ($Scope.Llm)     { $parts.Add("<b>LLM:</b> "     + (ConvertTo-TcpkHtmlSafe ([string]$Scope.Llm))) }
                 if ($Scope.Timing)  { $parts.Add("<b>Time:</b> "    + (ConvertTo-TcpkHtmlSafe ([string]$Scope.Timing))) }
                 if ($Scope.PSObject.Properties['Coverage'] -and $Scope.Coverage) {
                     $parts.Add("<b>Coverage:</b> " + (ConvertTo-TcpkHtmlSafe ([string]$Scope.Coverage)))
                 }
                 if ($parts.Count) { $scopeHtml = "<div class='scope'>" + ($parts -join '  &middot;  ') + "</div>" }
-                # Non-Ran checks (gated / needs-elevation / skipped / failed), listed so a
-                # less-than-100% run is visible rather than implied. Full detail in coverage.json.
-                if ($Scope.PSObject.Properties['CoverageGaps'] -and $Scope.CoverageGaps) {
-                    $scopeHtml += "<div class='scope covgaps'><b>Coverage gaps:</b> " + (ConvertTo-TcpkHtmlSafe ([string]$Scope.CoverageGaps)) + "</div>"
-                }
             }
 
             $cardHtml = @"
@@ -304,13 +298,64 @@ $($rowsKv -join "`n")
 "@
         }
 
-        # ---------------- severity chart ----------------
-        $barRows = foreach ($s in $sevOrder) {
-            $cnt = $sevCounts[$s]
-            $pct = [int](100 * $cnt / $maxCount)
-            "<div class='bar' data-sev='$s'><span class='barlabel'>$s</span><span class='bartrack'><span class='barfill' style='width:${pct}%;background:$($sevColor[$s])'></span></span><span class='barcount'>$cnt</span></div>"
+        # ---------------- dashboard: risk gauge + severity donut ----------------
+        # The flat bar chart is replaced by an SVG risk gauge + severity donut (computed from the
+        # real counts). Risk is a transparent weighted aggregate of finding severities (0-100).
+        $risk = [int][math]::Min(100, ($sevCounts['CRITICAL']*45 + $sevCounts['HIGH']*18 + $sevCounts['MEDIUM']*6 + $sevCounts['LOW']*2))
+        if     ($risk -ge 80) { $gaugeColor = $sevColor['CRITICAL']; $bandLabel = 'CRITICAL' }
+        elseif ($risk -ge 55) { $gaugeColor = $sevColor['HIGH'];     $bandLabel = 'HIGH' }
+        elseif ($risk -ge 30) { $gaugeColor = $sevColor['MEDIUM'];   $bandLabel = 'MEDIUM' }
+        elseif ($risk -ge 10) { $gaugeColor = $sevColor['LOW'];      $bandLabel = 'LOW' }
+        else                  { $gaugeColor = $sevColor['INFO'];     $bandLabel = 'MINIMAL' }
+        $rc = 314.159
+        $gaugeDash = '{0:0.0} {1:0.0}' -f (($risk / 100.0) * $rc), $rc
+
+        $C = 263.894; $total = [double]$all.Count
+        $donutSegs = ''
+        if ($total -gt 0) {
+            $cum = 0.0
+            foreach ($s in $sevOrder) {
+                $cnt = $sevCounts[$s]; if ($cnt -le 0) { continue }
+                $len = ($cnt / $total) * $C
+                $donutSegs += ("<circle cx='60' cy='60' r='42' fill='none' stroke='$($sevColor[$s])' stroke-width='16' stroke-dasharray='{0:0.00} {1:0.00}' stroke-dashoffset='{2:0.00}'/>" -f $len, ($C - $len), (-$cum))
+                $cum += $len
+            }
+        } else {
+            $donutSegs = "<circle cx='60' cy='60' r='42' fill='none' stroke='#242c3a' stroke-width='16'/>"
         }
-        $chartHtml = "<section class='card'><div class='chart'>" + ($barRows -join "`n") + "</div></section>" + $confSummaryHtml
+        $legendParts = foreach ($s in $sevOrder) { if ($sevCounts[$s] -gt 0) { "<span><i style='background:$($sevColor[$s])'></i>$($s.Substring(0,1))$($s.Substring(1).ToLower()) <b>$($sevCounts[$s])</b></span>" } }
+        $donutLegend = ($legendParts -join '')
+        if (-not $donutLegend) { $donutLegend = "<span class='muted'>no findings</span>" }
+
+        $chartHtml = @"
+<section class='card dash'>
+  <div class='dashgrid'>
+    <div class='dcell'>
+      <h4>RISK INDEX</h4>
+      <div class='gaugewrap'>
+        <svg width='128' height='128' viewBox='0 0 120 120'>
+          <defs><linearGradient id='tcpkrg' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#3fb950'/><stop offset='.55' stop-color='#d29922'/><stop offset='1' stop-color='#f85149'/></linearGradient></defs>
+          <circle cx='60' cy='60' r='50' fill='none' stroke='#1b2230' stroke-width='11'/>
+          <circle cx='60' cy='60' r='50' fill='none' stroke='url(#tcpkrg)' stroke-width='11' stroke-linecap='round' stroke-dasharray='$gaugeDash' transform='rotate(-90 60 60)'/>
+          <text x='60' y='56' text-anchor='middle' fill='#e6edf3' style='font:700 30px "Cascadia Code","Fira Code",Consolas,monospace'>$risk</text>
+          <text x='60' y='77' text-anchor='middle' fill='$gaugeColor' style='font:700 10px "Cascadia Code","Fira Code",Consolas,monospace'>$bandLabel</text>
+        </svg>
+      </div>
+    </div>
+    <div class='dcell'>
+      <h4>SEVERITY ($($all.Count))</h4>
+      <div class='donutwrap'>
+        <svg width='118' height='118' viewBox='0 0 120 120'>
+          <g transform='rotate(-90 60 60)'>$donutSegs</g>
+          <text x='60' y='57' text-anchor='middle' fill='#e6edf3' style='font:700 24px "Cascadia Code","Fira Code",Consolas,monospace'>$($all.Count)</text>
+          <text x='60' y='75' text-anchor='middle' fill='#8b949e' style='font:9px "Cascadia Code","Fira Code",Consolas,monospace'>findings</text>
+        </svg>
+      </div>
+      <div class='dleg'>$donutLegend</div>
+    </div>
+  </div>
+</section>
+"@ + $confSummaryHtml
 
         # ---------------- attack-path callout (correlated exploit chains) ----------------
         # chain.* findings (from Get-TcpkExploitChains) are already raised above their parts;
@@ -497,8 +542,25 @@ $($ruleRows -join "`n")
                     $vp = @($f.Affected | Where-Object { "$_" -match '[\\/]' } | Select-Object -First 1)
                     if ($vp) { $verifyFile = "$vp" }
                 }
-                $verify = ConvertTo-TcpkHtmlSafe (Get-TcpkVerifyHint -RuleId $f.RuleId -File $verifyFile -Evidence $f.Evidence)
-                if ($verify) { $kv.Add("<tr><th>Verify</th><td><code class='verify'>$verify</code></td></tr>") }
+                $verifyRaw = Get-TcpkVerifyHint -RuleId $f.RuleId -File $verifyFile -Evidence $f.Evidence
+                if ($verifyRaw) {
+                    # Render the playbook as a terminal card: comment lines (# ...) are muted, the
+                    # paste-and-run command line(s) are highlighted, and a Copy button copies just
+                    # the command. The whole block stays copy-paste-safe (comments are # in PS).
+                    $vLines   = $verifyRaw -split "\r?\n"
+                    $cmdLines = @($vLines | Where-Object { $_.Trim() -ne '' -and $_ -notmatch '^\s*#' })
+                    $vBodyParts = foreach ($vl in $vLines) {
+                        if ($vl -match '^\s*#') { "<span class='vc'>$(ConvertTo-TcpkHtmlSafe $vl)</span>" }
+                        else                    { "<span class='vcmd'>$(ConvertTo-TcpkHtmlSafe $vl)</span>" }
+                    }
+                    $vCopy = ''
+                    if ($cmdLines.Count) {
+                        $cmdB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($cmdLines -join "`r`n")))
+                        $vCopy  = "<button type='button' class='vcopy' data-cmd='$cmdB64'>Copy</button>"
+                    }
+                    $vBox = "<div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span>$vCopy</div><pre class='vbody'>$($vBodyParts -join "`n")</pre></div>"
+                    $kv.Add("<tr><th>Verify</th><td>$vBox</td></tr>")
+                }
 
                 if ($fix)  { $kv.Add("<tr><th>Fix</th><td>$fix</td></tr>") }
 
@@ -600,7 +662,7 @@ $($hwRows -join "`n")
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.KeySize))</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.ValidFrom))</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Expires))</td>
-  <td><code style='font-size:11px'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Thumbprint))</code></td>
+  <td><code style='font-size:12px'>$(ConvertTo-TcpkHtmlSafe ([string]$s.Thumbprint))</code></td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$s.Type))</td>
 </tr>
 "@
@@ -653,7 +715,82 @@ $($sgRows -join "`n")
 $($sbomRows -join "`n")
       </tbody>
     </table>
-    <div class='cvenote' style='color:#566573;background:#f7f8fa;border-color:#e1e1e1'>Full CycloneDX 1.5 inventory (with hashes + purls) is also written to <code>sbom.cdx.json</code> alongside this report.</div>
+    <div class='cvenote' style='color:#9aa4b2;background:#0d1117;border-color:#242c3a'>Full CycloneDX 1.5 inventory (with hashes + purls) is also written to <code>sbom.cdx.json</code> alongside this report.</div>
+  </div>
+</section>
+"@
+        }
+
+        # ---------------- standards coverage (OWASP Desktop Top 10 + MITRE ATT&CK) ----------------
+        $daNames = [ordered]@{
+            'DA1'='Injections'; 'DA2'='Broken Authentication'; 'DA3'='Sensitive Data Exposure'; 'DA4'='Improper Cryptography'
+            'DA5'='Improper Authorization'; 'DA6'='Security Misconfiguration'; 'DA7'='Insecure Communication'
+            'DA8'='Poor Code Quality'; 'DA9'='Components With Known Vulnerabilities'; 'DA10'='Insufficient Logging'
+        }
+        $daCount = @{}; $daWorst = @{}
+        foreach ($ff in $all) {
+            $da = Get-TcpkOwaspDa -RuleId $ff.RuleId
+            if ("$da" -match '^(DA\d+)') {
+                $k = $matches[1]
+                $daCount[$k] = 1 + [int]$daCount[$k]
+                $rk = Get-TcpkSeverityRank $ff.Severity
+                if (-not $daWorst.ContainsKey($k) -or $rk -gt $daWorst[$k]) { $daWorst[$k] = $rk }
+            }
+        }
+        $daCells = foreach ($k in $daNames.Keys) {
+            $cnt = [int]$daCount[$k]
+            if ($cnt -gt 0) {
+                $ws  = ($sevOrder | Where-Object { (Get-TcpkSeverityRank $_) -eq $daWorst[$k] } | Select-Object -First 1)
+                $col = $sevColor[$ws]
+                "<div class='da' style='border-left-color:$col'><span class='dc' style='color:$col'>$cnt</span><div class='dn'>$k</div><div class='dt'>$(ConvertTo-TcpkHtmlSafe $daNames[$k])</div></div>"
+            } else {
+                "<div class='da clear'><span class='dc'>0</span><div class='dn'>$k</div><div class='dt'>$(ConvertTo-TcpkHtmlSafe $daNames[$k])</div></div>"
+            }
+        }
+        $atkCount = @{}
+        foreach ($ff in $all) { foreach ($t in @(Get-TcpkAttackTechnique -RuleId $ff.RuleId)) { if ($t) { $atkCount["$t"] = 1 + [int]$atkCount["$t"] } } }
+        $atkTop = @($atkCount.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 6)
+        $atkMax = ($atkTop | ForEach-Object { $_.Value } | Measure-Object -Maximum).Maximum; if (-not $atkMax -or $atkMax -lt 1) { $atkMax = 1 }
+        $atkRows = foreach ($e in $atkTop) {
+            $w = [int](100 * $e.Value / $atkMax)
+            "<div class='arow'><span class='alabel'>$(ConvertTo-TcpkHtmlSafe $e.Key)</span><span class='atrack'><i style='width:${w}%'></i></span><span class='acnt'>$($e.Value)</span></div>"
+        }
+        $atkBlock = if ($atkTop.Count) { "<div class='atk'><div class='covsub'>by MITRE ATT&amp;CK technique</div>" + ($atkRows -join "`n") + "</div>" } else { '' }
+        $coverageHtml = @"
+<section class='card coverage'>
+  <h3 class='covhead'><span class='caret'>&#9662;</span>Standards coverage <span class='seccount'>(OWASP Desktop App Top 10 + MITRE ATT&amp;CK)</span></h3>
+  <div class='covbody'>
+    <div class='covsub'>OWASP Desktop App Top 10 (2021) -- categories the findings map to (green = clear)</div>
+    <div class='dagrid'>$($daCells -join "`n")</div>
+    $atkBlock
+  </div>
+</section>
+"@
+
+        # ---------------- remediation plan (prioritized, de-duplicated fixes) ----------------
+        $remediationHtml = ''
+        $fixable = @($all | Where-Object { "$($_.Severity)" -ne 'INFO' -and "$($_.Fix)".Trim() -and "$($_.Fix)".Trim() -notmatch '^(n/?a|none|-)$' })
+        if ($fixable.Count) {
+            $remGroups = $fixable | Group-Object { "$($_.Fix)" } | ForEach-Object {
+                $g = $_
+                $worst = ($g.Group | ForEach-Object { Get-TcpkSeverityRank $_.Severity } | Measure-Object -Maximum).Maximum
+                $worstSev = ($sevOrder | Where-Object { (Get-TcpkSeverityRank $_) -eq $worst } | Select-Object -First 1)
+                $rules = (@($g.Group | ForEach-Object { "$($_.RuleId)" } | Sort-Object -Unique) -join ', ')
+                $cweList = (@($g.Group | ForEach-Object { @($_.Cwe) } | Where-Object { $_ } | Sort-Object -Unique) -join ', ')
+                [pscustomobject]@{ Fix=$g.Name; Sev=$worstSev; Rank=$worst; Count=$g.Count; Rules=$rules; Cwes=$cweList }
+            } | Sort-Object -Property @{ e='Rank'; Descending=$true }, @{ e='Count'; Descending=$true }
+            $remRows = foreach ($r in $remGroups) {
+                $priClass = switch ("$($r.Sev)") { 'CRITICAL' { 'p1' } 'HIGH' { 'p2' } default { 'p3' } }
+                $priLabel = switch ("$($r.Sev)") { 'CRITICAL' { 'P1' } 'HIGH' { 'P2' } default { 'P3' } }
+                $meta = (@($r.Rules, $r.Cwes) | Where-Object { $_ }) -join ' &middot; '
+                "<div class='rem'><div class='pri $priClass'>$priLabel</div><div class='rmid'><div class='rfix'>$(ConvertTo-TcpkHtmlSafe $r.Fix)</div><div class='rmeta'>$(ConvertTo-TcpkHtmlSafe $meta)</div></div><div class='rright'><span class='badge' style='background:$($sevColor[$r.Sev])'>$($r.Sev)</span><span class='cnt'>$($r.Count) finding$(if ($r.Count -ne 1){'s'})</span></div></div>"
+            }
+            $remediationHtml = @"
+<section class='card remed'>
+  <h3 class='remhead'><span class='caret'>&#9662;</span>Remediation plan <span class='seccount'>($(@($remGroups).Count) prioritized fix$(if (@($remGroups).Count -ne 1){'es'}))</span></h3>
+  <div class='rembody'>
+    <div class='remnote'>De-duplicated, highest risk first -- one row per fix. P1 = critical, P2 = high, P3 = medium/low.</div>
+$($remRows -join "`n")
   </div>
 </section>
 "@
@@ -662,124 +799,181 @@ $($sbomRows -join "`n")
         # ---------------- static CSS ----------------
         $css = @'
 *{box-sizing:border-box}
-body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;margin:0;background:#f4f5f7;color:#222;line-height:1.5}
-.wrap{max-width:1140px;margin:0 auto;padding:24px 22px 96px}
-h1{font-size:24px;margin:0}
-.sub{color:#666;font-size:13px;margin:2px 0 18px}
-.card{background:#fff;border:1px solid #e1e1e1;border-radius:8px;padding:16px 18px;margin:0 0 16px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-.target .kvgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 26px}
-.kvi{display:flex;gap:10px;font-size:13px;padding:3px 0;border-bottom:1px solid #f0f0f0}
-.kvi .k{color:#888;min-width:92px;font-weight:600}
-.kvi .v{color:#222;word-break:break-word}
-.stack{margin-top:12px}
+:root{--bg:#0a0d13;--panel:#11161f;--panel2:#161c27;--sub:#0d1117;--bd:#242c3a;--bd2:#2f3a4d;--tx:#e6edf3;--mut:#9aa4b2;--dim:#6a7585;--acc:#56d364;--acc2:#3fb950;--blue:#58a6ff;--amber:#d29922;--red:#f85149}
+body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;margin:0;background:var(--bg);color:var(--tx);line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 22px 100px}
+h1{font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px}
+.sub{color:var(--dim);font-size:13.5px;margin:3px 0 20px;font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.card{background:var(--panel);border:1px solid var(--bd);border-radius:12px;padding:16px 18px;margin:0 0 14px}
+.target .kvgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 26px}
+.kvi{display:flex;gap:10px;font-size:14px;padding:5px 0;border-bottom:1px solid var(--bd)}
+.kvi .k{color:var(--mut);min-width:96px;font-weight:600}
+.kvi .v{color:var(--tx);word-break:break-word}
+.stack{margin-top:14px}
 .stackrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0}
-.stacklabel{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;min-width:62px}
-.tag{display:inline-block;font-size:12px;padding:3px 9px;border-radius:12px;background:#eef;color:#234;border:1px solid #dde}
-.tag-ui{background:#eaf2fb;border-color:#cfe0f5;color:#1c4f80}
-.tag-net{background:#eafaf1;border-color:#c8eed8;color:#127a4a}
-.tag-upd{background:#fef5e7;border-color:#f7e0b0;color:#8a5b00}
-.tag-sdk{background:#f3eefb;border-color:#e2d4f5;color:#5b2c87}
-.surfrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
-.surf{flex:1 1 80px;min-width:80px;text-align:center;background:#fafbfc;border:1px solid #ececec;border-radius:6px;padding:8px 6px}
-.surf b{display:block;font-size:19px;color:#222}
-.surf span{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.04em}
-.scope{margin-top:14px;padding-top:10px;border-top:1px solid #eee;font-size:12px;color:#555}
-.chart{display:flex;flex-direction:column;gap:6px}
-.bar{display:flex;align-items:center;gap:10px;font-size:13px}
-.barlabel{min-width:72px;font-weight:600;color:#444}
-.bartrack{flex:1;background:#eee;border-radius:4px;height:16px;overflow:hidden}
-.barfill{display:block;height:100%}
-.barcount{min-width:36px;text-align:right;font-weight:700}
-.toolbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#f4f5f7;padding:10px 0;margin-bottom:10px;border-bottom:1px solid #e1e1e1}
-#search{flex:1;min-width:200px;padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:14px}
+.stacklabel{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;min-width:62px}
+.tag{display:inline-block;font-size:13px;padding:3px 10px;border-radius:20px;background:var(--panel2);color:var(--tx);border:1px solid var(--bd2);font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.tag-ui{color:#7cc0ff;border-color:#234a6e}
+.tag-net{color:#5ad6a0;border-color:#1f5a45}
+.tag-upd{color:#f0b65c;border-color:#6e5320}
+.tag-sdk{color:#c4a3f5;border-color:#4a3a6e}
+.surfrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.surf{flex:1 1 78px;min-width:78px;text-align:center;background:var(--sub);border:1px solid var(--bd);border-radius:9px;padding:9px 6px}
+.surf b{display:block;font-size:20px;color:var(--tx);font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.surf span{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.scope{margin-top:14px;padding-top:11px;border-top:1px solid var(--bd);font-size:13px;color:var(--mut)}
+.covgaps{color:var(--amber)}
+.chart{display:flex;flex-direction:column;gap:7px}
+.bar{display:flex;align-items:center;gap:10px;font-size:14px}
+.barlabel{min-width:74px;font-weight:600;color:var(--mut);font-size:13px}
+.bartrack{flex:1;background:var(--sub);border:1px solid var(--bd);border-radius:5px;height:18px;overflow:hidden}
+.barfill{display:block;height:100%;border-radius:4px}
+.barcount{min-width:34px;text-align:right;font-weight:700;font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.dash{padding:18px}
+.dashgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;align-items:start}
+.dcell{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dcell h4{margin:0;font:700 10px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut);letter-spacing:.09em}
+.gaugewrap,.donutwrap{display:flex;justify-content:center;padding:2px 0}
+.dleg{font:12px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut);display:flex;flex-direction:column;gap:5px}
+.dleg span{display:flex;align-items:center;gap:7px}
+.dleg i{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.dleg b{color:var(--tx);margin-left:auto;font-weight:700}
+.remed .remhead,.coverage .covhead{cursor:pointer;user-select:none;margin:0 0 4px}
+.remed.collapsed .rembody,.coverage.collapsed .covbody{display:none}
+.remnote,.covsub{color:var(--dim);font:12px "Cascadia Code","Fira Code",Consolas,monospace;margin:0 0 12px}
+.rem{display:flex;align-items:flex-start;gap:13px;padding:12px 0;border-bottom:1px solid var(--bd)}
+.rem:last-child{border-bottom:none}
+.pri{flex:0 0 auto;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font:700 13px "Cascadia Code","Fira Code",Consolas,monospace;color:#08130a}
+.pri.p1{background:var(--crit)}.pri.p2{background:var(--high)}.pri.p3{background:var(--med)}
+.rmid{flex:1;min-width:0}
+.rfix{font-weight:600;font-size:14px;color:var(--tx)}
+.rmeta{font:11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--dim);margin-top:3px;word-break:break-word}
+.rright{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.rright .cnt{font:11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut);white-space:nowrap}
+.dagrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:9px;margin-bottom:4px}
+.da{background:var(--sub);border:1px solid var(--bd);border-left-width:3px;border-radius:8px;padding:10px 12px;overflow:hidden}
+.da .dc{float:right;font:700 15px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut)}
+.da .dn{font:700 11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut)}
+.da .dt{font-size:13px;margin-top:2px;color:var(--tx)}
+.da.clear{border-left-color:var(--low)}.da.clear .dc{color:var(--low)}
+.atk{margin-top:16px}
+.arow{display:flex;align-items:center;gap:11px;font:12px "Cascadia Code","Fira Code",Consolas,monospace;margin:8px 0}
+.alabel{flex:0 0 220px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.atrack{flex:1;height:9px;background:var(--sub);border:1px solid var(--bd);border-radius:5px;overflow:hidden}
+.atrack i{display:block;height:100%;background:var(--blue);border-radius:4px}
+.acnt{flex:0 0 auto;font-weight:700;color:var(--tx);min-width:20px;text-align:right}
+.execsum{background:linear-gradient(180deg,rgba(86,211,100,.06),transparent);border-color:#23402b}
+.exechead{margin:0 0 7px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--acc)}
+.exectext{margin:0;line-height:1.65;color:var(--tx);font-size:15px}
+.confsum .confgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.cmetric{display:flex;flex-direction:column;gap:3px;background:var(--sub);border:1px solid var(--bd);border-radius:9px;padding:10px 12px}
+.cmlabel{font-size:12px;color:var(--mut)}
+.cmval{font-size:23px;font-weight:700;font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.toolbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:rgba(10,13,19,.92);backdrop-filter:blur(6px);padding:12px 0;margin-bottom:12px;border-bottom:1px solid var(--bd)}
+#search{flex:1;min-width:200px;padding:9px 13px;border:1px solid var(--bd2);border-radius:8px;font-size:15px;background:var(--sub);color:var(--tx)}
+#search::placeholder{color:var(--dim)}
 .filterbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
-.tabfilter{flex:1;max-width:460px;padding:6px 10px;border:1px solid #ccc;border-radius:6px;font-size:13px}
-.filtcount{color:#566573;font-size:12px}
-.chip{cursor:pointer;font-size:12px;font-weight:600;padding:6px 11px;border-radius:14px;border:1px solid #ccc;background:#fff;color:#444;user-select:none}
-.chip.active{background:#222;color:#fff;border-color:#222}
-.btn{cursor:pointer;font-size:12px;padding:6px 11px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#333}
-.btn:hover{background:#f0f0f0}
+.tabfilter{flex:1;max-width:460px;padding:7px 11px;border:1px solid var(--bd2);border-radius:7px;font-size:14px;background:var(--sub);color:var(--tx)}
+.filtcount{color:var(--dim);font-size:13px}
+.chip{cursor:pointer;font-size:13px;font-weight:600;padding:6px 12px;border-radius:20px;border:1px solid var(--bd2);background:var(--panel2);color:var(--mut);user-select:none}
+.chip:hover{border-color:var(--dim)}
+.chip.active{background:var(--acc);color:#08130a;border-color:var(--acc)}
+.btn{cursor:pointer;font-size:13px;padding:6px 12px;border-radius:7px;border:1px solid var(--bd2);background:var(--panel2);color:var(--tx)}
+.btn:hover{background:var(--bd)}
+.btn.active{border-color:var(--acc);color:var(--acc)}
 .sevsection{margin:10px 0}
-.sevhead{font-size:18px;margin:14px 0 8px;cursor:pointer;user-select:none;padding-bottom:6px;border-bottom:2px solid #e1e1e1}
-.caret{display:inline-block;width:16px;transition:transform .15s}
+.sevhead{font-size:17px;margin:16px 0 8px;cursor:pointer;user-select:none;padding-bottom:7px;border-bottom:1px solid var(--bd);font-weight:700}
+.caret{display:inline-block;width:16px;transition:transform .15s;color:var(--dim)}
 .collapsed .caret{transform:rotate(-90deg)}
 .sevsection.collapsed .sevbody{display:none}
-.seccount{color:#999;font-weight:400;font-size:14px}
-.finding{background:#fff;border:1px solid #e3e3e3;border-radius:6px;margin:8px 0;overflow:hidden}
-.fhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 14px;cursor:pointer}
-.fhead:hover{background:#fafafa}
-.fid{font-family:Consolas,monospace;font-size:12px;color:#999;font-weight:700}
-.badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.05em;padding:3px 7px;border-radius:3px;color:#fff;text-transform:uppercase}
-.ftitle{font-weight:600;font-size:14px;flex:1;min-width:160px}
-.frule{font-family:Consolas,monospace;font-size:11px;color:#888}
-.fbody{display:none;padding:0 14px 12px;border-top:1px solid #f0f0f0}
+.seccount{color:var(--dim);font-weight:400;font-size:15px}
+.finding{background:var(--panel);border:1px solid var(--bd);border-left:3px solid var(--bd2);border-radius:9px;margin:8px 0;overflow:hidden}
+.finding[data-sev="CRITICAL"]{border-left-color:var(--red)}
+.finding[data-sev="HIGH"]{border-left-color:#db6d28}
+.finding[data-sev="MEDIUM"]{border-left-color:var(--amber)}
+.finding[data-sev="LOW"]{border-left-color:var(--acc2)}
+.finding[data-sev="INFO"]{border-left-color:#6a7585}
+.fhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px 14px;cursor:pointer}
+.fhead:hover{background:var(--panel2)}
+.fid{font-family:"Cascadia Code","Fira Code",Consolas,monospace;font-size:13px;color:var(--dim);font-weight:700}
+.badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:5px;color:#fff;text-transform:uppercase}
+.ftitle{font-weight:600;font-size:15px;flex:1;min-width:160px;color:var(--tx)}
+.frule{font-family:"Cascadia Code","Fira Code",Consolas,monospace;font-size:12px;color:var(--dim)}
+.fbody{display:none;padding:2px 14px 13px;border-top:1px solid var(--bd)}
 .finding.open .fbody{display:block}
-.kv{width:100%;border-collapse:collapse;margin-top:8px}
-.kv th{text-align:left;vertical-align:top;padding:4px 12px 4px 0;font-weight:600;font-size:12px;color:#666;width:100px}
-.kv td{padding:4px 0;font-size:13px;vertical-align:top}
-code.evidence{background:#fff3bf;color:#7a4d00;font-weight:700;padding:2px 6px;border-radius:3px;border:1px solid #f0c000}
-code{font-family:Consolas,Menlo,monospace;font-size:12px;background:#f4f4f4;padding:1px 5px;border-radius:3px;word-break:break-word}
-code.verify{display:block;white-space:pre-wrap;padding:8px 10px;background:#1e1e1e;color:#d4d4d4;line-height:1.5;border-left:3px solid #2874a6}
-.ruletable{width:100%;border-collapse:collapse;font-size:13px}
-.ruletable th,.ruletable td{padding:6px 10px;border-bottom:1px solid #eee;text-align:left}
+.kv{width:100%;border-collapse:collapse;margin-top:10px}
+.kv th{text-align:left;vertical-align:top;padding:5px 12px 5px 0;font-weight:600;font-size:12px;color:var(--mut);width:104px;text-transform:uppercase;letter-spacing:.03em}
+.kv td{padding:5px 0;font-size:14px;vertical-align:top;color:var(--tx)}
+code{font-family:"Cascadia Code","Fira Code",Consolas,Menlo,monospace;font-size:13px;background:var(--sub);color:#c9d1d9;padding:1px 6px;border-radius:4px;border:1px solid var(--bd);word-break:break-word}
+code.evidence{background:rgba(210,153,34,.12);color:#f0b65c;font-weight:700;padding:2px 7px;border:1px solid #6e5320}
+code.verify{display:block;white-space:pre-wrap;padding:9px 11px;background:#010409;color:#7ce38b;line-height:1.5;border:1px solid var(--bd);border-left:3px solid var(--acc)}
+.vbox{border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:#010409;margin-top:6px}
+.vbar{display:flex;align-items:center;gap:10px;padding:9px 15px;background:var(--panel2);border-bottom:1px solid var(--bd)}
+.vdots{display:inline-flex;gap:6px;align-items:center}
+.vdots i{width:9px;height:9px;border-radius:50%;background:#3a4250}
+.vdots i:nth-child(1){background:#f85149}.vdots i:nth-child(2){background:#d29922}.vdots i:nth-child(3){background:#3fb950}
+.vlabel{flex:1;font:700 10px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut);letter-spacing:.18em;text-transform:uppercase}
+.vcopy{cursor:pointer;font:600 11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--acc);background:transparent;border:1px solid var(--bd2);border-radius:6px;padding:4px 15px}
+.vcopy:hover{background:var(--bd);border-color:var(--acc)}
+.vcopy.copied{color:#08130a;background:var(--acc);border-color:var(--acc)}
+.vbody{margin:0;padding:17px 19px;white-space:pre-wrap;word-break:break-word;font:14px "Cascadia Code","Fira Code",Consolas,monospace;line-height:1.9}
+.vc{color:#737e8d}
+.vcmd{color:#7ee787;font-weight:700}
+code.path{font-size:12.5px;word-break:break-all;color:#9aa4b2}
+.ruletable{width:100%;border-collapse:collapse;font-size:14px}
+.ruletable th,.ruletable td{padding:7px 10px;border-bottom:1px solid var(--bd);text-align:left}
 .ruletable .num{text-align:right}
 .rulerow{cursor:pointer}
-.rulerow:hover{background:#f6f6f6}
-h3{font-size:15px;margin:0 0 10px}
+.rulerow:hover{background:var(--panel2)}
+h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
 .recon .reconhead{cursor:pointer;user-select:none;margin:0 0 12px}
 .recon.collapsed .reconbody{display:none}
 .reconblock{margin:0 0 16px}
-.reconblock h4{font-size:13px;margin:0 0 6px;color:#2c3e50;text-transform:uppercase;letter-spacing:.03em;border-left:3px solid #2874a6;padding-left:8px}
-.recontab{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:4px}
-.recontab th{text-align:left;background:#f4f6f8;padding:5px 9px;border-bottom:2px solid #e1e1e1;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#566573}
-.recontab td{padding:5px 9px;border-bottom:1px solid #eee;vertical-align:top;word-break:break-word}
-.recontab tr:hover{background:#fafbfc}
-.reconlist{margin:4px 0 4px 4px;padding-left:18px;font-size:13px}
+.reconblock h4{font-size:13px;margin:0 0 7px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;border-left:3px solid var(--blue);padding-left:9px}
+.recontab{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:4px}
+.recontab th{text-align:left;background:var(--sub);padding:6px 9px;border-bottom:1px solid var(--bd2);font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--mut)}
+.recontab td{padding:6px 9px;border-bottom:1px solid var(--bd);vertical-align:top;word-break:break-word;color:var(--tx)}
+.recontab tr:hover{background:var(--panel2)}
+.reconlist{margin:4px 0 4px 4px;padding-left:18px;font-size:14px}
 .reconlist li{margin:2px 0}
-.emptynote{font-size:12.5px;color:#999;font-style:italic;padding:4px 0 4px 11px}
-.cve .cvehead,.hardening .hardhead{cursor:pointer;user-select:none;margin:0 0 12px}
+.emptynote{font-size:13.5px;color:var(--dim);font-style:italic;padding:4px 0 4px 11px}
+.cve .cvehead,.hardening .hardhead,.signing .signhead{cursor:pointer;user-select:none;margin:0 0 12px}
 .cve.collapsed .cvebody,.hardening.collapsed .hardbody,.signing.collapsed .signbody{display:none}
 .cvetab td,.hardtab td{vertical-align:top}
-.cvetab a,.recontab a{color:#1c4f80}
-.cvesum{font-size:11.5px;color:#666;margin-top:3px;line-height:1.4}
-.cvenote{font-size:11.5px;color:#7b241c;background:#fdf3f3;border:1px solid #e3b7b7;border-radius:5px;padding:7px 10px;margin-top:8px}
-.hardtab{font-size:12px}
+.cvetab a,.recontab a{color:var(--blue)}
+.cvesum{font-size:12.5px;color:var(--mut);margin-top:3px;line-height:1.45}
+.cvenote{font-size:12.5px;color:#f0a3a0;background:rgba(248,81,73,.08);border:1px solid #5c2b2b;border-radius:6px;padding:8px 11px;margin-top:9px}
+.hardtab{font-size:13px}
 .hardtab th{white-space:nowrap}
 .sbom .sbomhead{cursor:pointer;user-select:none;margin:0 0 12px}
 .sbom.collapsed .sbombody{display:none}
-.sbomtab{font-size:12px}
-.sbomtab code.sha{font-size:10.5px;color:#566573;word-break:break-all}
-.sbomtab code.path{font-size:11px;word-break:break-all}
-.nores{padding:20px;text-align:center;color:#999;display:none}
-.ftags{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 2px}
-.ftag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;background:#eef0f3;color:#33415c;border:1px solid #dde1e7}
-.ftag-cwe{background:#fdecea;border-color:#f5c6cb;color:#8a2a22}
-.ftag-attack{background:#f3eefb;border-color:#e2d4f5;color:#5b2c87}
-.ftag-tasvs{background:#eaf2fb;border-color:#cfe0f5;color:#1c4f80}
-.ftag-owasp{background:#eafaf1;border-color:#cdeedd;color:#1d6b45}
+.sbomtab{font-size:13px}
+.sbomtab code.sha{font-size:11.5px;color:var(--dim);word-break:break-all}
+.sbomtab code.path{font-size:12px;word-break:break-all}
+.nores{padding:22px;text-align:center;color:var(--dim);display:none}
+.ftags{display:flex;flex-wrap:wrap;gap:6px;margin:11px 0 2px}
+.ftag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:11px;background:var(--panel2);color:var(--mut);border:1px solid var(--bd2);font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.ftag-cwe{color:#f0908a;border-color:#5c2b2b}
+.ftag-attack{color:#c4a3f5;border-color:#4a3a6e}
+.ftag-tasvs{color:#7cc0ff;border-color:#234a6e}
+.ftag-owasp{color:#5ad6a0;border-color:#1f5a45}
 .afflist{margin:4px 0 0;padding-left:18px}
 .afflist li{margin:2px 0}
-code.path{font-size:11.5px;word-break:break-all}
-.muted{color:#888;font-style:italic}
-.auditnotes{margin-top:10px;padding-top:8px;border-top:1px dashed #e3e3e3;font-size:11.5px;color:#8a8a8a;line-height:1.5}
-.auditnotes .anlabel{font-weight:700;color:#9a8a3a;text-transform:uppercase;letter-spacing:.04em;font-size:10.5px;margin-right:6px}
-.confsum .confgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-.cmetric{display:flex;flex-direction:column;gap:2px;background:#fafbfc;border:1px solid #ececec;border-radius:6px;padding:9px 11px}
-.execsum{background:#fbfcfe}.exechead{margin:0 0 6px;font-size:12px;letter-spacing:.4px;text-transform:uppercase;color:#34495e}.exectext{margin:0;line-height:1.55;color:#2c3e50;font-size:13.5px}
-.cmlabel{font-size:11px;color:#888}
-.cmval{font-size:22px;font-weight:700}
-.apath{border-color:#e3b7b7;background:#fdf6f6}
-.apath .apathhead{cursor:pointer;user-select:none;margin:0 0 10px;color:#9b0000}
+.muted{color:var(--dim);font-style:italic}
+.auditnotes{margin-top:11px;padding-top:9px;border-top:1px dashed var(--bd2);font-size:12.5px;color:var(--dim);line-height:1.5}
+.auditnotes .anlabel{font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.04em;font-size:11px;margin-right:6px}
+.apath{border-color:#5c2b2b;background:linear-gradient(180deg,rgba(248,81,73,.07),transparent)}
+.apath .apathhead{cursor:pointer;user-select:none;margin:0 0 10px;color:var(--red)}
 .apath.collapsed .apathbody{display:none}
-.apath-item{padding:8px 0;border-bottom:1px solid #f3e3e3}
+.apath-item{padding:9px 0;border-bottom:1px solid rgba(248,81,73,.15)}
 .apath-item:last-child{border-bottom:none}
 .apath-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.apath-title{font-weight:600;font-size:13.5px;color:#7a2020}
-.apath-fix{font-size:12px;color:#666;margin:4px 0 0 2px}
-.disclaimer{margin-top:40px;padding:14px 16px;border:1px solid #e3b7b7;background:#fdf3f3;border-radius:6px;font-size:11.5px;line-height:1.6;color:#7b241c}
-.disclaimer strong{color:#9b0000}
+.apath-title{font-weight:600;font-size:13.5px;color:#f0a3a0}
+.apath-fix{font-size:13px;color:var(--mut);margin:4px 0 0 2px}
+.disclaimer{margin-top:44px;padding:14px 16px;border:1px solid #5c2b2b;background:rgba(248,81,73,.05);border-radius:8px;font-size:12.5px;line-height:1.6;color:#d8a3a0}
+.disclaimer strong{color:var(--red)}
 @media print{
-  body{background:#fff}
+  body{background:#fff;color:#000}
   .toolbar,.chip,.btn,#search,.filterbar{display:none!important}
   .sevsection.collapsed .sevbody{display:block!important}
   .fbody{display:block!important}
@@ -859,12 +1053,22 @@ code.path{font-size:11.5px;word-break:break-all}
   document.querySelectorAll('.fhead').forEach(function(h){
     h.addEventListener('click',function(){h.parentNode.classList.toggle('open');});
   });
+  document.querySelectorAll('.vcopy').forEach(function(b){
+    b.addEventListener('click',function(e){
+      e.stopPropagation();
+      var cmd=''; try{cmd=decodeURIComponent(escape(window.atob(b.getAttribute('data-cmd'))));}catch(err){try{cmd=window.atob(b.getAttribute('data-cmd'));}catch(e2){cmd='';}}
+      var label=b.textContent;
+      function done(){b.textContent='Copied';b.classList.add('copied');setTimeout(function(){b.textContent=label;b.classList.remove('copied');},1200);}
+      function fallback(){var ta=document.createElement('textarea');ta.value=cmd;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');done();}catch(err){}ta.remove();}
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(cmd).then(done,fallback);}else{fallback();}
+    });
+  });
   document.querySelectorAll('.sevhead').forEach(function(h){
     h.addEventListener('click',function(){h.parentNode.classList.toggle('collapsed');});
   });
   var rh=document.querySelector('.recon .reconhead');
   if(rh) rh.addEventListener('click',function(){rh.parentNode.classList.toggle('collapsed');});
-  document.querySelectorAll('.cve .cvehead,.hardening .hardhead,.signing .signhead,.sbom .sbomhead,.apath .apathhead').forEach(function(h){
+  document.querySelectorAll('.cve .cvehead,.hardening .hardhead,.signing .signhead,.sbom .sbomhead,.apath .apathhead,.remed .remhead,.coverage .covhead').forEach(function(h){
     h.addEventListener('click',function(){h.parentNode.classList.toggle('collapsed');});
   });
 
@@ -904,7 +1108,7 @@ code.path{font-size:11.5px;word-break:break-all}
   <button class='btn' id='expandAll'>Expand all</button>
   <button class='btn' id='collapseAll'>Collapse all</button>
   <button class='btn' id='ruleToggle'>Group by rule</button>
-  <label class='cobtn' style='display:inline-flex;align-items:center;gap:5px;font-size:13px;opacity:.85;cursor:pointer' title='Show only IL/dynamic-proven and Confirmed findings; hide Inferred string-scan hits'><input type='checkbox' id='confOnly'> Confirmed only</label>
+  <label class='cobtn' style='display:inline-flex;align-items:center;gap:5px;font-size:14px;opacity:.85;cursor:pointer' title='Show only IL/dynamic-proven and Confirmed findings; hide Inferred string-scan hits'><input type='checkbox' id='confOnly'> Confirmed only</label>
 </div>
 "@
 
@@ -940,7 +1144,9 @@ $css
 $execSummaryHtml
 $cardHtml
 $chartHtml
+$coverageHtml
 $attackPathHtml
+$remediationHtml
 $reconHtml
 $cveHtml
 $ruleSummaryHtml

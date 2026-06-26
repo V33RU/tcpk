@@ -71,7 +71,7 @@ function Export-TcpkSbom {
 
     $meta = [ordered]@{
         timestamp = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-        tools     = @([ordered]@{ vendor = 'TCPK'; name = 'Thick Client Pentest Kit'; version = '1.8.1' })
+        tools     = @([ordered]@{ vendor = 'TCPK'; name = 'Thick Client Pentest Kit'; version = '1.8.2' })
     }
     if ($appComp) { $meta.component = $appComp }
 

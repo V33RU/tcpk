@@ -209,6 +209,9 @@ function Invoke-TcpkAudit {
             Write-Information -MessageData "  [RESUMED] continuing audit." -InformationAction Continue
         }
         Write-TcpkLog -Level DEBUG -Component $Name -Message 'start' | Out-Null
+        # Live "current check" indicator (parent bar) -- so a slow check shows it is RUNNING,
+        # not frozen. The result line still prints on completion below.
+        Write-TcpkProgress -Id 1 -Activity 'TCPK audit' -Status ("running {0} ..." -f $Name)
         try {
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
             $r = & $Block

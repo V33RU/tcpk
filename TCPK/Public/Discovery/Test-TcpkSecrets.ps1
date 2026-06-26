@@ -5,8 +5,11 @@ function Test-TcpkSecrets {
 
 .DESCRIPTION
     Walks every file under the path (or just the named file) and matches each
-    rule from Data\secrets.json. Skips known framework prefixes and large
-    files (>16 MB).
+    rule from Data\secrets.json. Skips known framework prefixes and binary
+    media / .pak blobs. NO size cap -- files <=64 MB load whole, larger files
+    stream in bounded overlapping chunks. Rules may carry a 'prefilter' (cheap
+    literal needles); such a rule's regex only runs on a view that contains a
+    needle, so huge binaries with no trigger word are not ground over.
     Evidence is redacted: first 6 + last 6 chars of the matched string, with
     length annotation.
 
@@ -54,6 +57,16 @@ function Test-TcpkSecrets {
             }
             $r | Add-Member -NotePropertyName _QuickLit -NotePropertyValue $lit -Force
         }
+        # Optional multi-needle pre-filter (rule.prefilter): a set of cheap literal triggers.
+        # When set, the rule's (often heavy) regex only runs on a view that contains at least one
+        # needle. The credential rules require a password-ish keyword to match, so gating on it is
+        # loss-free AND stops the regex from grinding over hundreds of MB of binary blobs that
+        # contain no such keyword (the cause of the no-size-cap hang on Electron/Chromium apps).
+        if (-not $r.PSObject.Properties['_Needles']) {
+            $nd = @()
+            if ($r.PSObject.Properties['prefilter'] -and $r.prefilter) { $nd = @($r.prefilter | ForEach-Object { "$_" }) }
+            $r | Add-Member -NotePropertyName _Needles -NotePropertyValue $nd -Force
+        }
     }
 
     # .pak = Chromium/Electron resource+locale packs (UI strings in dozens of languages, no app
@@ -79,6 +92,11 @@ function Test-TcpkSecrets {
             # Cheap, case-insensitive literal pre-filter (skip a rule whose literal prefix
             # is nowhere in the view). Case-insensitive because the rules use IgnoreCase.
             if ($r._QuickLit -and ($Text.IndexOf($r._QuickLit, [System.StringComparison]::OrdinalIgnoreCase) -lt 0)) { continue }
+            if ($r._Needles -and @($r._Needles).Count) {
+                $hasNeedle = $false
+                foreach ($nd in $r._Needles) { if ($Text.IndexOf($nd, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $hasNeedle = $true; break } }
+                if (-not $hasNeedle) { continue }
+            }
             foreach ($m in $r._RX.Matches($Text)) {
                 $hit = $m.Value
                 # Placeholder / documentation guard: skip format examples, not real credentials
@@ -97,7 +115,10 @@ function Test-TcpkSecrets {
         }
     }
 
-    foreach ($f in $files) {
+    $fileArr = @($files); $fileTotal = $fileArr.Count; $fileIdx = 0
+    foreach ($f in $fileArr) {
+        $fileIdx++
+        Write-TcpkProgress -Id 77 -ParentId 1 -Activity 'Secrets scan' -Status ("{0} ({1} MB) [{2}/{3}]" -f $f.Name, [int]($f.Length / 1MB), $fileIdx, $fileTotal) -Current $fileIdx -Total $fileTotal
         if ($f.Extension.ToLowerInvariant() -in $skipExt) { continue }
         if (Test-TcpkIsFrameworkFile $f.Name)             { continue }
 
@@ -138,4 +159,5 @@ function Test-TcpkSecrets {
             } catch { }
         }
     }
+    Complete-TcpkProgress -Id 77
 }

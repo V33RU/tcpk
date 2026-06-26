@@ -125,3 +125,16 @@ Describe 'Executive summary narrative (always-on)' {
         $script:html | Should -Match 'Most significant: Unsigned update'
     }
 }
+
+Describe 'Remediation plan + standards-coverage matrix (new sections)' {
+    It 'renders a prioritized, de-duplicated remediation plan' {
+        $script:html | Should -Match 'Remediation plan'
+        $script:html | Should -Match "class='pri p1'"   # the CRITICAL chain fix is P1
+    }
+    It 'renders the OWASP Desktop Top 10 standards-coverage matrix' {
+        $script:html | Should -Match 'Standards coverage'
+        $script:html | Should -Match "class='da"
+        $script:html | Should -Match '>DA1<'
+        $script:html | Should -Match '>DA10<'
+    }
+}

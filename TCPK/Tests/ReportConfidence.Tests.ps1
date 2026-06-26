@@ -24,7 +24,7 @@ AfterAll { if ($script:out -and (Test-Path $script:out)) { Remove-Item -LiteralP
 
 Describe 'HTML report confidence segregation (audit #2)' {
     It 'gives Confirmed (IL) a distinct proof colour, not the grey default' {
-        $script:html | Should -Match "background:#0b6e4f'>Confirmed \(IL\)"
+        $script:html | Should -Match "background:#2ea043'>Confirmed \(IL\)"
     }
     It 'tags proven findings data-proven=1 and inferred data-proven=0' {
         $script:html | Should -Match "data-proven='1'"
