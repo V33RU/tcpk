@@ -654,7 +654,7 @@ function Get-TcpkCallsiteSinkMap {
         'sql-command-construction'   = @{ Inj = $true;  Sinks = @(@{T='SqlCommand'},@{T='OleDbCommand'},@{T='OdbcCommand'},@{T='MySqlCommand'},@{T='NpgsqlCommand'},@{T='SqliteCommand'},@{T='SQLiteCommand'}) }
         'ssrf-request-build'         = @{ Inj = $true;  Sinks = @(@{T='System.Net.WebRequest'},@{T='System.Net.Http.HttpClient'},@{T='System.Net.WebClient'},@{T='System.Net.Http.HttpRequestMessage'},@{T='RestClient'}) }
         'nosql-command-construction' = @{ Inj = $true;  Sinks = @(@{T='MongoCollection'},@{T='IMongoCollection'},@{T='BsonJavaScript'},@{T='FilterDefinition'},@{T='LiteCollection'}) }
-        'ldap-query'                 = @{ Inj = $true;  Sinks = @(@{T='DirectorySearcher'},@{T='DirectoryEntry'}) }
+        'ldap-query'                 = @{ Inj = $true;  Sinks = @(@{T='System.DirectoryServices.DirectorySearcher'},@{T='System.DirectoryServices.DirectoryEntry'}) }
         'xaml-objectdataprovider-rce'= @{ Inj = $true;  Sinks = @(@{T='XamlReader'},@{T='XamlServices'},@{T='ObjectDataProvider'}) }
         'path-traversal-build'       = @{ Inj = $true;  Sinks = @(@{T='System.IO.Path';M='Combine'},@{T='System.IO.Path';M='GetFullPath'},@{T='ZipFile'}) }
         'weak-symmetric-crypto'      = @{ Inj = $false; Sinks = @(@{T='DESCryptoServiceProvider'},@{T='TripleDESCryptoServiceProvider'},@{T='RC2CryptoServiceProvider'},@{T='Cryptography.DES'},@{T='Cryptography.TripleDES'},@{T='Cryptography.RC2'}) }
@@ -664,7 +664,7 @@ function Get-TcpkCallsiteSinkMap {
         'env-var-path-use'           = @{ Inj = $false; Sinks = @(@{T='System.Environment';M='GetEnvironmentVariable'},@{T='System.Environment';M='ExpandEnvironmentStrings'}) }
         'input-capture'              = @{ Inj = $false; Sinks = @(@{T='SetWindowsHookEx';Mo=$true},@{T='GetAsyncKeyState';Mo=$true},@{T='GetKeyboardState';Mo=$true},@{T='keybd_event';Mo=$true},@{T='RegisterRawInputDevices';Mo=$true},@{T='BitBlt';Mo=$true},@{T='PrintWindow';Mo=$true},@{T='CopyFromScreen';Mo=$true}) }
         'token-impersonation'        = @{ Inj = $false; Sinks = @(@{T='LogonUser';Mo=$true},@{T='ImpersonateLoggedOnUser';Mo=$true},@{T='ImpersonateNamedPipeClient';Mo=$true},@{T='SetThreadToken';Mo=$true},@{T='DuplicateTokenEx';Mo=$true},@{T='WindowsIdentity';M='Impersonate'}) }
-        'clipboard-access'           = @{ Inj = $false; Sinks = @(@{T='Clipboard'},@{T='OpenClipboard';Mo=$true},@{T='GetClipboardData';Mo=$true},@{T='SetClipboardData';Mo=$true}) }
+        'clipboard-access'           = @{ Inj = $false; Sinks = @(@{T='System.Windows.Forms.Clipboard'},@{T='System.Windows.Clipboard'},@{T='OpenClipboard';Mo=$true},@{T='GetClipboardData';Mo=$true},@{T='SetClipboardData';Mo=$true}) }
     }
 }
 

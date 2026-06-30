@@ -6,7 +6,7 @@
   Portable Windows thick-client / MSIX security audit tool.
   **Find. Verify. Report.**
 
-  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, and a native MCP server. 178 cmdlets.
+  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, an agentic AI workbench, and a native MCP server. 180 cmdlets.
   Authorized testing only.
 </div>
 
@@ -25,6 +25,14 @@ The same audit also drives a **loopback web control panel** (new in v1.5.0) --
 discovery-only, token-gated, bound to `127.0.0.1`:
 
 ![TCPK web control panel](assets/tcpk-webui.png)
+
+New in **v2.0.0**, an **agentic AI workbench** (`TCPK-Agentic.bat`) takes a target from
+audit -> decompile -> AI line-by-line review in one phased UI -- including an **autonomous
+agent** that investigates on its own: it reasons, calls read-only tools, and records
+findings, each one cross-checked against the deterministic IL prover. Loopback-only,
+discovery-only, local-first (Ollama):
+
+![TCPK agentic AI workbench](assets/tcpk-agenticai.png)
 
 ## What makes it different
 
@@ -183,4 +191,4 @@ violate computer-misuse law and licence terms. Provided **AS IS**, no warranty. 
 
 ---
 
-TCPK v1.8.2 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v2.0.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.

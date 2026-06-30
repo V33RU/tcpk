@@ -101,7 +101,12 @@ function Test-TcpkSecrets {
                 $hit = $m.Value
                 # Placeholder / documentation guard: skip format examples, not real credentials
                 # (HTML entities, angle-bracket templates, common filler words).
-                if ($hit -match '(?i)(&lt|&gt|&amp|<[a-z_ ]{2,}>|\bsnipped\b|\bplaceholder\b|\bexample\b|\byour[-_ ]|\bchange[-_ ]?me\b|\breplace[-_ ]?me\b|\bdummy\b|\bsample\b|\bredacted\b|x{6,}|\.\.\.|\*{4,})') { continue }
+                # private-key-xml is exempt from the placeholder guard: a real RSAKeyValue is full of
+                # legit XML tags (<RSAKeyValue>/<Modulus>/<D>) that the generic `<[a-z_ ]{2,}>`
+                # template-placeholder pattern matches case-insensitively -- which was silently
+                # suppressing EVERY private-key-in-XML hit. The rule's own `<D>[A-Za-z0-9+/=]{20,}</D>`
+                # requirement already excludes a `<D>your-key-here</D>` placeholder.
+                if ("$($r.id)" -ne 'private-key-xml' -and ($hit -match '(?i)(&lt|&gt|&amp|<[a-z_ ]{2,}>|\bsnipped\b|\bplaceholder\b|\bexample\b|\byour[-_ ]|\bchange[-_ ]?me\b|\breplace[-_ ]?me\b|\bdummy\b|\bsample\b|\bredacted\b|x{6,}|\.\.\.|\*{4,})')) { continue }
                 $key = "$($r.id)::" + $hit.Substring(0, [Math]::Min(80, $hit.Length))
                 if ($seen.ContainsKey($key)) { continue }
                 $seen[$key] = $true

@@ -1,26 +1,34 @@
-function Start-TcpkWebUi {
+function Start-TcpkAgentic {
 <#
 .SYNOPSIS
-    Launch the TCPK local web control panel -- a browser front-end that drives a
-    discovery audit and shows the result in the intelligence dashboard.
+    Launch the TCPK Agentic workbench -- a phased, AI-driven browser front-end that
+    audits a target, decompiles its code, and reviews it line-by-line with an LLM
+    whose claims are cross-checked by the IL prover. Loopback-only, discovery-only.
 
 .DESCRIPTION
     Starts a LOOPBACK-ONLY HTTP server (raw TcpListener; no admin / no urlacl, no
-    external dependencies) and opens your default browser to it. From the page you can
-    point at a target (install dir, EXE/DLL, or an MSIX/MSI/ZIP that TCPK auto-unwraps),
-    run the audit, and read the findings with the same evidence-ladder cards as the
-    offline intel.html report.
+    external dependencies) and opens your browser to a 6-phase workbench:
 
-    SECURITY MODEL (this is a pentest tool -- the panel is built not to become a hole):
-      * Binds 127.0.0.1 ONLY. No other machine on the network can reach it.
+        1 Connect   -> session + engine status
+        2 Target    -> pick an install dir / EXE / MSIX-MSI-ZIP, or an installed app
+        3 Audit     -> run the discovery scan, findings stream in live
+        4 Decompile -> crack modules open to source (ilspycmd / asar)        [staged]
+        5 AI review -> line-by-line LLM review, cross-checked by the IL prover [staged]
+        6 Report    -> download the generated reports
+
+    SECURITY MODEL (identical to Start-TcpkWebUi -- this is a pentest tool, the panel
+    is built not to become a hole):
+      * Binds 127.0.0.1 ONLY -- no other host on the network can reach it.
       * Every /api/* request must carry an 'X-TCPK-Token' header equal to the random
-        per-session token. A web page you happen to visit cannot set a custom header on
-        a cross-origin request without a CORS preflight (which this server never grants),
-        so it cannot drive the panel -- this closes the localhost-CSRF / DNS-rebind hole.
+        per-session token. A cross-origin web page cannot set a custom header without a
+        CORS preflight (which this server never grants) -- closes localhost-CSRF / DNS-rebind.
       * The Host header must be 127.0.0.1:<port> (anti DNS-rebind).
-      * The API is a FIXED verb set over a validated target path -- the browser cannot
-        send arbitrary PowerShell, and the gated exploit bucket (K01-K06) is NEVER
-        reachable from here. This is a discovery-only surface.
+      * Fixed verb set over a validated target path -- the browser cannot send arbitrary
+        PowerShell, and the gated exploit bucket (K01-K06) is NEVER reachable here.
+
+    It REUSES the web control panel's proven API surface (target discovery, identity
+    auto-detect, async audit job, live log, AI config, report download via
+    Invoke-TcpkWebApi) and adds /api/agent/* routes for the decompile + AI-review phases.
 
     Stop it with Ctrl+C, the 'stop server' link on the page, or the idle timeout.
 
@@ -34,9 +42,8 @@ function Start-TcpkWebUi {
     Auto-stop after this many minutes with no requests. Default 30. 0 = no timeout.
 
 .PARAMETER Token
-    Optional. Pin the session token (gives a stable, bookmarkable URL across restarts,
-    and lets automation drive the panel). LEAVE UNSET for normal use -- a fresh, secure
-    random token is generated each launch, which is the stronger default.
+    Optional. Pin the session token (stable, bookmarkable URL across restarts). LEAVE
+    UNSET for normal use -- a fresh secure random token each launch is the stronger default.
 #>
     [CmdletBinding()]
     param(
@@ -55,19 +62,20 @@ function Start-TcpkWebUi {
     $ver = try { "$((Get-Module TCPK | Select-Object -First 1).Version)" } catch { '2.0.0-dev' }
     $state = @{
         Token = $token; Port = $actualPort; Version = $ver; Stop = $false
-        Jobs = @{}                                   # jobId -> running/finished audit
+        Jobs = @{}                                   # jobId -> running/finished audit (shared with Invoke-TcpkWebApi)
+        AgentJobs = @{}                              # jobId -> running/finished autonomous-agent loop
         Psd1 = (Join-Path $script:TcpkRoot 'TCPK.psd1')
         ChkTotal = (Get-TcpkWebCheckCount)           # progress denominator
     }
     $url = "http://127.0.0.1:$actualPort/?t=$token"
 
     Write-Host ""
-    Write-Host "  TCPK web control panel" -ForegroundColor Cyan
+    Write-Host "  TCPK Agentic workbench" -ForegroundColor Cyan
     Write-Host "  ----------------------------------------------------------"
     Write-Host "  URL    : " -NoNewline; Write-Host $url -ForegroundColor Green
     Write-Host "  Bind   : 127.0.0.1:$actualPort  (loopback only -- not on the network)"
     Write-Host "  Auth   : per-session token (in the URL above)"
-    Write-Host "  Scope  : DISCOVERY ONLY -- the exploit bucket is not reachable here."
+    Write-Host "  Scope  : DISCOVERY ONLY -- audit + decompile + AI review. Exploit bucket not reachable."
     Write-Host "  Stop   : Ctrl+C, the 'stop server' link, or $IdleTimeoutMinutes min idle."
     Write-Host "  ----------------------------------------------------------"
     Write-Host ""
@@ -92,7 +100,7 @@ function Start-TcpkWebUi {
                 $ns = $client.GetStream()
                 $req = Read-TcpkHttpRequest -Stream $ns
                 if ($req) {
-                    $resp = try { Invoke-TcpkWebApi -Request $req -State $state }
+                    $resp = try { Invoke-TcpkAgenticApi -Request $req -State $state }
                             catch { New-TcpkWebJson 500 @{ error = "$($_.Exception.Message)" } }
                     if ($resp.File) { Write-TcpkHttpFile -Stream $ns -Path $resp.File -ContentType $resp.ContentType -Download $resp.Download }
                     else { Write-TcpkHttpResponse -Stream $ns -Status $resp.Status -ContentType $resp.ContentType -Body $resp.Body }
@@ -106,11 +114,13 @@ function Start-TcpkWebUi {
         }
     } finally {
         try { $listener.Stop() } catch { }
-        # stop any audits still running and clean up their pause flags
         foreach ($e in @($state.Jobs.Values)) {
             try { if ($e.Job) { Stop-Job -Job $e.Job -ErrorAction SilentlyContinue; Remove-Job -Job $e.Job -Force -ErrorAction SilentlyContinue } } catch { }
             try { Remove-Item -LiteralPath $e.PauseFlag -Force -ErrorAction SilentlyContinue } catch { }
         }
-        Write-Host "  TCPK web control panel stopped." -ForegroundColor Yellow
+        foreach ($e in @($state.AgentJobs.Values)) {
+            try { if ($e.Job) { Stop-Job -Job $e.Job -ErrorAction SilentlyContinue; Remove-Job -Job $e.Job -Force -ErrorAction SilentlyContinue } } catch { }
+        }
+        Write-Host "  TCPK Agentic workbench stopped." -ForegroundColor Yellow
     }
 }

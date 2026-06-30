@@ -3,9 +3,9 @@
     "timeoutSeconds":  120,
     "redactSecrets":  true,
     "onlyEnrichSeverityAtLeast":  "MEDIUM",
-    "provider":  "ollama",
-    "model":  "qwen2.5-coder:7b",
     "baseUrl":  "",
     "apiKey":  "",
+    "model":  "qwen2.5-coder:7b",
+    "provider":  "ollama",
     "enabled":  true
 }

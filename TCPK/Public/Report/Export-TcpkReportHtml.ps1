@@ -799,7 +799,7 @@ $($remRows -join "`n")
         # ---------------- static CSS ----------------
         $css = @'
 *{box-sizing:border-box}
-:root{--bg:#0a0d13;--panel:#11161f;--panel2:#161c27;--sub:#0d1117;--bd:#242c3a;--bd2:#2f3a4d;--tx:#e6edf3;--mut:#9aa4b2;--dim:#6a7585;--acc:#56d364;--acc2:#3fb950;--blue:#58a6ff;--amber:#d29922;--red:#f85149}
+:root{--bg:#0a0d13;--panel:#11161f;--panel2:#161c27;--sub:#0d1117;--bd:#242c3a;--bd2:#2f3a4d;--tx:#e6edf3;--mut:#9aa4b2;--dim:#6a7585;--acc:#56d364;--acc2:#3fb950;--blue:#58a6ff;--amber:#d29922;--red:#f85149;--crit:#f85149;--high:#db6d28;--med:#d29922;--low:#3fb950;--info:#6a7585}
 body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;margin:0;background:var(--bg);color:var(--tx);line-height:1.55}
 .wrap{max-width:1180px;margin:0 auto;padding:26px 22px 100px}
 h1{font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px}

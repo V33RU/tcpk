@@ -79,7 +79,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <div class="wrap">
 <nav class="toc">
   <div class="brand">TC<span>PK</span></div>
-  <div class="ver">v1.8.2 &middot; 178 cmdlets</div>
+  <div class="ver">v2.0.0 &middot; 180 cmdlets</div>
   <a href="#tldr">TL;DR</a>
   <a href="#threat">Why thick clients</a>
   <a href="#principles">Design principles</a>
@@ -97,6 +97,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <a href="#hardening">Hardening + signing</a>
   <a href="#sbom">SBOM + CVE</a>
   <a href="#ai">AI verification layer</a>
+  <a href="#agentic">Agentic AI workbench</a>
   <a href="#mapping">ATT&amp;CK / TASVS / checklist</a>
   <div class="grp">Operate</div>
   <a href="#reports">Reporting outputs</a>
@@ -112,8 +113,8 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <p class="tag">Evidence over assertion. A scanner that proves its findings.</p>
   <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
   <div class="badges">
-    <span class="badge"><b>v1.8.2</b></span>
-    <span class="badge"><b>178</b> cmdlets</span>
+    <span class="badge"><b>v2.0.0</b></span>
+    <span class="badge"><b>180</b> cmdlets</span>
     <span class="badge">PowerShell <b>5.1+</b></span>
     <span class="badge">WinForms GUI + <b>MCP</b> server</span>
     <span class="badge">CVSS <b>v4.0</b> (computed)</span>
@@ -126,6 +127,16 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <figure>
   <img src="tcpk-gui.png" alt="TCPK GUI: target selection, live audit progress, findings table, and tabs for Recon, Exploit/CVE, SBOM, DLL Mitigation Matrix, DLL Signing, and Logs.">
   <figcaption>The WinForms console: live per-check progress, streaming findings, and posture tabs (Recon, SBOM, DLL Mitigation Matrix, DLL Signing). The same engine drives the CLI and the MCP server.</figcaption>
+</figure>
+
+<figure>
+  <img src="tcpk-webui.png" alt="TCPK loopback web control panel: target picker, audit options, live progress and findings, and result tabs.">
+  <figcaption>The loopback-only web control panel (TCPK-WebUI.bat) -- binds 127.0.0.1, token-gated, discovery-only: drive an audit from the browser with live progress, pause/resume, and result tabs.</figcaption>
+</figure>
+
+<figure>
+  <img src="tcpk-agenticai.png" alt="TCPK agentic AI workbench: phased rail (Connect, Target, Audit, Decompile, AI review, Report, autonomous Agent), risk gauge, severity donut, and findings triage.">
+  <figcaption>The agentic AI workbench (TCPK-Agentic.bat, new in v2.0.0) -- audit, real decompile, and AI line-by-line review in one phased UI, plus an autonomous agent that drives the investigation itself; every finding is cross-checked by the IL prover. Loopback-only, discovery-only, local-first.</figcaption>
 </figure>
 
 <section id="tldr">
@@ -481,8 +492,34 @@ Invoke-TcpkAudit -Target 'C:\App' -Acknowledge -EnableLlm
 Invoke-TcpkAudit -Target 'C:\App' -Acknowledge -EnableLlm -AllowCloudLlm</code></pre>
 </section>
 
+<section id="agentic">
+<h2><span class="num">13</span>Agentic AI workbench (v2.0.0)</h2>
+<p>A fourth surface alongside the CLI, GUI, and MCP server: a loopback-only, discovery-only browser workbench (<code>TCPK-Agentic.bat</code> -&gt; <code>Start-TcpkAgentic</code>) that walks a target through one phased flow (Connect, Target, Audit, Decompile, AI review, Report) and adds a genuinely autonomous agent. It reuses the web control panel's API verbatim -- one source of truth, so the two never drift -- and binds the same security model: <code>127.0.0.1</code> only, an <code>X-TCPK-Token</code> custom header on every call, a Host-header check, and a fixed verb set. The gated exploit bucket is never reachable from it.</p>
+
+<h4>Decompile + sink browser</h4>
+<p>The Decompile phase cracks the target's managed modules open with the bundled Mono.Cecil (shipped under <code>tools\ILSpy\</code>, so the IL engine works with no .NET SDK installed). It lists the methods that actually invoke a dangerous sink -- matched against the <em>same</em> shared sink map the deterministic verifier uses, with precise type-plus-method matching, so a call to <code>System.Environment::get_NewLine</code> is not mistaken for the <code>GetEnvironmentVariable</code> sink -- and dumps each method's IL with the sink calls highlighted.</p>
+
+<h4>AI line-by-line review</h4>
+<p>The AI review phase asks the selected agent to judge one method's exploitability from its IL, and shows that verdict <em>beside</em> the deterministic reachability the IL engine computed (public / virtual / entry-point / has-caller). The model is advisory; the evidence is authoritative -- it never overrides a deterministic verdict.</p>
+
+<h4>The autonomous agent</h4>
+<p>The Agent tab is the real thing: you give a plain-English goal and the model <em>drives</em> a reason / call-tool / observe loop, deciding each step itself. It is not a scripted pipeline -- change the goal and the investigation path changes.</p>
+<ul>
+<li><b>Read-only toolset.</b> <code>list_sink_methods</code>, <code>inspect_method</code>, <code>submit_finding</code>, <code>finish</code> -- analysis only. The exploit / PoC bucket is never exposed to the agent.</li>
+<li><b>Portable transport.</b> The model replies with one JSON action (a tool call or a final answer) parsed from its message content, so it works with any chat model and does not depend on native tool-calling, which small local models do not populate reliably.</li>
+<li><b>Bounded.</b> A step budget caps the loop; submissions are de-duplicated; a status-annotated method list plus a finish-when-nothing-new-remains rule keep it converging instead of looping on the same method.</li>
+<li><b>Grounded.</b> Every finding the agent submits is re-checked against the deterministic IL reachability engine. The agent proposes; the IL prover disposes.</li>
+<li><b>Local-first.</b> It talks to Ollama over a loopback protocol; a capable code model (<code>qwen2.5-coder:7b</code>) is recommended for reliable multi-step behaviour. Nothing leaves the box unless you pick a cloud agent and open the egress gate.</li>
+</ul>
+<div class="callout"><b>The honest framing.</b> The agent <em>explores</em> -- it chooses what to decompile and which methods to judge -- while the deterministic Cecil / IL engine <em>proves</em>. Much of the analytical weight is the engine, not the model: the agent is the driver, not the oracle. That is the design, and it is what keeps an autonomous LLM loop from becoming a confident hallucination machine in a security tool.</div>
+<pre><code class="language-powershell"># launch the workbench (loopback URL + token are printed):
+Start-TcpkAgentic
+# or run the autonomous agent headless:
+Invoke-TcpkAgentAudit -Target 'C:\App' -Goal 'Find deserialization bugs' -Model 'qwen2.5-coder:7b'</code></pre>
+</section>
+
 <section id="mapping">
-<h2><span class="num">13</span>ATT&amp;CK, OWASP TASVS, and the 55-case checklist</h2>
+<h2><span class="num">14</span>ATT&amp;CK, OWASP TASVS, and the 55-case checklist</h2>
 <p>Every finding is mapped, at report time, to a MITRE ATT&amp;CK technique and to OWASP TASVS v1.8 + the Desktop App Security Top 10. Mapping is a pure prefix lookup over the RuleId, so it stays in sync with the [TcpkFinding] schema. Findings are also auto-correlated to a 55-case thick-client methodology (TC01-TC55); the auto-status is TCPK's read, and the tester sets the final PASS/FAIL -- a NO-FINDINGS status is explicitly <em>not</em> a pass.</p>
 <pre><code class="language-powershell">Get-TcpkAttackText 'callsites.command-execution'   # T1059 Command and Scripting Interpreter
 Get-TcpkTasvsText  'secrets.aws-access-key-id'      # TASVS-STORAGE ...; DA3 Sensitive Data Exposure</code></pre>
@@ -491,7 +528,7 @@ Get-TcpkTasvsText  'secrets.aws-access-key-id'      # TASVS-STORAGE ...; DA3 Sen
 <hr>
 
 <section id="reports">
-<h2><span class="num">14</span>Reporting outputs</h2>
+<h2><span class="num">15</span>Reporting outputs</h2>
 <p>One audit, many consumers. The output directory is self-contained:</p>
 <table>
 <thead><tr><th>File</th><th>Audience</th><th>Contents</th></tr></thead>
@@ -510,7 +547,7 @@ Get-TcpkTasvsText  'secrets.aws-access-key-id'      # TASVS-STORAGE ...; DA3 Sen
 </section>
 
 <section id="usage">
-<h2><span class="num">15</span>Usage</h2>
+<h2><span class="num">16</span>Usage</h2>
 <h4>CLI</h4>
 <pre><code class="language-powershell">Import-Module .\TCPK\TCPK.psd1
 
@@ -541,7 +578,7 @@ powershell -File .\Start-TcpkMcpServer.ps1</code></pre>
 </section>
 
 <section id="install">
-<h2><span class="num">16</span>Install</h2>
+<h2><span class="num">17</span>Install</h2>
 <ul>
 <li><b>Windows PowerShell 5.1+</b> (the GUI is WinForms; the engine also runs under PowerShell 7).</li>
 <li><b>No third-party PowerShell modules.</b> Reporting needs nothing extra.</li>
@@ -549,17 +586,17 @@ powershell -File .\Start-TcpkMcpServer.ps1</code></pre>
 </ul>
 <pre><code class="language-powershell"># clone / unzip, then:
 Import-Module .\TCPK\TCPK.psd1
-Get-Command -Module TCPK | Measure-Object   # 178 cmdlets
+Get-Command -Module TCPK | Measure-Object   # 180 cmdlets
 Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
 <section id="auth">
-<h2><span class="num">17</span>Authorization &amp; ethics</h2>
+<h2><span class="num">18</span>Authorization &amp; ethics</h2>
 <div class="callout danger"><b>Authorized testing only.</b> TCPK prints an authorization banner and requires <code>-Acknowledge</code> (CLI) before it runs. The exploit / PoC bucket is gated separately behind <code>Enable-TcpkExploit -Acknowledge</code> and emits templates, not weapons. Audit outputs can contain real secrets extracted from a target and are excluded from version control by default -- never commit <code>out/</code>. Use it on your own software, a contracted engagement, written bug-bounty scope, or a lab.</div>
 </section>
 
 <footer>
-<p><b>TCPK v1.8.2</b> &middot; Thick Client Pentest Kit &middot; 178 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+<p><b>TCPK v2.0.0</b> &middot; Thick Client Pentest Kit &middot; 180 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
 </footer>
 </main>
 </div>

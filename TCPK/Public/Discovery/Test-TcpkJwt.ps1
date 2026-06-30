@@ -65,11 +65,16 @@ function Test-TcpkJwt {
                 if ($alg -match '^(none)$') { $sev = 'CRITICAL'; $notes += 'alg=none (signature NOT enforced)' }
 
                 $expNote = 'no exp claim (never expires)'
-                if ($pay.PSObject.Properties['exp']) {
-                    $expVal = [int64]$pay.exp
-                    $expDt = [DateTimeOffset]::FromUnixTimeSeconds($expVal).UtcDateTime
-                    if ($expDt -lt (Get-Date).ToUniversalTime()) { $expNote = "expired $($expDt.ToString('u'))" }
-                    else { $expNote = "valid until $($expDt.ToString('u'))"; if ($sev -eq 'MEDIUM') { $sev = 'HIGH' } }
+                # exp may be missing, non-numeric, or out of FromUnixTimeSeconds range on a crafted
+                # token -- coerce safely and treat any unparseable expiry like "no valid expiry"
+                # (HIGH) instead of throwing and aborting the whole JWT scan for this file.
+                $expVal = if ($pay.PSObject.Properties['exp']) { $pay.exp -as [int64] } else { $null }
+                if ($null -ne $expVal) {
+                    try {
+                        $expDt = [DateTimeOffset]::FromUnixTimeSeconds($expVal).UtcDateTime
+                        if ($expDt -lt (Get-Date).ToUniversalTime()) { $expNote = "expired $($expDt.ToString('u'))" }
+                        else { $expNote = "valid until $($expDt.ToString('u'))"; if ($sev -eq 'MEDIUM') { $sev = 'HIGH' } }
+                    } catch { if ($sev -eq 'MEDIUM') { $sev = 'HIGH' } }
                 } else { if ($sev -eq 'MEDIUM') { $sev = 'HIGH' } }
                 $notes += $expNote
 

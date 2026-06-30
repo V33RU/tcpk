@@ -138,3 +138,16 @@ Describe 'Remediation plan + standards-coverage matrix (new sections)' {
         $script:html | Should -Match '>DA10<'
     }
 }
+
+Describe 'Risk gauge + severity donut + remediation colors' {
+    It 'renders the risk-index gauge and the severity donut' {
+        $script:html | Should -Match 'RISK INDEX'
+        $script:html | Should -Match 'stroke-dasharray'
+        $script:html | Should -Match "class='dleg'"
+    }
+    It 'defines the severity CSS variables the remediation/coverage sections use' {
+        # regression guard for the v1.8.2 blocker: --crit/--high/--med/--low must exist in :root
+        $script:html | Should -Match '--crit:#'
+        $script:html | Should -Match '--low:#'
+    }
+}
