@@ -198,8 +198,8 @@ function Get-TcpkWebAuditJobScript {
         param($modulePath, $params)
         Import-Module $modulePath -Force
         Invoke-TcpkAudit @params 6>&1 | ForEach-Object {
-            if ($_ -is [string]) { if ($_ -notmatch '^LOGX\t') { "LOG`t$_" } }
-            elseif ($_ -is [System.Management.Automation.InformationRecord]) { $t = "$_"; if ($t -notmatch '^LOGX\t') { "LOG`t$t" } }
+            if ($_ -is [string]) { if ($_.StartsWith("TCPKFND`t")) { "FND`t" + $_.Substring(8) } elseif ($_ -notmatch '^LOGX\t') { "LOG`t$_" } }
+            elseif ($_ -is [System.Management.Automation.InformationRecord]) { $t = "$_"; if ($t.StartsWith("TCPKFND`t")) { "FND`t" + $t.Substring(8) } elseif ($t -notmatch '^LOGX\t') { "LOG`t$t" } }
             elseif ($_.GetType().Name -eq 'TcpkFinding') { "FND`t$($_.Severity)`t$($_.Confidence)`t$($_.RuleId)`t$($_.Title)" }
         }
     }

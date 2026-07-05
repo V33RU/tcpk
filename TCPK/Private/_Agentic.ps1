@@ -39,9 +39,10 @@ function Invoke-TcpkAgenticApi {
             return (New-TcpkWebJson 401 @{ error = 'unauthorized' })
         }
         switch ("$method $path") {
-            'GET /api/agent/modules'    { return (New-TcpkWebJson 200 @{ modules = @(Get-TcpkAgentModules -Target "$($Request.Query['target'])") }) }
+            'GET /api/agent/modules'    { return (New-TcpkWebJson 200 (Get-TcpkAgentModules -Target "$($Request.Query['target'])" -Summary)) }
             'GET /api/agent/llm-models' { return (New-TcpkWebJson 200 (Get-TcpkAgentLlmModels)) }
             'POST /api/agent/decompile' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentDecompile -Dll "$(if($b){$b.dll})" -Method "$(if($b){$b.method})")) }
+            'POST /api/agent/native'    { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentNativePe -Dll "$(if($b){$b.dll})")) }
             'POST /api/agent/review'    { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentReview -Dll "$(if($b){$b.dll})" -Method "$(if($b){$b.method})" -Agent $b)) }
             'POST /api/agent/auto'      { return (Start-TcpkAgentAutoJob -Request $Request -State $State) }
             'GET /api/agent/auto-status'{ return (Get-TcpkAgentAutoStatus -State $State -JobId "$($Request.Query['job'])") }
@@ -104,24 +105,84 @@ function Get-TcpkAgentSinkHit {
 # GET /api/agent/modules?target= -- list the managed .NET modules in a target (the single
 # file, or every first-party DLL/EXE under a directory). Counts only; cheap.
 function Get-TcpkAgentModules {
-    [CmdletBinding()] param([Parameter(Mandatory)][AllowEmptyString()][string]$Target)
+    [CmdletBinding()] param([Parameter(Mandatory)][AllowEmptyString()][string]$Target, [switch]$Summary)
     $p = Resolve-TcpkWebTarget $Target
-    if (-not $p) { return @() }
+    if (-not $p) { if ($Summary) { return @{ modules = @(); nativeModules = @(); scanned = 0; managed = 0; native = 0 } } else { return @() } }
     $files = if (Test-Path -LiteralPath $p -PathType Container) {
         @(Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -in '.dll','.exe' })
     } else { @(Get-Item -LiteralPath $p) }
     $out = New-Object 'System.Collections.Generic.List[object]'
+    $nat = New-Object 'System.Collections.Generic.List[object]'
     foreach ($f in $files) {
         if ($f.Extension -notin '.dll','.exe') { continue }
         if (Test-TcpkIsFrameworkFile $f.Name) { continue }
         $asm = Get-TcpkCecilAssembly $f.FullName
-        if (-not $asm) { continue }   # not managed / unreadable
+        if (-not $asm) {
+            # not managed .NET -- native PE (C/C++/Go/Rust). Listed for the -Summary
+            # (workbench) caller so the user can pick it for a PE/hardening view.
+            if ($Summary -and $nat.Count -lt 500) { $nat.Add([ordered]@{ name = $f.Name; path = $f.FullName; kind = 'native'; size = [int64]$f.Length }) }
+            continue
+        }
         $tc = 0; $mc = 0
         try { foreach ($t in $asm.MainModule.GetTypes()) { $tc++; foreach ($m in $t.Methods) { if ($m.HasBody) { $mc++ } } } } catch { }
-        $out.Add([ordered]@{ name = $f.Name; path = $f.FullName; types = $tc; methods = $mc })
+        $out.Add([ordered]@{ name = $f.Name; path = $f.FullName; kind = 'managed'; types = $tc; methods = $mc })
         if ($out.Count -ge 200) { break }
     }
+    # NOTE: default (non-Summary) return is managed-only -- the autonomous agent + auto
+    # primary-target picker must never be handed a native DLL to "decompile".
+    if ($Summary) { return @{ modules = @($out.ToArray()); nativeModules = @($nat.ToArray()); scanned = @($files).Count; managed = $out.Count; native = $nat.Count } }
     @($out.ToArray())
+}
+
+# POST /api/agent/native {dll} -- for a NON-.NET (native) PE: exploit-mitigation
+# (ASLR/DEP/CFG/...) flags, Authenticode signing, high-risk imported APIs, and
+# import/export counts. Read-only PE parse -- the target is never executed. This is
+# what the workbench shows when the user selects a native DLL (Cecil can't read it).
+function Get-TcpkAgentNativePe {
+    [CmdletBinding()] param([Parameter(Mandatory)][AllowEmptyString()][string]$Dll)
+    $p = Resolve-TcpkWebTarget $Dll
+    if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
+    $info = Read-TcpkPe -Path $p
+    if (-not $info) { return @{ error = 'not a readable PE file' } }
+
+    $arch = switch ($info.Machine) { 0x8664 {'x64'} 0x14C {'x86'} 0xAA64 {'ARM64'} 0x1C0 {'ARM'} 0x1C4 {'ARM'} default { ('0x{0:X}' -f $info.Machine) } }
+
+    $hb = @{ ASLR = 0x0040; DEP = 0x0100; CFG = 0x4000; HighEntropyVA = 0x0020; ForceIntegrity = 0x0080 }
+    $hard = [ordered]@{}
+    foreach ($k in 'ASLR','DEP','CFG','HighEntropyVA','ForceIntegrity') { $hard[$k] = [bool]($info.DllCharacteristics -band $hb[$k]) }
+    $hard['SafeSEH'] = "$($info.SafeSeh)"
+    $hard['GS']      = "$($info.StackCookie)"
+    $missing = @(); foreach ($n in 'ASLR','DEP','CFG') { if (-not $hard[$n]) { $missing += $n } }
+    $status = if (-not $hard['ASLR'] -or -not $hard['DEP']) { 'WEAK' } elseif ($missing.Count) { 'PARTIAL' } else { 'HARDENED' }
+
+    $sign = @{ status = 'unknown'; signer = '' }
+    try {
+        $sig = Get-AuthenticodeSignature -LiteralPath $p -ErrorAction Stop
+        $sign.status = "$($sig.Status)"
+        if ($sig.SignerCertificate) { $sign.signer = "$($sig.SignerCertificate.Subject)" }
+    } catch { }
+
+    $risky = @{
+        'CreateProcessW'='spawns a child process';'CreateProcessA'='spawns a child process';'CreateProcessAsUserW'='spawns a process as another user';'WinExec'='spawns a child process';'ShellExecuteW'='launches a program or URL';'ShellExecuteA'='launches a program or URL';'ShellExecuteExW'='launches a program or URL';'system'='shell command execution';'_wsystem'='shell command execution';'_popen'='shell pipe execution';
+        'WriteProcessMemory'='process-injection primitive';'VirtualAllocEx'='process-injection primitive';'CreateRemoteThread'='remote-thread injection';'SetWindowsHookExW'='global hook / injection';'QueueUserAPC'='APC injection';'NtMapViewOfSection'='section-mapping injection';
+        'LoadLibraryW'='dynamic library load';'LoadLibraryA'='dynamic library load';'LoadLibraryExW'='dynamic library load';'GetProcAddress'='dynamic symbol resolution';
+        'strcpy'='unbounded copy (overflow risk)';'strcat'='unbounded concat (overflow risk)';'sprintf'='unbounded format (overflow risk)';'gets'='unbounded input (overflow risk)';'lstrcpyW'='legacy unbounded copy';'lstrcatW'='legacy unbounded concat';'wcscpy'='unbounded wide copy';'_snwprintf'='non-terminating format';
+        'URLDownloadToFileW'='downloads a remote file';'InternetOpenUrlW'='HTTP fetch';'WinHttpConnect'='HTTP connection';'HttpSendRequestW'='HTTP request';
+        'RegSetValueExW'='writes the registry';'RegCreateKeyExW'='creates registry keys';
+        'WinVerifyTrust'='signature verification (check if bypassable)';'CryptDecrypt'='decrypts data';'CryptEncrypt'='encrypts data'
+    }
+    $imp = @($info.Imports)
+    $hits = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($fn in ($imp | Select-Object -Unique)) { if ($risky.ContainsKey("$fn")) { $hits.Add([ordered]@{ api = "$fn"; note = $risky["$fn"] }) } }
+
+    return @{
+        file = (Split-Path $p -Leaf); arch = $arch; managed = $false
+        hardening = $hard; hardeningStatus = $status; missing = ($missing -join ', ')
+        signing = $sign
+        importsTotal = $imp.Count; exportsTotal = @($info.Exports).Count
+        riskyImports = @($hits.ToArray())
+        exportsSample = @(@($info.Exports) | Select-Object -First 12)
+    }
 }
 
 # POST /api/agent/decompile {dll, method?} -- with no method: the module's type/method
@@ -417,6 +478,7 @@ td.ttl{white-space:normal;max-width:520px;color:#dbe3ea}
 .cv .col{background:#010409;border:1px solid var(--border);border-radius:8px;overflow:auto;padding:9px}
 .cv h4{margin:0 0 8px;font:700 10px var(--mono);color:var(--muted);letter-spacing:.05em}
 .file{font:12px var(--mono);color:#c9d1d9;padding:5px 7px;border-radius:6px;cursor:pointer}.file:hover{background:var(--panel)}.file.on{background:var(--panel2);color:var(--accent)}
+.mtag{display:inline-block;font:700 9px var(--mono);padding:1px 5px;border-radius:3px;vertical-align:middle}.mtag.net{background:#12351f;color:#4ade80}.mtag.nat{background:#3a2f14;color:#fbbf24}
 .code{font:12px/1.65 var(--mono);white-space:pre;color:#c9d1d9}
 .code .ln{color:#3a4250;margin-right:12px;user-select:none}
 .code .vuln{background:rgba(248,81,73,.14);display:block;margin:0 -9px;padding:0 9px}
@@ -537,7 +599,7 @@ th,td{padding:7px 11px}
           <div id="apps"></div>
           <div class="note" id="ident"></div>
         </div>
-        <button class="go" id="toAudit" onclick="go(3)" disabled>Continue to Audit</button>
+        <button class="go" id="toAudit" onclick="onTargetSet(val('target'));go(3)" disabled>Continue to Audit</button>
       </div>
 
       <div class="pane" data-p="3">
@@ -589,8 +651,9 @@ th,td{padding:7px 11px}
 
       <div class="pane" data-p="4">
         <h2>Decompile</h2>
-        <p class="lead">Crack the target's .NET modules open via Mono.Cecil. Methods that invoke a known sink are flagged so you jump straight to what matters -- the same sinks the IL verifier proves.</p>
-        <div class="row"><div style="flex:0 0 auto"><button class="mini" onclick="loadModules()">Load modules from target</button></div><div class="note" id="dcStatus" style="flex:1"></div></div>
+        <p class="lead">Scans the whole target folder and lists every module. Pick one: <b>.NET</b> modules decompile via Mono.Cecil with sink-bearing methods flagged (the same sinks the IL verifier proves); <b>native</b> (C/C++/Electron) modules can't be decompiled to source, so they show a PE view instead -- exploit-mitigation flags (ASLR/DEP/CFG), Authenticode signing, and high-risk imported APIs.</p>
+        <div class="row"><div style="flex:0 0 auto"><button class="mini" onclick="loadModules()">Load modules from target</button></div><div style="flex:0 0 auto"><label class="chk" style="font:11px var(--mono)"><input type="checkbox" id="dcSelAll" onclick="toggleSelAll()"> select all</label></div><div style="flex:0 0 auto"><button class="go mini" id="dcAuditBtn" onclick="auditSelected()" disabled>Audit selected (0)</button></div><div class="note" id="dcStatus" style="flex:1"></div></div>
+        <p class="note" style="margin-top:0">Tick the DLL(s) you care about and <b>Audit selected</b> runs a focused TCPK audit on just those binaries (signature, PE hardening, strings, secrets, .NET sink/IL proof) -- separate from decompiling or auditing the whole app.</p>
         <div class="cv">
           <div class="col">
             <h4>MODULES</h4><div id="dcModules"><div class="note">click "Load modules from target"</div></div>
@@ -601,6 +664,7 @@ th,td{padding:7px 11px}
             <div style="margin-top:14px"><button class="mini" id="dcToReview" onclick="sendToReview()" disabled>Send to AI review -&gt;</button></div>
           </div>
         </div>
+        <div id="dcAudit" style="display:none;margin-top:16px"><h4>AUDIT RESULTS (selected modules)</h4><div class="panel" id="dcAuditBody"><div class="note">-</div></div></div>
       </div>
 
       <div class="pane" data-p="5">
@@ -665,7 +729,7 @@ async function testAgent(){var st=$('agentStatus');st.textContent='testing...';s
   catch(e){st.textContent='test failed';st.style.color='var(--crit)';$('agentDot').className='dot bad';}refreshAgentChip();}
 function go(n){document.querySelectorAll('.pane').forEach(function(p){p.classList.toggle('on',+p.dataset.p===n);});
   document.querySelectorAll('.step').forEach(function(s){s.classList.toggle('active',+s.dataset.p===n);});
-  if(n===4 && window._target && !window._dcLoaded){window._dcLoaded=true;setTimeout(loadModules,120);}
+  if(n===4 && (window._target||val('target').trim()) && !window._dcLoaded){window._dcLoaded=true;setTimeout(loadModules,120);}
   if(n===5 && window._dcMethod){prepReview();}}
 function mark(n){document.querySelectorAll('.step').forEach(function(s){if(+s.dataset.p<=n)s.classList.add('done');});}
 document.querySelectorAll('.step').forEach(function(s){s.addEventListener('click',function(){go(+s.dataset.p);});});
@@ -673,7 +737,7 @@ $('stop').addEventListener('click',async function(){try{await api('/api/shutdown
 (async function(){try{var p=await api('/api/ping');$('conn').innerHTML='session authenticated -- engine v'+esc(p.version||'?')+' ready.';$('ver').textContent='v'+(p.version||'?');}catch(e){$('conn').textContent='cannot reach the local engine.';}})();
 refreshAgentChip();
 (function(){var qt=P.get('target');if(qt){$('target').value=qt;$('toAudit').disabled=false;onTargetSet(qt);detect();var mp=P.get('method');if(mp){window._dcDll=qt;window._dcMethod=mp;}var ph=P.get('phase');if(ph){go(+ph);}else{go(3);if(P.get('autorun')==='1'){setTimeout(run,1200);}}if(mp&&ph==='5'){setTimeout(function(){prepReview();runReview();},700);}if(ph==='7'&&P.get('auto')==='1'){setTimeout(runAuto,600);}}})();
-function onTargetInput(){$('toAudit').disabled=!val('target').trim();}
+function onTargetInput(){var t=val('target').trim();$('toAudit').disabled=!t;window._target=t;window._dcLoaded=false;}
 function onTargetSet(t){window._target=t;$('targetChip').style.display='flex';$('targetChipTxt').textContent=t;}
 function pick(path){$('target').value=path;$('toAudit').disabled=false;onTargetSet(path);detect();}
 async function detect(){var t=val('target').trim();if(!t)return;$('ident').textContent='detecting...';onTargetSet(t);
@@ -684,7 +748,7 @@ async function search(){var q=val('q').trim();var box=$('apps');box.innerHTML='<
 async function listAll(){var box=$('apps');box.innerHTML='<div class="note">loading...</div>';try{var r=await api('/api/apps');render(r.apps);}catch(e){box.innerHTML='<div class="note">load failed</div>';}}
 function setRun(on){$('run').disabled=on;$('pause').disabled=!on;$('cancel').disabled=!on;$('resume').disabled=true;$('dockMeta').textContent=on?'running...':'idle';}
 async function run(){var t=val('target').trim();if(!t){go(2);$('ident').textContent='pick a target first';return;}
-  counts={crit:0,high:0,med:0,low:0,info:0};FINDINGS=[];renderTriage();paint();$('prog').style.width='0%';
+  counts={crit:0,high:0,med:0,low:0,info:0};FINDINGS=[];window._seenFind={};renderTriage();paint();$('prog').style.width='0%';
   var body={target:t,profile:val('profile'),deepRuntime:$('deepRuntime').checked,onlineCve:$('onlineCve').checked};
   if(window._ident){body.packageName=window._ident.packageName;body.packageFamilyName=window._ident.packageFamilyName;body.processName=window._ident.processName;}
   if($('enableLlm').checked){var ag=getAgent();body.enableLlm=true;body.provider=ag.provider;body.model=ag.model;body.apiKey=ag.apiKey;body.baseUrl=ag.baseUrl;body.allowCloudLlm=ag.allowCloud;}
@@ -698,12 +762,19 @@ function poll(){timer=setInterval(tick,1000);}
 function stopPoll(){if(timer){clearInterval(timer);timer=null;}}
 async function tick(){if(!JOB)return;var s;try{s=await api('/api/status?job='+JOB);}catch(e){return;}
   (s.log||[]).forEach(function(l){log(l,'');});
-  (s.findings||[]).forEach(function(f){var k=sevKey(f.sev);if(counts[k]!==undefined)counts[k]++;FINDINGS.push(f);log('[find] '+f.sev+' '+f.rule+' -- '+f.title,'c-find');});
+  (s.findings||[]).forEach(function(f){if(!window._seenFind)window._seenFind={};var key=(f.sev||'')+'|'+(f.conf||'')+'|'+(f.rule||'');if(window._seenFind[key])return;window._seenFind[key]=1;var k=sevKey(f.sev);if(counts[k]!==undefined)counts[k]++;FINDINGS.push(f);log('[find] '+f.sev+' '+f.rule+' -- '+f.title,'c-find');});
   if(s.findings&&s.findings.length){renderTriage();}
   paint();
   if(s.checksDone!==undefined)$('dockMeta').textContent=(s.paused?'paused ':'running ')+s.checksDone+'/'+(s.total||'?')+' checks';
   if(s.total)$('prog').style.width=Math.min(100,Math.round(100*(s.checksDone||0)/s.total))+'%';
-  if(s.done){stopPoll();setRun(false);$('prog').style.width='100%';$('dockMeta').textContent='done';log('[step] audit complete','c-step');mark(3);if(s.result){result=s.result;showReports();}}}
+  if(s.done){stopPoll();setRun(false);$('prog').style.width='100%';$('dockMeta').textContent='done';log('[step] audit complete','c-step');mark(3);if(s.result){result=s.result;showReports();populateFromResult();}}}
+// The live FND stream can be empty (the audit writes findings to its reports without emitting
+// them on the pipeline), so on completion we (re)build the triage table + counters from the
+// authoritative result model -- same {sev,conf,rule,title} shape the stream would have used.
+function populateFromResult(){var mf=(result&&result.model&&result.model.findings)?result.model.findings:[];if(!mf.length)return;
+  counts={crit:0,high:0,med:0,low:0,info:0};FINDINGS=[];
+  mf.forEach(function(f){var k=sevKey(f.sev);if(counts[k]!==undefined)counts[k]++;FINDINGS.push({sev:f.sev,conf:f.conf,rule:f.rule,title:f.title});});
+  renderTriage();paint();log('[step] '+mf.length+' findings loaded into triage','c-step');}
 function riskFrom(c){return Math.min(100,c.crit*45+c.high*18+c.med*6+c.low*2);}
 function riskColor(r){return r>=70?'var(--crit)':r>=40?'var(--high)':r>=15?'var(--med)':'var(--il)';}
 function paint(){for(var k in counts)$('c-'+k).textContent=counts[k];
@@ -731,15 +802,75 @@ function log(m,cls){var el=$('console');var line=cls?('<span class="'+cls+'">'+e
 function toggleDock(){$('dock').classList.toggle('collapsed');}
 function openDock(){$('dock').classList.remove('collapsed');}
 // ---- phase 4: decompile / IL view ----
+function fmtSize(b){b=b||0;if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
+function mkModRow(path,badge,name,sub,onopen){
+  var d=document.createElement('div');d.className='file';d.style.display='flex';d.style.alignItems='flex-start';d.style.gap='6px';
+  var cb=document.createElement('input');cb.type='checkbox';cb.className='msel-cb';cb.style.marginTop='2px';cb._path=path;cb.onclick=function(e){e.stopPropagation();updAuditBtn();};
+  var sp=document.createElement('div');sp.style.flex='1';sp.style.minWidth='0';sp.innerHTML=badge+' '+esc(name)+'<br><span style="color:var(--dim);font-size:10px">'+sub+'</span>';
+  d.appendChild(cb);d.appendChild(sp);d.onclick=function(){onopen(d);};return d;}
+function selectedModulePaths(){return [].slice.call(document.querySelectorAll('#dcModules .msel-cb')).filter(function(c){return c.checked;}).map(function(c){return c._path;});}
+function updAuditBtn(){var n=selectedModulePaths().length;var b=$('dcAuditBtn');if(b){b.disabled=(n===0);b.textContent='Audit selected ('+n+')';}}
+function toggleSelAll(){var on=$('dcSelAll').checked;[].slice.call(document.querySelectorAll('#dcModules .msel-cb')).forEach(function(c){c.checked=on;});updAuditBtn();}
 async function loadModules(){var t=(window._target||val('target')||'').trim();
   if(!t){$('dcStatus').textContent='no target -- pick one in step 2 first';return;}
   $('dcStatus').textContent='enumerating modules...';$('dcModules').innerHTML='<div class="note">loading...</div>';
-  try{var r=await api('/api/agent/modules?target='+encodeURIComponent(t));var ms=r.modules||[];
-    if(!ms.length){$('dcModules').innerHTML='<div class="note">no managed .NET modules found</div>';$('dcStatus').textContent='0 modules';return;}
-    $('dcStatus').textContent=ms.length+' managed module(s)';$('dcModules').innerHTML='';
-    ms.forEach(function(m){var d=document.createElement('div');d.className='file';d.innerHTML=esc(m.name)+'<br><span style="color:var(--dim);font-size:10px">'+m.types+' types / '+m.methods+' methods</span>';d.onclick=function(){selectModule(m.path,d);};$('dcModules').appendChild(d);});
-    if(ms.length===1){selectModule(ms[0].path,$('dcModules').firstChild);}
+  if($('dcSelAll'))$('dcSelAll').checked=false;
+  try{var r=await api('/api/agent/modules?target='+encodeURIComponent(t));var ms=r.modules||[],ns=r.nativeModules||[];
+    $('dcModules').innerHTML='';
+    if(!ms.length&&!ns.length){var sc=r.scanned||0;$('dcModules').innerHTML='<div class="note" style="line-height:1.5">no .dll / .exe found under this target (scanned '+sc+' file'+(sc===1?'':'s')+')</div>';$('dcStatus').textContent='0 modules';updAuditBtn();return;}
+    $('dcStatus').textContent=ms.length+' .NET / '+ns.length+' native module(s)';
+    ms.forEach(function(m){$('dcModules').appendChild(mkModRow(m.path,'<span class="mtag net">.NET</span>',m.name,m.types+' types / '+m.methods+' methods -- decompile IL',function(el){selectModule(m.path,el);}));});
+    ns.forEach(function(m){$('dcModules').appendChild(mkModRow(m.path,'<span class="mtag nat">native</span>',m.name,fmtSize(m.size)+' -- PE / hardening / imports',function(el){selectNative(m.path,el);}));});
+    updAuditBtn();
+    if(ms.length===1&&!ns.length){selectModule(ms[0].path,$('dcModules').firstChild);}
   }catch(e){$('dcModules').innerHTML='<div class="note">load failed</div>';}}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
+async function dlJob(job,file){try{var res=await fetch('/api/report?job='+job+'&file='+encodeURIComponent(file),{headers:{'X-TCPK-Token':T}});var b=await res.blob();var u=URL.createObjectURL(b);var a=document.createElement('a');a.href=u;a.download=file;a.click();URL.revokeObjectURL(u);}catch(e){alert('download failed');}}
+async function auditSelected(){var paths=selectedModulePaths();if(!paths.length)return;
+  var prof='Quick';  // focused per-binary scan: keep static/PE/IL checks, drop whole-machine OS enumeration noise
+  $('dcAudit').style.display='block';$('dcAuditBody').innerHTML='';$('dcAuditBtn').disabled=true;
+  openDock();log('[step] focused audit on '+paths.length+' selected module(s)','c-step');
+  for(var i=0;i<paths.length;i++){await auditOneDll(paths[i],prof,i+1,paths.length);}
+  $('dcAuditBtn').disabled=false;log('[step] selected-module audit complete','c-step');}
+async function auditOneDll(path,prof,idx,total){
+  var name=(path.split('\\').pop());
+  var card=document.createElement('div');card.className='vcard';card.style.borderLeftColor='var(--dim)';
+  card.innerHTML='<div class="h"><span class="pill" style="background:var(--dim);color:#08130a">'+idx+'/'+total+'</span> '+esc(name)+'</div><div class="note" id="au'+idx+'">starting audit...</div>';
+  $('dcAuditBody').appendChild(card);
+  try{var r=await api('/api/run',{json:{target:path,profile:prof}});if(r.error||!r.jobId){$('au'+idx).textContent='could not start: '+esc(r.error||'unknown');return;}
+    var job=r.jobId,c={crit:0,high:0,med:0,low:0,info:0},tot=0,done=false,result=null;
+    for(var k=0;k<900&&!done;k++){await sleep(700);var s;try{s=await api('/api/status?job='+job);}catch(e){continue;}
+      (s.findings||[]).forEach(function(f){var kk=sevKey(f.sev);if(c[kk]!==undefined)c[kk]++;tot++;});
+      $('au'+idx).innerHTML='scanning... '+tot+' findings ('+c.crit+'C / '+c.high+'H / '+c.med+'M / '+c.low+'L)';
+      if(s.done){done=true;result=s.result;}}
+    var rf=(result&&result.model&&result.model.findings)?result.model.findings:null;
+    if(rf){c={crit:0,high:0,med:0,low:0,info:0};rf.forEach(function(f){var kk=sevKey(f.sev);if(c[kk]!==undefined)c[kk]++;});tot=rf.length;}
+    var rep='';if(result&&result.reports&&result.reports.length){rep=' &nbsp;|&nbsp; report: '+result.reports.map(function(x){return '<a href="#" style="color:var(--accent)" onclick="dlJob(\''+job+'\',\''+x.file+'\');return false;">'+esc(x.file)+'</a>';}).join(' ');}
+    $('au'+idx).innerHTML='<b>'+tot+' finding'+(tot===1?'':'s')+'</b> -- '+c.crit+' critical, '+c.high+' high, '+c.med+' medium, '+c.low+' low, '+c.info+' info'+rep;
+    if(rf&&rf.length){var top=rf.slice(0,15).map(function(f){var kc=sevKey(f.sev);return '<div style="font:11px var(--mono);margin-top:3px"><span class="mtag" style="background:var(--'+kc+');color:#08130a">'+esc(f.sev)+'</span> '+esc(f.rule)+' <span style="color:var(--dim)">('+esc(f.conf)+')</span> -- '+esc(f.title)+'</div>';}).join('');card.innerHTML+='<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px">'+top+(rf.length>15?('<div class="note">... +'+(rf.length-15)+' more -- open the report</div>'):'')+'</div>';}
+    else if(!rf){$('au'+idx).innerHTML+=' <span class="note">(done -- open the report for detail)</span>';}
+  }catch(e){$('au'+idx).textContent='audit error';}}
+async function selectNative(path,el){window._dcDll=path;window._dcMethod='';document.querySelectorAll('#dcModules .file').forEach(function(f){f.classList.remove('on');});if(el)el.classList.add('on');
+  $('dcMethods').innerHTML='<div class="note">native PE -- no .NET methods to list</div>';$('dcToReview').disabled=true;
+  $('dcMethodTitle').textContent='native PE analysis';$('dcCode').innerHTML='<span class="note">reading PE headers...</span>';$('dcSinks').innerHTML='<div class="note">-</div>';
+  try{var r=await api('/api/agent/native',{json:{dll:path}});if(r.error){$('dcCode').innerHTML='<span class="note">'+esc(r.error)+'</span>';return;}
+    $('dcStatus').textContent=r.file+': '+r.arch+' native PE';
+    var h=r.hardening||{};function yn(v){return v?'<span style="color:var(--accent)">YES</span>':'<span style="color:var(--crit)">NO </span>';}
+    var ss=(r.signing&&r.signing.status)||'unknown';var sok=(ss.toLowerCase()==='valid');
+    var html='';
+    html+='FILE       '+esc(r.file)+'   ('+esc(r.arch)+', native / non-.NET)\n';
+    html+='SIGNING    <span style="color:var('+(sok?'--accent':'--high')+')">'+esc(ss)+'</span>'+((r.signing&&r.signing.signer)?('\n           '+esc(r.signing.signer)):'')+'\n';
+    var hc=(r.hardeningStatus==='HARDENED')?'--ok':(r.hardeningStatus==='WEAK')?'--crit':'--high';
+    html+='HARDENING  <span style="color:var('+hc+')">'+esc(r.hardeningStatus)+'</span>'+(r.missing?('   missing: '+esc(r.missing)):'')+'\n';
+    html+='   ASLR '+yn(h.ASLR)+'  DEP '+yn(h.DEP)+'  CFG '+yn(h.CFG)+'  HighEntropyVA '+yn(h.HighEntropyVA)+'\n';
+    html+='   GS '+esc(h.GS||'N/A')+'   SafeSEH '+esc(h.SafeSEH||'N/A')+'   ForceIntegrity '+yn(h.ForceIntegrity)+'\n';
+    html+='IMPORTS    '+r.importsTotal+' imported / '+r.exportsTotal+' exported\n';
+    if((r.exportsSample||[]).length){html+='EXPORTS    '+esc(r.exportsSample.join(', '))+((r.exportsTotal>r.exportsSample.length)?' ...':'')+'\n';}
+    $('dcCode').innerHTML=html;
+    var ri=r.riskyImports||[];
+    $('dcSinks').innerHTML=ri.length?ri.map(function(x){return '<div class="vcard high"><div class="h"><span class="pill high">API</span> '+esc(x.api)+'</div>'+esc(x.note)+'</div>';}).join(''):'<div class="note">no high-risk imported APIs flagged</div>';
+    $('dcMethodTitle').textContent='native PE: '+esc(r.file);
+  }catch(e){$('dcCode').innerHTML='<span class="note">PE analysis failed</span>';}}
 async function selectModule(path,el){window._dcDll=path;document.querySelectorAll('#dcModules .file').forEach(function(f){f.classList.remove('on');});if(el)el.classList.add('on');
   $('dcMethods').innerHTML='<div class="note">decompiling...</div>';$('dcCode').innerHTML='<span class="note">pick a method</span>';$('dcSinks').innerHTML='<div class="note">-</div>';$('dcToReview').disabled=true;
   try{var r=await api('/api/agent/decompile',{json:{dll:path}});if(r.error){$('dcMethods').innerHTML='<div class="note">'+esc(r.error)+'</div>';return;}

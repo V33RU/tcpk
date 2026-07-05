@@ -217,7 +217,12 @@ function Invoke-TcpkAudit {
             $r = & $Block
             $sw.Stop()
             $count = if ($r) { @($r).Count } else { 0 }
-            if ($r) { foreach ($f in @($r)) { $all.Add($f) } }
+            if ($r) { foreach ($f in @($r)) { $all.Add($f)
+                # Live-stream each finding on the information stream: the web workbench /
+                # control-panel job captures it via `6>&1`, while the CLI (default silent
+                # InformationPreference) does not print it. Reports + return value unchanged.
+                try { Write-Information -MessageData ("TCPKFND`t{0}`t{1}`t{2}`t{3}" -f "$($f.Severity)","$($f.Confidence)","$($f.RuleId)",(("$($f.Title)") -replace "[`t`r`n]+",' ')) } catch { }
+            } }
             $msg = "  {0,-32} {1,5} findings  ({2,4}s)" -f $Name, $count, [int]$sw.Elapsed.TotalSeconds
             Write-Information -MessageData $msg -InformationAction Continue
             $lvl = if ($count -gt 0) { 'SUCCESS' } else { 'INFO' }
@@ -272,6 +277,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkStrings'             { Test-TcpkStrings             -Path $expanded -FirstParty }
     _RunCheck 'Test-TcpkResources'           { Test-TcpkResources           -Path $expanded }
     _RunCheck 'Test-TcpkSecrets'             { Test-TcpkSecrets             -Path $expanded }
+    _RunCheck 'Test-TcpkRegistryCredentialStore' { Test-TcpkRegistryCredentialStore -Path $expanded }
     _RunCheck 'Test-TcpkEndpoints'           { Test-TcpkEndpoints           -Path $expanded }
     _RunCheck 'Test-TcpkDeserialization'     { Test-TcpkDeserialization     -Path $expanded }
     _RunCheck 'Test-TcpkCallsites'           { Test-TcpkCallsites           -Path $expanded }

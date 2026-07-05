@@ -1,0 +1,745 @@
+﻿{
+    "generatedAt":  "2026-07-05T20:22:27.8765873+05:30",
+    "elevated":  false,
+    "processAttached":  "",
+    "attachedPid":  null,
+    "onlineCve":  false,
+    "scanProfile":  "Quick",
+    "totals":  {
+                   "ran":  89,
+                   "skippedQuick":  21,
+                   "gated":  11,
+                   "needsElevation":  0,
+                   "notImplemented":  0,
+                   "failed":  0,
+                   "total":  121
+               },
+    "checks":  [
+                   {
+                       "name":  "Test-TcpkSignature",
+                       "status":  "Ran",
+                       "count":  7,
+                       "durationMs":  268
+                   },
+                   {
+                       "name":  "Test-TcpkPeImports",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  175
+                   },
+                   {
+                       "name":  "Test-TcpkPeExports",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  14
+                   },
+                   {
+                       "name":  "Test-TcpkStrongName",
+                       "status":  "Ran",
+                       "count":  3,
+                       "durationMs":  20
+                   },
+                   {
+                       "name":  "Test-TcpkStrings",
+                       "status":  "Ran",
+                       "count":  5,
+                       "durationMs":  202
+                   },
+                   {
+                       "name":  "Test-TcpkResources",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  6
+                   },
+                   {
+                       "name":  "Test-TcpkSecrets",
+                       "status":  "Ran",
+                       "count":  6,
+                       "durationMs":  2199
+                   },
+                   {
+                       "name":  "Test-TcpkRegistryCredentialStore",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  178
+                   },
+                   {
+                       "name":  "Test-TcpkEndpoints",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  39
+                   },
+                   {
+                       "name":  "Test-TcpkDeserialization",
+                       "status":  "Ran",
+                       "count":  2,
+                       "durationMs":  25
+                   },
+                   {
+                       "name":  "Test-TcpkCallsites",
+                       "status":  "Ran",
+                       "count":  6,
+                       "durationMs":  197
+                   },
+                   {
+                       "name":  "Test-TcpkTlsBypass",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  624
+                   },
+                   {
+                       "name":  "Test-TcpkXxe",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  62
+                   },
+                   {
+                       "name":  "Test-TcpkWcfConfig",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  4
+                   },
+                   {
+                       "name":  "Test-TcpkCodeIntegrity",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  5
+                   },
+                   {
+                       "name":  "Test-TcpkReflectionLoading",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  15
+                   },
+                   {
+                       "name":  "Test-TcpkPInvokeSurface",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  33
+                   },
+                   {
+                       "name":  "Test-TcpkNativeInterop",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  12
+                   },
+                   {
+                       "name":  "Test-TcpkDependencyCves",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  5
+                   },
+                   {
+                       "name":  "Test-TcpkPackageManifests",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  9
+                   },
+                   {
+                       "name":  "Test-TcpkJavaBundle",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  18
+                   },
+                   {
+                       "name":  "Test-TcpkDevArtifacts",
+                       "status":  "Ran",
+                       "count":  2,
+                       "durationMs":  29
+                   },
+                   {
+                       "name":  "Test-TcpkEmbeddedScripts",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  3
+                   },
+                   {
+                       "name":  "Test-TcpkWebViewNavTargets",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  59
+                   },
+                   {
+                       "name":  "Test-TcpkNamedObjects",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  76
+                   },
+                   {
+                       "name":  "Test-TcpkPacker",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  118
+                   },
+                   {
+                       "name":  "Test-TcpkAuthFlags",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  46
+                   },
+                   {
+                       "name":  "Test-TcpkElectron",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  16
+                   },
+                   {
+                       "name":  "Test-TcpkElectronJs",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  13
+                   },
+                   {
+                       "name":  "Test-TcpkElectronFuses",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  6
+                   },
+                   {
+                       "name":  "Test-TcpkUnsafeNativeApis",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  66
+                   },
+                   {
+                       "name":  "Test-TcpkRpcSurface",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  24
+                   },
+                   {
+                       "name":  "Test-TcpkEntropySecrets",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  196
+                   },
+                   {
+                       "name":  "Test-TcpkCryptoMisuse",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  249
+                   },
+                   {
+                       "name":  "Test-TcpkJwt",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  12
+                   },
+                   {
+                       "name":  "Test-TcpkSessionHandling",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  1265
+                   },
+                   {
+                       "name":  "Test-TcpkZipSlip",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  41
+                   },
+                   {
+                       "name":  "Test-TcpkDebugFlags",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  186
+                   },
+                   {
+                       "name":  "Test-TcpkUiLeakSurface",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  84
+                   },
+                   {
+                       "name":  "Test-TcpkTauriConfig",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  6
+                   },
+                   {
+                       "name":  "Test-TcpkCsvInjection",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  158
+                   },
+                   {
+                       "name":  "Test-TcpkAppStack",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  200
+                   },
+                   {
+                       "name":  "Test-TcpkMsixCapabilities",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  2
+                   },
+                   {
+                       "name":  "Test-TcpkMsixFrameworkDeps",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  4
+                   },
+                   {
+                       "name":  "Test-TcpkMsixProtocols",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  3
+                   },
+                   {
+                       "name":  "Test-TcpkMsixFileAssocs",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  2
+                   },
+                   {
+                       "name":  "Test-TcpkMsixAppInstaller",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  2
+                   },
+                   {
+                       "name":  "Test-TcpkMsixComServers",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  3
+                   },
+                   {
+                       "name":  "Test-TcpkMsixExtensions",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  3
+                   },
+                   {
+                       "name":  "Test-TcpkMsixDeclaredVsUsed",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  4
+                   },
+                   {
+                       "name":  "Test-TcpkUacManifest",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  59
+                   },
+                   {
+                       "name":  "Test-TcpkInstallDirAcl",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  22
+                   },
+                   {
+                       "name":  "Test-TcpkFolderAcls",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  15
+                   },
+                   {
+                       "name":  "Test-TcpkSxsManifests",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  5
+                   },
+                   {
+                       "name":  "Test-TcpkKernelDrivers",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkTrustStore",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkRegistryFootprint",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkRegistryAcl",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkRegistryValues",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkFirewallRules",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkAvExclusions",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkServiceBinaryAcl",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkServicePermissions",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkUnquotedServicePath",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkAutoStart",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkProgramDataAcls",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkScheduledTaskAcl",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkWmiPersistence",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkProtocolHandlers",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkShimCache",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkAppPaths",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkIfeoHijack",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkDpapiBlobs",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  12
+                   },
+                   {
+                       "name":  "Test-TcpkPlaintextConfigs",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  39
+                   },
+                   {
+                       "name":  "Test-TcpkAppConfigSecrets",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  4
+                   },
+                   {
+                       "name":  "Test-TcpkTokenCaches",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  6
+                   },
+                   {
+                       "name":  "Test-TcpkKeyMaterial",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  10
+                   },
+                   {
+                       "name":  "Test-TcpkLocalDb",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  116
+                   },
+                   {
+                       "name":  "Test-TcpkCredentialManager",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  24
+                   },
+                   {
+                       "name":  "Test-TcpkBrowserTokenStore",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  19
+                   },
+                   {
+                       "name":  "Test-TcpkProcessMitigations",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkLoadedModuleSignatures",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkListeningPorts",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkLoadedModulePaths",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkHandleEnumeration",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkWindowEnumeration",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkGuiInspector",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkProcessToken",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkChildProcesses",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkProcessDacl",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkProcessEnvSecrets",
+                       "status":  "GatedNoProcess",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkNamedPipes",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkNamedPipeDacl",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkComObjects",
+                       "status":  "SkippedQuickProfile",
+                       "count":  0,
+                       "durationMs":  0
+                   },
+                   {
+                       "name":  "Test-TcpkMailslotsAlpc",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  149
+                   },
+                   {
+                       "name":  "Test-TcpkTlsPinning",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  167
+                   },
+                   {
+                       "name":  "Test-TcpkUpdateFlow",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  33
+                   },
+                   {
+                       "name":  "Test-TcpkBackendEndpoints",
+                       "status":  "Ran",
+                       "count":  2,
+                       "durationMs":  183
+                   },
+                   {
+                       "name":  "Test-TcpkTlsProtocols",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  12
+                   },
+                   {
+                       "name":  "Test-TcpkDnsLeakage",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  131
+                   },
+                   {
+                       "name":  "Test-TcpkCrlOcsp",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  39
+                   },
+                   {
+                       "name":  "Test-TcpkInsecureSchemes",
+                       "status":  "Ran",
+                       "count":  3,
+                       "durationMs":  135
+                   },
+                   {
+                       "name":  "Test-TcpkSelfHostedServer",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  146
+                   },
+                   {
+                       "name":  "Test-TcpkRpcChannels",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  18
+                   },
+                   {
+                       "name":  "Test-TcpkWv2HostObjects",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  15
+                   },
+                   {
+                       "name":  "Test-TcpkWv2WebMessage",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  37
+                   },
+                   {
+                       "name":  "Test-TcpkWv2VirtualHost",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  6
+                   },
+                   {
+                       "name":  "Test-TcpkWv2DevTools",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  41
+                   },
+                   {
+                       "name":  "Test-TcpkWv2ScriptInjection",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  7
+                   },
+                   {
+                       "name":  "Test-TcpkWv2ResourcePolicy",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  8
+                   },
+                   {
+                       "name":  "Test-TcpkLogFiles",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  5
+                   },
+                   {
+                       "name":  "Test-TcpkTelemetrySdks",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  196
+                   },
+                   {
+                       "name":  "Test-TcpkPiiInLogs",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  347
+                   },
+                   {
+                       "name":  "Test-TcpkEtwProviders",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  20
+                   },
+                   {
+                       "name":  "Test-TcpkWerPolicy",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  11
+                   },
+                   {
+                       "name":  "Test-TcpkPageFile",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  7
+                   },
+                   {
+                       "name":  "Test-TcpkSecureStringUsage",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  43
+                   },
+                   {
+                       "name":  "Test-TcpkAntiDebugRefs",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  122
+                   },
+                   {
+                       "name":  "Test-TcpkSelfIntegrityCheck",
+                       "status":  "Ran",
+                       "count":  1,
+                       "durationMs":  159
+                   },
+                   {
+                       "name":  "Test-TcpkAntiInjection",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  126
+                   },
+                   {
+                       "name":  "Test-TcpkTimingAntiDebug",
+                       "status":  "Ran",
+                       "count":  0,
+                       "durationMs":  130
+                   }
+               ]
+}

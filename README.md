@@ -6,7 +6,7 @@
   Portable Windows thick-client / MSIX security audit tool.
   **Find. Verify. Report.**
 
-  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, an agentic AI workbench, and a native MCP server. 180 cmdlets.
+  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, an agentic AI workbench, and a native MCP server. 181 cmdlets.
   Authorized testing only.
 </div>
 
@@ -191,4 +191,4 @@ violate computer-misuse law and licence terms. Provided **AS IS**, no warranty. 
 
 ---
 
-TCPK v2.0.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v2.1.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.

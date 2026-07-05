@@ -1,0 +1,1741 @@
+﻿<!doctype html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>TCPK audit -- DVTA</title>
+<style>
+*{box-sizing:border-box}
+:root{--bg:#0a0d13;--panel:#11161f;--panel2:#161c27;--sub:#0d1117;--bd:#242c3a;--bd2:#2f3a4d;--tx:#e6edf3;--mut:#9aa4b2;--dim:#6a7585;--acc:#56d364;--acc2:#3fb950;--blue:#58a6ff;--amber:#d29922;--red:#f85149;--crit:#f85149;--high:#db6d28;--med:#d29922;--low:#3fb950;--info:#6a7585}
+body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;margin:0;background:var(--bg);color:var(--tx);line-height:1.55}
+.wrap{max-width:1180px;margin:0 auto;padding:26px 22px 100px}
+h1{font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px}
+.sub{color:var(--dim);font-size:13.5px;margin:3px 0 20px;font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.card{background:var(--panel);border:1px solid var(--bd);border-radius:12px;padding:16px 18px;margin:0 0 14px}
+.target .kvgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 26px}
+.kvi{display:flex;gap:10px;font-size:14px;padding:5px 0;border-bottom:1px solid var(--bd)}
+.kvi .k{color:var(--mut);min-width:96px;font-weight:600}
+.kvi .v{color:var(--tx);word-break:break-word}
+.stack{margin-top:14px}
+.stackrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0}
+.stacklabel{font-size:11px;font-weight:700;color:var(--dim);text-transform:uppercase;letter-spacing:.06em;min-width:62px}
+.tag{display:inline-block;font-size:13px;padding:3px 10px;border-radius:20px;background:var(--panel2);color:var(--tx);border:1px solid var(--bd2);font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.tag-ui{color:#7cc0ff;border-color:#234a6e}
+.tag-net{color:#5ad6a0;border-color:#1f5a45}
+.tag-upd{color:#f0b65c;border-color:#6e5320}
+.tag-sdk{color:#c4a3f5;border-color:#4a3a6e}
+.surfrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.surf{flex:1 1 78px;min-width:78px;text-align:center;background:var(--sub);border:1px solid var(--bd);border-radius:9px;padding:9px 6px}
+.surf b{display:block;font-size:20px;color:var(--tx);font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.surf span{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.scope{margin-top:14px;padding-top:11px;border-top:1px solid var(--bd);font-size:13px;color:var(--mut)}
+.covgaps{color:var(--amber)}
+.chart{display:flex;flex-direction:column;gap:7px}
+.bar{display:flex;align-items:center;gap:10px;font-size:14px}
+.barlabel{min-width:74px;font-weight:600;color:var(--mut);font-size:13px}
+.bartrack{flex:1;background:var(--sub);border:1px solid var(--bd);border-radius:5px;height:18px;overflow:hidden}
+.barfill{display:block;height:100%;border-radius:4px}
+.barcount{min-width:34px;text-align:right;font-weight:700;font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.dash{padding:18px}
+.dashgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:18px;align-items:start}
+.dcell{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dcell h4{margin:0;font:700 10px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut);letter-spacing:.09em}
+.gaugewrap,.donutwrap{display:flex;justify-content:center;padding:2px 0}
+.dleg{font:12px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut);display:flex;flex-direction:column;gap:5px}
+.dleg span{display:flex;align-items:center;gap:7px}
+.dleg i{width:10px;height:10px;border-radius:3px;flex:0 0 auto}
+.dleg b{color:var(--tx);margin-left:auto;font-weight:700}
+.remed .remhead,.coverage .covhead{cursor:pointer;user-select:none;margin:0 0 4px}
+.remed.collapsed .rembody,.coverage.collapsed .covbody{display:none}
+.remnote,.covsub{color:var(--dim);font:12px "Cascadia Code","Fira Code",Consolas,monospace;margin:0 0 12px}
+.rem{display:flex;align-items:flex-start;gap:13px;padding:12px 0;border-bottom:1px solid var(--bd)}
+.rem:last-child{border-bottom:none}
+.pri{flex:0 0 auto;width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font:700 13px "Cascadia Code","Fira Code",Consolas,monospace;color:#08130a}
+.pri.p1{background:var(--crit)}.pri.p2{background:var(--high)}.pri.p3{background:var(--med)}
+.rmid{flex:1;min-width:0}
+.rfix{font-weight:600;font-size:14px;color:var(--tx)}
+.rmeta{font:11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--dim);margin-top:3px;word-break:break-word}
+.rright{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.rright .cnt{font:11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut);white-space:nowrap}
+.dagrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:9px;margin-bottom:4px}
+.da{background:var(--sub);border:1px solid var(--bd);border-left-width:3px;border-radius:8px;padding:10px 12px;overflow:hidden}
+.da .dc{float:right;font:700 15px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut)}
+.da .dn{font:700 11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut)}
+.da .dt{font-size:13px;margin-top:2px;color:var(--tx)}
+.da.clear{border-left-color:var(--low)}.da.clear .dc{color:var(--low)}
+.atk{margin-top:16px}
+.arow{display:flex;align-items:center;gap:11px;font:12px "Cascadia Code","Fira Code",Consolas,monospace;margin:8px 0}
+.alabel{flex:0 0 220px;color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.atrack{flex:1;height:9px;background:var(--sub);border:1px solid var(--bd);border-radius:5px;overflow:hidden}
+.atrack i{display:block;height:100%;background:var(--blue);border-radius:4px}
+.acnt{flex:0 0 auto;font-weight:700;color:var(--tx);min-width:20px;text-align:right}
+.execsum{background:linear-gradient(180deg,rgba(86,211,100,.06),transparent);border-color:#23402b}
+.exechead{margin:0 0 7px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--acc)}
+.exectext{margin:0;line-height:1.65;color:var(--tx);font-size:15px}
+.confsum .confgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.cmetric{display:flex;flex-direction:column;gap:3px;background:var(--sub);border:1px solid var(--bd);border-radius:9px;padding:10px 12px}
+.cmlabel{font-size:12px;color:var(--mut)}
+.cmval{font-size:23px;font-weight:700;font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.toolbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:rgba(10,13,19,.92);backdrop-filter:blur(6px);padding:12px 0;margin-bottom:12px;border-bottom:1px solid var(--bd)}
+#search{flex:1;min-width:200px;padding:9px 13px;border:1px solid var(--bd2);border-radius:8px;font-size:15px;background:var(--sub);color:var(--tx)}
+#search::placeholder{color:var(--dim)}
+.filterbar{display:flex;align-items:center;gap:10px;margin:0 0 10px}
+.tabfilter{flex:1;max-width:460px;padding:7px 11px;border:1px solid var(--bd2);border-radius:7px;font-size:14px;background:var(--sub);color:var(--tx)}
+.filtcount{color:var(--dim);font-size:13px}
+.chip{cursor:pointer;font-size:13px;font-weight:600;padding:6px 12px;border-radius:20px;border:1px solid var(--bd2);background:var(--panel2);color:var(--mut);user-select:none}
+.chip:hover{border-color:var(--dim)}
+.chip.active{background:var(--acc);color:#08130a;border-color:var(--acc)}
+.btn{cursor:pointer;font-size:13px;padding:6px 12px;border-radius:7px;border:1px solid var(--bd2);background:var(--panel2);color:var(--tx)}
+.btn:hover{background:var(--bd)}
+.btn.active{border-color:var(--acc);color:var(--acc)}
+.sevsection{margin:10px 0}
+.sevhead{font-size:17px;margin:16px 0 8px;cursor:pointer;user-select:none;padding-bottom:7px;border-bottom:1px solid var(--bd);font-weight:700}
+.caret{display:inline-block;width:16px;transition:transform .15s;color:var(--dim)}
+.collapsed .caret{transform:rotate(-90deg)}
+.sevsection.collapsed .sevbody{display:none}
+.seccount{color:var(--dim);font-weight:400;font-size:15px}
+.finding{background:var(--panel);border:1px solid var(--bd);border-left:3px solid var(--bd2);border-radius:9px;margin:8px 0;overflow:hidden}
+.finding[data-sev="CRITICAL"]{border-left-color:var(--red)}
+.finding[data-sev="HIGH"]{border-left-color:#db6d28}
+.finding[data-sev="MEDIUM"]{border-left-color:var(--amber)}
+.finding[data-sev="LOW"]{border-left-color:var(--acc2)}
+.finding[data-sev="INFO"]{border-left-color:#6a7585}
+.fhead{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:11px 14px;cursor:pointer}
+.fhead:hover{background:var(--panel2)}
+.fid{font-family:"Cascadia Code","Fira Code",Consolas,monospace;font-size:13px;color:var(--dim);font-weight:700}
+.badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:5px;color:#fff;text-transform:uppercase}
+.ftitle{font-weight:600;font-size:15px;flex:1;min-width:160px;color:var(--tx)}
+.frule{font-family:"Cascadia Code","Fira Code",Consolas,monospace;font-size:12px;color:var(--dim)}
+.fbody{display:none;padding:2px 14px 13px;border-top:1px solid var(--bd)}
+.finding.open .fbody{display:block}
+.kv{width:100%;border-collapse:collapse;margin-top:10px}
+.kv th{text-align:left;vertical-align:top;padding:5px 12px 5px 0;font-weight:600;font-size:12px;color:var(--mut);width:104px;text-transform:uppercase;letter-spacing:.03em}
+.kv td{padding:5px 0;font-size:14px;vertical-align:top;color:var(--tx)}
+code{font-family:"Cascadia Code","Fira Code",Consolas,Menlo,monospace;font-size:13px;background:var(--sub);color:#c9d1d9;padding:1px 6px;border-radius:4px;border:1px solid var(--bd);word-break:break-word}
+code.evidence{background:rgba(210,153,34,.12);color:#f0b65c;font-weight:700;padding:2px 7px;border:1px solid #6e5320}
+code.verify{display:block;white-space:pre-wrap;padding:9px 11px;background:#010409;color:#7ce38b;line-height:1.5;border:1px solid var(--bd);border-left:3px solid var(--acc)}
+.vbox{border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:#010409;margin-top:6px}
+.vbar{display:flex;align-items:center;gap:10px;padding:9px 15px;background:var(--panel2);border-bottom:1px solid var(--bd)}
+.vdots{display:inline-flex;gap:6px;align-items:center}
+.vdots i{width:9px;height:9px;border-radius:50%;background:#3a4250}
+.vdots i:nth-child(1){background:#f85149}.vdots i:nth-child(2){background:#d29922}.vdots i:nth-child(3){background:#3fb950}
+.vlabel{flex:1;font:700 10px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--mut);letter-spacing:.18em;text-transform:uppercase}
+.vcopy{cursor:pointer;font:600 11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--acc);background:transparent;border:1px solid var(--bd2);border-radius:6px;padding:4px 15px}
+.vcopy:hover{background:var(--bd);border-color:var(--acc)}
+.vcopy.copied{color:#08130a;background:var(--acc);border-color:var(--acc)}
+.vbody{margin:0;padding:17px 19px;white-space:pre-wrap;word-break:break-word;font:14px "Cascadia Code","Fira Code",Consolas,monospace;line-height:1.9}
+.vc{color:#737e8d}
+.vcmd{color:#7ee787;font-weight:700}
+code.path{font-size:12.5px;word-break:break-all;color:#9aa4b2}
+.ruletable{width:100%;border-collapse:collapse;font-size:14px}
+.ruletable th,.ruletable td{padding:7px 10px;border-bottom:1px solid var(--bd);text-align:left}
+.ruletable .num{text-align:right}
+.rulerow{cursor:pointer}
+.rulerow:hover{background:var(--panel2)}
+h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
+.recon .reconhead{cursor:pointer;user-select:none;margin:0 0 12px}
+.recon.collapsed .reconbody{display:none}
+.reconblock{margin:0 0 16px}
+.reconblock h4{font-size:13px;margin:0 0 7px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;border-left:3px solid var(--blue);padding-left:9px}
+.recontab{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:4px}
+.recontab th{text-align:left;background:var(--sub);padding:6px 9px;border-bottom:1px solid var(--bd2);font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--mut)}
+.recontab td{padding:6px 9px;border-bottom:1px solid var(--bd);vertical-align:top;word-break:break-word;color:var(--tx)}
+.recontab tr:hover{background:var(--panel2)}
+.reconlist{margin:4px 0 4px 4px;padding-left:18px;font-size:14px}
+.reconlist li{margin:2px 0}
+.emptynote{font-size:13.5px;color:var(--dim);font-style:italic;padding:4px 0 4px 11px}
+.cve .cvehead,.hardening .hardhead,.signing .signhead{cursor:pointer;user-select:none;margin:0 0 12px}
+.cve.collapsed .cvebody,.hardening.collapsed .hardbody,.signing.collapsed .signbody{display:none}
+.cvetab td,.hardtab td{vertical-align:top}
+.cvetab a,.recontab a{color:var(--blue)}
+.cvesum{font-size:12.5px;color:var(--mut);margin-top:3px;line-height:1.45}
+.cvenote{font-size:12.5px;color:#f0a3a0;background:rgba(248,81,73,.08);border:1px solid #5c2b2b;border-radius:6px;padding:8px 11px;margin-top:9px}
+.hardtab{font-size:13px}
+.hardtab th{white-space:nowrap}
+.sbom .sbomhead{cursor:pointer;user-select:none;margin:0 0 12px}
+.sbom.collapsed .sbombody{display:none}
+.sbomtab{font-size:13px}
+.sbomtab code.sha{font-size:11.5px;color:var(--dim);word-break:break-all}
+.sbomtab code.path{font-size:12px;word-break:break-all}
+.nores{padding:22px;text-align:center;color:var(--dim);display:none}
+.ftags{display:flex;flex-wrap:wrap;gap:6px;margin:11px 0 2px}
+.ftag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:11px;background:var(--panel2);color:var(--mut);border:1px solid var(--bd2);font-family:"Cascadia Code","Fira Code",Consolas,monospace}
+.ftag-cwe{color:#f0908a;border-color:#5c2b2b}
+.ftag-attack{color:#c4a3f5;border-color:#4a3a6e}
+.ftag-tasvs{color:#7cc0ff;border-color:#234a6e}
+.ftag-owasp{color:#5ad6a0;border-color:#1f5a45}
+.afflist{margin:4px 0 0;padding-left:18px}
+.afflist li{margin:2px 0}
+.muted{color:var(--dim);font-style:italic}
+.auditnotes{margin-top:11px;padding-top:9px;border-top:1px dashed var(--bd2);font-size:12.5px;color:var(--dim);line-height:1.5}
+.auditnotes .anlabel{font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.04em;font-size:11px;margin-right:6px}
+.apath{border-color:#5c2b2b;background:linear-gradient(180deg,rgba(248,81,73,.07),transparent)}
+.apath .apathhead{cursor:pointer;user-select:none;margin:0 0 10px;color:var(--red)}
+.apath.collapsed .apathbody{display:none}
+.apath-item{padding:9px 0;border-bottom:1px solid rgba(248,81,73,.15)}
+.apath-item:last-child{border-bottom:none}
+.apath-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.apath-title{font-weight:600;font-size:13.5px;color:#f0a3a0}
+.apath-fix{font-size:13px;color:var(--mut);margin:4px 0 0 2px}
+.disclaimer{margin-top:44px;padding:14px 16px;border:1px solid #5c2b2b;background:rgba(248,81,73,.05);border-radius:8px;font-size:12.5px;line-height:1.6;color:#d8a3a0}
+.disclaimer strong{color:var(--red)}
+@media print{
+  body{background:#fff;color:#000}
+  .toolbar,.chip,.btn,#search,.filterbar{display:none!important}
+  .sevsection.collapsed .sevbody{display:block!important}
+  .fbody{display:block!important}
+  .finding{break-inside:avoid;border:1px solid #ccc}
+  .card{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+<div class='wrap'>
+  <img alt='TCPK' style='height:58px;display:block;margin:0 0 6px' src='data:image/png;base64,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'>
+  <h1>TCPK Security Audit Report</h1>
+  <div class='sub'>Generated 2026-07-05 14:52:25Z UTC &middot; 35 findings</div>
+
+<section class='card execsum'><h3 class='exechead'>Executive summary</h3><p class='exectext'>This audit of <b>DVTA</b> produced <b>35</b> findings (1 critical, 3 high, 8 medium, 12 low, 11 info). Evidence grade: 3 proven by IL/dynamic analysis; 12 confirmed; 18 to verify manually. Most significant: Update flow present; NO signature-verification primitives in first-party code; Hardcoded credential in .NET config appSettings (+1 more affected); High-entropy base64 token in DVTA.exe.config.</p></section>
+<section class='card target'>
+  <div class='kvgrid'>
+<div class='kvi'><span class='k'>Application</span><span class='v'>DVTA</span></div>
+<div class='kvi'><span class='k'>Version</span><span class='v'>1.0.0.0</span></div>
+<div class='kvi'><span class='k'>Publisher</span><span class='v'>Microsoft</span></div>
+<div class='kvi'><span class='k'>Architecture</span><span class='v'>x86</span></div>
+<div class='kvi'><span class='k'>Type</span><span class='v'>Win32 application</span></div>
+<div class='kvi'><span class='k'>Main exe</span><span class='v'>DVTA.exe</span></div>
+<div class='kvi'><span class='k'>Runtime</span><span class='v'>Native (C/C++)</span></div>
+<div class='kvi'><span class='k'>Privilege</span><span class='v'>asInvoker</span></div>
+<div class='kvi'><span class='k'>Install</span><span class='v'>C:\ProgramData\DVTA</span></div>
+<div class='kvi'><span class='k'>Signing</span><span class='v'>NotSigned</span></div>
+  </div>
+  <div class='stack'><div class='stackrow'><span class='stacklabel'>UI</span><span class='tag tag-ui'>unknown / custom</span></div><div class='stackrow'><span class='stacklabel'>Network</span><span class='tag tag-net'>not determined</span></div><div class='stackrow'><span class='stacklabel'>Update</span><span class='tag tag-upd'>none detected</span></div></div>
+  <div class='surfrow'><div class='surf'><b>3</b><span>DLLs</span></div><div class='surf'><b>2</b><span>EXEs</span></div><div class='surf'><b>0</b><span>Drivers</span></div><div class='surf'><b>2</b><span>Endpoints</span></div><div class='surf'><b>0</b><span>Ports</span></div><div class='surf'><b>0</b><span>COM</span></div><div class='surf'><b>0</b><span>Pipes</span></div><div class='surf'><b>0</b><span>Services</span></div><div class='surf'><b>0</b><span>Handlers</span></div><div class='surf'><b>0</b><span>File-assoc</span></div></div>
+  <div class='scope'><b>LLM:</b> ollama / qwen2.5-coder:7b (available; pass -EnableLlm or pipe to Invoke-TcpkLlmCodeJudgment)  &middot;  <b>Time:</b> scan 31s  &middot;  <b>Coverage:</b> Coverage: 89 ran, 11 gated (no process), 0 need elevation, 21 quick-skip, 0 not implemented, 0 failed (of 121 checks)</div>
+</section>
+<section class='card dash'>
+  <div class='dashgrid'>
+    <div class='dcell'>
+      <h4>RISK INDEX</h4>
+      <div class='gaugewrap'>
+        <svg width='128' height='128' viewBox='0 0 120 120'>
+          <defs><linearGradient id='tcpkrg' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='#3fb950'/><stop offset='.55' stop-color='#d29922'/><stop offset='1' stop-color='#f85149'/></linearGradient></defs>
+          <circle cx='60' cy='60' r='50' fill='none' stroke='#1b2230' stroke-width='11'/>
+          <circle cx='60' cy='60' r='50' fill='none' stroke='url(#tcpkrg)' stroke-width='11' stroke-linecap='round' stroke-dasharray='314.2 314.2' transform='rotate(-90 60 60)'/>
+          <text x='60' y='56' text-anchor='middle' fill='#e6edf3' style='font:700 30px "Cascadia Code","Fira Code",Consolas,monospace'>100</text>
+          <text x='60' y='77' text-anchor='middle' fill='#f85149' style='font:700 10px "Cascadia Code","Fira Code",Consolas,monospace'>CRITICAL</text>
+        </svg>
+      </div>
+    </div>
+    <div class='dcell'>
+      <h4>SEVERITY (35)</h4>
+      <div class='donutwrap'>
+        <svg width='118' height='118' viewBox='0 0 120 120'>
+          <g transform='rotate(-90 60 60)'><circle cx='60' cy='60' r='42' fill='none' stroke='#f85149' stroke-width='16' stroke-dasharray='7.54 256.35' stroke-dashoffset='0.00'/><circle cx='60' cy='60' r='42' fill='none' stroke='#db6d28' stroke-width='16' stroke-dasharray='22.62 241.27' stroke-dashoffset='-7.54'/><circle cx='60' cy='60' r='42' fill='none' stroke='#d29922' stroke-width='16' stroke-dasharray='60.32 203.58' stroke-dashoffset='-30.16'/><circle cx='60' cy='60' r='42' fill='none' stroke='#3fb950' stroke-width='16' stroke-dasharray='90.48 173.42' stroke-dashoffset='-90.48'/><circle cx='60' cy='60' r='42' fill='none' stroke='#6a7585' stroke-width='16' stroke-dasharray='82.94 180.96' stroke-dashoffset='-180.96'/></g>
+          <text x='60' y='57' text-anchor='middle' fill='#e6edf3' style='font:700 24px "Cascadia Code","Fira Code",Consolas,monospace'>35</text>
+          <text x='60' y='75' text-anchor='middle' fill='#8b949e' style='font:9px "Cascadia Code","Fira Code",Consolas,monospace'>findings</text>
+        </svg>
+      </div>
+      <div class='dleg'><span><i style='background:#f85149'></i>Critical <b>1</b></span><span><i style='background:#db6d28'></i>High <b>3</b></span><span><i style='background:#d29922'></i>Medium <b>8</b></span><span><i style='background:#3fb950'></i>Low <b>12</b></span><span><i style='background:#6a7585'></i>Info <b>11</b></span></div>
+    </div>
+  </div>
+</section><section class='card confsum'>
+  <div class='confgrid'>
+    <div class='cmetric'><span class='cmlabel'>Proven (IL/dynamic)</span><span class='cmval' style='color:#3fb950'>3</span></div>
+    <div class='cmetric'><span class='cmlabel'>Confirmed</span><span class='cmval' style='color:#58a6ff'>12</span></div>
+    <div class='cmetric'><span class='cmlabel'>Inferred -- verify</span><span class='cmval' style='color:#d29922'>18</span></div>
+    <div class='cmetric'><span class='cmlabel'>Likely-FP / Uncertain</span><span class='cmval' style='color:#8b949e'>2</span></div>
+  </div>
+</section>
+<section class='card coverage'>
+  <h3 class='covhead'><span class='caret'>&#9662;</span>Standards coverage <span class='seccount'>(OWASP Desktop App Top 10 + MITRE ATT&amp;CK)</span></h3>
+  <div class='covbody'>
+    <div class='covsub'>OWASP Desktop App Top 10 (2021) -- categories the findings map to (green = clear)</div>
+    <div class='dagrid'><div class='da' style='border-left-color:#d29922'><span class='dc' style='color:#d29922'>6</span><div class='dn'>DA1</div><div class='dt'>Injections</div></div>
+<div class='da' style='border-left-color:#d29922'><span class='dc' style='color:#d29922'>1</span><div class='dn'>DA2</div><div class='dt'>Broken Authentication</div></div>
+<div class='da' style='border-left-color:#db6d28'><span class='dc' style='color:#db6d28'>8</span><div class='dn'>DA3</div><div class='dt'>Sensitive Data Exposure</div></div>
+<div class='da clear'><span class='dc'>0</span><div class='dn'>DA4</div><div class='dt'>Improper Cryptography</div></div>
+<div class='da clear'><span class='dc'>0</span><div class='dn'>DA5</div><div class='dt'>Improper Authorization</div></div>
+<div class='da' style='border-left-color:#6a7585'><span class='dc' style='color:#6a7585'>1</span><div class='dn'>DA6</div><div class='dt'>Security Misconfiguration</div></div>
+<div class='da' style='border-left-color:#d29922'><span class='dc' style='color:#d29922'>4</span><div class='dn'>DA7</div><div class='dt'>Insecure Communication</div></div>
+<div class='da' style='border-left-color:#d29922'><span class='dc' style='color:#d29922'>7</span><div class='dn'>DA8</div><div class='dt'>Poor Code Quality</div></div>
+<div class='da clear'><span class='dc'>0</span><div class='dn'>DA9</div><div class='dt'>Components With Known Vulnerabilities</div></div>
+<div class='da clear'><span class='dc'>0</span><div class='dn'>DA10</div><div class='dt'>Insufficient Logging</div></div></div>
+    <div class='atk'><div class='covsub'>by MITRE ATT&amp;CK technique</div><div class='arow'><span class='alabel'>T1059 Command and Scripting Interpreter</span><span class='atrack'><i style='width:100%'></i></span><span class='acnt'>7</span></div>
+<div class='arow'><span class='alabel'>T1553.002 Code Signing</span><span class='atrack'><i style='width:71%'></i></span><span class='acnt'>5</span></div>
+<div class='arow'><span class='alabel'>T1552.001 Credentials In Files</span><span class='atrack'><i style='width:57%'></i></span><span class='acnt'>4</span></div>
+<div class='arow'><span class='alabel'>T1027.002 Software Packing</span><span class='atrack'><i style='width:14%'></i></span><span class='acnt'>1</span></div>
+<div class='arow'><span class='alabel'>T1574 Hijack Execution Flow</span><span class='atrack'><i style='width:14%'></i></span><span class='acnt'>1</span></div>
+<div class='arow'><span class='alabel'>T1048 Exfiltration Over Alternative Protocol</span><span class='atrack'><i style='width:14%'></i></span><span class='acnt'>1</span></div></div>
+  </div>
+</section>
+
+<section class='card remed'>
+  <h3 class='remhead'><span class='caret'>&#9662;</span>Remediation plan <span class='seccount'>(20 prioritized fixes)</span></h3>
+  <div class='rembody'>
+    <div class='remnote'>De-duplicated, highest risk first -- one row per fix. P1 = critical, P2 = high, P3 = medium/low.</div>
+<div class='rem'><div class='pri p1'>P1</div><div class='rmid'><div class='rfix'>Sign update manifests with an offline-keyed RSA signature; sign each downloaded payload (Authenticode or detached PKCS#7); verify before any extract/exec.</div><div class='rmeta'>update.no-signature-verification &amp;middot; CWE-345, CWE-347, CWE-494</div></div><div class='rright'><span class='badge' style='background:#f85149'>CRITICAL</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p2'>P2</div><div class='rmid'><div class='rfix'>Do not store credentials/API keys in appSettings. Use DPAPI, Windows Credential Manager, or a key vault and inject at runtime; rotate the exposed secret.</div><div class='rmeta'>secrets.config-hardcoded-secret &amp;middot; CWE-260, CWE-798</div></div><div class='rright'><span class='badge' style='background:#db6d28'>HIGH</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p2'>P2</div><div class='rmid'><div class='rfix'>Never ship a symmetric or private key in config. Derive a per-user key (DPAPI) or fetch from a key vault; rotate the exposed key. With key+IV+ciphertext all present, the protected value is trivially decryptable.</div><div class='rmeta'>secrets.config-hardcoded-crypto-key &amp;middot; CWE-321, CWE-798</div></div><div class='rright'><span class='badge' style='background:#db6d28'>HIGH</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p2'>P2</div><div class='rmid'><div class='rfix'>Do not ship secrets in files. Load them from a protected store (DPAPI / OS keychain / server-issued token) at runtime and rotate any exposed value.</div><div class='rmeta'>entropy.high-entropy-token &amp;middot; CWE-312, CWE-798</div></div><div class='rright'><span class='badge' style='background:#db6d28'>HIGH</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context.</div><div class='rmeta'>callsites.base64-as-encryption, callsites.env-var-path-use, callsites.insecure-temp, callsites.sql-command-construction, callsites.ssrf-request-build &amp;middot; CWE-15, CWE-326, CWE-377, CWE-426, CWE-89, CWE-918</div></div><div class='rright'><span class='badge' style='background:#d29922'>MEDIUM</span><span class='cnt'>5 findings</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Exclude .pdb/.map from the shipped artifact (publish without symbols, or strip them).</div><div class='rmeta'>devartifact.debug-symbols &amp;middot; CWE-489, CWE-540</div></div><div class='rright'><span class='badge' style='background:#d29922'>MEDIUM</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Use https:// with certificate validation. If the host is HTTP-only, proxy it through an authenticated TLS endpoint.</div><div class='rmeta'>scheme.cleartext-http &amp;middot; CWE-319</div></div><div class='rright'><span class='badge' style='background:#d29922'>MEDIUM</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Use FTPS (FTP over TLS) or SFTP (SSH-based). Never send data or credentials over plain FTP, and never embed credentials in the URL.</div><div class='rmeta'>scheme.cleartext-ftp &amp;middot; CWE-319</div></div><div class='rright'><span class='badge' style='background:#d29922'>MEDIUM</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Move authorization / licensing decisions server-side; never trust a client-side boolean for access control.</div><div class='rmeta'>authflags.client-side-gate &amp;middot; CWE-602, CWE-603</div></div><div class='rright'><span class='badge' style='background:#d29922'>MEDIUM</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Obtain a SHA-256 (or stronger) code-signing certificate and re-sign.</div><div class='rmeta'>authenticode.weak-cert-hash &amp;middot; CWE-327, CWE-347</div></div><div class='rright'><span class='badge' style='background:#d29922'>MEDIUM</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Do not hardcode the IV. Generate a fresh random IV per encryption and store or transmit it alongside the ciphertext.</div><div class='rmeta'>secrets.config-hardcoded-iv &amp;middot; CWE-329, CWE-798</div></div><div class='rright'><span class='badge' style='background:#d29922'>MEDIUM</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Sign every shipped EXE/DLL with the company code-signing certificate.</div><div class='rmeta'>authenticode.pe-not-signed &amp;middot; CWE-347, CWE-494</div></div><div class='rright'><span class='badge' style='background:#d29922'>MEDIUM</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Sign the assembly during build (csc.exe /keyfile, or &lt;SignAssembly&gt;true&lt;/SignAssembly&gt; in csproj).</div><div class='rmeta'>strongname.unsigned</div></div><div class='rright'><span class='badge' style='background:#3fb950'>LOW</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Set ClearPageFileAtShutdown=1 in the registry (or via Local Security Policy: Shutdown: Clear virtual memory pagefile).</div><div class='rmeta'>pagefile.no-clear-at-shutdown &amp;middot; CWE-316</div></div><div class='rright'><span class='badge' style='background:#3fb950'>LOW</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>For password and token handling, use SecureString and Marshal.SecureStringToGlobalAllocUnicode / ZeroFreeGlobalAllocUnicode, or wrap in ProtectedMemory blocks.</div><div class='rmeta'>mem.hygiene-absent &amp;middot; CWE-316</div></div><div class='rright'><span class='badge' style='background:#3fb950'>LOW</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>If the logic/IP or any client-side check matters, apply an obfuscator AND move trust decisions server-side. Never rely on obfuscation to hide secrets.</div><div class='rmeta'>obfuscation.absent &amp;middot; CWE-1294, CWE-656</div></div><div class='rright'><span class='badge' style='background:#3fb950'>LOW</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Use TypeNameHandling.None / allowlisted KnownTypes / System.Text.Json polymorphism. Confirm runtimeconfig.json EnableUnsafeBinaryFormatterSerialization=false.</div><div class='rmeta'>deser.xmlserializer &amp;middot; CWE-502</div></div><div class='rright'><span class='badge' style='background:#3fb950'>LOW</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Never persist raw credentials to the registry. Protect them with DPAPI (ProtectedData) scoped to the current user, or use the Windows Credential Manager; store only non-reversible tokens where possible.</div><div class='rmeta'>storage.registry-credential &amp;middot; CWE-312, CWE-522</div></div><div class='rright'><span class='badge' style='background:#3fb950'>LOW</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>For sensitive backends, pin the leaf or root cert thumbprint via ServerCertificateCustomValidationCallback (and confirm the callback actually pins, not just returns true).</div><div class='rmeta'>tls.pinning-absent &amp;middot; CWE-295</div></div><div class='rright'><span class='badge' style='background:#3fb950'>LOW</span><span class='cnt'>1 finding</span></div></div>
+<div class='rem'><div class='pri p3'>P3</div><div class='rmid'><div class='rfix'>Prefix any cell that starts with = + - @ (tab, CR) with a single quote, or enable the library&#39;s injection sanitisation (e.g. CsvHelper SanitizeForInjection).</div><div class='rmeta'>csv.formula-injection-risk &amp;middot; CWE-1236</div></div><div class='rright'><span class='badge' style='background:#3fb950'>LOW</span><span class='cnt'>1 finding</span></div></div>
+  </div>
+</section>
+<section class='card recon'>
+  <h3 class='reconhead'><span class='caret'>&#9662;</span>Reconnaissance -- Network &amp; Attack Surface</h3>
+  <div class='reconbody'>
+    <div class='reconblock'><h4>Network endpoints (backend hosts)</h4><table class='recontab'><thead><tr><th>Host</th><th>Sample URL / auth markers</th><th>First seen in</th></tr></thead><tbody><tr><td><code>code.google.com</code></td><td>http://code.google.com/p/excellibrary/  | auth markers in same PE: (none in nearby PE)  [first-party; cleartext]</td><td>ExcelLibrary.dll</td></tr>
+<tr><td><code>msdn.com</code></td><td>http://msdn.com/data/ef  | auth markers in same PE: (none in nearby PE)  [first-party; cleartext]</td><td>EntityFramework.dll</td></tr></tbody></table></div>
+    <div class='reconblock'><h4>Listening ports (live process)</h4><div class='emptynote'>No listening ports observed. (Live-port scan only runs when a ProcessName is supplied AND the app is running.)</div></div>
+    
+    
+    
+    
+    <div class='reconblock'><h4>Transport security posture</h4><ul class='reconlist'><li>certificate pinning: ABSENT</li></ul></div>
+  </div>
+</section>
+
+<section id='ruleSummary' class='card' hidden>
+  <h3>Findings grouped by rule (click a row to filter)</h3>
+  <table class='ruletable'>
+    <thead><tr><th>Max severity</th><th>Rule</th><th class='num'>Count</th></tr></thead>
+    <tbody>
+<tr class='rulerow' data-rule='update.no-signature-verification'><td><span class='badge' style='background:#f85149'>CRITICAL</span></td><td><code>update.no-signature-verification</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='entropy.high-entropy-token'><td><span class='badge' style='background:#db6d28'>HIGH</span></td><td><code>entropy.high-entropy-token</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='secrets.config-hardcoded-secret'><td><span class='badge' style='background:#db6d28'>HIGH</span></td><td><code>secrets.config-hardcoded-secret</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='secrets.config-hardcoded-crypto-key'><td><span class='badge' style='background:#db6d28'>HIGH</span></td><td><code>secrets.config-hardcoded-crypto-key</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='callsites.sql-command-construction'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>callsites.sql-command-construction</code></td><td class='num'>2</td></tr>
+<tr class='rulerow' data-rule='authenticode.pe-not-signed'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>authenticode.pe-not-signed</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='authflags.client-side-gate'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>authflags.client-side-gate</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='devartifact.debug-symbols'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>devartifact.debug-symbols</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='scheme.cleartext-http'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>scheme.cleartext-http</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='scheme.cleartext-ftp'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>scheme.cleartext-ftp</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='secrets.config-hardcoded-iv'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>secrets.config-hardcoded-iv</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='authenticode.weak-cert-hash'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>authenticode.weak-cert-hash</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='obfuscation.absent'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>obfuscation.absent</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='callsites.ssrf-request-build'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>callsites.ssrf-request-build</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='strongname.unsigned'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>strongname.unsigned</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='csv.formula-injection-risk'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>csv.formula-injection-risk</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='tls.pinning-absent'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>tls.pinning-absent</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='callsites.env-var-path-use'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>callsites.env-var-path-use</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='storage.registry-credential'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>storage.registry-credential</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='deser.xmlserializer'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>deser.xmlserializer</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='mem.hygiene-absent'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>mem.hygiene-absent</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='pagefile.no-clear-at-shutdown'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>pagefile.no-clear-at-shutdown</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='callsites.base64-as-encryption'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>callsites.base64-as-encryption</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='callsites.insecure-temp'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>callsites.insecure-temp</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='attacksurface.summary'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>attacksurface.summary</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='integrity.self-check-markers'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>integrity.self-check-markers</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='backend.endpoint'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>backend.endpoint</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='deser.binaryformatter'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>deser.binaryformatter</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='strings.summary'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>strings.summary</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='authenticode.signer-expired'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>authenticode.signer-expired</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='codeintegrity.no-cat'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>codeintegrity.no-cat</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='alpc.enumerated-clean'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>alpc.enumerated-clean</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='sxs.manifest'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>sxs.manifest</code></td><td class='num'>1</td></tr>
+<tr class='rulerow' data-rule='ui.no-screen-capture-protection'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>ui.no-screen-capture-protection</code></td><td class='num'>1</td></tr>
+    </tbody>
+  </table>
+</section>
+<div class='toolbar'>
+  <input id='search' type='text' placeholder='Filter findings by text, file, rule...'>
+  <span class='chip active' data-sev='ALL'>All (35)</span><span class='chip' data-sev='CRITICAL'>CRITICAL (1)</span><span class='chip' data-sev='HIGH'>HIGH (3)</span><span class='chip' data-sev='MEDIUM'>MEDIUM (8)</span><span class='chip' data-sev='LOW'>LOW (12)</span><span class='chip' data-sev='INFO'>INFO (11)</span>
+  <button class='btn' id='expandAll'>Expand all</button>
+  <button class='btn' id='collapseAll'>Collapse all</button>
+  <button class='btn' id='ruleToggle'>Group by rule</button>
+  <label class='cobtn' style='display:inline-flex;align-items:center;gap:5px;font-size:14px;opacity:.85;cursor:pointer' title='Show only IL/dynamic-proven and Confirmed findings; hide Inferred string-scan hits'><input type='checkbox' id='confOnly'> Confirmed only</label>
+</div>
+
+  <div id='findings'>
+<section class='sevsection ' data-sev='CRITICAL'>
+  <h2 class='sevhead' style='color:#f85149'><span class='caret'>&#9662;</span>CRITICAL <span class='seccount'>(1)</span></h2>
+  <div class='sevbody'>
+<article class='finding' data-sev='CRITICAL' data-proven='0' data-rule='update.no-signature-verification' data-text='update flow present; no signature-verification primitives in first-party code update.no-signature-verification c:\programdata\dvta\entityframework.dll update keywords: checkforupdate,updateavailable,updateurl,updatemanifest,downloadupdate,latestversion,update-manifest,/firmware | sig keywords absent if downloaded update content is not signature-verified before execution, anyone who can write to the update origin (or mitm the channel) achieves persistent rce on every client. confirm in ilspy that downloadupdate / checkforupdate methods do not call any cryptographic verification path. [tcpk correlation: a critical/high secret was also found in this audit -- combining a leaked credential with an unverified update flow is a supply-chain primitive against all customers.]'>
+  <div class='fhead'>
+    <span class='fid'>#001</span>
+    <span class='badge' style='background:#f85149'>CRITICAL</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Update flow present; NO signature-verification primitives in first-party code</span>
+    <span class='frule'>update.no-signature-verification</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-494</span><span class='ftag ftag-cwe'>CWE-345</span><span class='ftag ftag-cwe'>CWE-347</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-NETWORK Network Communication</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>9.3 &middot; <code>CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>If downloaded update content is not signature-verified before execution, anyone who can write to the update origin (or MITM the channel) achieves persistent RCE on every client. Confirm in ILSpy that DownloadUpdate / CheckForUpdate methods do not call any cryptographic verification path.</td></tr>
+<tr><th>Impact</th><td>Direct compromise: code execution, privilege escalation, or exposure of live credentials with little/no precondition.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>update keywords: CheckForUpdate,UpdateAvailable,UpdateUrl,UpdateManifest,DownloadUpdate,LatestVersion,update-manifest,/firmware | sig keywords absent</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrVXBkYXRlRmxvdyAtUGF0aCAnQzpcUHJvZ3JhbURhdGFcRFZUQSc='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Inspects the app&#39;s update/download flow for missing integrity checks.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkUpdateFlow -Path &#39;C:\ProgramData\DVTA&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  it applies a downloaded update with NO signature or hash check (remote code execution via a poisoned update server).</span>
+<span class='vc'>#   OK          if  it verifies a signature or hash before extracting or running the payload.</span>
+<span class='vc'># NOTE: decompile the update method to confirm the check actually runs.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Sign update manifests with an offline-keyed RSA signature; sign each downloaded payload (Authenticode or detached PKCS#7); verify before any extract/exec.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK correlation: a CRITICAL/HIGH secret was also found in this audit -- combining a leaked credential with an unverified update flow is a supply-chain primitive against all customers.]</div>
+  </div>
+</article>
+  </div>
+</section>
+<section class='sevsection ' data-sev='HIGH'>
+  <h2 class='sevhead' style='color:#db6d28'><span class='caret'>&#9662;</span>HIGH <span class='seccount'>(3)</span></h2>
+  <div class='sevbody'>
+<article class='finding' data-sev='HIGH' data-proven='0' data-rule='entropy.high-entropy-token' data-text='high-entropy base64 token in dvta.exe.config entropy.high-entropy-token c:\programdata\dvta\dvta.exe.config j8glxc...v8k8 (len=32, h=4.539) a high-entropy string was found in a shipped text/config file. such tokens are frequently api keys, bearer tokens, or symmetric keys that prefix-based rules miss. confirm whether it is a live credential.'>
+  <div class='fhead'>
+    <span class='fid'>#002</span>
+    <span class='badge' style='background:#db6d28'>HIGH</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>High-entropy base64 token in DVTA.exe.config</span>
+    <span class='frule'>entropy.high-entropy-token</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-798</span><span class='ftag ftag-cwe'>CWE-312</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1552.001 Credentials In Files</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-STORAGE Sensitive Data Storage</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA3 Sensitive Data Exposure</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>6.9 &middot; <code>CVSS:4.0/AV:L/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>A high-entropy string was found in a shipped text/config file. Such tokens are frequently API keys, bearer tokens, or symmetric keys that prefix-based rules miss. Confirm whether it is a live credential.</td></tr>
+<tr><th>Impact</th><td>Serious exposure: an attacker meeting a modest precondition can steal secrets, escalate, or bypass a security control.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\DVTA.exe.config</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>J8gLXc...v8k8 (len=32, H=4.539)</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='U2VsZWN0LVN0cmluZyAtUGF0aCAnQzpcUHJvZ3JhbURhdGFcRFZUQVxEVlRBLmV4ZS5jb25maWcnIC1QYXR0ZXJuICdbQS1aYS16MC05Ky9fLV17MjQsfScgLUFsbE1hdGNoZXMgfCBGb3JFYWNoLU9iamVjdCB7ICRfLk1hdGNoZXMuVmFsdWUgfQ=='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Surfaces long high-entropy strings in the file that might be embedded secrets.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Select-String -Path &#39;C:\ProgramData\DVTA\DVTA.exe.config&#39; -Pattern &#39;[A-Za-z0-9+/_-]{24,}&#39; -AllMatches | ForEach-Object { $_.Matches.Value }</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  a printed high-entropy string turns out to be a live key or secret.</span>
+<span class='vc'>#   OK          if  the strings are hashes, cache-busters, or asset IDs.</span>
+<span class='vc'># TOOL: PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Do not ship secrets in files. Load them from a protected store (DPAPI / OS keychain / server-issued token) at runtime and rotate any exposed value.</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='HIGH' data-proven='0' data-rule='secrets.config-hardcoded-crypto-key' data-text='hardcoded cryptographic key in .net config appsettings (+1 more affected) secrets.config-hardcoded-crypto-key 2 files 2 affected: c:\programdata\dvta\dvta.exe.config; c:\programdata\dvta\dvta.vshost.exe.config  [tcpk: 2 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#003</span>
+    <span class='badge' style='background:#db6d28'>HIGH</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Hardcoded cryptographic key in .NET config appSettings (+1 more affected)</span>
+    <span class='frule'>secrets.config-hardcoded-crypto-key</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-798</span><span class='ftag ftag-cwe'>CWE-321</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1552.001 Credentials In Files</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-STORAGE Sensitive Data Storage</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA3 Sensitive Data Exposure</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>8.5 &middot; <code>CVSS:4.0/AV:L/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>Impact</th><td>Serious exposure: an attacker meeting a modest precondition can steal secrets, escalate, or bypass a security control.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>2 files</code></td></tr>
+<tr><th>Affected (2)</th><td><ul class='afflist'><li><code class='path'>C:\ProgramData\DVTA\DVTA.exe.config</code></li><li><code class='path'>C:\ProgramData\DVTA\DVTA.vshost.exe.config</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='KFtyZWdleF06Ok1hdGNoZXMoW1RleHQuRW5jb2RpbmddOjpVbmljb2RlLkdldFN0cmluZyhbSU8uRmlsZV06OlJlYWRBbGxCeXRlcygnQzpcUHJvZ3JhbURhdGFcRFZUQVxEVlRBLmV4ZS5jb25maWcnKSksJ0RlZmF1bHRFbmRwb2ludHNQcm90b2NvbD1odHRwcz87W0EtWmEtejAtOT07Ll8vK1wtXXswLDMwMH1BY2NvdW50S2V5PVtBLVphLXowLTkrLz1dezIwLH18QWNjb3VudEtleT1bQS1aYS16MC05Ky89XXsyMCx9fC0tLS0tQkVHSU4gW0EtWiBdK0tFWXxBS0lBW0EtWjAtOV17MTZ9fGV5SltBLVphLXowLTlfLV17MTAsfScpKS5WYWx1ZQ=='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Scans the file&#39;s text for things that look like LIVE secrets - Azure storage keys, connection strings, PEM private keys, AWS access keys, or JWT tokens.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>([regex]::Matches([Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes(&#39;C:\ProgramData\DVTA\DVTA.exe.config&#39;)),&#39;DefaultEndpointsProtocol=https?;[A-Za-z0-9=;._/+\-]{0,300}AccountKey=[A-Za-z0-9+/=]{20,}|AccountKey=[A-Za-z0-9+/=]{20,}|-----BEGIN [A-Z ]+KEY|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{10,}&#39;)).Value</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  it prints a real secret - e.g. AccountKey=..., a DefaultEndpointsProtocol=... connection string, an AKIA... AWS key, an eyJ... JWT, or a -----BEGIN ... KEY----- block.</span>
+<span class='vc'>#   OK          if  it prints nothing (only placeholders, or there are no secrets in the file).</span>
+<span class='vc'># NOTE: this reads the file as UTF-16 (Unicode) text. If the secret is stored as plain ASCII, change ::Unicode to ::UTF8 and run it again. To dump EVERY readable string instead: strings.exe -u &#39;C:\ProgramData\DVTA\DVTA.exe.config&#39;</span>
+<span class='vc'># TOOL: PowerShell built-in (alternative: Sysinternals strings.exe)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Never ship a symmetric or private key in config. Derive a per-user key (DPAPI) or fetch from a key vault; rotate the exposed key. With key+IV+ciphertext all present, the protected value is trivially decryptable.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 2 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='HIGH' data-proven='0' data-rule='secrets.config-hardcoded-secret' data-text='hardcoded credential in .net config appsettings (+1 more affected) secrets.config-hardcoded-secret 2 files 2 affected: c:\programdata\dvta\dvta.exe.config; c:\programdata\dvta\dvta.vshost.exe.config  [tcpk: 2 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#004</span>
+    <span class='badge' style='background:#db6d28'>HIGH</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Hardcoded credential in .NET config appSettings (+1 more affected)</span>
+    <span class='frule'>secrets.config-hardcoded-secret</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-798</span><span class='ftag ftag-cwe'>CWE-260</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1552.001 Credentials In Files</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-STORAGE Sensitive Data Storage</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA3 Sensitive Data Exposure</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>8.5 &middot; <code>CVSS:4.0/AV:L/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>Impact</th><td>Serious exposure: an attacker meeting a modest precondition can steal secrets, escalate, or bypass a security control.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>2 files</code></td></tr>
+<tr><th>Affected (2)</th><td><ul class='afflist'><li><code class='path'>C:\ProgramData\DVTA\DVTA.exe.config</code></li><li><code class='path'>C:\ProgramData\DVTA\DVTA.vshost.exe.config</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='KFtyZWdleF06Ok1hdGNoZXMoW1RleHQuRW5jb2RpbmddOjpVbmljb2RlLkdldFN0cmluZyhbSU8uRmlsZV06OlJlYWRBbGxCeXRlcygnQzpcUHJvZ3JhbURhdGFcRFZUQVxEVlRBLmV4ZS5jb25maWcnKSksJ0RlZmF1bHRFbmRwb2ludHNQcm90b2NvbD1odHRwcz87W0EtWmEtejAtOT07Ll8vK1wtXXswLDMwMH1BY2NvdW50S2V5PVtBLVphLXowLTkrLz1dezIwLH18QWNjb3VudEtleT1bQS1aYS16MC05Ky89XXsyMCx9fC0tLS0tQkVHSU4gW0EtWiBdK0tFWXxBS0lBW0EtWjAtOV17MTZ9fGV5SltBLVphLXowLTlfLV17MTAsfScpKS5WYWx1ZQ=='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Scans the file&#39;s text for things that look like LIVE secrets - Azure storage keys, connection strings, PEM private keys, AWS access keys, or JWT tokens.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>([regex]::Matches([Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes(&#39;C:\ProgramData\DVTA\DVTA.exe.config&#39;)),&#39;DefaultEndpointsProtocol=https?;[A-Za-z0-9=;._/+\-]{0,300}AccountKey=[A-Za-z0-9+/=]{20,}|AccountKey=[A-Za-z0-9+/=]{20,}|-----BEGIN [A-Z ]+KEY|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{10,}&#39;)).Value</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  it prints a real secret - e.g. AccountKey=..., a DefaultEndpointsProtocol=... connection string, an AKIA... AWS key, an eyJ... JWT, or a -----BEGIN ... KEY----- block.</span>
+<span class='vc'>#   OK          if  it prints nothing (only placeholders, or there are no secrets in the file).</span>
+<span class='vc'># NOTE: this reads the file as UTF-16 (Unicode) text. If the secret is stored as plain ASCII, change ::Unicode to ::UTF8 and run it again. To dump EVERY readable string instead: strings.exe -u &#39;C:\ProgramData\DVTA\DVTA.exe.config&#39;</span>
+<span class='vc'># TOOL: PowerShell built-in (alternative: Sysinternals strings.exe)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Do not store credentials/API keys in appSettings. Use DPAPI, Windows Credential Manager, or a key vault and inject at runtime; rotate the exposed secret.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 2 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+  </div>
+</section>
+<section class='sevsection collapsed' data-sev='MEDIUM'>
+  <h2 class='sevhead' style='color:#d29922'><span class='caret'>&#9662;</span>MEDIUM <span class='seccount'>(8)</span></h2>
+  <div class='sevbody'>
+<article class='finding' data-sev='MEDIUM' data-proven='1' data-rule='callsites.sql-command-construction' data-text='raw ado.net command construction (verify sql is parameterized) in dbaccess.dll callsites.sql-command-construction c:\programdata\dvta\dbaccess.dll sqlcommand presence of a raw command object is not itself a bug. decompile the call site: if the commandtext is built by string concatenation/interpolation with external input, this is sql injection. parameterized queries are safe. [tcpk il: reachable call where external input reaches the sink (9 call site(s)) -- the method reads an external source (file/registry/network/ipc/http request) or a caller parameter flows into the argument. treat as a real injectable path and review.]'>
+  <div class='fhead'>
+    <span class='fid'>#005</span>
+    <span class='badge' style='background:#d29922'>MEDIUM</span>
+    <span class='badge' style='background:#2ea043'>Confirmed (IL)</span>
+    <span class='ftitle'>Raw ADO.NET command construction (verify SQL is parameterized) in DBAccess.dll</span>
+    <span class='frule'>callsites.sql-command-construction</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-89</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1059 Command and Scripting Interpreter</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA1 Injections</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td><span class='muted'>Not auto-scored (mixed class) -- assign per finding</span></td></tr>
+<tr><th>What</th><td>Presence of a raw command object is not itself a bug. Decompile the call site: if the CommandText is built by string concatenation/interpolation with external input, this is SQL injection. Parameterized queries are safe.</td></tr>
+<tr><th>Impact</th><td>Meaningful weakness that aids an attack chain or leaks sensitive information under some conditions.</td></tr>
+<tr><th>Why here</th><td>Proven by IL analysis: the flagged sink is reachable and, where applicable, reached by tainted/external input.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\DBAccess.dll</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>SqlCommand</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrQ2FsbHNpdGVzIC1QYXRoICdDOlxQcm9ncmFtRGF0YVxEVlRBXERCQWNjZXNzLmRsbCc='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkCallsites -Path &#39;C:\ProgramData\DVTA\DBAccess.dll&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the flagged method returns a constant &#39;true&#39; for certificate validation, or it deserializes/parses untrusted input with no checks.</span>
+<span class='vc'>#   OK          if  it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it.</span>
+<span class='vc'># NOTE: open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler (ILSpy / dnSpy)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK IL: reachable call where external input reaches the sink (9 call site(s)) -- the method reads an external source (file/registry/network/IPC/HTTP request) or a caller parameter flows into the argument. Treat as a real injectable path and review.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='MEDIUM' data-proven='1' data-rule='authenticode.pe-not-signed' data-text='dbaccess.dll is not authenticode-signed (+2 more affected) authenticode.pe-not-signed 3 files 3 affected: c:\programdata\dvta\dbaccess.dll; c:\programdata\dvta\dvta.exe; c:\programdata\dvta\excellibrary.dll  [tcpk: 3 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#006</span>
+    <span class='badge' style='background:#d29922'>MEDIUM</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>DBAccess.dll is not Authenticode-signed (+2 more affected)</span>
+    <span class='frule'>authenticode.pe-not-signed</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-347</span><span class='ftag ftag-cwe'>CWE-494</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1553.002 Code Signing</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality &amp; Build Settings</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA8 Poor Code Quality</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>2.0 &middot; <code>CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>Impact</th><td>Meaningful weakness that aids an attack chain or leaks sensitive information under some conditions.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>3 files</code></td></tr>
+<tr><th>Affected (3)</th><td><ul class='afflist'><li><code class='path'>C:\ProgramData\DVTA\DBAccess.dll</code></li><li><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></li><li><code class='path'>C:\ProgramData\DVTA\ExcelLibrary.dll</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>3 affected: C:\ProgramData\DVTA\DBAccess.dll; C:\ProgramData\DVTA\DVTA.exe; C:\ProgramData\DVTA\ExcelLibrary.dll</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='R2V0LUF1dGhlbnRpY29kZVNpZ25hdHVyZSAtRmlsZVBhdGggJ0M6XFByb2dyYW1EYXRhXERWVEFcREJBY2Nlc3MuZGxsJyB8IEZvcm1hdC1MaXN0IFN0YXR1cyxTdGF0dXNNZXNzYWdlLFNpZ25lckNlcnRpZmljYXRl'>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Checks the file&#39;s Authenticode digital signature.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Get-AuthenticodeSignature -FilePath &#39;C:\ProgramData\DVTA\DBAccess.dll&#39; | Format-List Status,StatusMessage,SignerCertificate</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  Status is NotSigned, HashMismatch, or Unknown (the file is unsigned, tampered, or untrusted).</span>
+<span class='vc'>#   OK          if  Status is Valid.</span>
+<span class='vc'># TOOL: PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Sign every shipped EXE/DLL with the company code-signing certificate.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 3 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='MEDIUM' data-proven='1' data-rule='authenticode.weak-cert-hash' data-text='dvta.vshost.exe signing certificate uses a weak hash (sha1rsa) (+1 more affected) authenticode.weak-cert-hash 2 files 2 affected: c:\programdata\dvta\dvta.vshost.exe; c:\programdata\dvta\entityframework.dll the signing certificate chain uses sha-1/md5, which are collision-prone and deprecated for code signing. [tcpk: 2 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#007</span>
+    <span class='badge' style='background:#d29922'>MEDIUM</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>DVTA.vshost.exe signing certificate uses a weak hash (sha1RSA) (+1 more affected)</span>
+    <span class='frule'>authenticode.weak-cert-hash</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-327</span><span class='ftag ftag-cwe'>CWE-347</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1553.002 Code Signing</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality &amp; Build Settings</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA8 Poor Code Quality</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>2.0 &middot; <code>CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>The signing certificate chain uses SHA-1/MD5, which are collision-prone and deprecated for code signing.</td></tr>
+<tr><th>Impact</th><td>Meaningful weakness that aids an attack chain or leaks sensitive information under some conditions.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>2 files</code></td></tr>
+<tr><th>Affected (2)</th><td><ul class='afflist'><li><code class='path'>C:\ProgramData\DVTA\DVTA.vshost.exe</code></li><li><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>2 affected: C:\ProgramData\DVTA\DVTA.vshost.exe; C:\ProgramData\DVTA\EntityFramework.dll</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='R2V0LUF1dGhlbnRpY29kZVNpZ25hdHVyZSAtRmlsZVBhdGggJ0M6XFByb2dyYW1EYXRhXERWVEFcRFZUQS52c2hvc3QuZXhlJyB8IEZvcm1hdC1MaXN0IFN0YXR1cyxTdGF0dXNNZXNzYWdlLFNpZ25lckNlcnRpZmljYXRl'>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Checks the file&#39;s Authenticode digital signature.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Get-AuthenticodeSignature -FilePath &#39;C:\ProgramData\DVTA\DVTA.vshost.exe&#39; | Format-List Status,StatusMessage,SignerCertificate</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  Status is NotSigned, HashMismatch, or Unknown (the file is unsigned, tampered, or untrusted).</span>
+<span class='vc'>#   OK          if  Status is Valid.</span>
+<span class='vc'># TOOL: PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Obtain a SHA-256 (or stronger) code-signing certificate and re-sign.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 2 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='MEDIUM' data-proven='1' data-rule='devartifact.debug-symbols' data-text='debug symbols shipped (2 affected) devartifact.debug-symbols 2 files 2 affected: dbaccess.pdb; dvta.pdb debug symbol files (.pdb/.map) are present. they expose source file paths, type/method names, and line numbers - a reverse-engineering aid - and indicate debug metadata was not stripped from the release. [tcpk: 2 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#008</span>
+    <span class='badge' style='background:#d29922'>MEDIUM</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>Debug symbols shipped (2 affected)</span>
+    <span class='frule'>devartifact.debug-symbols</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-489</span><span class='ftag ftag-cwe'>CWE-540</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA3 Sensitive Data Exposure</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>2.0 &middot; <code>CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>Debug symbol files (.pdb/.map) are present. They expose source file paths, type/method names, and line numbers - a reverse-engineering aid - and indicate debug metadata was not stripped from the release.</td></tr>
+<tr><th>Impact</th><td>Meaningful weakness that aids an attack chain or leaks sensitive information under some conditions.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>2 files</code></td></tr>
+<tr><th>Affected (2)</th><td><ul class='afflist'><li><code class='path'>DBAccess.pdb</code></li><li><code class='path'>DVTA.pdb</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>2 affected: DBAccess.pdb; DVTA.pdb</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Re-validate this finding using its reported File and Evidence values.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Re-run the TCPK check for rule &#39;devartifact.debug-symbols&#39;.</span>
+<span class='vc'>#   - Inspect the reported File and Evidence; use the Evidence value as a search term.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the Evidence value is real, reachable, and does what the finding describes.</span>
+<span class='vc'>#   OK          if  the Evidence is a false positive (a placeholder, dead code, or unreachable).</span>
+<span class='vc'># TOOL: TCPK / PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Exclude .pdb/.map from the shipped artifact (publish without symbols, or strip them).</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 2 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='MEDIUM' data-proven='0' data-rule='authflags.client-side-gate' data-text='entityframework.dll has client-side license/auth gate(s): ispro authflags.client-side-gate c:\programdata\dvta\entityframework.dll ispro these boolean gates appear to run on the client. decompile to confirm the feature/license is enforced locally -- if so, it is bypassable by patching the binary, flipping the value in memory, or returning true from the check.'>
+  <div class='fhead'>
+    <span class='fid'>#009</span>
+    <span class='badge' style='background:#d29922'>MEDIUM</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>EntityFramework.dll has client-side license/auth gate(s): IsPro</span>
+    <span class='frule'>authflags.client-side-gate</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-602</span><span class='ftag ftag-cwe'>CWE-603</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1078 Valid Accounts</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1211 Exploitation for Defense Evasion</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-AUTH Authentication &amp; Session</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA2 Broken Authentication and Session Management</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>6.8 &middot; <code>CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:N/VI:H/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>These boolean gates appear to run on the client. Decompile to confirm the feature/license is enforced LOCALLY -- if so, it is bypassable by patching the binary, flipping the value in memory, or returning true from the check.</td></tr>
+<tr><th>Impact</th><td>Meaningful weakness that aids an attack chain or leaks sensitive information under some conditions.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>IsPro</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Re-validate this finding using its reported File and Evidence values.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Re-run the TCPK check for rule &#39;authflags.client-side-gate&#39;.</span>
+<span class='vc'>#   - Inspect the reported File and Evidence; use the Evidence value as a search term.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the Evidence value is real, reachable, and does what the finding describes.</span>
+<span class='vc'>#   OK          if  the Evidence is a false positive (a placeholder, dead code, or unreachable).</span>
+<span class='vc'># TOOL: TCPK / PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Move authorization / licensing decisions server-side; never trust a client-side boolean for access control.</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='MEDIUM' data-proven='0' data-rule='scheme.cleartext-ftp' data-text='cleartext ftp:// endpoint: 192.168.56.110 scheme.cleartext-ftp c:\programdata\dvta\dvta.exe ftp://192.168.56.110 non-tls ftp reference in first-party code. ftp transmits commands, file contents, and any credentials in cleartext -- trivially intercepted or mitm-able. confirm whether it is a live transfer, and check for hardcoded ftp credentials nearby.'>
+  <div class='fhead'>
+    <span class='fid'>#010</span>
+    <span class='badge' style='background:#d29922'>MEDIUM</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Cleartext ftp:// endpoint: 192.168.56.110</span>
+    <span class='frule'>scheme.cleartext-ftp</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-319</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-NETWORK Network Communication</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA7 Insecure Communication</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>6.3 &middot; <code>CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>Non-TLS FTP reference in first-party code. FTP transmits commands, file contents, and any credentials in cleartext -- trivially intercepted or MITM-able. Confirm whether it is a live transfer, and check for hardcoded FTP credentials nearby.</td></tr>
+<tr><th>Impact</th><td>Meaningful weakness that aids an attack chain or leaks sensitive information under some conditions.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>ftp://192.168.56.110</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1OZXRDb25uZWN0aW9uIDxob3N0PiAtUG9ydCA0NDM='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Confirms whether a backend host the app talks to is reachable, and how the connection is secured.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-NetConnection &lt;host&gt; -Port 443</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the host is contacted over http:// (credentials sent in cleartext) or it accepts a forged/invalid certificate.</span>
+<span class='vc'>#   OK          if  it uses https with a valid, properly-validated certificate.</span>
+<span class='vc'># NOTE: to see the real traffic, capture it with Burp or Fiddler while using the app.</span>
+<span class='vc'># TOOL: PowerShell + an intercepting proxy (Burp / Fiddler)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Use FTPS (FTP over TLS) or SFTP (SSH-based). Never send data or credentials over plain FTP, and never embed credentials in the URL.</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='MEDIUM' data-proven='0' data-rule='scheme.cleartext-http' data-text='cleartext http:// endpoint (2 affected) scheme.cleartext-http 2 files 2 affected: msdn.com; code.google.com non-tls http:// reference in first-party code. if this host is contacted at runtime, traffic (and any credentials/tokens) is exposed to network attackers and is trivially mitm-able. confirm whether it is a live call or a documentation link. [tcpk: 2 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#011</span>
+    <span class='badge' style='background:#d29922'>MEDIUM</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Cleartext http:// endpoint (2 affected)</span>
+    <span class='frule'>scheme.cleartext-http</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-319</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-NETWORK Network Communication</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA7 Insecure Communication</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>6.3 &middot; <code>CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>Non-TLS http:// reference in first-party code. If this host is contacted at runtime, traffic (and any credentials/tokens) is exposed to network attackers and is trivially MITM-able. Confirm whether it is a live call or a documentation link.</td></tr>
+<tr><th>Impact</th><td>Meaningful weakness that aids an attack chain or leaks sensitive information under some conditions.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>2 files</code></td></tr>
+<tr><th>Affected (2)</th><td><ul class='afflist'><li><code class='path'>msdn.com</code></li><li><code class='path'>code.google.com</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>2 affected: msdn.com; code.google.com</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1OZXRDb25uZWN0aW9uIDxob3N0PiAtUG9ydCA0NDM='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Confirms whether a backend host the app talks to is reachable, and how the connection is secured.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-NetConnection &lt;host&gt; -Port 443</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the host is contacted over http:// (credentials sent in cleartext) or it accepts a forged/invalid certificate.</span>
+<span class='vc'>#   OK          if  it uses https with a valid, properly-validated certificate.</span>
+<span class='vc'># NOTE: to see the real traffic, capture it with Burp or Fiddler while using the app.</span>
+<span class='vc'># TOOL: PowerShell + an intercepting proxy (Burp / Fiddler)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Use https:// with certificate validation. If the host is HTTP-only, proxy it through an authenticated TLS endpoint.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 2 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='MEDIUM' data-proven='0' data-rule='secrets.config-hardcoded-iv' data-text='hardcoded aes/cbc initialization vector in config (+1 more affected) secrets.config-hardcoded-iv 2 files 2 affected: c:\programdata\dvta\dvta.exe.config; c:\programdata\dvta\dvta.vshost.exe.config  [tcpk: 2 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#012</span>
+    <span class='badge' style='background:#d29922'>MEDIUM</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Hardcoded AES/CBC initialization vector in config (+1 more affected)</span>
+    <span class='frule'>secrets.config-hardcoded-iv</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-329</span><span class='ftag ftag-cwe'>CWE-798</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1552.001 Credentials In Files</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-STORAGE Sensitive Data Storage</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA3 Sensitive Data Exposure</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>6.9 &middot; <code>CVSS:4.0/AV:L/AC:L/AT:N/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>Impact</th><td>Meaningful weakness that aids an attack chain or leaks sensitive information under some conditions.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>2 files</code></td></tr>
+<tr><th>Affected (2)</th><td><ul class='afflist'><li><code class='path'>C:\ProgramData\DVTA\DVTA.exe.config</code></li><li><code class='path'>C:\ProgramData\DVTA\DVTA.vshost.exe.config</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='KFtyZWdleF06Ok1hdGNoZXMoW1RleHQuRW5jb2RpbmddOjpVbmljb2RlLkdldFN0cmluZyhbSU8uRmlsZV06OlJlYWRBbGxCeXRlcygnQzpcUHJvZ3JhbURhdGFcRFZUQVxEVlRBLmV4ZS5jb25maWcnKSksJ0RlZmF1bHRFbmRwb2ludHNQcm90b2NvbD1odHRwcz87W0EtWmEtejAtOT07Ll8vK1wtXXswLDMwMH1BY2NvdW50S2V5PVtBLVphLXowLTkrLz1dezIwLH18QWNjb3VudEtleT1bQS1aYS16MC05Ky89XXsyMCx9fC0tLS0tQkVHSU4gW0EtWiBdK0tFWXxBS0lBW0EtWjAtOV17MTZ9fGV5SltBLVphLXowLTlfLV17MTAsfScpKS5WYWx1ZQ=='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Scans the file&#39;s text for things that look like LIVE secrets - Azure storage keys, connection strings, PEM private keys, AWS access keys, or JWT tokens.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>([regex]::Matches([Text.Encoding]::Unicode.GetString([IO.File]::ReadAllBytes(&#39;C:\ProgramData\DVTA\DVTA.exe.config&#39;)),&#39;DefaultEndpointsProtocol=https?;[A-Za-z0-9=;._/+\-]{0,300}AccountKey=[A-Za-z0-9+/=]{20,}|AccountKey=[A-Za-z0-9+/=]{20,}|-----BEGIN [A-Z ]+KEY|AKIA[A-Z0-9]{16}|eyJ[A-Za-z0-9_-]{10,}&#39;)).Value</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  it prints a real secret - e.g. AccountKey=..., a DefaultEndpointsProtocol=... connection string, an AKIA... AWS key, an eyJ... JWT, or a -----BEGIN ... KEY----- block.</span>
+<span class='vc'>#   OK          if  it prints nothing (only placeholders, or there are no secrets in the file).</span>
+<span class='vc'># NOTE: this reads the file as UTF-16 (Unicode) text. If the secret is stored as plain ASCII, change ::Unicode to ::UTF8 and run it again. To dump EVERY readable string instead: strings.exe -u &#39;C:\ProgramData\DVTA\DVTA.exe.config&#39;</span>
+<span class='vc'># TOOL: PowerShell built-in (alternative: Sysinternals strings.exe)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Do not hardcode the IV. Generate a fresh random IV per encryption and store or transmit it alongside the ciphertext.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 2 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+  </div>
+</section>
+<section class='sevsection collapsed' data-sev='LOW'>
+  <h2 class='sevhead' style='color:#3fb950'><span class='caret'>&#9662;</span>LOW <span class='seccount'>(12)</span></h2>
+  <div class='sevbody'>
+<article class='finding' data-sev='LOW' data-proven='1' data-rule='callsites.ssrf-request-build' data-text='outbound http request api (verify the target url is not attacker-controlled) in dvta.exe callsites.ssrf-request-build c:\programdata\dvta\dvta.exe webclient triage: if the request url or host is built from external input (config, ipc, file, a prior server response) without an allowlist, this is ssrf / open-redirect surface. decompile the call site to confirm the url is constant or validated. (backend-side ssrf is tested dynamically against the api.) [tcpk il: reachable call where external input reaches the sink (3 call site(s)) -- the method reads an external source (file/registry/network/ipc/http request) or a caller parameter flows into the argument. treat as a real injectable path and review.]'>
+  <div class='fhead'>
+    <span class='fid'>#013</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#2ea043'>Confirmed (IL)</span>
+    <span class='ftitle'>Outbound HTTP request API (verify the target URL is not attacker-controlled) in DVTA.exe</span>
+    <span class='frule'>callsites.ssrf-request-build</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-918</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1059 Command and Scripting Interpreter</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA1 Injections</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td><span class='muted'>Not auto-scored (mixed class) -- assign per finding</span></td></tr>
+<tr><th>What</th><td>Triage: if the request URL or host is built from external input (config, IPC, file, a prior server response) without an allowlist, this is SSRF / open-redirect surface. Decompile the call site to confirm the URL is constant or validated. (Backend-side SSRF is tested dynamically against the API.)</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Proven by IL analysis: the flagged sink is reachable and, where applicable, reached by tainted/external input.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>WebClient</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrQ2FsbHNpdGVzIC1QYXRoICdDOlxQcm9ncmFtRGF0YVxEVlRBXERWVEEuZXhlJw=='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkCallsites -Path &#39;C:\ProgramData\DVTA\DVTA.exe&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the flagged method returns a constant &#39;true&#39; for certificate validation, or it deserializes/parses untrusted input with no checks.</span>
+<span class='vc'>#   OK          if  it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it.</span>
+<span class='vc'># NOTE: open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler (ILSpy / dnSpy)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK IL: reachable call where external input reaches the sink (3 call site(s)) -- the method reads an external source (file/registry/network/IPC/HTTP request) or a caller parameter flows into the argument. Treat as a real injectable path and review.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='1' data-rule='deser.xmlserializer' data-text='xmlserializer reference deser.xmlserializer c:\programdata\dvta\excellibrary.dll   [tcpk il: the deserializer&#39;s deserialize()/readobject() is actually invoked (4 call site(s), reachable=true) -- confirm whether the input can be attacker-controlled.]'>
+  <div class='fhead'>
+    <span class='fid'>#014</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#2ea043'>Confirmed (IL)</span>
+    <span class='ftitle'>XmlSerializer reference</span>
+    <span class='frule'>deser.xmlserializer</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-502</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA1 Injections</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>9.3 &middot; <code>CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Proven by IL analysis: the flagged sink is reachable and, where applicable, reached by tainted/external input.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\ExcelLibrary.dll</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrQ2FsbHNpdGVzIC1QYXRoICdDOlxQcm9ncmFtRGF0YVxEVlRBXEV4Y2VsTGlicmFyeS5kbGwn'>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkCallsites -Path &#39;C:\ProgramData\DVTA\ExcelLibrary.dll&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the flagged method returns a constant &#39;true&#39; for certificate validation, or it deserializes/parses untrusted input with no checks.</span>
+<span class='vc'>#   OK          if  it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it.</span>
+<span class='vc'># NOTE: open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler (ILSpy / dnSpy)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Use TypeNameHandling.None / allowlisted KnownTypes / System.Text.Json polymorphism. Confirm runtimeconfig.json EnableUnsafeBinaryFormatterSerialization=false.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK IL: the deserializer&#39;s Deserialize()/ReadObject() is actually invoked (4 call site(s), reachable=True) -- confirm whether the input can be attacker-controlled.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='1' data-rule='obfuscation.absent' data-text='5 first-party .net assemblies are not obfuscated (source recoverable) obfuscation.absent c:\programdata\dvta dbaccess.dll, dvta.exe, dvta.vshost.exe, entityframework.dll, excellibrary.dll these managed assemblies have no packer and no obfuscator, so a decompiler (ilspy/dnspy) recovers near-original source: business logic, license checks, hardcoded values, and any embedded secrets are fully readable.'>
+  <div class='fhead'>
+    <span class='fid'>#015</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>5 first-party .NET assemblies are NOT obfuscated (source recoverable)</span>
+    <span class='frule'>obfuscation.absent</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-656</span><span class='ftag ftag-cwe'>CWE-1294</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1027.002 Software Packing</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality &amp; Build Settings</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA8 Poor Code Quality</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>2.0 &middot; <code>CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>These managed assemblies have no packer and no obfuscator, so a decompiler (ILSpy/dnSpy) recovers near-original source: business logic, license checks, hardcoded values, and any embedded secrets are fully readable.</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>DBAccess.dll, DVTA.exe, DVTA.vshost.exe, EntityFramework.dll, ExcelLibrary.dll</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Re-validate this finding using its reported File and Evidence values.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Re-run the TCPK check for rule &#39;obfuscation.absent&#39;.</span>
+<span class='vc'>#   - Inspect the reported File and Evidence; use the Evidence value as a search term.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the Evidence value is real, reachable, and does what the finding describes.</span>
+<span class='vc'>#   OK          if  the Evidence is a false positive (a placeholder, dead code, or unreachable).</span>
+<span class='vc'># TOOL: TCPK / PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>If the logic/IP or any client-side check matters, apply an obfuscator AND move trust decisions server-side. Never rely on obfuscation to hide secrets.</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='1' data-rule='pagefile.no-clear-at-shutdown' data-text='pagefile is not cleared at shutdown pagefile.no-clear-at-shutdown hklm:\system\currentcontrolset\control\session manager\memory management clearpagefileatshutdown=0 the pagefile may contain copies of in-memory data from running processes after a clean shutdown.'>
+  <div class='fhead'>
+    <span class='fid'>#016</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>Pagefile is NOT cleared at shutdown</span>
+    <span class='frule'>pagefile.no-clear-at-shutdown</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-316</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA3 Sensitive Data Exposure</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>2.0 &middot; <code>CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>The pagefile may contain copies of in-memory data from running processes after a clean shutdown.</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>HKLM:\System\CurrentControlSet\Control\Session Manager\Memory Management</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>ClearPageFileAtShutdown=0</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='cmVnIHF1ZXJ5ICJIS0xNXFxTT0ZUV0FSRVxcTWljcm9zb2Z0XFxXaW5kb3dzXFxXaW5kb3dzIEVycm9yIFJlcG9ydGluZyI='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Checks crash-dump and pagefile settings that could leak secrets to disk.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>reg query &quot;HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting&quot;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  full crash dumps are enabled, or the pagefile is not cleared at shutdown (in-memory secrets can reach disk).</span>
+<span class='vc'>#   OK          if  crash dumps are minidump-only AND ClearPageFileAtShutdown = 1.</span>
+<span class='vc'># TOOL: reg.exe / PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Set ClearPageFileAtShutdown=1 in the registry (or via Local Security Policy: Shutdown: Clear virtual memory pagefile).</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='1' data-rule='strongname.unsigned' data-text='dbaccess.dll has no strong-name public key token (+2 more affected) strongname.unsigned 3 files 3 affected: c:\programdata\dvta\dbaccess.dll; c:\programdata\dvta\dvta.exe; c:\programdata\dvta\excellibrary.dll assembly identity is name+version only -- weakens reflection-based assembly resolution. [tcpk: 3 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#017</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>DBAccess.dll has no strong-name public key token (+2 more affected)</span>
+    <span class='frule'>strongname.unsigned</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1553.002 Code Signing</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality &amp; Build Settings</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA8 Poor Code Quality</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>2.0 &middot; <code>CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>Assembly identity is name+version only -- weakens reflection-based assembly resolution.</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>3 files</code></td></tr>
+<tr><th>Affected (3)</th><td><ul class='afflist'><li><code class='path'>C:\ProgramData\DVTA\DBAccess.dll</code></li><li><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></li><li><code class='path'>C:\ProgramData\DVTA\ExcelLibrary.dll</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>3 affected: C:\ProgramData\DVTA\DBAccess.dll; C:\ProgramData\DVTA\DVTA.exe; C:\ProgramData\DVTA\ExcelLibrary.dll</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='W1JlZmxlY3Rpb24uQXNzZW1ibHlOYW1lXTo6R2V0QXNzZW1ibHlOYW1lKCdDOlxQcm9ncmFtRGF0YVxEVlRBXERCQWNjZXNzLmRsbCcpLkdldFB1YmxpY0tleVRva2VuKCk='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Checks whether a .NET assembly is strong-named (which makes it harder to silently replace).</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>[Reflection.AssemblyName]::GetAssemblyName(&#39;C:\ProgramData\DVTA\DBAccess.dll&#39;).GetPublicKeyToken()</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the output is EMPTY - the assembly is not strong-named and can be modified or swapped out.</span>
+<span class='vc'>#   OK          if  a public-key token (a row of bytes) is printed.</span>
+<span class='vc'># TOOL: PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Sign the assembly during build (csc.exe /keyfile, or &lt;SignAssembly&gt;true&lt;/SignAssembly&gt; in csproj).</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 3 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='0' data-rule='callsites.base64-as-encryption' data-text='base64 encoding (verify it is not used in place of encryption) in entityframework.dll callsites.base64-as-encryption c:\programdata\dvta\entityframework.dll tobase64string base64 is encoding, not encryption. if a credential / token / pii field is base64-encoded and then stored or transmitted as if protected, the data is effectively cleartext. confirm sensitive values are encrypted (dpapi / aes-gcm), not merely base64-encoded. [tcpk il: api is actually invoked (7 call site(s), reachable=true).]'>
+  <div class='fhead'>
+    <span class='fid'>#018</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Base64 encoding (verify it is not used in place of encryption) in EntityFramework.dll</span>
+    <span class='frule'>callsites.base64-as-encryption</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-326</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1059 Command and Scripting Interpreter</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CRYPTO Cryptography</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td><span class='muted'>Not auto-scored (mixed class) -- assign per finding</span></td></tr>
+<tr><th>What</th><td>Base64 is encoding, not encryption. If a credential / token / PII field is base64-encoded and then stored or transmitted as if protected, the data is effectively cleartext. Confirm sensitive values are encrypted (DPAPI / AES-GCM), not merely base64-encoded.</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>ToBase64String</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrQ2FsbHNpdGVzIC1QYXRoICdDOlxQcm9ncmFtRGF0YVxEVlRBXEVudGl0eUZyYW1ld29yay5kbGwn'>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkCallsites -Path &#39;C:\ProgramData\DVTA\EntityFramework.dll&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the flagged method returns a constant &#39;true&#39; for certificate validation, or it deserializes/parses untrusted input with no checks.</span>
+<span class='vc'>#   OK          if  it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it.</span>
+<span class='vc'># NOTE: open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler (ILSpy / dnSpy)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK IL: API is actually invoked (7 call site(s), reachable=True).]</div>
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='0' data-rule='callsites.env-var-path-use' data-text='environment-variable lookup (verify not used for dll/exe/config paths) in dvta.exe callsites.env-var-path-use c:\programdata\dvta\dvta.exe getenvironmentvariable if an environment variable a standard user controls is used to build a dll/exe/config path that the app then loads or executes, a user can redirect it (dll planting / path hijack). decompile to see what the value feeds. [tcpk il: api is actually invoked (1 call site(s), reachable=true).]'>
+  <div class='fhead'>
+    <span class='fid'>#019</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Environment-variable lookup (verify not used for DLL/exe/config paths) in DVTA.exe</span>
+    <span class='frule'>callsites.env-var-path-use</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-426</span><span class='ftag ftag-cwe'>CWE-15</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1059 Command and Scripting Interpreter</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td><span class='muted'>Not auto-scored (mixed class) -- assign per finding</span></td></tr>
+<tr><th>What</th><td>If an environment variable a standard user controls is used to build a DLL/EXE/config path that the app then loads or executes, a user can redirect it (DLL planting / path hijack). Decompile to see what the value feeds.</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>GetEnvironmentVariable</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrQ2FsbHNpdGVzIC1QYXRoICdDOlxQcm9ncmFtRGF0YVxEVlRBXERWVEEuZXhlJw=='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkCallsites -Path &#39;C:\ProgramData\DVTA\DVTA.exe&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the flagged method returns a constant &#39;true&#39; for certificate validation, or it deserializes/parses untrusted input with no checks.</span>
+<span class='vc'>#   OK          if  it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it.</span>
+<span class='vc'># NOTE: open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler (ILSpy / dnSpy)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK IL: API is actually invoked (1 call site(s), reachable=True).]</div>
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='0' data-rule='callsites.insecure-temp' data-text='insecure-temp-file pattern reference in entityframework.dll callsites.insecure-temp c:\programdata\dvta\entityframework.dll gettempfilename '>
+  <div class='fhead'>
+    <span class='fid'>#020</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Insecure-temp-file pattern reference in EntityFramework.dll</span>
+    <span class='frule'>callsites.insecure-temp</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-377</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1059 Command and Scripting Interpreter</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>2.0 &middot; <code>CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>GetTempFileName</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrQ2FsbHNpdGVzIC1QYXRoICdDOlxQcm9ncmFtRGF0YVxEVlRBXEVudGl0eUZyYW1ld29yay5kbGwn'>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkCallsites -Path &#39;C:\ProgramData\DVTA\EntityFramework.dll&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the flagged method returns a constant &#39;true&#39; for certificate validation, or it deserializes/parses untrusted input with no checks.</span>
+<span class='vc'>#   OK          if  it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it.</span>
+<span class='vc'># NOTE: open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler (ILSpy / dnSpy)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context.</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='0' data-rule='csv.formula-injection-risk' data-text='csv/excel export without formula-injection neutralization csv.formula-injection-risk dvta.exe export sink present (1 file(s)); no formula-neutralization marker found the app exports data to csv/excel but no formula-character neutralization was seen. if any exported field can be user-controlled and starts with = + - @ (or tab/cr), a spreadsheet will execute it as a formula (=webservice / =hyperlink for data exfiltration; =cmd|... for command execution in older excel). confirm the export path: are the fields user-influenced, and are leading formula characters escaped?'>
+  <div class='fhead'>
+    <span class='fid'>#021</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>CSV/Excel export without formula-injection neutralization</span>
+    <span class='frule'>csv.formula-injection-risk</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-1236</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1059 Command and Scripting Interpreter</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1048 Exfiltration Over Alternative Protocol</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA1 Injections</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td><span class='muted'>Not auto-scored (mixed class) -- assign per finding</span></td></tr>
+<tr><th>What</th><td>The app exports data to CSV/Excel but no formula-character neutralization was seen. If any exported field can be user-controlled and starts with = + - @ (or tab/CR), a spreadsheet will execute it as a formula (=WEBSERVICE / =HYPERLINK for data exfiltration; =cmd|... for command execution in older Excel). Confirm the export path: are the fields user-influenced, and are leading formula characters escaped?</td></tr>
+<tr><th>Impact</th><td>If an exported field is user-influenced and starts with a formula character, opening the file lets an attacker exfiltrate data (=WEBSERVICE / =HYPERLINK) or, in older Excel with DDE enabled, run commands on the reviewer machine. Risk depends on whether the exported fields are attacker-controlled.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>DVTA.exe</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>export sink present (1 file(s)); no formula-neutralization marker found</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Checks whether data the app exports to CSV/Excel could be interpreted as a spreadsheet FORMULA (CSV/formula injection).</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - In the app, put a value that STARTS WITH = into a field that later gets exported -- e.g. type   =1+1   (or   =HYPERLINK(&#39;http://attacker/x&#39;,&#39;click&#39;)  ) into a name/comment/description field.</span>
+<span class='vc'>#   - Use the app&#39;s normal Export-to-CSV / Export-to-Excel feature to export that data.</span>
+<span class='vc'>#   - Open the exported .csv / .xlsx in Microsoft Excel and look at the cell you controlled.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  Excel shows &#39;2&#39; (the formula ran) or a clickable hyperlink -- the leading &#39;=&#39; was NOT escaped, so =WEBSERVICE(...)/=HYPERLINK(...) can exfiltrate data and (older Excel) =cmd|... can run commands.</span>
+<span class='vc'>#   OK          if  Excel shows the literal text   =1+1   (the cell was prefixed with a single quote or the formula characters were neutralized).</span>
+<span class='vc'># NOTE: Also try leading   +   -   @   tab and carriage-return; all are treated as formula starters by spreadsheet apps.</span>
+<span class='vc'># TOOL: the app + Microsoft Excel</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Prefix any cell that starts with = + - @ (tab, CR) with a single quote, or enable the library&#39;s injection sanitisation (e.g. CsvHelper SanitizeForInjection).</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='0' data-rule='mem.hygiene-absent' data-text='no securestring / protecteddata markers in any first-party pe mem.hygiene-absent   triage hint -- if this app handles passwords / tokens at runtime, those values may live in plain managed strings (gc-tracked, may persist in memory).'>
+  <div class='fhead'>
+    <span class='fid'>#022</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>No SecureString / ProtectedData markers in any first-party PE</span>
+    <span class='frule'>mem.hygiene-absent</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-316</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA3 Sensitive Data Exposure</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>2.0 &middot; <code>CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>Triage hint -- if this app handles passwords / tokens at runtime, those values may live in plain managed strings (GC-tracked, may persist in memory).</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='cmVnIHF1ZXJ5ICJIS0xNXFxTT0ZUV0FSRVxcTWljcm9zb2Z0XFxXaW5kb3dzXFxXaW5kb3dzIEVycm9yIFJlcG9ydGluZyI='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Checks crash-dump and pagefile settings that could leak secrets to disk.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>reg query &quot;HKLM\\SOFTWARE\\Microsoft\\Windows\\Windows Error Reporting&quot;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  full crash dumps are enabled, or the pagefile is not cleared at shutdown (in-memory secrets can reach disk).</span>
+<span class='vc'>#   OK          if  crash dumps are minidump-only AND ClearPageFileAtShutdown = 1.</span>
+<span class='vc'># TOOL: reg.exe / PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>For password and token handling, use SecureString and Marshal.SecureStringToGlobalAllocUnicode / ZeroFreeGlobalAllocUnicode, or wrap in ProtectedMemory blocks.</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='0' data-rule='storage.registry-credential' data-text='dvta.exe writes to the registry and references credential fields (verify not stored in cleartext) storage.registry-credential c:\programdata\dvta\dvta.exe registry write (setvalue/createsubkey) + credential token &#39;password&#39; first-party code both writes to the windows registry (registrykey.setvalue / createsubkey) and references credential fields (password / token / secret). thick clients frequently persist login credentials to hkcu in cleartext. decompile the setvalue call sites: if a password / token is written without dpapi (protecteddata / cryptprotectdata) it is recoverable by any process running as that user. runtime confirmation: run the app, then test-tcpkregistryvalues scans the live keys for the stored secret.'>
+  <div class='fhead'>
+    <span class='fid'>#023</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>DVTA.exe writes to the registry and references credential fields (verify not stored in cleartext)</span>
+    <span class='frule'>storage.registry-credential</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-312</span><span class='ftag ftag-cwe'>CWE-522</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td><span class='muted'>Not auto-scored (mixed class) -- assign per finding</span></td></tr>
+<tr><th>What</th><td>First-party code both writes to the Windows registry (RegistryKey.SetValue / CreateSubKey) and references credential fields (password / token / secret). Thick clients frequently persist login credentials to HKCU in cleartext. Decompile the SetValue call sites: if a password / token is written without DPAPI (ProtectedData / CryptProtectData) it is recoverable by any process running as that user. Runtime confirmation: run the app, then Test-TcpkRegistryValues scans the live keys for the stored secret.</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>registry write (SetValue/CreateSubKey) + credential token &#39;password&#39;</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Re-validate this finding using its reported File and Evidence values.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Re-run the TCPK check for rule &#39;storage.registry-credential&#39;.</span>
+<span class='vc'>#   - Inspect the reported File and Evidence; use the Evidence value as a search term.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the Evidence value is real, reachable, and does what the finding describes.</span>
+<span class='vc'>#   OK          if  the Evidence is a false positive (a placeholder, dead code, or unreachable).</span>
+<span class='vc'># TOOL: TCPK / PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Never persist raw credentials to the registry. Protect them with DPAPI (ProtectedData) scoped to the current user, or use the Windows Credential Manager; store only non-reversible tokens where possible.</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='LOW' data-proven='0' data-rule='tls.pinning-absent' data-text='http client used; no cert-pinning markers found tls.pinning-absent c:\programdata\dvta\dvta.exe uses webclient; no pinning keywords app trusts the system root store. acceptable for most consumer apps; raise to high for high-value targets where corporate-ca mitm is in-threat-model.'>
+  <div class='fhead'>
+    <span class='fid'>#024</span>
+    <span class='badge' style='background:#3fb950'>LOW</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>HTTP client used; no cert-pinning markers found</span>
+    <span class='frule'>tls.pinning-absent</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-295</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-NETWORK Network Communication</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA7 Insecure Communication</span></div>
+    <table class='kv'>
+<tr><th>CVSS v4.0</th><td>6.3 &middot; <code>CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N</code></td></tr>
+<tr><th>What</th><td>App trusts the system root store. Acceptable for most consumer apps; raise to HIGH for high-value targets where corporate-CA MITM is in-threat-model.</td></tr>
+<tr><th>Impact</th><td>Minor hardening gap / information useful to an attacker; low standalone risk.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>uses WebClient; no pinning keywords</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrVGxzUGlubmluZyAtUGF0aCAnQzpcUHJvZ3JhbURhdGFcRFZUQSc='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Tests whether the app pins or validates its TLS server certificates.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkTlsPinning -Path &#39;C:\ProgramData\DVTA&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the app&#39;s HTTPS calls SUCCEED when routed through your forged-certificate proxy (no pinning / no validation).</span>
+<span class='vc'>#   OK          if  those calls FAIL through the proxy (pinning or validation is working).</span>
+<span class='vc'># NOTE: to test live, MITM the running app with mitmproxy or Burp using a self-signed CA.</span>
+<span class='vc'># TOOL: PowerShell + mitmproxy / Burp</span></pre></div></td></tr>
+<tr><th>Fix</th><td>For sensitive backends, pin the leaf or root cert thumbprint via ServerCertificateCustomValidationCallback (and confirm the callback actually pins, not just returns true).</td></tr>
+    </table>
+    
+  </div>
+</article>
+  </div>
+</section>
+<section class='sevsection collapsed' data-sev='INFO'>
+  <h2 class='sevhead' style='color:#6a7585'><span class='caret'>&#9662;</span>INFO <span class='seccount'>(11)</span></h2>
+  <div class='sevbody'>
+<article class='finding' data-sev='INFO' data-proven='1' data-rule='alpc.enumerated-clean' data-text='alpc ports enumerated; none matched the target alpc.enumerated-clean  0 alpc port(s) in \rpc control; none matched the identity terms. alpc enumeration succeeded; no port name matched this application. informational.'>
+  <div class='fhead'>
+    <span class='fid'>#025</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>ALPC ports enumerated; none matched the target</span>
+    <span class='frule'>alpc.enumerated-clean</span>
+  </div>
+  <div class='fbody'>
+    
+    <table class='kv'>
+<tr><th>What</th><td>ALPC enumeration succeeded; no port name matched this application. Informational.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>0 ALPC port(s) in \RPC Control; none matched the identity terms.</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Re-validate this finding using its reported File and Evidence values.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Re-run the TCPK check for rule &#39;alpc.enumerated-clean&#39;.</span>
+<span class='vc'>#   - Inspect the reported File and Evidence; use the Evidence value as a search term.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the Evidence value is real, reachable, and does what the finding describes.</span>
+<span class='vc'>#   OK          if  the Evidence is a false positive (a placeholder, dead code, or unreachable).</span>
+<span class='vc'># TOOL: TCPK / PowerShell</span></pre></div></td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='1' data-rule='attacksurface.summary' data-text='attack surface: 2 entry point(s) across 2 categories attacksurface.summary c:\programdata\dvta auth / trust surface=1; mailslots / alpc / objects=1 synthesized map of how the app can be reached (protocols, ipc, listeners, exports, web bridges). see attack-surface.json.'>
+  <div class='fhead'>
+    <span class='fid'>#026</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>Attack surface: 2 entry point(s) across 2 categories</span>
+    <span class='frule'>attacksurface.summary</span>
+  </div>
+  <div class='fbody'>
+    
+    <table class='kv'>
+<tr><th>What</th><td>Synthesized map of how the app can be reached (protocols, IPC, listeners, exports, web bridges). See attack-surface.json.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>Auth / trust surface=1; Mailslots / ALPC / objects=1</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: A map of the entry points TCPK found - protocols, pipes, COM, RPC, ports, listeners.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Open attack-surface.json in the output folder.</span>
+<span class='vc'>#   - Triage each entry point for authentication and input validation.</span>
+<span class='vc'># STEP 2 - WHAT IT MEANS:</span>
+<span class='vc'>#   Informational map, not a vulnerability by itself. Use it to decide what to test next.</span>
+<span class='vc'># TOOL: TCPK</span></pre></div></td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='1' data-rule='authenticode.signer-expired' data-text='dvta.vshost.exe signing certificate expired, but signature is timestamped (still valid) (+1 more affected) authenticode.signer-expired 2 files 2 affected: c:\programdata\dvta\dvta.vshost.exe; c:\programdata\dvta\entityframework.dll the signing certificate is past its validity period, but the signature carries a trusted rfc3161 timestamp dated within that period, so it still establishes valid provenance. informational only. [tcpk: 2 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#027</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>DVTA.vshost.exe signing certificate expired, but signature is timestamped (still valid) (+1 more affected)</span>
+    <span class='frule'>authenticode.signer-expired</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-347</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1553.002 Code Signing</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality &amp; Build Settings</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA8 Poor Code Quality</span></div>
+    <table class='kv'>
+<tr><th>What</th><td>The signing certificate is past its validity period, but the signature carries a trusted RFC3161 timestamp dated within that period, so it still establishes valid provenance. Informational only.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>2 files</code></td></tr>
+<tr><th>Affected (2)</th><td><ul class='afflist'><li><code class='path'>C:\ProgramData\DVTA\DVTA.vshost.exe</code></li><li><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>2 affected: C:\ProgramData\DVTA\DVTA.vshost.exe; C:\ProgramData\DVTA\EntityFramework.dll</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='R2V0LUF1dGhlbnRpY29kZVNpZ25hdHVyZSAtRmlsZVBhdGggJ0M6XFByb2dyYW1EYXRhXERWVEFcRFZUQS52c2hvc3QuZXhlJyB8IEZvcm1hdC1MaXN0IFN0YXR1cyxTdGF0dXNNZXNzYWdlLFNpZ25lckNlcnRpZmljYXRl'>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Checks the file&#39;s Authenticode digital signature.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Get-AuthenticodeSignature -FilePath &#39;C:\ProgramData\DVTA\DVTA.vshost.exe&#39; | Format-List Status,StatusMessage,SignerCertificate</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  Status is NotSigned, HashMismatch, or Unknown (the file is unsigned, tampered, or untrusted).</span>
+<span class='vc'>#   OK          if  Status is Valid.</span>
+<span class='vc'># TOOL: PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>No immediate action. Re-sign at the next release to keep the chain current.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 2 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='1' data-rule='codeintegrity.no-cat' data-text='no appxmetadata\codeintegrity.cat present codeintegrity.no-cat c:\programdata\dvta  '>
+  <div class='fhead'>
+    <span class='fid'>#028</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>No AppxMetadata\CodeIntegrity.cat present</span>
+    <span class='frule'>codeintegrity.no-cat</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1553.002 Code Signing</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality &amp; Build Settings</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA8 Poor Code Quality</span></div>
+    <table class='kv'>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='R2V0LUF1dGhlbnRpY29kZVNpZ25hdHVyZSAtRmlsZVBhdGggJ0M6XFByb2dyYW1EYXRhXERWVEEnIHwgRm9ybWF0LUxpc3QgU3RhdHVzLFN0YXR1c01lc3NhZ2UsU2lnbmVyQ2VydGlmaWNhdGU='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Checks the file&#39;s Authenticode digital signature.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Get-AuthenticodeSignature -FilePath &#39;C:\ProgramData\DVTA&#39; | Format-List Status,StatusMessage,SignerCertificate</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  Status is NotSigned, HashMismatch, or Unknown (the file is unsigned, tampered, or untrusted).</span>
+<span class='vc'>#   OK          if  Status is Valid.</span>
+<span class='vc'># TOOL: PowerShell</span></pre></div></td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='1' data-rule='strings.summary' data-text='dbaccess.dll contains urls/paths/ips (urls=0, paths=0, ips=4) (+4 more affected) strings.summary 5 files 5 affected: c:\programdata\dvta\dbaccess.dll; c:\programdata\dvta\dvta.exe; c:\programdata\dvta\dvta.vshost.exe; c:\programdata\dvta\entityframework.dll; c:\programdata\dvta\excellibrary.dll triage aid. see test-tcpkendpoints for non-prod classification and test-tcpksecrets for token-shaped strings. [tcpk: 5 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#029</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>DBAccess.dll contains URLs/paths/IPs (urls=0, paths=0, ips=4) (+4 more affected)</span>
+    <span class='frule'>strings.summary</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA3 Sensitive Data Exposure</span></div>
+    <table class='kv'>
+<tr><th>What</th><td>Triage aid. See Test-TcpkEndpoints for non-prod classification and Test-TcpkSecrets for token-shaped strings.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>5 files</code></td></tr>
+<tr><th>Affected (5)</th><td><ul class='afflist'><li><code class='path'>C:\ProgramData\DVTA\DBAccess.dll</code></li><li><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></li><li><code class='path'>C:\ProgramData\DVTA\DVTA.vshost.exe</code></li><li><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></li><li><code class='path'>C:\ProgramData\DVTA\ExcelLibrary.dll</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>5 affected: C:\ProgramData\DVTA\DBAccess.dll; C:\ProgramData\DVTA\DVTA.exe; C:\ProgramData\DVTA\DVTA.vshost.exe; C:\ProgramData\DVTA\EntityFramework.dll; C:\ProgramData\DVTA\ExcelLibrary.dll</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Re-validate this finding using its reported File and Evidence values.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Re-run the TCPK check for rule &#39;strings.summary&#39;.</span>
+<span class='vc'>#   - Inspect the reported File and Evidence; use the Evidence value as a search term.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the Evidence value is real, reachable, and does what the finding describes.</span>
+<span class='vc'>#   OK          if  the Evidence is a false positive (a placeholder, dead code, or unreachable).</span>
+<span class='vc'># TOOL: TCPK / PowerShell</span></pre></div></td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 5 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='1' data-rule='sxs.manifest' data-text='dvta.vshost.exe.manifest (.manifest) present sxs.manifest c:\programdata\dvta\dvta.vshost.exe.manifest  interacts with the dll search order. cross-reference against the dll-hijack analysis (test-tcpkpinvokesurface + test-tcpkpeimports).'>
+  <div class='fhead'>
+    <span class='fid'>#030</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#388bfd'>Confirmed</span>
+    <span class='ftitle'>DVTA.vshost.exe.manifest (.manifest) present</span>
+    <span class='frule'>sxs.manifest</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1574 Hijack Execution Flow</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-PLATFORM Platform Interaction</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA6 Security Misconfiguration</span></div>
+    <table class='kv'>
+<tr><th>What</th><td>Interacts with the DLL search order. Cross-reference against the DLL-hijack analysis (Test-TcpkPInvokeSurface + Test-TcpkPeImports).</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Deterministically confirmed by the check (no heuristic).</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\DVTA.vshost.exe.manifest</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Re-validate this finding using its reported File and Evidence values.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Re-run the TCPK check for rule &#39;sxs.manifest&#39;.</span>
+<span class='vc'>#   - Inspect the reported File and Evidence; use the Evidence value as a search term.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the Evidence value is real, reachable, and does what the finding describes.</span>
+<span class='vc'>#   OK          if  the Evidence is a false positive (a placeholder, dead code, or unreachable).</span>
+<span class='vc'># TOOL: TCPK / PowerShell</span></pre></div></td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='0' data-rule='backend.endpoint' data-text='backend host (2 affected) backend.endpoint 2 files 2 affected: code.google.com (urls=2); msdn.com (urls=1) triage aid. use the auth-marker list as a starting point for understanding how the app authenticates to this host. [tcpk: 2 occurrences of this rule aggregated into one finding; see the affected list.]'>
+  <div class='fhead'>
+    <span class='fid'>#031</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Backend host (2 affected)</span>
+    <span class='frule'>backend.endpoint</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-NETWORK Network Communication</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA7 Insecure Communication</span></div>
+    <table class='kv'>
+<tr><th>What</th><td>Triage aid. Use the auth-marker list as a starting point for understanding how the app authenticates to this host.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>2 files</code></td></tr>
+<tr><th>Affected (2)</th><td><ul class='afflist'><li><code class='path'>code.google.com (URLs=2)</code></li><li><code class='path'>msdn.com (URLs=1)</code></li></ul></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>2 affected: code.google.com (URLs=2); msdn.com (URLs=1)</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1OZXRDb25uZWN0aW9uIDxob3N0PiAtUG9ydCA0NDM='>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Confirms whether a backend host the app talks to is reachable, and how the connection is secured.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-NetConnection &lt;host&gt; -Port 443</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the host is contacted over http:// (credentials sent in cleartext) or it accepts a forged/invalid certificate.</span>
+<span class='vc'>#   OK          if  it uses https with a valid, properly-validated certificate.</span>
+<span class='vc'># NOTE: to see the real traffic, capture it with Burp or Fiddler while using the app.</span>
+<span class='vc'># TOOL: PowerShell + an intercepting proxy (Burp / Fiddler)</span></pre></div></td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK: 2 occurrences of this rule aggregated into one finding; see the affected list.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='0' data-rule='integrity.self-check-markers' data-text='entityframework.dll references self-integrity-check primitives integrity.self-check-markers entityframework.dll computehash confirm in ilspy that the hash/signature is actually compared and the path acts on the result.'>
+  <div class='fhead'>
+    <span class='fid'>#032</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>EntityFramework.dll references self-integrity-check primitives</span>
+    <span class='frule'>integrity.self-check-markers</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA8 Poor Code Quality</span></div>
+    <table class='kv'>
+<tr><th>What</th><td>Confirm in ILSpy that the hash/signature is actually compared and the path acts on the result.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>EntityFramework.dll</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>ComputeHash</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: These are anti-tamper / hardening signals, not vulnerabilities by themselves.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Decompile the flagged routine in a .NET or native decompiler.</span>
+<span class='vc'>#   - Check whether the anti-debug / integrity check actually gates execution.</span>
+<span class='vc'># STEP 2 - WHAT IT MEANS:</span>
+<span class='vc'>#   Informational. It is GOOD if the check genuinely stops execution when triggered; it is WEAK (but still not a vuln) if the check is present but never enforced.</span>
+<span class='vc'># TOOL: a .NET / native decompiler</span></pre></div></td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='0' data-rule='ui.no-screen-capture-protection' data-text='sensitive-input ui with no screen-capture protection ui.no-screen-capture-protection dvta.exe password / secret-input markers present; setwindowdisplayaffinity not referenced the app collects secret input (password box / securestring / masked field) but no window calls setwindowdisplayaffinity(wda_excludefromcapture). screenshots, screen recorders, and remote-desktop / screen-share tools can capture the sensitive screen.'>
+  <div class='fhead'>
+    <span class='fid'>#033</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#d29922'>Inferred</span>
+    <span class='ftitle'>Sensitive-input UI with no screen-capture protection</span>
+    <span class='frule'>ui.no-screen-capture-protection</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-200</span></div>
+    <table class='kv'>
+<tr><th>What</th><td>The app collects secret input (password box / SecureString / masked field) but no window calls SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE). Screenshots, screen recorders, and remote-desktop / screen-share tools can capture the sensitive screen.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>Pattern/heuristic match in a first-party binary; not proven by IL or dynamic analysis -- verify manually.</td></tr>
+<tr><th>File</th><td><code class='path'>DVTA.exe</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>password / secret-input markers present; SetWindowDisplayAffinity not referenced</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Re-validate this finding using its reported File and Evidence values.</span>
+<span class='vc'># STEP 1 - DO THIS MANUALLY:</span>
+<span class='vc'>#   - Re-run the TCPK check for rule &#39;ui.no-screen-capture-protection&#39;.</span>
+<span class='vc'>#   - Inspect the reported File and Evidence; use the Evidence value as a search term.</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the Evidence value is real, reachable, and does what the finding describes.</span>
+<span class='vc'>#   OK          if  the Evidence is a false positive (a placeholder, dead code, or unreachable).</span>
+<span class='vc'># TOOL: TCPK / PowerShell</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Call SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) on windows that display secrets so they render blank to screen capture.</td></tr>
+    </table>
+    
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='0' data-rule='callsites.sql-command-construction' data-text='raw ado.net command construction (verify sql is parameterized) in entityframework.dll callsites.sql-command-construction c:\programdata\dvta\entityframework.dll sqlcommand presence of a raw command object is not itself a bug. decompile the call site: if the commandtext is built by string concatenation/interpolation with external input, this is sql injection. parameterized queries are safe. [tcpk il: the flagged api is not actually invoked in entityframework.dll (call/newobj absent) -- the rule matched a string/type reference, not a call site.]'>
+  <div class='fhead'>
+    <span class='fid'>#034</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#6a7585'>Likely-FP (IL)</span>
+    <span class='ftitle'>Raw ADO.NET command construction (verify SQL is parameterized) in EntityFramework.dll</span>
+    <span class='frule'>callsites.sql-command-construction</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-89</span><span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>T1059 Command and Scripting Interpreter</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA1 Injections</span></div>
+    <table class='kv'>
+<tr><th>What</th><td>Presence of a raw command object is not itself a bug. Decompile the call site: if the CommandText is built by string concatenation/interpolation with external input, this is SQL injection. Parameterized queries are safe.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>A verifier judged this a likely false positive; kept for transparency at reduced confidence.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></td></tr>
+<tr><th>Evidence</th><td><code class='evidence'>SqlCommand</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrQ2FsbHNpdGVzIC1QYXRoICdDOlxQcm9ncmFtRGF0YVxEVlRBXEVudGl0eUZyYW1ld29yay5kbGwn'>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkCallsites -Path &#39;C:\ProgramData\DVTA\EntityFramework.dll&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the flagged method returns a constant &#39;true&#39; for certificate validation, or it deserializes/parses untrusted input with no checks.</span>
+<span class='vc'>#   OK          if  it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it.</span>
+<span class='vc'># NOTE: open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler (ILSpy / dnSpy)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK IL: the flagged API is not actually invoked in EntityFramework.dll (call/newobj absent) -- the rule matched a string/type reference, not a call site.]</div>
+  </div>
+</article>
+<article class='finding' data-sev='INFO' data-proven='0' data-rule='deser.binaryformatter' data-text='binaryformatter reference deser.binaryformatter c:\programdata\dvta\excellibrary.dll  binaryformatter is unsafe and obsolete (cwe-502). confirm runtimeconfig enableunsafebinaryformatterserialization=false. [tcpk il: the deserializer type is referenced but its deserialize()/readobject() is never invoked in excellibrary.dll -- the rule matched a type/string reference, not a call.]'>
+  <div class='fhead'>
+    <span class='fid'>#035</span>
+    <span class='badge' style='background:#6a7585'>INFO</span>
+    <span class='badge' style='background:#6a7585'>Likely-FP (IL)</span>
+    <span class='ftitle'>BinaryFormatter reference</span>
+    <span class='frule'>deser.binaryformatter</span>
+  </div>
+  <div class='fbody'>
+    <div class='ftags'><span class='ftag ftag-cwe'>CWE-502</span><span class='ftag ftag-tasvs' title='OWASP TASVS'>TASVS-CODE Code Quality</span><span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>DA1 Injections</span></div>
+    <table class='kv'>
+<tr><th>What</th><td>BinaryFormatter is unsafe and obsolete (CWE-502). Confirm runtimeconfig EnableUnsafeBinaryFormatterSerialization=false.</td></tr>
+<tr><th>Impact</th><td>Informational - triage context, not a vulnerability on its own.</td></tr>
+<tr><th>Why here</th><td>A verifier judged this a likely false positive; kept for transparency at reduced confidence.</td></tr>
+<tr><th>File</th><td><code class='path'>C:\ProgramData\DVTA\ExcelLibrary.dll</code></td></tr>
+<tr><th>Verify</th><td><div class='vbox'><div class='vbar'><span class='vdots'><i></i><i></i><i></i></span><span class='vlabel'>verify</span><button type='button' class='vcopy' data-cmd='VGVzdC1UY3BrQ2FsbHNpdGVzIC1QYXRoICdDOlxQcm9ncmFtRGF0YVxEVlRBXEV4Y2VsTGlicmFyeS5kbGwn'>Copy</button></div><pre class='vbody'><span class='vc'># WHAT THIS CHECKS: Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler.</span>
+<span class='vc'># STEP 1 - RUN THIS IN POWERSHELL:</span>
+<span class='vcmd'>Test-TcpkCallsites -Path &#39;C:\ProgramData\DVTA\ExcelLibrary.dll&#39;</span>
+<span class='vc'># STEP 2 - READ THE OUTPUT:</span>
+<span class='vc'>#   VULNERABLE  if  the flagged method returns a constant &#39;true&#39; for certificate validation, or it deserializes/parses untrusted input with no checks.</span>
+<span class='vc'>#   OK          if  it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it.</span>
+<span class='vc'># NOTE: open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body.</span>
+<span class='vc'># TOOL: PowerShell + a .NET decompiler (ILSpy / dnSpy)</span></pre></div></td></tr>
+<tr><th>Fix</th><td>Use TypeNameHandling.None / allowlisted KnownTypes / System.Text.Json polymorphism. Confirm runtimeconfig.json EnableUnsafeBinaryFormatterSerialization=false.</td></tr>
+    </table>
+    <div class='auditnotes'><span class='anlabel'>Audit notes</span> [TCPK IL: the deserializer type is referenced but its Deserialize()/ReadObject() is never invoked in ExcelLibrary.dll -- the rule matched a type/string reference, not a call.]</div>
+  </div>
+</article>
+  </div>
+</section>
+  </div>
+  <div id='nores' class='nores'>No findings match the current filter.</div>
+<section class='card hardening collapsed'>
+  <h3 class='hardhead'><span class='caret'>&#9662;</span>DLL exploit-mitigation matrix <span class='seccount'>(5 binaries &middot; 0 weak &middot; 5 partial)</span></h3>
+  <div class='hardbody'>
+    <div class='filterbar'><input class='tabfilter' data-target='hardtab' type='text' placeholder='Filter DLLs by name / status / missing mitigation...'><span class='filtcount'></span></div>
+    <table class='recontab hardtab'>
+      <thead><tr><th>DLL</th><th>Arch</th><th>ASLR</th><th>DEP</th><th>CFG</th><th>HighEntropyVA</th><th>SafeSEH</th><th>GS</th><th>ForceIntegrity</th><th>Status</th><th>Missing</th></tr></thead>
+      <tbody>
+<tr>
+  <td><code>DBAccess.dll</code></td>
+  <td>x86</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td><span class='badge' style='background:#d68910'>PARTIAL</span></td>
+  <td>CFG</td>
+</tr>
+<tr>
+  <td><code>DVTA.exe</code></td>
+  <td>x86</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td><span class='badge' style='background:#d68910'>PARTIAL</span></td>
+  <td>CFG</td>
+</tr>
+<tr>
+  <td><code>DVTA.vshost.exe</code></td>
+  <td>x86</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td><span class='badge' style='background:#d68910'>PARTIAL</span></td>
+  <td>CFG</td>
+</tr>
+<tr>
+  <td><code>EntityFramework.dll</code></td>
+  <td>x86</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td><span class='badge' style='background:#d68910'>PARTIAL</span></td>
+  <td>CFG, HighEntropyVA</td>
+</tr>
+<tr>
+  <td><code>ExcelLibrary.dll</code></td>
+  <td>x86</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#117a65;font-weight:600'>YES</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td><span class='badge' style='background:#d68910'>PARTIAL</span></td>
+  <td>CFG, HighEntropyVA</td>
+</tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class='card signing collapsed'>
+  <h3 class='signhead'><span class='caret'>&#9662;</span>DLL signing matrix (signed / not signed) <span class='seccount'>(5 binaries &middot; 2 signed &middot; 3 unsigned)</span></h3>
+  <div class='signbody'>
+    <div class='filterbar'><input class='tabfilter' data-target='signtab' type='text' placeholder='Filter DLLs by name / signer / status...'><span class='filtcount'></span></div>
+    <div class='emptynote'>Hover a row for the full subject, issuer, serial and EKU. The complete certificate for every binary is also in signing.json and the Excel "DLL Signing" sheet.</div>
+    <table class='recontab hardtab signtab'>
+      <thead><tr><th>DLL</th><th>Signed</th><th>Status</th><th>Signer</th><th>Issuer</th><th>Algorithm</th><th>Key bits</th><th>Valid From</th><th>Expires</th><th>Thumbprint</th><th>Type</th></tr></thead>
+      <tbody>
+<tr title="Subject:   |  Issuer:   |  Serial:   |  EKU: ">
+  <td><code>DBAccess.dll</code></td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td><span class='badge' style='background:#c0392b'>UNSIGNED</span></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td><code style='font-size:12px'></code></td>
+  <td>None</td>
+</tr>
+<tr title="Subject:   |  Issuer:   |  Serial:   |  EKU: ">
+  <td><code>DVTA.exe</code></td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td><span class='badge' style='background:#c0392b'>UNSIGNED</span></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td><code style='font-size:12px'></code></td>
+  <td>None</td>
+</tr>
+<tr title="Subject:   |  Issuer:   |  Serial:   |  EKU: ">
+  <td><code>ExcelLibrary.dll</code></td>
+  <td style='color:#c0392b;font-weight:600'>NO</td>
+  <td><span class='badge' style='background:#c0392b'>UNSIGNED</span></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td></td>
+  <td><code style='font-size:12px'></code></td>
+  <td>None</td>
+</tr>
+<tr title="Subject: CN=Microsoft Corporation, OU=MOPR, O=Microsoft Corporation, L=Redmond, S=Washington, C=US  |  Issuer: CN=Microsoft Code Signing PCA, O=Microsoft Corporation, L=Redmond, S=Washington, C=US  |  Serial: 6119CC93000100000066  |  EKU: Code Signing">
+  <td><code>DVTA.vshost.exe</code></td>
+  <td style='color:#d68910;font-weight:600'>YES</td>
+  <td><span class='badge' style='background:#d68910'>EXPIRED-TS</span></td>
+  <td>Microsoft Corporation</td>
+  <td>Microsoft Code Signing PCA</td>
+  <td>sha1RSA</td>
+  <td>2048</td>
+  <td>2011-10-11</td>
+  <td>2013-01-11</td>
+  <td><code style='font-size:12px'>19F8F76F4655074509769C20349FFAECCECD217D</code></td>
+  <td>Authenticode</td>
+</tr>
+<tr title="Subject: CN=Microsoft Corporation, OU=MOPR, O=Microsoft Corporation, L=Redmond, S=Washington, C=US  |  Issuer: CN=Microsoft Code Signing PCA, O=Microsoft Corporation, L=Redmond, S=Washington, C=US  |  Serial: 6119CC93000100000066  |  EKU: Code Signing">
+  <td><code>EntityFramework.dll</code></td>
+  <td style='color:#d68910;font-weight:600'>YES</td>
+  <td><span class='badge' style='background:#d68910'>EXPIRED-TS</span></td>
+  <td>Microsoft Corporation</td>
+  <td>Microsoft Code Signing PCA</td>
+  <td>sha1RSA</td>
+  <td>2048</td>
+  <td>2011-10-11</td>
+  <td>2013-01-11</td>
+  <td><code style='font-size:12px'>19F8F76F4655074509769C20349FFAECCECD217D</code></td>
+  <td>Authenticode</td>
+</tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class='card sbom collapsed'>
+  <h3 class='sbomhead'><span class='caret'>&#9662;</span>Software bill of materials (SBOM) <span class='seccount'>(5 components &middot; 0 native &middot; 5 managed)</span></h3>
+  <div class='sbombody'>
+    <div class='filterbar'><input class='tabfilter' data-target='sbomtab' type='text' placeholder='Filter components by name / version / type / hash / path...'><span class='filtcount'></span></div>
+    <table class='recontab sbomtab'>
+      <thead><tr><th>Component</th><th>Version</th><th>Publisher</th><th>Type</th><th>SHA-256</th><th>Path</th></tr></thead>
+      <tbody>
+<tr>
+  <td>DBAccess</td>
+  <td><code>1.0.0.0</code></td>
+  <td>Microsoft</td>
+  <td><span class='tag tag-sdk'>nuget</span></td>
+  <td><code class='sha'>5ab97231963d6b7d1b2fcb2c77233e670b700a2078c92104a1a4a543e775be99</code></td>
+  <td><code class='path'>C:\ProgramData\DVTA\DBAccess.dll</code></td>
+</tr>
+<tr>
+  <td>DVTA</td>
+  <td><code>1.0.0.0</code></td>
+  <td>Microsoft</td>
+  <td><span class='tag tag-sdk'>nuget</span></td>
+  <td><code class='sha'>a3e37a2ab8f763ae2e60194fee3cc8f044af69904a80af63e3b014c193024d0e</code></td>
+  <td><code class='path'>C:\ProgramData\DVTA\DVTA.exe</code></td>
+</tr>
+<tr>
+  <td>DVTA.vshost</td>
+  <td><code>11.0.50727.1</code></td>
+  <td>Microsoft Corporation</td>
+  <td><span class='tag tag-sdk'>nuget</span></td>
+  <td><code class='sha'>f4cefed49fb2f58655cde4c216f4e52a1f2aaaea0b5809664a97f075026f92bc</code></td>
+  <td><code class='path'>C:\ProgramData\DVTA\DVTA.vshost.exe</code></td>
+</tr>
+<tr>
+  <td>EntityFramework</td>
+  <td><code>5.0.20627.0</code></td>
+  <td>Microsoft Corporation</td>
+  <td><span class='tag tag-sdk'>nuget</span></td>
+  <td><code class='sha'>3e834a9db27a29e702a23af95baebf62a96d0f8b6473d8d42f60143d93efdcb5</code></td>
+  <td><code class='path'>C:\ProgramData\DVTA\EntityFramework.dll</code></td>
+</tr>
+<tr>
+  <td>ExcelLibrary</td>
+  <td><code>1.0.0.0</code></td>
+  <td></td>
+  <td><span class='tag tag-sdk'>nuget</span></td>
+  <td><code class='sha'>1371c5f7977b93647cd5d748e2db59772c5fa9faf20393bf625a3b53a46b51a7</code></td>
+  <td><code class='path'>C:\ProgramData\DVTA\ExcelLibrary.dll</code></td>
+</tr>
+      </tbody>
+    </table>
+    <div class='cvenote' style='color:#9aa4b2;background:#0d1117;border-color:#242c3a'>Full CycloneDX 1.5 inventory (with hashes + purls) is also written to <code>sbom.cdx.json</code> alongside this report.</div>
+  </div>
+</section>
+
+  <footer class='disclaimer'>
+    <strong>DISCLAIMER -- FOR AUTHORIZED TESTING ONLY.</strong>
+    This report was produced by TCPK for authorized security testing. Use of TCPK and any
+    proof-of-concept artifacts it generates is permitted ONLY against systems you own or are
+    explicitly authorized to test. ANY MISUSE is solely the responsibility of the user. The
+    author(s) and the open-source community accept NO liability for any damage, legal
+    consequence, or misuse arising from this tool. Provided &quot;AS IS&quot;, without warranty of any kind.
+  </footer>
+</div>
+<script>
+(function(){
+  var search=document.getElementById('search');
+  var findings=Array.prototype.slice.call(document.querySelectorAll('.finding'));
+  var sections=Array.prototype.slice.call(document.querySelectorAll('.sevsection'));
+  var activeSev='ALL';
+  var query='';
+  var confOnly=false;
+  var defaultOpen={CRITICAL:1,HIGH:1};   // sections open on load / on reset to "All"
+
+  function apply(){
+    var filtering=(activeSev!=='ALL'||query!==''||confOnly);
+    findings.forEach(function(f){
+      var okSev=(activeSev==='ALL'||f.getAttribute('data-sev')===activeSev);
+      var okQ=(query===''||f.getAttribute('data-text').indexOf(query)>=0||f.getAttribute('data-rule').indexOf(query)>=0);
+      var okConf=(!confOnly||f.getAttribute('data-proven')==='1');
+      f.style.display=(okSev&&okQ&&okConf)?'':'none';
+    });
+    var totalVisible=0;
+    sections.forEach(function(s){
+      var vis=s.querySelectorAll('.finding:not([style*="display: none"])').length;
+      var cnt=s.querySelector('.seccount');
+      if(cnt) cnt.textContent='('+vis+')';
+      s.style.display=vis>0?'':'none';
+      // When filtering/searching, auto-expand any section that has matches (otherwise a
+      // section that was collapsed by default -- MEDIUM/LOW/INFO -- would show its header
+      // but hide every matching finding). With no filter, restore the default open state.
+      if(filtering){
+        if(vis>0) s.classList.remove('collapsed');
+      } else {
+        if(defaultOpen[s.getAttribute('data-sev')]) s.classList.remove('collapsed');
+        else s.classList.add('collapsed');
+      }
+      totalVisible+=vis;
+    });
+    var nr=document.getElementById('nores');
+    if(nr) nr.style.display=totalVisible===0?'block':'none';
+  }
+
+  if(search) search.addEventListener('input',function(){query=search.value.toLowerCase().trim();apply();});
+  var confOnlyBox=document.getElementById('confOnly');
+  if(confOnlyBox) confOnlyBox.addEventListener('change',function(){confOnly=confOnlyBox.checked;apply();});
+
+  // per-table filters (SBOM + DLL hardening): hide non-matching tbody rows live
+  document.querySelectorAll('.tabfilter').forEach(function(inp){
+    inp.addEventListener('input',function(){
+      var q=inp.value.toLowerCase().trim();
+      var tbl=document.querySelector('table.'+inp.getAttribute('data-target'));
+      if(!tbl)return;
+      var shown=0;
+      tbl.querySelectorAll('tbody tr').forEach(function(tr){
+        var hit=(q===''||tr.textContent.toLowerCase().indexOf(q)!==-1);
+        tr.style.display=hit?'':'none'; if(hit)shown++;
+      });
+      var cnt=inp.parentNode.querySelector('.filtcount'); if(cnt)cnt.textContent=shown+' shown';
+    });
+  });
+
+  document.querySelectorAll('.chip').forEach(function(c){
+    c.addEventListener('click',function(){
+      document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('active');});
+      c.classList.add('active');
+      activeSev=c.getAttribute('data-sev');
+      apply();
+    });
+  });
+
+  document.querySelectorAll('.fhead').forEach(function(h){
+    h.addEventListener('click',function(){h.parentNode.classList.toggle('open');});
+  });
+  document.querySelectorAll('.vcopy').forEach(function(b){
+    b.addEventListener('click',function(e){
+      e.stopPropagation();
+      var cmd=''; try{cmd=decodeURIComponent(escape(window.atob(b.getAttribute('data-cmd'))));}catch(err){try{cmd=window.atob(b.getAttribute('data-cmd'));}catch(e2){cmd='';}}
+      var label=b.textContent;
+      function done(){b.textContent='Copied';b.classList.add('copied');setTimeout(function(){b.textContent=label;b.classList.remove('copied');},1200);}
+      function fallback(){var ta=document.createElement('textarea');ta.value=cmd;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');done();}catch(err){}ta.remove();}
+      if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(cmd).then(done,fallback);}else{fallback();}
+    });
+  });
+  document.querySelectorAll('.sevhead').forEach(function(h){
+    h.addEventListener('click',function(){h.parentNode.classList.toggle('collapsed');});
+  });
+  var rh=document.querySelector('.recon .reconhead');
+  if(rh) rh.addEventListener('click',function(){rh.parentNode.classList.toggle('collapsed');});
+  document.querySelectorAll('.cve .cvehead,.hardening .hardhead,.signing .signhead,.sbom .sbomhead,.apath .apathhead,.remed .remhead,.coverage .covhead').forEach(function(h){
+    h.addEventListener('click',function(){h.parentNode.classList.toggle('collapsed');});
+  });
+
+  var ea=document.getElementById('expandAll');
+  if(ea) ea.addEventListener('click',function(){findings.forEach(function(f){if(f.style.display!=='none')f.classList.add('open');});});
+  var ca=document.getElementById('collapseAll');
+  if(ca) ca.addEventListener('click',function(){findings.forEach(function(f){f.classList.remove('open');});});
+
+  var rt=document.getElementById('ruleToggle');
+  var rs=document.getElementById('ruleSummary');
+  if(rt&&rs) rt.addEventListener('click',function(){rs.hidden=!rs.hidden;rt.classList.toggle('active');});
+  document.querySelectorAll('.rulerow').forEach(function(r){
+    r.addEventListener('click',function(){
+      var rule=r.getAttribute('data-rule');
+      if(search){search.value=rule;query=rule.toLowerCase();}
+      document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('active');});
+      var allchip=document.querySelector('.chip[data-sev="ALL"]'); if(allchip) allchip.classList.add('active');
+      activeSev='ALL';
+      sections.forEach(function(s){s.classList.remove('collapsed');});
+      apply();
+      var tgt=document.querySelector('.finding[data-rule="'+rule+'"]');
+      if(tgt) tgt.scrollIntoView({behavior:'smooth',block:'start'});
+    });
+  });
+})();
+</script>
+</body>
+</html>

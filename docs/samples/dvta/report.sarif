@@ -1,0 +1,1573 @@
+﻿{
+    "$schema":  "https://json.schemastore.org/sarif-2.1.0.json",
+    "version":  "2.1.0",
+    "runs":  [
+                 {
+                     "tool":  {
+                                  "driver":  {
+                                                 "name":  "TCPK",
+                                                 "fullName":  "TCPK -- Thick Client Pentest Kit",
+                                                 "version":  "2.1.0",
+                                                 "informationUri":  "https://github.com/",
+                                                 "rules":  [
+                                                               {
+                                                                   "id":  "authenticode.pe-not-signed",
+                                                                   "name":  "authenticodepenotsigned",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "DBAccess.dll is not Authenticode-signed (+2 more affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Sign every shipped EXE/DLL with the company code-signing certificate."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-347",
+                                                                                                   "external/cwe/cwe-494",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "warning"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "authenticode.signer-expired",
+                                                                   "name":  "authenticodesignerexpired",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "DVTA.vshost.exe signing certificate expired, but signature is timestamped (still valid) (+1 more affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "No immediate action. Re-sign at the next release to keep the chain current."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-347",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "authenticode.weak-cert-hash",
+                                                                   "name":  "authenticodeweakcerthash",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "DVTA.vshost.exe signing certificate uses a weak hash (sha1RSA) (+1 more affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Obtain a SHA-256 (or stronger) code-signing certificate and re-sign."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-327",
+                                                                                                   "external/cwe/cwe-347",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "warning"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "strongname.unsigned",
+                                                                   "name":  "strongnameunsigned",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "DBAccess.dll has no strong-name public key token (+2 more affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Sign the assembly during build (csc.exe /keyfile, or \u003cSignAssembly\u003etrue\u003c/SignAssembly\u003e in csproj)."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "strings.summary",
+                                                                   "name":  "stringssummary",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "DBAccess.dll contains URLs/paths/IPs (urls=0, paths=0, ips=4) (+4 more affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "DBAccess.dll contains URLs/paths/IPs (urls=0, paths=0, ips=4) (+4 more affected)"
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "secrets.config-hardcoded-secret",
+                                                                   "name":  "secretsconfighardcodedsecret",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Hardcoded credential in .NET config appSettings (+1 more affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Do not store credentials/API keys in appSettings. Use DPAPI, Windows Credential Manager, or a key vault and inject at runtime; rotate the exposed secret."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-798",
+                                                                                                   "external/cwe/cwe-260",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "error"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "secrets.config-hardcoded-crypto-key",
+                                                                   "name":  "secretsconfighardcodedcryptokey",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Hardcoded cryptographic key in .NET config appSettings (+1 more affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Never ship a symmetric or private key in config. Derive a per-user key (DPAPI) or fetch from a key vault; rotate the exposed key. With key+IV+ciphertext all present, the protected value is trivially decryptable."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-798",
+                                                                                                   "external/cwe/cwe-321",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "error"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "secrets.config-hardcoded-iv",
+                                                                   "name":  "secretsconfighardcodediv",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Hardcoded AES/CBC initialization vector in config (+1 more affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Do not hardcode the IV. Generate a fresh random IV per encryption and store or transmit it alongside the ciphertext."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-329",
+                                                                                                   "external/cwe/cwe-798",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "warning"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "storage.registry-credential",
+                                                                   "name":  "storageregistrycredential",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "DVTA.exe writes to the registry and references credential fields (verify not stored in cleartext)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Never persist raw credentials to the registry. Protect them with DPAPI (ProtectedData) scoped to the current user, or use the Windows Credential Manager; store only non-reversible tokens where possible."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-312",
+                                                                                                   "external/cwe/cwe-522"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "deser.binaryformatter",
+                                                                   "name":  "deserbinaryformatter",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "BinaryFormatter reference"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Use TypeNameHandling.None / allowlisted KnownTypes / System.Text.Json polymorphism. Confirm runtimeconfig.json EnableUnsafeBinaryFormatterSerialization=false."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-502",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "deser.xmlserializer",
+                                                                   "name":  "deserxmlserializer",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "XmlSerializer reference"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Use TypeNameHandling.None / allowlisted KnownTypes / System.Text.Json polymorphism. Confirm runtimeconfig.json EnableUnsafeBinaryFormatterSerialization=false."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-502",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "callsites.sql-command-construction",
+                                                                   "name":  "callsitessqlcommandconstruction",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Raw ADO.NET command construction (verify SQL is parameterized) in DBAccess.dll"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-89",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "warning"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "callsites.env-var-path-use",
+                                                                   "name":  "callsitesenvvarpathuse",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Environment-variable lookup (verify not used for DLL/exe/config paths) in DVTA.exe"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-426",
+                                                                                                   "external/cwe/cwe-15",
+                                                                                                   "attack"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "callsites.ssrf-request-build",
+                                                                   "name":  "callsitesssrfrequestbuild",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Outbound HTTP request API (verify the target URL is not attacker-controlled) in DVTA.exe"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-918",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "callsites.insecure-temp",
+                                                                   "name":  "callsitesinsecuretemp",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Insecure-temp-file pattern reference in EntityFramework.dll"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-377",
+                                                                                                   "attack"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "callsites.base64-as-encryption",
+                                                                   "name":  "callsitesbase64asencryption",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Base64 encoding (verify it is not used in place of encryption) in EntityFramework.dll"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Decompile the method (ILSpy / dnSpy) to confirm whether this is a real bug or a safe context."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-326",
+                                                                                                   "attack"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "codeintegrity.no-cat",
+                                                                   "name":  "codeintegritynocat",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "No AppxMetadata\\CodeIntegrity.cat present"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "No AppxMetadata\\CodeIntegrity.cat present"
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "devartifact.debug-symbols",
+                                                                   "name":  "devartifactdebugsymbols",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Debug symbols shipped (2 affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Exclude .pdb/.map from the shipped artifact (publish without symbols, or strip them)."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-489",
+                                                                                                   "external/cwe/cwe-540",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "warning"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "obfuscation.absent",
+                                                                   "name":  "obfuscationabsent",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "5 first-party .NET assemblies are NOT obfuscated (source recoverable)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "If the logic/IP or any client-side check matters, apply an obfuscator AND move trust decisions server-side. Never rely on obfuscation to hide secrets."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-656",
+                                                                                                   "external/cwe/cwe-1294",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "authflags.client-side-gate",
+                                                                   "name":  "authflagsclientsidegate",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "EntityFramework.dll has client-side license/auth gate(s): IsPro"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Move authorization / licensing decisions server-side; never trust a client-side boolean for access control."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-602",
+                                                                                                   "external/cwe/cwe-603",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "warning"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "entropy.high-entropy-token",
+                                                                   "name":  "entropyhighentropytoken",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "High-entropy base64 token in DVTA.exe.config"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Do not ship secrets in files. Load them from a protected store (DPAPI / OS keychain / server-issued token) at runtime and rotate any exposed value."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-798",
+                                                                                                   "external/cwe/cwe-312",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "error"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "ui.no-screen-capture-protection",
+                                                                   "name":  "uinoscreencaptureprotection",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Sensitive-input UI with no screen-capture protection"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Call SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE) on windows that display secrets so they render blank to screen capture."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-200"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "csv.formula-injection-risk",
+                                                                   "name":  "csvformulainjectionrisk",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "CSV/Excel export without formula-injection neutralization"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Prefix any cell that starts with = + - @ (tab, CR) with a single quote, or enable the library\u0027s injection sanitisation (e.g. CsvHelper SanitizeForInjection)."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-1236",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "sxs.manifest",
+                                                                   "name":  "sxsmanifest",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "DVTA.vshost.exe.manifest (.manifest) present"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "DVTA.vshost.exe.manifest (.manifest) present"
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "attack",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "alpc.enumerated-clean",
+                                                                   "name":  "alpcenumeratedclean",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "ALPC ports enumerated; none matched the target"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "ALPC ports enumerated; none matched the target"
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "tls.pinning-absent",
+                                                                   "name":  "tlspinningabsent",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "HTTP client used; no cert-pinning markers found"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "For sensitive backends, pin the leaf or root cert thumbprint via ServerCertificateCustomValidationCallback (and confirm the callback actually pins, not just returns true)."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-295",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "update.no-signature-verification",
+                                                                   "name":  "updatenosignatureverification",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Update flow present; NO signature-verification primitives in first-party code"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Sign update manifests with an offline-keyed RSA signature; sign each downloaded payload (Authenticode or detached PKCS#7); verify before any extract/exec."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-494",
+                                                                                                   "external/cwe/cwe-345",
+                                                                                                   "external/cwe/cwe-347"
+                                                                                               ],
+                                                                                      "problem.severity":  "error"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "backend.endpoint",
+                                                                   "name":  "backendendpoint",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Backend host (2 affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Backend host (2 affected)"
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "scheme.cleartext-ftp",
+                                                                   "name":  "schemecleartextftp",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Cleartext ftp:// endpoint: 192.168.56.110"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Use FTPS (FTP over TLS) or SFTP (SSH-based). Never send data or credentials over plain FTP, and never embed credentials in the URL."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-319",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "warning"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "scheme.cleartext-http",
+                                                                   "name":  "schemecleartexthttp",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Cleartext http:// endpoint (2 affected)"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Use https:// with certificate validation. If the host is HTTP-only, proxy it through an authenticated TLS endpoint."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-319",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "warning"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "pagefile.no-clear-at-shutdown",
+                                                                   "name":  "pagefilenoclearatshutdown",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Pagefile is NOT cleared at shutdown"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Set ClearPageFileAtShutdown=1 in the registry (or via Local Security Policy: Shutdown: Clear virtual memory pagefile)."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-316",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "mem.hygiene-absent",
+                                                                   "name":  "memhygieneabsent",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "No SecureString / ProtectedData markers in any first-party PE"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "For password and token handling, use SecureString and Marshal.SecureStringToGlobalAllocUnicode / ZeroFreeGlobalAllocUnicode, or wrap in ProtectedMemory blocks."
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "external/cwe/cwe-316",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "integrity.self-check-markers",
+                                                                   "name":  "integrityselfcheckmarkers",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "EntityFramework.dll references self-integrity-check primitives"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "EntityFramework.dll references self-integrity-check primitives"
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security",
+                                                                                                   "owasp-desktop"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               },
+                                                               {
+                                                                   "id":  "attacksurface.summary",
+                                                                   "name":  "attacksurfacesummary",
+                                                                   "shortDescription":  {
+                                                                                            "text":  "Attack surface: 2 entry point(s) across 2 categories"
+                                                                                        },
+                                                                   "fullDescription":  {
+                                                                                           "text":  "Attack surface: 2 entry point(s) across 2 categories"
+                                                                                       },
+                                                                   "properties":  {
+                                                                                      "tags":  [
+                                                                                                   "security"
+                                                                                               ],
+                                                                                      "problem.severity":  "recommendation"
+                                                                                  }
+                                                               }
+                                                           ]
+                                             }
+                              },
+                     "results":  [
+                                     {
+                                         "ruleId":  "authenticode.pe-not-signed",
+                                         "ruleIndex":  0,
+                                         "level":  "warning",
+                                         "message":  {
+                                                         "text":  "DBAccess.dll is not Authenticode-signed (+2 more affected)  | evidence: 3 affected: C:\\ProgramData\\DVTA\\DBAccess.dll; C:\\ProgramData\\DVTA\\DVTA.exe; C:\\ProgramData\\DVTA\\ExcelLibrary.dll  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "3 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "MEDIUM",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+                                                                        "CWE-347",
+                                                                        "CWE-494"
+                                                                    ],
+                                                            "owaspDa":  "DA8 Poor Code Quality"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "authenticode.signer-expired",
+                                         "ruleIndex":  1,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "DVTA.vshost.exe signing certificate expired, but signature is timestamped (still valid) (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.vshost.exe; C:\\ProgramData\\DVTA\\EntityFramework.dll  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "2 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+                                                                        "CWE-347"
+                                                                    ],
+                                                            "owaspDa":  "DA8 Poor Code Quality"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "authenticode.weak-cert-hash",
+                                         "ruleIndex":  2,
+                                         "level":  "warning",
+                                         "message":  {
+                                                         "text":  "DVTA.vshost.exe signing certificate uses a weak hash (sha1RSA) (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.vshost.exe; C:\\ProgramData\\DVTA\\EntityFramework.dll  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "2 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "MEDIUM",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+                                                                        "CWE-327",
+                                                                        "CWE-347"
+                                                                    ],
+                                                            "owaspDa":  "DA8 Poor Code Quality"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "strongname.unsigned",
+                                         "ruleIndex":  3,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "DBAccess.dll has no strong-name public key token (+2 more affected)  | evidence: 3 affected: C:\\ProgramData\\DVTA\\DBAccess.dll; C:\\ProgramData\\DVTA\\DVTA.exe; C:\\ProgramData\\DVTA\\ExcelLibrary.dll  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "3 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+
+                                                                    ],
+                                                            "owaspDa":  "DA8 Poor Code Quality"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "strings.summary",
+                                         "ruleIndex":  4,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "DBAccess.dll contains URLs/paths/IPs (urls=0, paths=0, ips=4) (+4 more affected)  | evidence: 5 affected: C:\\ProgramData\\DVTA\\DBAccess.dll; C:\\ProgramData\\DVTA\\DVTA.exe; C:\\ProgramData\\DVTA\\DVTA.vshost.exe; C:\\ProgramData\\DVTA\\EntityFramework.dll; C:\\ProgramData\\DVTA\\ExcelLibrary.dll  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "5 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+
+                                                                    ],
+                                                            "owaspDa":  "DA3 Sensitive Data Exposure"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "secrets.config-hardcoded-secret",
+                                         "ruleIndex":  5,
+                                         "level":  "error",
+                                         "message":  {
+                                                         "text":  "Hardcoded credential in .NET config appSettings (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "2 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "8.5",
+                                                            "severity":  "HIGH",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-798",
+                                                                        "CWE-260"
+                                                                    ],
+                                                            "owaspDa":  "DA3 Sensitive Data Exposure"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "secrets.config-hardcoded-crypto-key",
+                                         "ruleIndex":  6,
+                                         "level":  "error",
+                                         "message":  {
+                                                         "text":  "Hardcoded cryptographic key in .NET config appSettings (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "2 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "8.5",
+                                                            "severity":  "HIGH",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-798",
+                                                                        "CWE-321"
+                                                                    ],
+                                                            "owaspDa":  "DA3 Sensitive Data Exposure"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "secrets.config-hardcoded-iv",
+                                         "ruleIndex":  7,
+                                         "level":  "warning",
+                                         "message":  {
+                                                         "text":  "Hardcoded AES/CBC initialization vector in config (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "2 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "6.9",
+                                                            "severity":  "MEDIUM",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-329",
+                                                                        "CWE-798"
+                                                                    ],
+                                                            "owaspDa":  "DA3 Sensitive Data Exposure"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "storage.registry-credential",
+                                         "ruleIndex":  8,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "DVTA.exe writes to the registry and references credential fields (verify not stored in cleartext)  | evidence: registry write (SetValue/CreateSubKey) + credential token \u0027password\u0027  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/DVTA.exe"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-312",
+                                                                        "CWE-522"
+                                                                    ],
+                                                            "owaspDa":  ""
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "deser.binaryformatter",
+                                         "ruleIndex":  9,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "BinaryFormatter reference  | confidence: Likely-FP (IL)"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/ExcelLibrary.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Likely-FP (IL)",
+                                                            "cwe":  [
+                                                                        "CWE-502"
+                                                                    ],
+                                                            "owaspDa":  "DA1 Injections"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "deser.xmlserializer",
+                                         "ruleIndex":  10,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "XmlSerializer reference  | confidence: Confirmed (IL)"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/ExcelLibrary.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "9.3",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Confirmed (IL)",
+                                                            "cwe":  [
+                                                                        "CWE-502"
+                                                                    ],
+                                                            "owaspDa":  "DA1 Injections"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "callsites.sql-command-construction",
+                                         "ruleIndex":  11,
+                                         "level":  "warning",
+                                         "message":  {
+                                                         "text":  "Raw ADO.NET command construction (verify SQL is parameterized) in DBAccess.dll  | evidence: SqlCommand  | confidence: Confirmed (IL)"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/DBAccess.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "5.5",
+                                                            "severity":  "MEDIUM",
+                                                            "confidence":  "Confirmed (IL)",
+                                                            "cwe":  [
+                                                                        "CWE-89"
+                                                                    ],
+                                                            "owaspDa":  "DA1 Injections"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "callsites.env-var-path-use",
+                                         "ruleIndex":  12,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Environment-variable lookup (verify not used for DLL/exe/config paths) in DVTA.exe  | evidence: GetEnvironmentVariable  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/DVTA.exe"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-426",
+                                                                        "CWE-15"
+                                                                    ],
+                                                            "owaspDa":  ""
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "callsites.ssrf-request-build",
+                                         "ruleIndex":  13,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Outbound HTTP request API (verify the target URL is not attacker-controlled) in DVTA.exe  | evidence: WebClient  | confidence: Confirmed (IL)"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/DVTA.exe"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Confirmed (IL)",
+                                                            "cwe":  [
+                                                                        "CWE-918"
+                                                                    ],
+                                                            "owaspDa":  "DA1 Injections"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "callsites.insecure-temp",
+                                         "ruleIndex":  14,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Insecure-temp-file pattern reference in EntityFramework.dll  | evidence: GetTempFileName  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/EntityFramework.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-377"
+                                                                    ],
+                                                            "owaspDa":  ""
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "callsites.sql-command-construction",
+                                         "ruleIndex":  11,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Raw ADO.NET command construction (verify SQL is parameterized) in EntityFramework.dll  | evidence: SqlCommand  | confidence: Likely-FP (IL)"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/EntityFramework.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Likely-FP (IL)",
+                                                            "cwe":  [
+                                                                        "CWE-89"
+                                                                    ],
+                                                            "owaspDa":  "DA1 Injections"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "callsites.base64-as-encryption",
+                                         "ruleIndex":  15,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Base64 encoding (verify it is not used in place of encryption) in EntityFramework.dll  | evidence: ToBase64String  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/EntityFramework.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-326"
+                                                                    ],
+                                                            "owaspDa":  ""
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "codeintegrity.no-cat",
+                                         "ruleIndex":  16,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "No AppxMetadata\\CodeIntegrity.cat present  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+
+                                                                    ],
+                                                            "owaspDa":  "DA8 Poor Code Quality"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "devartifact.debug-symbols",
+                                         "ruleIndex":  17,
+                                         "level":  "warning",
+                                         "message":  {
+                                                         "text":  "Debug symbols shipped (2 affected)  | evidence: 2 affected: DBAccess.pdb; DVTA.pdb  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "2 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "MEDIUM",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+                                                                        "CWE-489",
+                                                                        "CWE-540"
+                                                                    ],
+                                                            "owaspDa":  "DA3 Sensitive Data Exposure"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "obfuscation.absent",
+                                         "ruleIndex":  18,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "5 first-party .NET assemblies are NOT obfuscated (source recoverable)  | evidence: DBAccess.dll, DVTA.exe, DVTA.vshost.exe, EntityFramework.dll, ExcelLibrary.dll  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+                                                                        "CWE-656",
+                                                                        "CWE-1294"
+                                                                    ],
+                                                            "owaspDa":  "DA8 Poor Code Quality"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "authflags.client-side-gate",
+                                         "ruleIndex":  19,
+                                         "level":  "warning",
+                                         "message":  {
+                                                         "text":  "EntityFramework.dll has client-side license/auth gate(s): IsPro  | evidence: IsPro  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/EntityFramework.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "6.8",
+                                                            "severity":  "MEDIUM",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-602",
+                                                                        "CWE-603"
+                                                                    ],
+                                                            "owaspDa":  "DA2 Broken Authentication and Session Management"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "entropy.high-entropy-token",
+                                         "ruleIndex":  20,
+                                         "level":  "error",
+                                         "message":  {
+                                                         "text":  "High-entropy base64 token in DVTA.exe.config  | evidence: J8gLXc...v8k8 (len=32, H=4.539)  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/DVTA.exe.config"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "6.9",
+                                                            "severity":  "HIGH",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-798",
+                                                                        "CWE-312"
+                                                                    ],
+                                                            "owaspDa":  "DA3 Sensitive Data Exposure"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "ui.no-screen-capture-protection",
+                                         "ruleIndex":  21,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Sensitive-input UI with no screen-capture protection  | evidence: password / secret-input markers present; SetWindowDisplayAffinity not referenced  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "DVTA.exe"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-200"
+                                                                    ],
+                                                            "owaspDa":  ""
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "csv.formula-injection-risk",
+                                         "ruleIndex":  22,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "CSV/Excel export without formula-injection neutralization  | evidence: export sink present (1 file(s)); no formula-neutralization marker found  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "DVTA.exe"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-1236"
+                                                                    ],
+                                                            "owaspDa":  "DA1 Injections"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "sxs.manifest",
+                                         "ruleIndex":  23,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "DVTA.vshost.exe.manifest (.manifest) present  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/DVTA.vshost.exe.manifest"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+
+                                                                    ],
+                                                            "owaspDa":  "DA6 Security Misconfiguration"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "alpc.enumerated-clean",
+                                         "ruleIndex":  24,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "ALPC ports enumerated; none matched the target  | evidence: 0 ALPC port(s) in \\RPC Control; none matched the identity terms.  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "tcpk://finding"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+
+                                                                    ],
+                                                            "owaspDa":  ""
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "tls.pinning-absent",
+                                         "ruleIndex":  25,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "HTTP client used; no cert-pinning markers found  | evidence: uses WebClient; no pinning keywords  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/DVTA.exe"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "6.3",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-295"
+                                                                    ],
+                                                            "owaspDa":  "DA7 Insecure Communication"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "update.no-signature-verification",
+                                         "ruleIndex":  26,
+                                         "level":  "error",
+                                         "message":  {
+                                                         "text":  "Update flow present; NO signature-verification primitives in first-party code  | evidence: update keywords: CheckForUpdate,UpdateAvailable,UpdateUrl,UpdateManifest,DownloadUpdate,LatestVersion,update-manifest,/firmware | sig keywords absent  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/EntityFramework.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "9.3",
+                                                            "severity":  "CRITICAL",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-494",
+                                                                        "CWE-345",
+                                                                        "CWE-347"
+                                                                    ],
+                                                            "owaspDa":  ""
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "backend.endpoint",
+                                         "ruleIndex":  27,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Backend host (2 affected)  | evidence: 2 affected: code.google.com (URLs=2); msdn.com (URLs=1)  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "2 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+
+                                                                    ],
+                                                            "owaspDa":  "DA7 Insecure Communication"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "scheme.cleartext-ftp",
+                                         "ruleIndex":  28,
+                                         "level":  "warning",
+                                         "message":  {
+                                                         "text":  "Cleartext ftp:// endpoint: 192.168.56.110  | evidence: ftp://192.168.56.110  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA/DVTA.exe"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "6.3",
+                                                            "severity":  "MEDIUM",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-319"
+                                                                    ],
+                                                            "owaspDa":  "DA7 Insecure Communication"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "scheme.cleartext-http",
+                                         "ruleIndex":  29,
+                                         "level":  "warning",
+                                         "message":  {
+                                                         "text":  "Cleartext http:// endpoint (2 affected)  | evidence: 2 affected: msdn.com; code.google.com  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "2 files"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "6.3",
+                                                            "severity":  "MEDIUM",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-319"
+                                                                    ],
+                                                            "owaspDa":  "DA7 Insecure Communication"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "pagefile.no-clear-at-shutdown",
+                                         "ruleIndex":  30,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Pagefile is NOT cleared at shutdown  | evidence: ClearPageFileAtShutdown=0  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "HKLM:/System/CurrentControlSet/Control/Session Manager/Memory Management"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+                                                                        "CWE-316"
+                                                                    ],
+                                                            "owaspDa":  "DA3 Sensitive Data Exposure"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "mem.hygiene-absent",
+                                         "ruleIndex":  31,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "No SecureString / ProtectedData markers in any first-party PE  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "tcpk://finding"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "2.0",
+                                                            "severity":  "LOW",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+                                                                        "CWE-316"
+                                                                    ],
+                                                            "owaspDa":  "DA3 Sensitive Data Exposure"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "integrity.self-check-markers",
+                                         "ruleIndex":  32,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "EntityFramework.dll references self-integrity-check primitives  | evidence: ComputeHash  | confidence: Inferred"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "EntityFramework.dll"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Inferred",
+                                                            "cwe":  [
+
+                                                                    ],
+                                                            "owaspDa":  "DA8 Poor Code Quality"
+                                                        }
+                                     },
+                                     {
+                                         "ruleId":  "attacksurface.summary",
+                                         "ruleIndex":  33,
+                                         "level":  "note",
+                                         "message":  {
+                                                         "text":  "Attack surface: 2 entry point(s) across 2 categories  | evidence: Auth / trust surface=1; Mailslots / ALPC / objects=1  | confidence: Confirmed"
+                                                     },
+                                         "locations":  [
+                                                           {
+                                                               "physicalLocation":  {
+                                                                                        "artifactLocation":  {
+                                                                                                                 "uri":  "C:/ProgramData/DVTA"
+                                                                                                             }
+                                                                                    }
+                                                           }
+                                                       ],
+                                         "properties":  {
+                                                            "security-severity":  "0.0",
+                                                            "severity":  "INFO",
+                                                            "confidence":  "Confirmed",
+                                                            "cwe":  [
+
+                                                                    ],
+                                                            "owaspDa":  ""
+                                                        }
+                                     }
+                                 ],
+                     "automationDetails":  {
+                                               "id":  "tcpk/C:\\ProgramData\\DVTA"
+                                           }
+                 }
+             ]
+}

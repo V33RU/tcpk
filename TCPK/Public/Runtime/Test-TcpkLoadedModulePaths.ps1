@@ -28,8 +28,14 @@ function Test-TcpkLoadedModulePaths {
 
     foreach ($p in $procs) {
         try { $mods = $p.Modules } catch { continue }
+        # The process's OWN main module (the .exe) always sits in the app dir and is NOT a
+        # DLL-search-order hijack candidate -- excluding it removes a guaranteed false positive on
+        # every per-user-installed app. Its path/signature posture is already covered statically
+        # (authenticode.pe-not-signed / DLL hardening matrix). Dependency DLLs stay in scope.
+        $mainPath = $null; try { $mainPath = $p.MainModule.FileName } catch { }
         foreach ($m in $mods) {
             $path = $m.FileName
+            if ($mainPath -and $path -eq $mainPath) { continue }
             if ($path -match '\\(System32|SysWOW64|WinSxS|Microsoft\.NET|WindowsApps)\\') { continue }
             if ($path -match '\\Program Files( \(x86\))?\\') { continue }
 

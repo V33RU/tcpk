@@ -23,6 +23,15 @@ function Test-TcpkInsecureSchemes {
 
     $httpRx = [regex]'http://[A-Za-z0-9.\-]+(?::\d+)?(?:/[A-Za-z0-9./?_=&%:#@~+\-]*)?'
     $wsRx   = [regex]'ws://[A-Za-z0-9.\-]+(?::\d+)?(?:/[A-Za-z0-9./?_=&%:#@~+\-]*)?'
+    # ftp:// is cleartext transport too (commands, file data, and credentials in the clear).
+    # Host-only match: in a .NET binary, string literals run together with non-ASCII separators
+    # (ftp://host is immediately followed by the next literal), so the host class [A-Za-z0-9.\-]+
+    # stops cleanly at the separator. Unlike http/ws we allow an IPv4 host: an FTP backup target
+    # is commonly a bare IP and IS a real endpoint (not an ASN.1 cert artifact). A separate strict,
+    # contiguous-ASCII pattern detects genuine ftp://user:pass@host embedded credentials.
+    $ftpRx     = [regex]'ftp://[A-Za-z0-9.\-]+(?::\d+)?'
+    $ftpCredRx = [regex]'ftp://[A-Za-z0-9._~%\-]{1,40}:[A-Za-z0-9._~%!#$*.\-]{1,40}@([A-Za-z0-9.\-]+)'
+    $ipv4Rx    = '^(?:\d{1,3}\.){3}\d{1,3}$'
 
     # Namespace / documentation hosts that are not live network endpoints. Also includes
     # stock-tool homepages baked into bundled helper binaries -- nsis.sf.net (the NSIS
@@ -79,6 +88,36 @@ function Test-TcpkInsecureSchemes {
                 -File $pe.FullName -Evidence $wsHosts[$h] -Cwe @('CWE-319') `
                 -Description 'Unencrypted WebSocket (ws://). WebSocket URLs in binaries are almost always live connections; cleartext means full message interception and injection. Confirm and migrate to wss://.' `
                 -Fix 'Use wss:// (TLS) with certificate validation for all WebSocket connections.'
+        }
+
+        # --- ftp:// (cleartext file transfer; IPv4 hosts allowed) ---
+        # Merge two match sources: host-only (ftp://host[/...]) and the contiguous-ASCII
+        # embedded-credential form (ftp://user:pass@host, host in group 1). The latter must be
+        # collected separately because the host-only regex would stop at the userinfo and reject
+        # it -- so a credential URL would otherwise produce NO finding at all.
+        $ftpHits = @{}   # host -> @{ ev = <evidence>; creds = <bool> }
+        foreach ($m in $ftpRx.Matches($text)) {
+            $h = $null; try { $h = ([Uri]$m.Value).Host } catch { continue }
+            if (-not $h) { continue }
+            if (($h -notmatch $validHost) -and ($h -notmatch $ipv4Rx)) { continue }
+            if ($h -match $skipHost) { continue }
+            if (-not $ftpHits.ContainsKey($h)) { $ftpHits[$h] = @{ ev = $m.Value; creds = $false } }
+        }
+        foreach ($m in $ftpCredRx.Matches($text)) {
+            $h = "$($m.Groups[1].Value)"
+            if (-not $h) { continue }
+            if (($h -notmatch $validHost) -and ($h -notmatch $ipv4Rx)) { continue }
+            if ($h -match $skipHost) { continue }
+            $ftpHits[$h] = @{ ev = $m.Value; creds = $true }   # credential form wins (HIGH)
+        }
+        foreach ($h in ($ftpHits.Keys | Sort-Object)) {
+            $hit = $ftpHits[$h]
+            New-TcpkFinding -Module 'network' -RuleId 'scheme.cleartext-ftp' `
+                -Severity $(if ($hit.creds) { 'HIGH' } else { 'MEDIUM' }) -Confidence 'Inferred' `
+                -Title "Cleartext ftp:// endpoint: $h$(if ($hit.creds) { ' (embedded credentials)' } else { '' })" `
+                -File $pe.FullName -Evidence $hit.ev -Cwe @('CWE-319') `
+                -Description 'Non-TLS FTP reference in first-party code. FTP transmits commands, file contents, and any credentials in cleartext -- trivially intercepted or MITM-able. Confirm whether it is a live transfer, and check for hardcoded FTP credentials nearby.' `
+                -Fix 'Use FTPS (FTP over TLS) or SFTP (SSH-based). Never send data or credentials over plain FTP, and never embed credentials in the URL.'
         }
     }
 }

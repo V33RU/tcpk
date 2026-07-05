@@ -79,7 +79,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <div class="wrap">
 <nav class="toc">
   <div class="brand">TC<span>PK</span></div>
-  <div class="ver">v2.0.0 &middot; 180 cmdlets</div>
+  <div class="ver">v2.1.0 &middot; 181 cmdlets</div>
   <a href="#tldr">TL;DR</a>
   <a href="#threat">Why thick clients</a>
   <a href="#principles">Design principles</a>
@@ -113,7 +113,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <p class="tag">Evidence over assertion. A scanner that proves its findings.</p>
   <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
   <div class="badges">
-    <span class="badge"><b>v2.0.0</b></span>
+    <span class="badge"><b>v2.1.0</b></span>
     <span class="badge"><b>180</b> cmdlets</span>
     <span class="badge">PowerShell <b>5.1+</b></span>
     <span class="badge">WinForms GUI + <b>MCP</b> server</span>
@@ -122,6 +122,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
     <span class="badge">CycloneDX <b>SBOM</b></span>
     <span class="badge">No external runtime</span>
   </div>
+  <p style="margin-top:22px;font-size:15px"><a href="samples/dvta/index.html" style="display:inline-block;background:var(--accent);color:#0a0d12;font-weight:700;padding:9px 16px;border-radius:7px;text-decoration:none">See a real audit report (DVTA) &#8594;</a> <span style="color:#8b95a3;margin-left:8px">a genuine, unedited scan of a public vulnerable .NET thick client</span></p>
 </header>
 
 <figure>
@@ -544,6 +545,13 @@ Get-TcpkTasvsText  'secrets.aws-access-key-id'      # TASVS-STORAGE ...; DA3 Sen
 <tr><td><code>run.jsonl</code> / <code>run.log</code></td><td>audit trail</td><td>structured + human run log</td></tr>
 </tbody>
 </table>
+<p style="margin-top:22px;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:8px;background:#11161f">
+<b>See a real one.</b> A genuine, unedited TCPK audit of <a href="https://github.com/secvulture/dvta">DVTA</a>
+-- a public, intentionally vulnerable .NET thick client -- is published here: open the
+<a href="samples/dvta/index.html">HTML report</a>, the <a href="samples/dvta/intel.html">intel dashboard</a>,
+or the <a href="samples/dvta/report.md">Markdown report</a> / <a href="samples/dvta/README.md">provenance notes</a>.
+35 findings, evidence-graded (proven / confirmed / inferred); nothing hand-written.
+</p>
 </section>
 
 <section id="usage">
@@ -596,7 +604,7 @@ Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
 <footer>
-<p><b>TCPK v2.0.0</b> &middot; Thick Client Pentest Kit &middot; 180 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+<p><b>TCPK v2.1.0</b> &middot; Thick Client Pentest Kit &middot; 181 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
 </footer>
 </main>
 </div>

@@ -57,7 +57,12 @@ function Test-TcpkLoadedModuleSignatures {
 
     foreach ($p in $procs) {
         try { $mods = $p.Modules } catch { continue }
+        # The main module (.exe) is already covered by the on-disk authenticode.pe-not-signed
+        # finding; re-flagging it here as a "loaded unsigned module" is redundant noise -- exclude it.
+        # Dependency DLLs (the genuine hijack/tamper candidates) remain in scope.
+        $mainPath = $null; try { $mainPath = $p.MainModule.FileName } catch { }
         foreach ($m in $mods) {
+            if ($mainPath -and $m.FileName -eq $mainPath) { continue }
             # Skip catalog-covered MSIX-internal modules: per-PE Authenticode is N/A for them.
             if (_IsMsixCatalogCovered $m.FileName) { continue }
 
