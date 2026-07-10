@@ -16,6 +16,9 @@ function Get-TcpkAgentTools {
     @(
         @{ name='list_sink_methods'; desc='List candidate sink-bearing methods across the target modules. No args. Returns method names + the dangerous APIs each calls.' }
         @{ name='inspect_method';   desc='Decompile ONE method to IL and get its deterministic reachability + sinks. args: {"method":"Namespace.Type::Method"}' }
+        @{ name='get_taint_trace';  desc='Deterministic source->sink taint verdict for a method, from the SAME IL prover the audit uses. verdict=tainted-reachable means external input reaches a reachable sink (strongest evidence); constant-only means not injectable. Call this BEFORE submit_finding to ground it. args: {"method":"Namespace.Type::Method"}' }
+        @{ name='get_callers';      desc='List methods that CALL this method, each with its own reachability -- walk UP toward an entry point / event handler to prove attacker reachability. args: {"method":"Namespace.Type::Method"}' }
+        @{ name='get_callees';      desc='List the methods this method calls (sinks flagged) -- drill DOWN into what it does. args: {"method":"Namespace.Type::Method"}' }
         @{ name='submit_finding';   desc='Record a vulnerability you have evidence for. args: {"method":"..","severity":"critical|high|medium|low","title":"..","rationale":".."}' }
         @{ name='finish';           desc='End the investigation with a short summary. args: {"summary":".."}' }
     )
@@ -55,6 +58,18 @@ function Invoke-TcpkAgentTool {
             if ($ilsum.Length -gt 700) { $ilsum = $ilsum.Substring(0,700)+'...' }
             return @{ method=$mm; reachable=$reach; sinks=$sinks; il_summary=$ilsum }
         }
+        'get_taint_trace' {
+            $mm = "$($ToolArgs.method)"; if (-not $mm) { return @{ error='method arg required' } }
+            return (Get-TcpkAgentTaintTrace -Dll (Get-TcpkAgentDllFor -Ctx $Ctx -Method $mm) -Method $mm)
+        }
+        'get_callers' {
+            $mm = "$($ToolArgs.method)"; if (-not $mm) { return @{ error='method arg required' } }
+            return (Get-TcpkAgentCallers -Dll (Get-TcpkAgentDllFor -Ctx $Ctx -Method $mm) -Method $mm)
+        }
+        'get_callees' {
+            $mm = "$($ToolArgs.method)"; if (-not $mm) { return @{ error='method arg required' } }
+            return (Get-TcpkAgentCallees -Dll (Get-TcpkAgentDllFor -Ctx $Ctx -Method $mm) -Method $mm)
+        }
         'submit_finding' {
             $mm = "$($ToolArgs.method)"
             if ($Ctx.Submitted.Contains($mm)) { return @{ recorded=$false; note='you ALREADY recorded this method -- do NOT repeat it. Inspect a different method whose status is new, or call finish.' } }
@@ -62,11 +77,15 @@ function Invoke-TcpkAgentTool {
             $dll = $Ctx.PrimaryDll; $hasSink = $false
             if ($Ctx.SinkCache) { $hit = @($Ctx.SinkCache | Where-Object { $_.method -eq $mm })[0]; if ($hit) { $dll=$hit.dll; $hasSink=$true } }
             $reach = Get-TcpkAgentMethodReachable -Dll $dll -Method $mm
-            $Ctx.Findings.Add([ordered]@{ method=$mm; severity="$($ToolArgs.severity)"; title="$($ToolArgs.title)"; rationale="$($ToolArgs.rationale)"; il_reachable=$reach; has_sink=$hasSink })
-            $note = if ($reach -and $hasSink) { 'IL cross-check: reachable + real sink -- backed by evidence' }
+            # agent proposes, IL prover disposes: attach the deterministic taint verdict.
+            $tv = 'unknown'; try { $tt = Get-TcpkAgentTaintTrace -Dll $dll -Method $mm; if ($tt) { $tv = "$($tt.verdict)" } } catch { }
+            $Ctx.Findings.Add([ordered]@{ method=$mm; severity="$($ToolArgs.severity)"; title="$($ToolArgs.title)"; rationale="$($ToolArgs.rationale)"; il_reachable=$reach; has_sink=$hasSink; taint_verdict=$tv })
+            $note = if ($tv -eq 'tainted-reachable') { 'IL prover: external input reaches a reachable sink -- CONFIRMED-class evidence' }
+                    elseif ($tv -eq 'constant-only') { 'IL prover: sink called with constant argument(s) only -- NOT injectable here; this finding is weak, reconsider' }
                     elseif (-not $hasSink) { 'WARNING: no known sink in this method -- this finding is weak, reconsider' }
+                    elseif ($reach) { 'IL prover: reachable sink but no external-input source proven -- state the assumption in your rationale' }
                     else { 'IL cross-check: NOT reachable -- lower priority' }
-            return @{ recorded=$true; il_reachable=$reach; has_sink=$hasSink; note=$note }
+            return @{ recorded=$true; il_reachable=$reach; has_sink=$hasSink; taint_verdict=$tv; note=$note }
         }
         'finish' { $Ctx.Done=$true; $Ctx.Summary="$($ToolArgs.summary)"; return @{ done=$true } }
         default  { return @{ error="unknown tool: $Name" } }
@@ -84,6 +103,154 @@ function Get-TcpkAgentMethodReachable {
         if (-not $md) { return $null }
         return [bool](Get-TcpkAgentReachable -Asm $asm -Method $md)
     } catch { return $null }
+}
+
+# ---- call-graph + taint tools (read-only) -------------------------------------
+# These turn the agent from a sink-lister into an investigator: walk the call graph UP
+# toward an attacker-reachable entry point (get_callers) and DOWN into a method
+# (get_callees), and pull the SAME deterministic source->sink taint verdict the audit's
+# IL prover uses (get_taint_trace via Get-TcpkCallsiteUsage), so a submission is grounded
+# in proven data flow, not a guess. All read-only; the exploit bucket is never exposed.
+
+# Resolve which module a method lives in: the SinkCache records a per-method dll; anything
+# else (e.g. a caller discovered mid-investigation) falls back to the primary module.
+function Get-TcpkAgentDllFor {
+    param($Ctx, [string]$Method)
+    if ($Ctx.SinkCache) { $hit = @($Ctx.SinkCache | Where-Object { $_.method -eq $Method })[0]; if ($hit) { return $hit.dll } }
+    return $Ctx.PrimaryDll
+}
+
+# Locate a MethodDefinition by the agent's "Type::Method" identity (overloads collapse to
+# one, matching the identity scheme used everywhere else in the agent). $null if absent.
+function Get-TcpkAgentFindMethod {
+    param($Asm, [string]$Method)
+    foreach ($t in $Asm.MainModule.GetTypes()) {
+        foreach ($m in $t.Methods) { if ("$($t.FullName)::$($m.Name)" -eq $Method) { return $m } }
+    }
+    return $null
+}
+
+# Callers of a method: every method whose body invokes it. Each caller carries its own
+# reachability so the model can walk UP toward an entry point / event handler (an
+# attacker-reachable root). Bounded.
+function Get-TcpkAgentCallers {
+    param([string]$Dll, [string]$Method, [int]$Max = 40)
+    $asm = Get-TcpkCecilAssembly $Dll; if (-not $asm) { return @{ error='not a managed .NET assembly' } }
+    $refOps = @('call','callvirt','newobj','ldftn','ldvirtftn')
+    $callers = New-Object 'System.Collections.Generic.List[object]'
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                $id = "$($t.FullName)::$($m.Name)"
+                if ($id -eq $Method -or $seen.Contains($id)) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    if ($refOps -notcontains $ins.OpCode.Name) { continue }
+                    $r = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($r -and "$($r.DeclaringType.FullName)::$($r.Name)" -eq $Method) {
+                        [void]$seen.Add($id)
+                        $callers.Add([ordered]@{ method=$id; reachable=[bool](Get-TcpkAgentReachable -Asm $asm -Method $m) })
+                        break
+                    }
+                }
+                if ($callers.Count -ge $Max) { break }
+            }
+            if ($callers.Count -ge $Max) { break }
+        }
+    } catch { }
+    $anyReach = @($callers | Where-Object { $_.reachable }).Count
+    $hint = if ($callers.Count -eq 0) { 'no in-assembly callers -- reachable only if this is itself an entry point / event handler / public surface' }
+            elseif ($anyReach) { 'at least one caller is reachable -- trace UP from it toward an entry point to establish attacker reachability' }
+            else { 'callers exist but none are reachable yet -- keep walking up with get_callers' }
+    return @{ method=$Method; callerCount=$callers.Count; callers=@($callers.ToArray()); hint=$hint }
+}
+
+# Callees of a method: the distinct methods it invokes, sinks flagged. Lets the model
+# drill DOWN into what a method actually does. Bounded.
+function Get-TcpkAgentCallees {
+    param([string]$Dll, [string]$Method, [int]$Max = 60)
+    $asm = Get-TcpkCecilAssembly $Dll; if (-not $asm) { return @{ error='not a managed .NET assembly' } }
+    $md = Get-TcpkAgentFindMethod -Asm $asm -Method $Method
+    if (-not $md) { return @{ error='method not found' } }
+    if (-not $md.HasBody) { return @{ method=$Method; callees=@(); note='method has no body (abstract / P-Invoke / interface)' } }
+    $refOps = @('call','callvirt','newobj','ldftn','ldvirtftn')
+    $callees = New-Object 'System.Collections.Generic.List[object]'
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($ins in $md.Body.Instructions) {
+        if ($refOps -notcontains $ins.OpCode.Name) { continue }
+        $r = $ins.Operand -as [Mono.Cecil.MethodReference]; if (-not $r) { continue }
+        $id = "$($r.DeclaringType.FullName)::$($r.Name)"
+        if ($seen.Contains($id)) { continue }
+        [void]$seen.Add($id)
+        $sink = Get-TcpkAgentSinkHit $r
+        $callees.Add([ordered]@{ target=$id; sink=[bool]$sink; sinkLabel="$sink" })
+        if ($callees.Count -ge $Max) { break }
+    }
+    return @{ method=$Method; calleeCount=$callees.Count; sinkCallees=@($callees | Where-Object { $_.sink }).Count; callees=@($callees.ToArray()) }
+}
+
+# The deterministic source->sink taint verdict for one method, straight from the SAME
+# engine the audit's IL prover (Confirm-TcpkCallsiteUsage) uses. For each injection /
+# capability sink family the method actually invokes, run Get-TcpkCallsiteUsage and keep
+# the call sites whose ENCLOSING method is this one. ArgKind is ground truth:
+# 'tainted' == external input reaches the sink (Confirmed-IL class), 'constant' == not
+# injectable here. Note: bounded by Get-TcpkCallsiteUsage -Max, like the audit itself.
+function Get-TcpkAgentTaintTrace {
+    param([string]$Dll, [string]$Method)
+    $asm = Get-TcpkCecilAssembly $Dll; if (-not $asm) { return @{ error='not a managed .NET assembly' } }
+    $md = Get-TcpkAgentFindMethod -Asm $asm -Method $Method
+    if (-not $md) { return @{ error='method not found' } }
+    if (-not $md.HasBody) { return @{ method=$Method; verdict='no-body'; sites=@(); note='method has no body to analyze' } }
+
+    # which sink families does THIS method invoke? (one pass over its own instructions;
+    # -like is case-insensitive, matching Get-TcpkCallsiteUsage's own matching intent)
+    $map = Get-TcpkCallsiteSinkMap
+    $callOps = @('call','callvirt','newobj')
+    $hitFamilies = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($ins in $md.Body.Instructions) {
+        if ($callOps -notcontains $ins.OpCode.Name) { continue }
+        $r = $ins.Operand -as [Mono.Cecil.MethodReference]; if (-not $r) { continue }
+        $declFull = "$($r.DeclaringType.FullName)"; $nm = "$($r.Name)"
+        foreach ($fam in $map.Keys) {
+            if ($hitFamilies.Contains($fam)) { continue }
+            foreach ($s in $map[$fam].Sinks) {
+                $hit = if ($s.Mo) { $nm -like "*$($s.T)*" }
+                       elseif ($s.M) { ($declFull -like "*$($s.T)*") -and ($nm -eq $s.M) }
+                       else { $declFull -like "*$($s.T)*" }
+                if ($hit) { [void]$hitFamilies.Add($fam); break }
+            }
+        }
+    }
+    if ($hitFamilies.Count -eq 0) { return @{ method=$Method; verdict='no-sink'; sites=@(); note='this method invokes no known dangerous sink -- a finding here would be weak' } }
+
+    # ask the prover engine per hit family and keep only sites enclosed by THIS method
+    $sites = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($fam in $hitFamilies) {
+        $spec = $map[$fam]
+        foreach ($sink in $spec.Sinks) {
+            $gp = @{ DllPath=$Dll; TypeFragment=$sink.T; Injection=[bool]$spec.Inj; Max=200 }
+            if ($sink.M)  { $gp.MethodName = $sink.M }
+            if ($sink.Mo) { $gp.MethodOnly = $true }
+            $u = $null; try { $u = Get-TcpkCallsiteUsage @gp } catch { }
+            if (-not $u) { continue }
+            foreach ($st in @($u.Sites)) {
+                if ("$($st.Enclosing)" -ne $Method) { continue }
+                $sites.Add([ordered]@{ family=$fam; injection=[bool]$spec.Inj; sink="$($st.Target)"; reachable=[bool]$st.Reachable; argKind="$($st.ArgKind)" })
+            }
+        }
+    }
+    $tainted   = @($sites | Where-Object { $_.argKind -eq 'tainted'  -and $_.reachable }).Count
+    $reachDyn  = @($sites | Where-Object { $_.argKind -eq 'dynamic'  -and $_.reachable }).Count
+    $constOnly = @($sites | Where-Object { $_.argKind -eq 'constant' }).Count
+    $verdict = if ($tainted) { 'tainted-reachable' } elseif ($reachDyn) { 'reachable-nonconstant-no-source' } elseif ($constOnly) { 'constant-only' } else { 'inconclusive' }
+    $note = switch ($verdict) {
+        'tainted-reachable'               { 'CONFIRMED-class: external input reaches a reachable sink -- the strongest deterministic signal; a submit_finding here is well grounded.' }
+        'reachable-nonconstant-no-source' { 'reachable with a non-constant argument but NO external source proven -- possible injectable path; state the assumption in your rationale.' }
+        'constant-only'                   { 'called with constant argument(s) only -- not injectable here; do NOT submit unless you can show attacker-controlled input.' }
+        default                           { 'no conclusive taint signal from the deterministic engine.' }
+    }
+    return @{ method=$Method; verdict=$verdict; taintedSites=$tainted; siteCount=$sites.Count; sites=@($sites.ToArray()); note=$note }
 }
 
 # ---- transport: one chat turn over ollama /api/chat (JSON-action protocol) -----
@@ -112,7 +279,7 @@ function Invoke-TcpkAgentLoop {
         [Parameter(Mandatory)][string]$Target,
         [string]$Goal = 'Find the most serious vulnerabilities in this .NET target.',
         [string]$Model = 'qwen2.5-coder:7b',
-        [int]$MaxSteps = 14,
+        [int]$MaxSteps = 20,   # richer per-candidate flow (inspect -> taint -> callers -> submit) needs more room than the old 14
         [scriptblock]$Emit,
         [string]$BaseUrl = 'http://localhost:11434'
     )
@@ -132,7 +299,7 @@ function Invoke-TcpkAgentLoop {
         '  {"thought":"brief reasoning","final":{"summary":"..."}}',
         'Tools:',
         $toolDesc,
-        'Process: call list_sink_methods ONCE to get the candidate list -- each method shows a status (new / inspected / submitted). Then inspect_method on a method whose status is NEW. When inspect_method shows reachable=true AND a real dangerous sink, call submit_finding for it (a vulnerability mentioned only in your summary does NOT count). NEVER inspect or submit the same method twice, and do NOT keep re-calling list_sink_methods. When remaining_new is 0 (every promising method reviewed), call finish. Be conservative: never invent a vulnerability.',
+        'Process: (1) call list_sink_methods ONCE to get the candidate list -- each method shows a status (new / inspected / submitted). (2) inspect_method on a method whose status is NEW to read its IL and sinks. (3) GROUND it before submitting: call get_taint_trace for the deterministic verdict -- "tainted-reachable" means external input reaches a reachable sink (strongest evidence), "constant-only" means NOT injectable (do not submit); use get_callers to walk UP toward an entry point / event handler (attacker reachability) and get_callees to drill DOWN. (4) call submit_finding ONLY when the evidence supports it -- prefer methods whose get_taint_trace verdict is tainted-reachable (a vulnerability mentioned only in your summary does NOT count). NEVER inspect or submit the same method twice, and do NOT keep re-calling list_sink_methods. When remaining_new is 0 (every promising method reviewed), call finish. Be conservative: never invent a vulnerability.',
         'The tool results are the source of truth. Ground every finding in the reachability/sinks the tools report, not in assumptions.'
     ) -join "`n"
     $messages = @(
