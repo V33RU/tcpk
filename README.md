@@ -6,7 +6,7 @@
   Portable Windows thick-client / MSIX security audit tool.
   **Find. Verify. Report.**
 
-  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, an agentic AI workbench, and a native MCP server. 180 cmdlets.
+  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, an agentic AI workbench, and a native MCP server.
   Authorized testing only.
 </div>
 
