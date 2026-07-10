@@ -272,6 +272,43 @@ function ConvertFrom-TcpkAgentAction {
     try { return ($mt.Value | ConvertFrom-Json) } catch { return $null }
 }
 
+# ---- verification gate --------------------------------------------------------
+# The model PROPOSES, the IL prover DISPOSES -- as an explicit FINAL partition, not just
+# a per-submission note. Each submitted finding already carries the deterministic
+# taint_verdict that submit_finding stamped from Get-TcpkAgentTaintTrace; classify by it:
+#   tainted-reachable                -> confirmed (external input reaches a reachable sink)
+#   reachable-nonconstant-no-source  -> review   (reachable, non-constant, source unproven)
+#   constant-only / no-sink / no-body-> refuted  (deterministically not injectable here)
+#   (missing verdict)                -> fall back to the weaker reachable+sink signal
+# Fully deterministic, no model. Annotates each finding in place with verdict_class so the
+# workbench / report can show the gate result, and returns the partition + counts.
+function Resolve-TcpkAgentFindings {
+    param([object[]]$Findings)
+    $confirmed = New-Object 'System.Collections.Generic.List[object]'
+    $review    = New-Object 'System.Collections.Generic.List[object]'
+    $refuted   = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($f in @($Findings)) {
+        if ($null -eq $f) { continue }
+        $v = "$($f.taint_verdict)"
+        $cls = switch ($v) {
+            'tainted-reachable'               { 'confirmed' }
+            'reachable-nonconstant-no-source' { 'review' }
+            'constant-only'                   { 'refuted' }
+            'no-sink'                         { 'refuted' }
+            'no-body'                         { 'refuted' }
+            default { if ($f.il_reachable -and $f.has_sink) { 'review' } else { 'refuted' } }
+        }
+        if ($f -is [System.Collections.IDictionary]) { $f['verdict_class'] = $cls }
+        switch ($cls) { 'confirmed' { $confirmed.Add($f) } 'review' { $review.Add($f) } default { $refuted.Add($f) } }
+    }
+    return [ordered]@{
+        confirmed = @($confirmed.ToArray())
+        review    = @($review.ToArray())
+        refuted   = @($refuted.ToArray())
+        counts    = [ordered]@{ submitted = @($Findings).Count; confirmed = $confirmed.Count; review = $review.Count; refuted = $refuted.Count }
+    }
+}
+
 # ---- the agent loop -----------------------------------------------------------
 function Invoke-TcpkAgentLoop {
     [CmdletBinding()]
@@ -346,5 +383,9 @@ function Invoke-TcpkAgentLoop {
         $messages += @{ role='user'; content="Observation: $obsJson" }
     }
 
-    return @{ goal=$Goal; target=(Split-Path $primary -Leaf); model=$Model; steps=@($steps.ToArray()); findings=@($ctx.Findings.ToArray()); summary=$ctx.Summary; done=$ctx.Done }
+    # final prover gate: partition the agent's claims into confirmed / review / refuted
+    $verified = Resolve-TcpkAgentFindings -Findings @($ctx.Findings.ToArray())
+    if ($Emit) { & $Emit @{ type='verified'; text="prover gate: $($verified.counts.confirmed) confirmed, $($verified.counts.review) review, $($verified.counts.refuted) refuted (of $($verified.counts.submitted) submitted)" } }
+
+    return @{ goal=$Goal; target=(Split-Path $primary -Leaf); model=$Model; steps=@($steps.ToArray()); findings=@($ctx.Findings.ToArray()); verified=$verified; summary=$ctx.Summary; done=$ctx.Done }
 }

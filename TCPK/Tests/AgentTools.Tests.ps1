@@ -90,3 +90,36 @@ Describe 'call-graph navigation' {
         $res.sinkCallees | Should -BeGreaterThan 0
     }
 }
+
+Describe 'prover verification gate (Resolve-TcpkAgentFindings)' {
+    It 'partitions submitted findings by their recorded taint verdict' {
+        $res = & (Get-Module TCPK) {
+            Resolve-TcpkAgentFindings -Findings @(
+                [ordered]@{ method='A::x'; taint_verdict='tainted-reachable';               il_reachable=$true;  has_sink=$true  },
+                [ordered]@{ method='B::y'; taint_verdict='constant-only';                    il_reachable=$true;  has_sink=$true  },
+                [ordered]@{ method='C::z'; taint_verdict='no-sink';                          il_reachable=$true;  has_sink=$false },
+                [ordered]@{ method='D::w'; taint_verdict='reachable-nonconstant-no-source';  il_reachable=$true;  has_sink=$true  }
+            )
+        }
+        $res.counts.confirmed    | Should -Be 1
+        $res.counts.review       | Should -Be 1
+        $res.counts.refuted      | Should -Be 2
+        $res.confirmed[0].method | Should -Be 'A::x'
+    }
+    It 'annotates each finding in place with its verdict_class' {
+        $res = & (Get-Module TCPK) {
+            Resolve-TcpkAgentFindings -Findings @([ordered]@{ method='A::x'; taint_verdict='tainted-reachable' })
+        }
+        $res.confirmed[0].verdict_class | Should -Be 'confirmed'
+    }
+    It 'falls back to the reachable+sink signal when no taint verdict was recorded' {
+        $res = & (Get-Module TCPK) {
+            Resolve-TcpkAgentFindings -Findings @(
+                [ordered]@{ method='A::x'; il_reachable=$true;  has_sink=$true  },
+                [ordered]@{ method='B::y'; il_reachable=$false; has_sink=$false }
+            )
+        }
+        $res.counts.review  | Should -Be 1
+        $res.counts.refuted | Should -Be 1
+    }
+}
