@@ -1,6 +1,6 @@
 @{
     RootModule        = 'TCPK.psm1'
-    ModuleVersion     = '2.2.0'
+    ModuleVersion     = '2.3.0'
     GUID              = 'a3f7c1d2-9b4e-4c8a-b1f3-7c2a4d5e8f01'
     Author            = 'TCPK contributors'
     CompanyName       = 'Open source'
@@ -21,7 +21,7 @@
             Tags         = @('Security','Pentest','Thick-Client','MSIX','DotNet','WinUI','WebView2')
             LicenseUri   = 'https://opensource.org/licenses/MIT'
             ProjectUri   = ''
-            ReleaseNotes = 'See CHANGELOG.md for the full release history. Latest v2.2.0: CVE and SBOM are online-only, queried live through one engine (OSV for NuGet / npm / Maven / PyPI / Go / crates.io, NVD by CPE for native C libraries); with no network the report states CVE data unavailable rather than a false clean.'
+            ReleaseNotes = 'See CHANGELOG.md for the full release history. Latest v2.3.0: the autonomous agent gains read-only call-graph + taint-trace tools and a deterministic prover verification gate over its findings; NEW Invoke-TcpkSecretRecovery and a Confirmed (exploit) evidence tier decrypt a shipped key + IV + ciphertext and recover the plaintext secret (verified on the DVTA testbed); plus a cross-platform test fix so the managed-analysis suite runs under PowerShell on Linux.'
         }
     }
 }
