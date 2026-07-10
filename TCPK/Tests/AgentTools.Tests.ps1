@@ -10,7 +10,7 @@
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
-    $script:fx = Join-Path $env:TEMP ('tcpk-agenttools-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-agenttools-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
     $script:dll = Join-Path $script:fx 'TaintFx.dll'
     $script:compiled = $false
