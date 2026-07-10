@@ -71,11 +71,25 @@ function Resolve-TcpkFindings {
                 $newFile = if ($files.Count -gt 1) { "$($files.Count) files" } else { "$($rep.File)" }
                 $shown = ($locs | Select-Object -First 25) -join '; '
                 if ($n -gt 25) { $shown += " ...(+$($n - 25) more)" }
+                # Evidence: for most rules the collapsed "$n affected: <locations>" summary is
+                # enough. But for secrets / entropy findings the matched VALUE (the hardcoded
+                # key / password / token) IS the finding, so preserve the distinct value(s) --
+                # otherwise aggregating the same secret across e.g. app.exe.config +
+                # app.vshost.exe.config would hide it behind a file list.
+                $aggEvidence = "$n affected: $shown"
+                if ($rep.RuleId -match '^(secrets|entropy|authenticode|truststore|strongname)\.') {
+                    $vals = @($members | ForEach-Object { "$($_.Evidence)" } | Where-Object { $_ } | Select-Object -Unique)
+                    if ($vals.Count) {
+                        $vShown = ($vals | Select-Object -First 5) -join ' | '
+                        if ($vals.Count -gt 5) { $vShown += " ...(+$($vals.Count - 5) more)" }
+                        $aggEvidence = "$vShown  [$n affected: $shown]"
+                    }
+                }
                 # Emit a CLONE -- never mutate the original finding objects, because the
                 # same objects feed the recon profile / attack-surface / exploit-plan
                 # (which need the per-occurrence detail, not the collapsed view).
                 $clone = New-TcpkFinding -Module $rep.Module -RuleId $rep.RuleId -Severity $rep.Severity `
-                    -Confidence $rep.Confidence -Title $newTitle -File $newFile -Evidence "$n affected: $shown" `
+                    -Confidence $rep.Confidence -Title $newTitle -File $newFile -Evidence $aggEvidence `
                     -Description "$($rep.Description) [TCPK: $n occurrences of this rule aggregated into one finding; see the affected list.]" `
                     -Cwe ([string[]]@($rep.Cwe)) -Impact "$($rep.Impact)" -Cvss "$($rep.Cvss)" -Fix "$($rep.Fix)"
                 $clone.Affected = [string[]]$locs

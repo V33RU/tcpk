@@ -55,7 +55,10 @@ function Export-TcpkReportHtml {
         [object[]]$CveMatches = @(),
         [object[]]$Hardening = @(),
         [object[]]$Signing = @(),
-        [object[]]$Sbom = @()
+        [object[]]$Sbom = @(),
+        # whether the online CVE lookup actually ran (so the empty state can say "checked, 0 found"
+        # vs "not checked"). CVE matching is online-only, so a 0-result run must be distinguishable.
+        [bool]$CveChecked = $true
     )
 
     begin { $all = New-Object 'System.Collections.Generic.List[object]' }
@@ -413,7 +416,7 @@ $($apItems -join "`n")
   <td>$cveCell$kevBadge</td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$c.Package))</td>
   <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$c.ShippedVersion))</code></td>
-  <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$c.FixedVersion))</code></td>
+  <td><code>$(if ("$($c.FixedVersion)") { '&ge; ' + (ConvertTo-TcpkHtmlSafe ([string]$c.FixedVersion)) } else { '-' })</code></td>
   <td>$(ConvertTo-TcpkHtmlSafe ([string]$c.Area))</td>
   <td>$title$summary</td>
   <td><code>$(ConvertTo-TcpkHtmlSafe ([string]$c.File))</code></td>
@@ -424,15 +427,32 @@ $($apItems -join "`n")
             $vulnCount = @($CveMatches | Where-Object { "$($_.Status)" -eq 'Vulnerable' }).Count
             $cveHtml = @"
 <section class='card cve'>
-  <h3 class='cvehead'><span class='caret'>&#9662;</span>Known-vulnerability matches (CVE catalog) <span class='seccount'>($(@($CveMatches).Count) match$(if (@($CveMatches).Count -ne 1){'es'}), $vulnCount vulnerable)</span></h3>
+  <h3 class='cvehead'><span class='caret'>&#9662;</span>Known-vulnerability matches (live: OSV + NVD) <span class='seccount'>($(@($CveMatches).Count) match$(if (@($CveMatches).Count -ne 1){'es'}), $vulnCount vulnerable)</span></h3>
   <div class='cvebody'>
     <table class='recontab cvetab'>
-      <thead><tr><th>Status</th><th>Severity</th><th>CVE</th><th>Package</th><th>Shipped</th><th>Fixed</th><th>Area</th><th>Title</th><th>Source file</th><th>Refs</th></tr></thead>
+      <thead><tr><th>Status</th><th>Severity</th><th>CVE</th><th>Package</th><th>Shipped</th><th>Fixed in</th><th>Area</th><th>Title</th><th>Source file</th><th>Refs</th></tr></thead>
       <tbody>
 $($cveRows -join "`n")
       </tbody>
     </table>
-    <div class='cvenote'>Native (non-NuGet) matches are reported as <b>Present</b> / <b>PossiblyEmbedded</b> - verify the embedded build before treating them as confirmed. NuGet matches are version-compared and reliable.</div>
+    <div class='cvenote'><b>Reading this table:</b> matches are queried LIVE -- NuGet / npm / Maven / PyPI / Go / crates.io via OSV (api.osv.dev) and native C libraries via NVD (services.nvd.nist.gov) by CPE. <b>Fixed in</b> is the version where the fix FIRST landed (a floor, not a downgrade); the shipped version is below it, so the component is affected -- upgrade to that version or later (ideally the latest supported release).</div>
+  </div>
+</section>
+"@
+        }
+        else {
+            # ALWAYS render a CVE section, even at zero matches -- silence reads as "not checked".
+            $cveN = @($Sbom).Count
+            $emptyNote = if ($CveChecked) {
+                "<b>No known vulnerabilities.</b> The shipped components ($cveN inventoried in the SBOM below) were matched <b>live</b> against OSV (NuGet / npm / Maven / PyPI / Go / crates.io) and NVD (native C libraries, by CPE). None are affected by a known CVE for their shipped version. Note: a vendor's own proprietary binaries have no CVE identity anywhere (they are covered by the findings above), and an up-to-date component can still be on an end-of-life branch -- check any <b>library-currency</b> findings."
+            } else {
+                "<b>CVE not checked this run.</b> Online CVE lookup was not enabled and there is no offline catalog. Re-run with online CVE (needs network) to match shipped components against OSV + NVD."
+            }
+            $cveHtml = @"
+<section class='card cve'>
+  <h3 class='cvehead'><span class='caret'>&#9662;</span>Known-vulnerability matches (live: OSV + NVD) <span class='seccount'>($(if ($CveChecked) { '0 vulnerable' } else { 'not checked' }))</span></h3>
+  <div class='cvebody'>
+    <div class='cvenote'>$emptyNote</div>
   </div>
 </section>
 "@
@@ -532,7 +552,18 @@ $($ruleRows -join "`n")
                     $kv.Add("<tr><th>Affected ($(@($f.Affected).Count))</th><td><ul class='afflist'>$affItems</ul></td></tr>")
                 }
 
-                if ($evid) { $kv.Add("<tr><th>Evidence</th><td><code class='evidence'>$evid</code></td></tr>") }
+                if ($evid) {
+                    $rawEv = "$($f.Evidence)"
+                    if ($rawEv.Length -gt 160) {
+                        # Long evidence (a decoded certificate, a big secret value, a long
+                        # affected list) is collapsed behind a toggle so the card stays compact;
+                        # the summary shows the first chunk, click to expand the full value.
+                        $evSum = ConvertTo-TcpkHtmlSafe ($rawEv.Substring(0, 80).TrimEnd() + ' ...')
+                        $kv.Add("<tr><th>Evidence</th><td><details class='evtoggle'><summary><code class='evidence'>$evSum</code> <span class='evmore'>show full</span></summary><code class='evidence evfull'>$evid</code></details></td></tr>")
+                    } else {
+                        $kv.Add("<tr><th>Evidence</th><td><code class='evidence'>$evid</code></td></tr>")
+                    }
+                }
 
                 # Verify: use a REAL path. After aggregation File is 'N files', so reach into the
                 # Affected list for the first concrete path; otherwise use File. (Fixes the old
@@ -786,8 +817,8 @@ $($sbomRows -join "`n")
                 "<div class='rem'><div class='pri $priClass'>$priLabel</div><div class='rmid'><div class='rfix'>$(ConvertTo-TcpkHtmlSafe $r.Fix)</div><div class='rmeta'>$(ConvertTo-TcpkHtmlSafe $meta)</div></div><div class='rright'><span class='badge' style='background:$($sevColor[$r.Sev])'>$($r.Sev)</span><span class='cnt'>$($r.Count) finding$(if ($r.Count -ne 1){'s'})</span></div></div>"
             }
             $remediationHtml = @"
-<section class='card remed'>
-  <h3 class='remhead'><span class='caret'>&#9662;</span>Remediation plan <span class='seccount'>($(@($remGroups).Count) prioritized fix$(if (@($remGroups).Count -ne 1){'es'}))</span></h3>
+<section class='card remed collapsed'>
+  <h3 class='remhead'><span class='caret'>&#9662;</span>Remediation plan <span class='seccount'>($(@($remGroups).Count) prioritized fix$(if (@($remGroups).Count -ne 1){'es'}) &middot; click to expand)</span></h3>
   <div class='rembody'>
     <div class='remnote'>De-duplicated, highest risk first -- one row per fix. P1 = critical, P2 = high, P3 = medium/low.</div>
 $($remRows -join "`n")
@@ -906,6 +937,12 @@ h1{font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px}
 .kv td{padding:5px 0;font-size:14px;vertical-align:top;color:var(--tx)}
 code{font-family:"Cascadia Code","Fira Code",Consolas,Menlo,monospace;font-size:13px;background:var(--sub);color:#c9d1d9;padding:1px 6px;border-radius:4px;border:1px solid var(--bd);word-break:break-word}
 code.evidence{background:rgba(210,153,34,.12);color:#f0b65c;font-weight:700;padding:2px 7px;border:1px solid #6e5320}
+details.evtoggle{display:inline-block}
+details.evtoggle summary{cursor:pointer;list-style:none;outline:none}
+details.evtoggle summary::-webkit-details-marker{display:none}
+details.evtoggle summary .evmore{font-size:11px;color:#8b95a3;margin-left:6px;text-decoration:underline}
+details.evtoggle[open] summary .evmore{color:#6e7681}
+code.evidence.evfull{display:block;margin-top:6px;white-space:pre-wrap;word-break:break-all;line-height:1.6}
 code.verify{display:block;white-space:pre-wrap;padding:9px 11px;background:#010409;color:#7ce38b;line-height:1.5;border:1px solid var(--bd);border-left:3px solid var(--acc)}
 .vbox{border:1px solid var(--bd);border-radius:10px;overflow:hidden;background:#010409;margin-top:6px}
 .vbar{display:flex;align-items:center;gap:10px;padding:9px 15px;background:var(--panel2);border-bottom:1px solid var(--bd)}
@@ -1146,7 +1183,6 @@ $cardHtml
 $chartHtml
 $coverageHtml
 $attackPathHtml
-$remediationHtml
 $reconHtml
 $cveHtml
 $ruleSummaryHtml
@@ -1159,6 +1195,7 @@ $($sectionHtml -join "`n")
 $hardeningHtml
 $signingHtml
 $sbomHtml
+$remediationHtml
 
   <footer class='disclaimer'>
     <strong>DISCLAIMER -- FOR AUTHORIZED TESTING ONLY.</strong>

@@ -117,7 +117,7 @@ Restart the client. You should see **8 `tcpk_*` tools** become available.
 | `tcpk_info` | TCPK version + implemented bucket counts | *(none)* |
 | `tcpk_recon_profile` | Fingerprint the target (type, version, publisher, runtime, UI frameworks, SDKs, signing, attack-surface counts) - no full audit | `target` |
 | `tcpk_strings` | Extract categorized literals (URLs, paths, registry keys, IPs, emails, command refs, secret-ish) | `target` |
-| `tcpk_cve_match` | Match shipped components vs the offline CVE catalog | `target`, `includePatched?` |
+| `tcpk_cve_match` | Match shipped components vs live CVE data (ONLINE-ONLY): OSV (NuGet/npm/Maven) + NVD (native libs by CPE); no offline catalog | `target`, `includePatched?` |
 | `tcpk_audit` | **Full audit** - writes HTML/JSON/MD reports + sidecars; returns a summary with `outDir` (takes ~1-3 min) | `target`, `packageName?`, `processName?`, `outDir?` |
 | `tcpk_get_findings` | Read findings from a completed audit, filter by severity / ruleId | `outDir`, `severity?`, `ruleId?`, `limit?` |
 | `tcpk_exploit_plan` | Read the actionable CVE + exploitable-finding plan | `outDir` |

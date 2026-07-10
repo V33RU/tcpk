@@ -288,8 +288,6 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkReflectionLoading'   { Test-TcpkReflectionLoading   -Path $expanded }
     _RunCheck 'Test-TcpkPInvokeSurface'      { Test-TcpkPInvokeSurface      -Path $expanded }
     _RunCheck 'Test-TcpkNativeInterop'       { Test-TcpkNativeInterop       -Path $expanded }
-    _RunCheck 'Test-TcpkDependencyCves'      { Test-TcpkDependencyCves      -Path $expanded }
-    _RunCheck 'Test-TcpkPackageManifests'    { Test-TcpkPackageManifests    -Path $expanded }
     _RunCheck 'Test-TcpkJavaBundle'          { Test-TcpkJavaBundle          -Path $expanded }
     _RunCheck 'Test-TcpkDevArtifacts'        { Test-TcpkDevArtifacts        -Path $expanded }
     _RunCheck 'Test-TcpkEmbeddedScripts'     { Test-TcpkEmbeddedScripts     -Path $expanded }
@@ -329,7 +327,6 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkTlsBypass (bundle)'        { Test-TcpkTlsBypass        -Path $sfRoot }
         _RunCheck 'Test-TcpkCryptoMisuse (bundle)'     { Test-TcpkCryptoMisuse     -Path $sfRoot }
         _RunCheck 'Test-TcpkJwt (bundle)'              { Test-TcpkJwt              -Path $sfRoot }
-        _RunCheck 'Test-TcpkDependencyCves (bundle)'   { Test-TcpkDependencyCves   -Path $sfRoot }
         _RunCheck 'Test-TcpkReflectionLoading (bundle)' { Test-TcpkReflectionLoading -Path $sfRoot }
         _RunCheck 'Test-TcpkEntropySecrets (bundle)'   { Test-TcpkEntropySecrets   -Path $sfRoot }
         _RunCheck 'Test-TcpkAuthFlags (bundle)'        { Test-TcpkAuthFlags        -Path $sfRoot }
@@ -562,26 +559,45 @@ function Invoke-TcpkAudit {
         Write-TcpkLog -Level INFO -Component 'aggregate' -Message "$beforeAgg -> $($all.Count) after aggregation" | Out-Null
     }
 
-    # --- CVE exposure: match shipped components vs the offline CVE catalog ---
+    # --- CVE exposure: LIVE online lookup (OSV for NuGet/Electron, NVD for native). There is no
+    #     offline catalog -- CVE matching runs only with -OnlineCve (needs network). Without it the
+    #     step is skipped and the report states CVE data was not collected (never a false "clean"). ---
     $cveMatches = @()
-    try {
-        $cveMatches = @(Get-TcpkCveMatches -Path $expanded -OnlineCve:$OnlineCve)
-        $vulnCount = 0
-        foreach ($m in $cveMatches) {
-            if ($m.Status -ne 'Vulnerable') { continue }   # only emit confirmed vulnerable as findings
-            $vulnCount++
-            $all.Add( (New-TcpkFinding -Module 'static' -RuleId "cve.$($m.Cve)" `
-                -Severity $m.Severity -Confidence $m.Confidence `
-                -Title "$($m.Package) $($m.ShippedVersion) -- $($m.Cve): $($m.Title)" `
-                -File $m.File -Evidence "shipped $($m.ShippedVersion); fixed in $($m.FixedVersion)" `
-                -Cwe ([string[]]@($m.Cwe)) -Description $m.Summary `
-                -Fix "Upgrade $($m.Package) to >= $($m.FixedVersion). Ref: $(@($m.References)[0])") )
+    if ($OnlineCve) {
+        try {
+            $cveMatches = @(Get-TcpkCveMatches -Path $expanded)
+            $vulnCount = 0
+            foreach ($m in $cveMatches) {
+                if ($m.Status -ne 'Vulnerable') { continue }   # only emit confirmed vulnerable as findings
+                $vulnCount++
+                $all.Add( (New-TcpkFinding -Module 'static' -RuleId "cve.$($m.Cve)" `
+                    -Severity $m.Severity -Confidence $m.Confidence `
+                    -Title "$($m.Package) $($m.ShippedVersion) -- $($m.Cve): $($m.Title)" `
+                    -File $m.File -Evidence "shipped $($m.ShippedVersion); fixed in $($m.FixedVersion)" `
+                    -Cwe ([string[]]@($m.Cwe)) -Description $m.Summary `
+                    -Fix "Upgrade $($m.Package) to $($m.FixedVersion) or later (ideally the latest supported release). Ref: $(@($m.References)[0])") )
+            }
+            Write-Information -MessageData "  Online CVE: $(@($cveMatches).Count) live match(es) ($vulnCount confirmed-vulnerable -> findings)" -InformationAction Continue
+            Write-TcpkLog -Level SUCCESS -Component 'cve.match' -Message "$(@($cveMatches).Count) online matches, $vulnCount confirmed-vulnerable" | Out-Null
+        } catch {
+            Write-Information -MessageData "  Online CVE lookup failed: $($_.Exception.Message)" -InformationAction Continue
+            Write-TcpkLog -Level ERROR -Component 'cve.match' -Message $_.Exception.Message | Out-Null
         }
-        Write-Information -MessageData "  CVE catalog: $(@($cveMatches).Count) component matches ($vulnCount confirmed-vulnerable -> findings)" -InformationAction Continue
-        Write-TcpkLog -Level SUCCESS -Component 'cve.match' -Message "$(@($cveMatches).Count) matches, $vulnCount confirmed-vulnerable" | Out-Null
-    } catch {
-        Write-Information -MessageData "  CVE matching failed: $($_.Exception.Message)" -InformationAction Continue
-        Write-TcpkLog -Level ERROR -Component 'cve.match' -Message $_.Exception.Message | Out-Null
+
+        # --- library version-currency / EOL (online): "0 CVEs" is not "up to date". Tell them the
+        #     LATEST supported version + branch EOL, rather than an old CVE's fix-in version. ---
+        try {
+            $curFindings = @(Get-TcpkLibraryCurrency -Path $expanded)
+            foreach ($cf in $curFindings) { $all.Add($cf) }
+            if ($curFindings.Count) {
+                Write-Information -MessageData "  Library currency: $($curFindings.Count) native lib(s) not on the latest supported release" -InformationAction Continue
+                Write-TcpkLog -Level SUCCESS -Component 'nativelib.currency' -Message "$($curFindings.Count) currency finding(s)" | Out-Null
+            }
+        } catch {
+            Write-TcpkLog -Level ERROR -Component 'nativelib.currency' -Message $_.Exception.Message | Out-Null
+        }
+    } else {
+        Write-TcpkLog -Level INFO -Component 'cve.match' -Message 'CVE lookup skipped (online CVE not enabled -- no offline catalog)' | Out-Null
     }
 
     # Make the electron.outdated-runtime finding REPORT WHAT THE OSV CHECK ACTUALLY DID (advisories
@@ -744,7 +760,7 @@ function Invoke-TcpkAudit {
     try { $signing | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'signing.json') -Encoding UTF8 }
     catch { Write-TcpkLog -Level ERROR -Component 'signing.json' -Message $_.Exception.Message | Out-Null }
 
-    $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Signing $signing -Sbom $sbom
+    $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Signing $signing -Sbom $sbom -CveChecked ([bool]$OnlineCve)
     # Markdown deliverable (plain-text, client-facing) alongside the HTML.
     try {
         $all | Export-TcpkReportMarkdown -OutFile (Join-Path $OutDir 'report.md') -Target $Target -Profile $targetProfile | Out-Null

@@ -13,7 +13,7 @@ $script:TcpkSeverityRank = @{
 # Invoke-TcpkLlmCodeJudgment writes the '(LLM)' variants, and findings round-trip
 # through New-TcpkFinding when the GUI/report layer rebuilds them, so the factory
 # must accept these too.
-$script:TcpkValidConfidence = @('Confirmed','Confirmed (IL)','Confirmed (dynamic)','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (IL)','Likely-FP (LLM)','Uncertain (LLM)')
+$script:TcpkValidConfidence = @('Confirmed','Confirmed (IL)','Confirmed (dynamic)','Confirmed (OSV)','Confirmed (NVD)','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (IL)','Likely-FP (LLM)','Uncertain (LLM)')
 
 function New-TcpkFinding {
     [CmdletBinding()]
@@ -26,7 +26,7 @@ function New-TcpkFinding {
         [string] $Severity,
         [Parameter(Mandatory)][string] $Title,
 
-        [ValidateSet('Confirmed','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (LLM)','Uncertain (LLM)','Confirmed (IL)','Likely-FP (IL)','Confirmed (dynamic)')]
+        [ValidateSet('Confirmed','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (LLM)','Uncertain (LLM)','Confirmed (IL)','Likely-FP (IL)','Confirmed (dynamic)','Confirmed (OSV)','Confirmed (NVD)')]
         [string] $Confidence = 'Confirmed',
 
         [string]   $Description,

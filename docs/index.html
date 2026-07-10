@@ -79,7 +79,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <div class="wrap">
 <nav class="toc">
   <div class="brand">TC<span>PK</span></div>
-  <div class="ver">v2.1.0 &middot; 181 cmdlets</div>
+  <div class="ver">v2.2.0 &middot; 180 cmdlets</div>
   <a href="#tldr">TL;DR</a>
   <a href="#threat">Why thick clients</a>
   <a href="#principles">Design principles</a>
@@ -113,7 +113,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <p class="tag">Evidence over assertion. A scanner that proves its findings.</p>
   <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
   <div class="badges">
-    <span class="badge"><b>v2.1.0</b></span>
+    <span class="badge"><b>v2.2.0</b></span>
     <span class="badge"><b>180</b> cmdlets</span>
     <span class="badge">PowerShell <b>5.1+</b></span>
     <span class="badge">WinForms GUI + <b>MCP</b> server</span>
@@ -206,7 +206,6 @@ Invoke-TcpkAudit -Target 'C:\Apps\Contoso' -Acknowledge -FailOn HIGH</code></pre
   Data/
     secrets.json           # rules[], callsite_patterns[], deser_tokens[]
     cvss/cvss40-lookup.json# 270-entry macrovector -> base-score table
-    cve/catalog.json       # curated component CVE catalog
     checklist/thick-client-checklist.json  # 55-case methodology
 Start-TCPKGui.ps1          # WinForms console
 Start-TcpkMcpServer.ps1    # Model Context Protocol server for AI agents</code></pre>
@@ -467,7 +466,7 @@ chain.uri-handler-sink-rce      (CRITICAL)
 
 <section id="sbom">
 <h2><span class="num">11</span>SBOM + CVE</h2>
-<p>TCPK emits a <b>CycloneDX</b> SBOM (<code>sbom.cdx.json</code>): every shipped component with name, version, publisher, SHA-256, and a correct purl (<code>pkg:nuget/...</code> derived from <code>deps.json</code> for managed components, native for the rest) -- consumable by Dependency-Track, Grype, or OSV. Matched CVEs from the curated catalog are embedded as a CycloneDX <code>vulnerabilities[]</code> array linked to the affected component bom-ref, and surfaced in the report. An optional <code>-OnlineCve</code> switch additionally queries the OSV API (off by default; sends only the package name + version, fails closed with no network) and merges those CVEs into the same <code>vulnerabilities[]</code>.</p>
+<p>TCPK emits a <b>CycloneDX</b> SBOM (<code>sbom.cdx.json</code>): every shipped component with name, version, publisher, SHA-256, and a correct purl (<code>pkg:nuget/...</code> derived from <code>deps.json</code> for managed components, native for the rest) -- consumable by Dependency-Track, Grype, or OSV. CVE matching is ONLINE-ONLY -- <b>OSV</b> for NuGet/npm/Maven and <b>NVD by CPE</b> for native libraries; no offline catalog is bundled. Matched CVEs are embedded as a CycloneDX <code>vulnerabilities[]</code> array linked to the affected component bom-ref, and surfaced in the report. Matching sends only the package/CPE name + version and fails closed with no network; it is on by default in the GUI, web panel and agentic workbench, and requested with <code>-OnlineCve</code> in the CLI.</p>
 <pre><code class="language-powershell">Get-TcpkCveMatches -Path .\out\extracted | Format-Table Status,Severity,Cve,Package,ShippedVersion,FixedVersion
 # Status      Severity  Cve              Package          Shipped  Fixed
 # Vulnerable  HIGH      CVE-2024-21907   Newtonsoft.Json  12.0.0   13.0.1</code></pre>
@@ -604,7 +603,7 @@ Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
 <footer>
-<p><b>TCPK v2.1.0</b> &middot; Thick Client Pentest Kit &middot; 181 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+<p><b>TCPK v2.2.0</b> &middot; Thick Client Pentest Kit &middot; 180 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
 </footer>
 </main>
 </div>

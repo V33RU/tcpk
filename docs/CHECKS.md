@@ -11,7 +11,7 @@ For thin-client apps it audits the **client-side binaries** only -- the remote s
 is out of scope (separate web/API engagement), as is the thin-client terminal OS/appliance
 (run TCPK where the Windows PE binaries live, e.g. a Citrix/RDP published-app host).
 
-## A - Static binary analysis  (34)
+## A - Static binary analysis  (32)
 
 - **Get-TcpkPeHardening** - Per-DLL binary-hardening matrix (ASLR / DEP / CFG / HighEntropyVA / ...).
 - **Get-TcpkSigningMatrix** - Per-DLL code-signing matrix (signed / not signed -- information only; SIGNED / CATALOG / UNSIGNED / TAMPERED / UNTRUSTED + signer). Drives the GUI 'DLL Signing' tab, HTML signing table and Excel 'DLL Signing' sheet.
@@ -21,7 +21,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkCryptoMisuse** - A13. Crypto-misuse hunter -- hardcoded key material + weak KDF / padding.
 - **Test-TcpkCsvInjection** - A39. CSV / spreadsheet formula injection on export (CWE-1236): export sink with no formula-character neutralization.
 - **Test-TcpkDebugFlags** - A16. Debug switches, security-disabling flags, and backdoor markers.
-- **Test-TcpkDependencyCves** - A19. Parse *.deps.json and flag bundled NuGet deps with known CVEs.
 - **Test-TcpkDeserialization** - A10. Static heuristic for unsafe .NET deserialization patterns.
 - **Test-TcpkDevArtifacts** - A36. Leftover dev/build artifacts shipped in the release (TASVS-CONF-1.4): debug symbols, source, backups, dev-config, API specs, .git/IDE dirs.
 - **Test-TcpkElectron** - A24. Electron / Chromium-embedded insecure configuration (renderer flags incl. nodeIntegration / contextIsolation / sandbox / webSecurity / nodeIntegrationInSubFrames / experimentalFeatures / enableBlinkFeatures / nodeIntegrationInWorkers / webviewTag / webSQL / experimentalCanvasFeatures). Also flags TLS certificate-validation bypass in the bundled JS (electron.cert-validation-bypass, electron.cert-error-accept-all): a setCertificateVerifyProc with no callback(-2) reject path, rejectUnauthorized:false, NODE_TLS_REJECT_UNAUTHORIZED=0, or an accept-all certificate-error handler.
@@ -33,7 +32,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkJavaBundle** - A35. Crack shipped Java archives (jar/war/ear) and scan entries for secrets + insecure-TLS markers.
 - **Test-TcpkJwt** - A14. Embedded JSON Web Token (JWT) discovery + weakness analysis.
 - **Test-TcpkNativeInterop** - A18. Native interop -- unsafe Marshal / pointer patterns.
-- **Test-TcpkPackageManifests** - A34. CVE check for non-deps.json manifests (packages.config / *.csproj PackageReference / pom.xml / package.json / lockfiles) vs the offline catalog.
 - **Test-TcpkPacker** - A22. Packer / obfuscator detection -- and the inverse: source-recoverable
 - **Test-TcpkPeExports** - A04. PE export surface enumeration (for proxy-DLL planning).
 - **Test-TcpkPeImports** - A03 -- Phantom DLL imports (DLL hijack candidates).
@@ -176,7 +174,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 
 ## K - Exploitation (GATED, off by default)  (12)
 
-- **Get-TcpkCveMatches** - Match the target's shipped components against the offline CVE catalog
+- **Get-TcpkCveMatches** - Match the target's shipped components against live CVE data (ONLINE-ONLY): OSV (NuGet/npm/Maven) + NVD (native libs by CPE); no offline catalog is bundled
 - **Get-TcpkExploitPlan** - Build a unified, actionable exploit plan from CVE matches + exploitable findings.
 - **Invoke-TcpkDpapiCrossUser** - K04. Attempt to decrypt a DPAPI blob under each available DPAPI scope.
 - **Invoke-TcpkGuiUnlock** - K10. (GATED) Enable disabled controls / unmask password fields (Win32).
@@ -226,4 +224,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**Total: 156 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (181 public cmdlets in v2.1.0).
+**Total: 154 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (180 public cmdlets in v2.2.0).

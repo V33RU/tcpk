@@ -673,7 +673,7 @@
                                          "ruleIndex":  1,
                                          "level":  "note",
                                          "message":  {
-                                                         "text":  "DVTA.vshost.exe signing certificate expired, but signature is timestamped (still valid) (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.vshost.exe; C:\\ProgramData\\DVTA\\EntityFramework.dll  | confidence: Confirmed"
+                                                         "text":  "DVTA.vshost.exe signing certificate expired, but signature is timestamped (still valid) (+1 more affected)  | evidence: certExpired=2013-01-11 02:02:25Z; timestamped=yes; Subject=CN=Microsoft Corporation, OU=MOPR, O=Microsoft Corporation, L=Redmond, S=Washington, C=US; Issuer=CN=Microsoft Code Signing PCA, O=Microsoft Corporation, L=Redmond, S=Washington, C=US; Serial=6119CC93000100000066; Thumbprint=19F8F76F4655074509769C20349FFAECCECD217D; Algorithm=sha1RSA; KeySize=2048; EKU=Code Signing; Valid=2011-10-11..2013-01-11  [2 affected: C:\\ProgramData\\DVTA\\DVTA.vshost.exe; C:\\ProgramData\\DVTA\\EntityFramework.dll]  | confidence: Confirmed"
                                                      },
                                          "locations":  [
                                                            {
@@ -699,7 +699,7 @@
                                          "ruleIndex":  2,
                                          "level":  "warning",
                                          "message":  {
-                                                         "text":  "DVTA.vshost.exe signing certificate uses a weak hash (sha1RSA) (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.vshost.exe; C:\\ProgramData\\DVTA\\EntityFramework.dll  | confidence: Confirmed"
+                                                         "text":  "DVTA.vshost.exe signing certificate uses a weak hash (sha1RSA) (+1 more affected)  | evidence: SignatureAlgorithm=sha1RSA; Subject=CN=Microsoft Corporation, OU=MOPR, O=Microsoft Corporation, L=Redmond, S=Washington, C=US; Issuer=CN=Microsoft Code Signing PCA, O=Microsoft Corporation, L=Redmond, S=Washington, C=US; Serial=6119CC93000100000066; Thumbprint=19F8F76F4655074509769C20349FFAECCECD217D; Algorithm=sha1RSA; KeySize=2048; EKU=Code Signing; Valid=2011-10-11..2013-01-11  [2 affected: C:\\ProgramData\\DVTA\\DVTA.vshost.exe; C:\\ProgramData\\DVTA\\EntityFramework.dll]  | confidence: Confirmed"
                                                      },
                                          "locations":  [
                                                            {
@@ -726,7 +726,7 @@
                                          "ruleIndex":  3,
                                          "level":  "note",
                                          "message":  {
-                                                         "text":  "DBAccess.dll has no strong-name public key token (+2 more affected)  | evidence: 3 affected: C:\\ProgramData\\DVTA\\DBAccess.dll; C:\\ProgramData\\DVTA\\DVTA.exe; C:\\ProgramData\\DVTA\\ExcelLibrary.dll  | confidence: Confirmed"
+                                                         "text":  "DBAccess.dll has no strong-name public key token (+2 more affected)  | evidence: Version=1.0.0.0  [3 affected: C:\\ProgramData\\DVTA\\DBAccess.dll; C:\\ProgramData\\DVTA\\DVTA.exe; C:\\ProgramData\\DVTA\\ExcelLibrary.dll]  | confidence: Confirmed"
                                                      },
                                          "locations":  [
                                                            {
@@ -778,7 +778,7 @@
                                          "ruleIndex":  5,
                                          "level":  "error",
                                          "message":  {
-                                                         "text":  "Hardcoded credential in .NET config appSettings (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config  | confidence: Inferred"
+                                                         "text":  "Hardcoded credential in .NET config appSettings (+1 more affected)  | evidence: CTsvjZ0jQghXYWbSRcPxpQ== [src=utf8]  [2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config]  | confidence: Inferred"
                                                      },
                                          "locations":  [
                                                            {
@@ -805,7 +805,7 @@
                                          "ruleIndex":  6,
                                          "level":  "error",
                                          "message":  {
-                                                         "text":  "Hardcoded cryptographic key in .NET config appSettings (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config  | confidence: Inferred"
+                                                         "text":  "Hardcoded cryptographic key in .NET config appSettings (+1 more affected)  | evidence: J8gLXc454o5tW2HEF7HahcXPufj9v8k8 [src=utf8]  [2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config]  | confidence: Inferred"
                                                      },
                                          "locations":  [
                                                            {
@@ -832,7 +832,7 @@
                                          "ruleIndex":  7,
                                          "level":  "warning",
                                          "message":  {
-                                                         "text":  "Hardcoded AES/CBC initialization vector in config (+1 more affected)  | evidence: 2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config  | confidence: Inferred"
+                                                         "text":  "Hardcoded AES/CBC initialization vector in config (+1 more affected)  | evidence: fq20T0gMnXa6g0l4 [src=utf8]  [2 affected: C:\\ProgramData\\DVTA\\DVTA.exe.config; C:\\ProgramData\\DVTA\\DVTA.vshost.exe.config]  | confidence: Inferred"
                                                      },
                                          "locations":  [
                                                            {

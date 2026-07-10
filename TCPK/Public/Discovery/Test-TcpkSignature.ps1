@@ -30,11 +30,21 @@ function Test-TcpkSignature {
         param([object]$sig, [string]$file, [string]$label)
         if (-not $sig -or $sig.Status -ne 'Valid' -or -not $sig.SignerCertificate) { return }
         $cert = $sig.SignerCertificate
+        # Full decoded certificate detail so the FINDING carries the whole cert (not just the
+        # signer CN): Subject / Issuer / Serial / Thumbprint / Algorithm / KeySize / EKU / validity.
+        $certAlgo = ''; try { $certAlgo = "$($cert.SignatureAlgorithm.FriendlyName)" } catch { }
+        $certKey  = ''; try { $certKey  = "$($cert.PublicKey.Key.KeySize)" } catch { }
+        $certEku  = ''
+        try {
+            $ekuExt = $cert.Extensions | Where-Object { $_ -is [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension] } | Select-Object -First 1
+            if ($ekuExt) { $certEku = (($ekuExt.EnhancedKeyUsages | ForEach-Object { "$($_.FriendlyName)" }) -join ', ') }
+        } catch { }
+        $certFull = "Subject=$($cert.Subject); Issuer=$($cert.Issuer); Serial=$($cert.SerialNumber); Thumbprint=$($cert.Thumbprint); Algorithm=$certAlgo; KeySize=$certKey; EKU=$certEku; Valid=$($cert.NotBefore.ToString('yyyy-MM-dd'))..$($cert.NotAfter.ToString('yyyy-MM-dd'))"
         if (-not $sig.TimeStamperCertificate) {
             New-TcpkFinding -Module 'static' -RuleId 'authenticode.no-timestamp' `
                 -Severity 'MEDIUM' -Confidence 'Confirmed' `
                 -Title "$label signature is not timestamped" `
-                -File $file -Evidence "signer=$($cert.Subject); NotAfter=$($cert.NotAfter.ToString('u'))" `
+                -File $file -Evidence "timestamped=no; $certFull" `
                 -Cwe @('CWE-347') `
                 -Description 'The Authenticode signature has no RFC3161 trusted timestamp. Once the signing certificate expires the signature stops validating, weakening long-term integrity and making re-signing/tampering easier to disguise.' `
                 -Fix 'Counter-sign with a trusted timestamp authority (signtool /tr <ts-url> /td sha256).'
@@ -48,7 +58,7 @@ function Test-TcpkSignature {
                 New-TcpkFinding -Module 'static' -RuleId 'authenticode.signer-expired' `
                     -Severity 'INFO' -Confidence 'Confirmed' `
                     -Title "$label signing certificate expired, but signature is timestamped (still valid)" `
-                    -File $file -Evidence "signer=$($cert.Subject); certExpired=$($cert.NotAfter.ToString('u')); timestamped=yes" `
+                    -File $file -Evidence "certExpired=$($cert.NotAfter.ToString('u')); timestamped=yes; $certFull" `
                     -Cwe @('CWE-347') `
                     -Description 'The signing certificate is past its validity period, but the signature carries a trusted RFC3161 timestamp dated within that period, so it still establishes valid provenance. Informational only.' `
                     -Fix 'No immediate action. Re-sign at the next release to keep the chain current.'
@@ -56,7 +66,7 @@ function Test-TcpkSignature {
                 New-TcpkFinding -Module 'static' -RuleId 'authenticode.signer-expired' `
                     -Severity 'MEDIUM' -Confidence 'Confirmed' `
                     -Title "$label signing certificate is expired (no timestamp)" `
-                    -File $file -Evidence "signer=$($cert.Subject); expired=$($cert.NotAfter.ToString('u')); timestamped=no" `
+                    -File $file -Evidence "expired=$($cert.NotAfter.ToString('u')); timestamped=no; $certFull" `
                     -Cwe @('CWE-347','CWE-324') `
                     -Description 'The signing certificate has expired and the signature is NOT timestamped, so it no longer establishes valid provenance.' `
                     -Fix 'Re-sign with a current certificate and a trusted RFC3161 timestamp.'
@@ -68,7 +78,7 @@ function Test-TcpkSignature {
             New-TcpkFinding -Module 'static' -RuleId 'authenticode.weak-cert-hash' `
                 -Severity 'MEDIUM' -Confidence 'Confirmed' `
                 -Title "$label signing certificate uses a weak hash ($algo)" `
-                -File $file -Evidence "SignatureAlgorithm=$algo; signer=$($cert.Subject)" `
+                -File $file -Evidence "SignatureAlgorithm=$algo; $certFull" `
                 -Cwe @('CWE-327','CWE-347') `
                 -Description 'The signing certificate chain uses SHA-1/MD5, which are collision-prone and deprecated for code signing.' `
                 -Fix 'Obtain a SHA-256 (or stronger) code-signing certificate and re-sign.'

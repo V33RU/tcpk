@@ -10,25 +10,14 @@ BeforeAll {
 
     $script:fx = Join-Path $env:TEMP ('tcpk-gaps-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
-    $script:cve = (& (Get-Module TCPK) { (Get-TcpkData).cve_packages })[0]
 }
 AfterAll {
     if ($script:fx -and (Test-Path $script:fx)) { Remove-Item $script:fx -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
 Describe 'New cmdlets are exported' {
-    It '<_> is available' -ForEach @('Test-TcpkPackageManifests','Save-TcpkFileSnapshot','Compare-TcpkFileSnapshot') {
+    It '<_> is available' -ForEach @('Save-TcpkFileSnapshot','Compare-TcpkFileSnapshot') {
         Get-Command $_ -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
-    }
-}
-
-Describe 'Test-TcpkPackageManifests - non-deps.json CVE matching' {
-    It 'flags a packages.config dependency below the CVE-fixed version' {
-        "<packages><package id=`"$($script:cve.name)`" version=`"0.0.1`" /></packages>" |
-            Set-Content -LiteralPath (Join-Path $script:fx 'packages.config') -Encoding UTF8
-        $f = @(Test-TcpkPackageManifests -Path $script:fx) | Where-Object RuleId -like 'pkgmanifest.cve.*'
-        $f | Should -Not -BeNullOrEmpty
-        $f[0].Confidence | Should -Be 'Confirmed'
     }
 }
 

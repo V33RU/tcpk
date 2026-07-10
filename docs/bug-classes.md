@@ -1,9 +1,9 @@
 # Thick-client bug class reference
 
-The 89 testcases TCPK covers, organized as a reading guide for engagement
+The 88 testcases TCPK covers, organized as a reading guide for engagement
 scoping and post-audit triage.
 
-## Bucket A. Static binary analysis (21 testcases)
+## Bucket A. Static binary analysis (20 testcases)
 
 What the binary itself reveals before it runs.
 
@@ -27,7 +27,6 @@ What the binary itself reveals before it runs.
 | A16 | `Test-TcpkReflectionLoading` | Assembly.LoadFrom from user paths |
 | A17 | `Test-TcpkPInvokeSurface` | Bare-name DllImports (PATH-attackable) |
 | A18 | `Test-TcpkNativeInterop` | Marshal / pointer / unsafe references |
-| A19 | `Test-TcpkDependencyCves` | Bundled NuGet packages with known CVEs |
 | A20 | `Test-TcpkEmbeddedScripts` | Shipped PowerShell / JS / Python files |
 | A21 | `Test-TcpkWebViewNavTargets` | URLs the embedded WebView2 will navigate to |
 

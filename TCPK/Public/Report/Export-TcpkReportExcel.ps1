@@ -138,9 +138,12 @@ function Export-TcpkReportExcel {
         # ---------- CVEs sheet (optional) ----------
         if ($CveMatches -and @($CveMatches).Count) {
             $cveRows = foreach ($c in @($CveMatches)) {
-                ,@("$($c.Status)", "$($c.Severity)", "$($c.Cve)", "$($c.Package)", "$($c.ShippedVersion)", "$($c.FixedVersion)", "$($c.Area)", "$($c.Title)")
+                # 'Fixed in' is a floor (the version where the fix first landed), so render it as
+                # ">= X" -- shipped >= this = Patched. Bare "X" read as an older-than-shipped downgrade.
+                $fixedIn = if ("$($c.FixedVersion)") { ">= $($c.FixedVersion)" } else { "-" }
+                ,@("$($c.Status)", "$($c.Severity)", "$($c.Cve)", "$($c.Package)", "$($c.ShippedVersion)", $fixedIn, "$($c.Area)", "$($c.Title)")
             }
-            $sheets += [ordered]@{ Name = 'CVEs'; Headers = @('Status','Severity','CVE','Package','Shipped','Fixed','Area','Title'); Rows = @($cveRows) }
+            $sheets += [ordered]@{ Name = 'CVEs'; Headers = @('Status','Severity','CVE','Package','Shipped','Fixed in','Area','Title'); Rows = @($cveRows) }
         }
 
         # ---------- Recon / Attack Surface sheet (parity with HTML recon section) ----------

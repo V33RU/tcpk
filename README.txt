@@ -108,10 +108,10 @@ Every audit writes these to its own out\ folder:
 
   attack-surface.json  Ranked entry-point map (protocols, IPC, listeners).
   sbom.cdx.json        CycloneDX bill of materials, with a vulnerabilities[]
-                       array of matched CVEs. CVE matching is OFFLINE by default
-                       (curated catalog vs deps.json + native DLLs); add -OnlineCve
-                       to also query the OSV API (opt-in; sends only the package
-                       name + version, fails closed with no network).
+                       array of matched CVEs. CVE matching is ONLINE-ONLY via OSV
+                       (NuGet/npm/Maven) + NVD (native libs by CPE); no offline
+                       catalog is bundled. It sends only the package/CPE name +
+                       version and fails closed with no network.
   findings.json        Machine-readable findings (CI / GUI / MCP).
   strings.json, exploits.json, run.jsonl   recon strings, exploit plan, trace.
 
@@ -152,7 +152,7 @@ read-only live tools (memory/env secret scan, process DACL) need no gate.
 VERSION
 -------
 
-  TCPK v2.1.0, July 2026. 181 cmdlets; HTML + Excel
+  TCPK v2.2.0, July 2026. 180 cmdlets; HTML + Excel
   reports with COMPUTED CVSS v4.0 base scores (FIRST.org algorithm),
   MITRE ATT&CK, OWASP TASVS / Desktop Top 10, SBOM and an attack-surface
   map. Optional local-LLM triage (-EnableLlm / GUI "AI-verify findings").

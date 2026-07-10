@@ -2,7 +2,7 @@
 
 - Target: `DVTA`
 - Version: 1.0.0.0  |  Publisher: Microsoft  |  Type: Win32 application
-- Generated: 2026-07-05 14:52:26Z UTC
+- Generated: 2026-07-06 05:16:55Z UTC
 - Findings: 35
 
 ## Executive summary
@@ -99,7 +99,7 @@ Select-String -Path 'C:\ProgramData\DVTA\DVTA.exe.config' -Pattern '[A-Za-z0-9+/
 - Affected (2):
   - `C:\ProgramData\DVTA\DVTA.exe.config`
   - `C:\ProgramData\DVTA\DVTA.vshost.exe.config`
-- Evidence: `2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config`
+- Evidence: `J8gLXc454o5tW2HEF7HahcXPufj9v8k8 [src=utf8]  [2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config]`
 
 Verify:
 ```
@@ -129,7 +129,7 @@ Verify:
 - Affected (2):
   - `C:\ProgramData\DVTA\DVTA.exe.config`
   - `C:\ProgramData\DVTA\DVTA.vshost.exe.config`
-- Evidence: `2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config`
+- Evidence: `CTsvjZ0jQghXYWbSRcPxpQ== [src=utf8]  [2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config]`
 
 Verify:
 ```
@@ -193,7 +193,7 @@ The signing certificate chain uses SHA-1/MD5, which are collision-prone and depr
 - Affected (2):
   - `C:\ProgramData\DVTA\DVTA.vshost.exe`
   - `C:\ProgramData\DVTA\EntityFramework.dll`
-- Evidence: `2 affected: C:\ProgramData\DVTA\DVTA.vshost.exe; C:\ProgramData\DVTA\EntityFramework.dll`
+- Evidence: `SignatureAlgorithm=sha1RSA; Subject=CN=Microsoft Corporation, OU=MOPR, O=Microsoft Corporation, L=Redmond, S=Washington, C=US; Issuer=CN=Microsoft Code Signing PCA, O=Microsoft Corporation, L=Redmond, S=Washington, C=US; Serial=6119CC93000100000066; Thumbprint=19F8F76F4655074509769C20349FFAECCECD217D; Algorithm=sha1RSA; KeySize=2048; EKU=Code Signing; Valid=2011-10-11..2013-01-11  [2 affected: C:\ProgramData\DVTA\DVTA.vshost.exe; C:\ProgramData\DVTA\EntityFramework.dll]`
 
 Verify:
 ```
@@ -368,7 +368,7 @@ Test-NetConnection <host> -Port 443
 - Affected (2):
   - `C:\ProgramData\DVTA\DVTA.exe.config`
   - `C:\ProgramData\DVTA\DVTA.vshost.exe.config`
-- Evidence: `2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config`
+- Evidence: `fq20T0gMnXa6g0l4 [src=utf8]  [2 affected: C:\ProgramData\DVTA\DVTA.exe.config; C:\ProgramData\DVTA\DVTA.vshost.exe.config]`
 
 Verify:
 ```
@@ -510,7 +510,7 @@ Assembly identity is name+version only -- weakens reflection-based assembly reso
   - `C:\ProgramData\DVTA\DBAccess.dll`
   - `C:\ProgramData\DVTA\DVTA.exe`
   - `C:\ProgramData\DVTA\ExcelLibrary.dll`
-- Evidence: `3 affected: C:\ProgramData\DVTA\DBAccess.dll; C:\ProgramData\DVTA\DVTA.exe; C:\ProgramData\DVTA\ExcelLibrary.dll`
+- Evidence: `Version=1.0.0.0  [3 affected: C:\ProgramData\DVTA\DBAccess.dll; C:\ProgramData\DVTA\DVTA.exe; C:\ProgramData\DVTA\ExcelLibrary.dll]`
 
 Verify:
 ```
@@ -769,7 +769,7 @@ The signing certificate is past its validity period, but the signature carries a
 - Affected (2):
   - `C:\ProgramData\DVTA\DVTA.vshost.exe`
   - `C:\ProgramData\DVTA\EntityFramework.dll`
-- Evidence: `2 affected: C:\ProgramData\DVTA\DVTA.vshost.exe; C:\ProgramData\DVTA\EntityFramework.dll`
+- Evidence: `certExpired=2013-01-11 02:02:25Z; timestamped=yes; Subject=CN=Microsoft Corporation, OU=MOPR, O=Microsoft Corporation, L=Redmond, S=Washington, C=US; Issuer=CN=Microsoft Code Signing PCA, O=Microsoft Corporation, L=Redmond, S=Washington, C=US; Serial=6119CC93000100000066; Thumbprint=19F8F76F4655074509769C20349FFAECCECD217D; Algorithm=sha1RSA; KeySize=2048; EKU=Code Signing; Valid=2011-10-11..2013-01-11  [2 affected: C:\ProgramData\DVTA\DVTA.vshost.exe; C:\ProgramData\DVTA\EntityFramework.dll]`
 
 Verify:
 ```

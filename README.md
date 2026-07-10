@@ -6,7 +6,7 @@
   Portable Windows thick-client / MSIX security audit tool.
   **Find. Verify. Report.**
 
-  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, an agentic AI workbench, and a native MCP server. 181 cmdlets.
+  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, an agentic AI workbench, and a native MCP server. 180 cmdlets.
   Authorized testing only.
 </div>
 
@@ -49,11 +49,14 @@ discovery-only, local-first (Ollama):
 - **Real CVSS v4.0 scores.** A faithful port of the FIRST.org reference algorithm +
   macrovector lookup computes the base score from each finding's vector -- a *local*
   issue is scored `AV:L`, not mislabelled like a network one. No fabricated numbers.
-- **Supply-chain CVE matching.** Shipped components are matched against an offline, curated
-  CVE catalog by exact `deps.json` version (native libraries by name). An optional
-  `-OnlineCve` switch additionally queries the OSV API -- off by default, sends only the
-  package name + version, fails closed with no network. Either way the matches are embedded
-  in a **CycloneDX** `sbom.cdx.json` for hand-off to Grype / OSV-Scanner / Dependency-Track.
+- **Supply-chain CVE matching.** Shipped components are matched against live CVE data --
+  **OSV** for NuGet + npm + Maven (the Electron runtime and shipped Java bundles), and
+  **NVD by CPE** for native libraries (OpenSSL / zlib / SQLite / ...), version-accurate so a
+  patched library is not flagged. Matching is ONLINE-ONLY -- no offline CVE catalog is
+  bundled -- and it sends only the package/CPE name + version and fails closed with no network.
+  It is on by default in the GUI, web panel and agentic workbench (skip it for an air-gapped
+  run) and requested with `-OnlineCve` in the CLI. Either way the matches are embedded in a
+  **CycloneDX** `sbom.cdx.json` for hand-off to Grype / OSV-Scanner / Dependency-Track.
 - **Optional local-first AI triage.** `-EnableLlm` (or the GUI "AI-verify findings" box)
   pipes code-construct findings through a local Ollama model to annotate confidence.
   Cloud providers are gated behind an explicit opt-in (the decompiled IL never leaves
@@ -191,4 +194,4 @@ violate computer-misuse law and licence terms. Provided **AS IS**, no warranty. 
 
 ---
 
-TCPK v2.1.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v2.2.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.

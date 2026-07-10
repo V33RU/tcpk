@@ -94,7 +94,7 @@ if (Test-Path $icoPath) { try { $form.Icon = New-Object System.Drawing.Icon($ico
 # --- Top panel: target + profile + AI + run ---
 $topPanel = New-Object System.Windows.Forms.Panel
 $topPanel.Dock = 'Top'
-$topPanel.Height = 180
+$topPanel.Height = 206
 $topPanel.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 $form.Controls.Add($topPanel)
 
@@ -148,6 +148,18 @@ $btnAutoDetect.Location = New-Object System.Drawing.Point(916, 30)
 $btnAutoDetect.Size = New-Object System.Drawing.Size(90, 28)
 $btnAutoDetect.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnAutoDetect)
+
+# Application-identity line: filled by Auto-Detect BEFORE the audit runs, so the operator
+# sees what kind of app this is (type / runtime / UI / signer) up front.
+$lblIdent = New-Object System.Windows.Forms.Label
+$lblIdent.Text = "App identity: click Auto-Detect to identify the target (type / runtime / UI / signer)."
+$lblIdent.Location = New-Object System.Drawing.Point(14, 176)
+$lblIdent.Size = New-Object System.Drawing.Size(992, 24)
+$lblIdent.AutoEllipsis = $true
+$lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+$lblIdent.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$lblIdent.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$topPanel.Controls.Add($lblIdent)
 
 $lblProfile = New-Object System.Windows.Forms.Label
 $lblProfile.Text = "Profile:"
@@ -217,6 +229,18 @@ $btnPause.Add_Click({
         Update-Status "Paused -- make your changes on the target, then click Resume."
     }
 })
+
+# Online CVE toggle -- on the main scan-options row so it is visible on every screen (not buried
+# in the SBOM tab). Checked by default: live CVE via OSV (NuGet/Electron) + NVD/CPE (native libs).
+# Uncheck for an offline, air-gapped run (bundled catalog only).
+$chkOnlineCve = New-Object System.Windows.Forms.CheckBox
+$chkOnlineCve.Text = "Online CVE"
+$chkOnlineCve.Location = New-Object System.Drawing.Point(700, 69)
+$chkOnlineCve.Size = New-Object System.Drawing.Size(112, 22)
+$chkOnlineCve.Checked = $true
+$topPanel.Controls.Add($chkOnlineCve)
+$ttOnlineCve = New-Object System.Windows.Forms.ToolTip
+$ttOnlineCve.SetToolTip($chkOnlineCve, "Live CVE lookup: OSV (NuGet/Electron) + NVD/CPE (native libs: OpenSSL/zlib/sqlite). Uncheck = offline catalog only. Sends only package/CPE name+version.")
 
 # --- AI row (y=108) -----------------------------------------------------------
 $chkAi = New-Object System.Windows.Forms.CheckBox
@@ -568,12 +592,7 @@ $txtSbomFilter.Add_TextChanged({ Filter-Sbom })
 # audit ALSO query the OSV API for the shipped NuGet components (sends only package
 # name + version). It lives on this tab because CVE matches surface here, and its state
 # persists for the session -- one tick covers every audit you run.
-$chkOnlineCve = New-Object System.Windows.Forms.CheckBox
-$chkOnlineCve.Text = "Online CVE lookup (OSV) -- queries api.osv.dev (off = offline catalog only)"
-$chkOnlineCve.Location = New-Object System.Drawing.Point(540, 26)
-$chkOnlineCve.Size = New-Object System.Drawing.Size(440, 22)
-$chkOnlineCve.Checked = $false
-$sbomHeader.Controls.AddRange(@($sbomHint, $sbomLblF, $txtSbomFilter, $chkOnlineCve))
+$sbomHeader.Controls.AddRange(@($sbomHint, $sbomLblF, $txtSbomFilter))
 $tabSbom.Controls.Add($sbomHeader)
 $lvSbom = New-Object System.Windows.Forms.ListView
 $lvSbom.Dock = 'Fill'; $lvSbom.View = 'Details'; $lvSbom.FullRowSelect = $true; $lvSbom.GridLines = $true
@@ -1741,6 +1760,18 @@ $btnAutoDetect.Add_Click({
     if (-not $path) {
         [System.Windows.Forms.MessageBox]::Show("Enter or browse to a target first.", "TCPK", 'OK', 'Information') | Out-Null
         return
+    }
+
+    # App-kind identity (what kind of application is this) -- shown BEFORE the audit runs.
+    $lblIdent.Text = "App identity: identifying..."
+    $lblIdent.Refresh()
+    try {
+        $ident = Get-TcpkAppIdentity -Path $path
+        $lblIdent.Text = "App identity: $($ident.Summary)"
+        $lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(30, 100, 60)
+    } catch {
+        $lblIdent.Text = "App identity: could not identify ($($_.Exception.Message))"
+        $lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(150, 60, 40)
     }
 
     # Try to extract package family name from the path

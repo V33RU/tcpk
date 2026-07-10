@@ -68,6 +68,15 @@ function Get-TcpkTargetProfile {
         catch { return $false }
     }
 
+    # Native import union across the app's binaries. The main exe is often a thin launcher, so the
+    # real networking / UI lives in sibling DLLs/exes -- scan the set (bounded) for imported system
+    # DLLs so native (non-.NET) apps are not reported as "unknown / not determined".
+    $imports = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($ip in ($pes | Select-Object -First 60)) {
+        try { $ipe = Read-TcpkPe -Path $ip.FullName; foreach ($imp in @($ipe.Imports)) { if ($imp) { [void]$imports.Add("$imp") } } } catch { }
+    }
+    function _Imp([string]$rx) { foreach ($i in $imports) { if ($i -match $rx) { return $true } } return $false }
+
     $dllCount = @($pes | Where-Object { $_.Extension -ieq '.dll' }).Count
     $exeCount = @($pes | Where-Object { $_.Extension -ieq '.exe' }).Count
     $sysCount = @($pes | Where-Object { $_.Extension -ieq '.sys' }).Count
@@ -211,6 +220,12 @@ function Get-TcpkTargetProfile {
     if ($isFlutter)                                                            { $ui.Add('Flutter') }
     if ($isElectron -or $isCef -or $isNwjs)                                    { $ui.Add('Chromium/WebView') }
     if ((_AnyLike 'microsoft.web.webview2*.dll'))                              { $ui.Add('WebView2') }
+    # native UI (no managed framework matched) -- from imported system DLLs.
+    if ($ui.Count -eq 0) {
+        if (_Imp '(?i)^user32(\.dll)?$')       { $ui.Add('Win32 native (user32/gdi32)') }
+        if (_Imp '(?i)^(d2d1|dwrite)(\.dll)?$') { $ui.Add('Direct2D/DirectWrite') }
+        if (_Imp '(?i)^(d3d1[012]|dxgi)(\.dll)?$') { $ui.Add('Direct3D') }
+    }
     if ($ui.Count -eq 0) { $ui.Add('unknown / custom') }
 
     # ---------- R06 network protocol profile ----------
@@ -222,6 +237,12 @@ function Get-TcpkTargetProfile {
     if (_AnyLike 'mqttnet*.dll')                            { $net.Add('MQTT') }
     if (_AnyLike 'restsharp*.dll' -or (_AnyLike 'flurl*.dll')) { $net.Add('REST (lib)') }
     if ((_Has 'system.net.http.dll') -or (_AnyLike 'system.net.*.dll')) { $net.Add('HTTP/REST') }
+    # native networking (no managed net lib matched) -- from imported system DLLs + bundled TLS.
+    if (_Imp '(?i)^(ws2_32|wsock32|mswsock)(\.dll)?$') { $net.Add('Sockets (Winsock)') }
+    if (_Imp '(?i)^winhttp(\.dll)?$')                  { $net.Add('WinHTTP') }
+    if (_Imp '(?i)^wininet(\.dll)?$')                  { $net.Add('WinINet') }
+    if (_Imp '(?i)^(secur32|sspicli|schannel)(\.dll)?$') { $net.Add('SChannel/SSPI (native TLS)') }
+    if ((_AnyLike 'libssl*.dll') -or (_AnyLike 'libcrypto*.dll') -or (_AnyLike 'ssleay*.dll') -or (_AnyLike 'libeay*.dll')) { $net.Add('OpenSSL (TLS)') }
     if ($net.Count -eq 0) { $net.Add('not determined') }
 
     # ---------- R05 update mechanism ----------
@@ -235,6 +256,8 @@ function Get-TcpkTargetProfile {
     $mainDll = Join-Path $dir ([IO.Path]::GetFileNameWithoutExtension($mainExePath) + '.dll')
     if ($mainExePath -and (Test-Path -LiteralPath $mainDll)) { $mainBlob += "`n" + (Read-TcpkAllText -Path $mainDll) }
     if ($mainBlob -match '(?i)(CheckForUpdate|DownloadUpdate|UpdateManifest|update-manifest|LatestVersion)') { $upd.Add('in-app HTTP updater') }
+    # a sibling updater binary (the main exe is often a thin launcher, so the updater lives elsewhere)
+    if ((_AnyLike '*updater*.exe') -or (_AnyLike '*update.exe') -or (_AnyLike '*autoupdate*.exe') -or (_AnyLike '*upgrade*.exe')) { $upd.Add('updater binary present (verify)') }
     if ($upd.Count -eq 0) { $upd.Add('none detected') }
 
     # ---------- R07 privilege model ----------

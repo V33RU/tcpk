@@ -146,6 +146,20 @@ function Resolve-TcpkWebIdentity {
     } catch { }
     $res.note = if ($res.processName) { "detected: $($res.packageName) / process '$($res.processName)' -- edit if wrong" }
                 else { "detected package '$($res.packageName)'; no top-level .exe -- set ProcessName manually" }
+    # App-kind fingerprint (what kind of application is this) -- shown before the audit runs.
+    try {
+        $ai = Get-TcpkAppIdentity -Path $p
+        $res.appName    = "$($ai.Name)"
+        $res.appVersion = "$($ai.Version)"
+        $res.appType    = "$($ai.AppType)"
+        $res.runtime    = "$($ai.Runtime)"
+        $res.arch       = "$($ai.Architecture)"
+        $res.managed    = [bool]$ai.Managed
+        $res.ui         = (@($ai.UiFrameworks) -join ', ')
+        $res.publisher  = "$($ai.Publisher)"
+        $res.signature  = "$($ai.SignatureStatus)"
+        $res.appSummary = "$($ai.Summary)"
+    } catch { $res.appSummary = '' }
     return $res
 }
 
@@ -582,6 +596,9 @@ button:disabled{opacity:.45;cursor:default}
 .opts{display:none;border-top:1px solid #21262d;margin-top:8px;padding-top:10px}
 .opts.show{display:block}
 .chkrow{display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin:6px 0}
+.appid{background:var(--panel);border:1px solid var(--accent);border-left:3px solid var(--accent);border-radius:8px;padding:9px 12px;margin:2px 0 10px;font-size:13px;line-height:1.6}
+.appid .ai-h{color:var(--accent);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.appid .k{color:var(--muted);font-weight:700}.appid .p{color:var(--muted)}
 .chk{display:flex;gap:6px;align-items:center;font:12px Consolas,monospace;color:var(--text)}
 .status{margin-top:9px;font:12px Consolas,monospace;color:var(--muted);min-height:17px}
 .spin{display:inline-block;width:11px;height:11px;border:2px solid var(--dim);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px;margin-right:6px}
@@ -631,12 +648,13 @@ a.lnk{color:#58a6ff;cursor:pointer}
 <div class="hd"><div><div class="brand">TC<span>PK</span> control panel</div><div class="tagline">drive a discovery audit -- loopback only, exploit bucket disabled</div></div><div class="safe" id="safe">127.0.0.1 -- discovery only</div></div>
 
 <div class="panel" id="runpanel">
-<div class="row"><div class="grow2"><label>Target -- install dir, EXE/DLL, or MSIX/MSI/ZIP (auto-unwrapped)</label><input type="text" id="target" placeholder="C:\Program Files\Acme\Desktop"/></div><div style="flex:0 0 auto;min-width:0"><button class="mini" id="detect">Auto-Detect</button> <button class="go" id="run">Run audit</button></div></div>
+<div class="row"><div class="grow2"><label>Target -- install dir, EXE/DLL, or MSIX/MSI/ZIP (auto-unwrapped)</label><input type="text" id="target" placeholder="C:\Program Files\Acme\Desktop"/></div><div style="flex:0 0 auto;min-width:0"><button class="mini" id="detect">Identify</button> <button class="go" id="run">Run audit</button></div></div>
+<div id="appId" class="appid" style="display:none"></div>
 <div class="opttoggle" id="optTog">- options (package / process / AI verify)</div>
 <div class="opts show" id="opts">
 <div class="row"><div><label>Profile (scan depth)</label><select id="profile"><option value="Full">Full</option><option value="Standard">Standard</option><option value="Quick">Quick -- skip slow OS scans</option></select></div><div class="g2"></div></div>
 <div class="row"><div><label>PackageName (MSIX, optional)</label><input type="text" id="packageName"/></div><div><label>PackageFamilyName (MSIX, optional)</label><input type="text" id="packageFamilyName"/></div><div><label>ProcessName (runtime, optional)</label><input type="text" id="processName"/></div></div>
-<div class="chkrow"><label class="chk"><input type="checkbox" id="deepRuntime"/> deep runtime checks</label><label class="chk"><input type="checkbox" id="enableLlm"/> AI-verify findings</label><label class="chk" title="Query the OSV API for the shipped NuGet components -- OFF = offline catalog only; ON sends only package name+version to api.osv.dev"><input type="checkbox" id="onlineCve"/> online CVE (OSV)</label></div>
+<div class="chkrow"><label class="chk"><input type="checkbox" id="deepRuntime"/> deep runtime checks</label><label class="chk"><input type="checkbox" id="enableLlm"/> AI-verify findings</label><label class="chk" title="Live CVE lookup: OSV for NuGet/Electron + NVD (CPE) for native libs (OpenSSL/zlib/sqlite). Uncheck = offline catalog only. Sends only package/CPE name+version."><input type="checkbox" id="onlineCve" checked/> online CVE (OSV + NVD)</label></div>
 <div class="row" id="aiRow" style="display:none"><div><label>AI provider</label><select id="provider"><option value="ollama">ollama (local)</option><option value="claude">claude</option><option value="openai">openai</option><option value="gemini">gemini</option><option value="grok">grok</option><option value="deepseek">deepseek</option><option value="custom">custom endpoint</option></select></div><div><label>model</label><input type="text" id="model" placeholder="qwen2.5-coder:7b"/></div><div><label>API key</label><input type="password" id="apiKey" placeholder="for cloud providers"/></div><div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="mini" id="testai">Test AI</button></div></div>
 <div class="row" id="urlRow" style="display:none"><div class="g2"><label>custom OpenAI-compatible base URL</label><input type="text" id="baseUrl" placeholder="https://host/v1"/></div></div>
 <div id="aiTest" style="color:var(--muted);font:11px Consolas,monospace;margin:2px 0"></div>
@@ -688,12 +706,18 @@ a.lnk{color:#58a6ff;cursor:pointer}
 
   $('find').onclick=function(){doFind('/api/discover?q='+encodeURIComponent($('q').value.trim()),$('q').value.trim());};
   $('auto').onclick=function(){doFind('/api/apps','all installed apps');};
-  $('detect').onclick=function(){var t=$('target').value.trim();if(!t){status('enter a target path first.');return;}status('auto-detecting identity...',true);
+  $('detect').onclick=function(){var t=$('target').value.trim();if(!t){status('enter a target path first.');return;}status('identifying application...',true);
     api('/api/identify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:t})}).then(function(r){return r.json();}).then(function(d){
       $('packageName').value=d.packageName||'';$('packageFamilyName').value=d.packageFamilyName||'';$('processName').value=d.processName||'';
+      if(d.appSummary){$('appId').style.display='block';$('appId').innerHTML=
+        '<div class="ai-h">Identified: what you are about to audit</div>'+
+        '<div><b>'+esc(d.appName||d.packageName||'app')+'</b>'+(d.appVersion?' <span class="p">v'+esc(d.appVersion)+'</span>':'')+'</div>'+
+        '<div><span class="k">Type</span> '+esc(d.appType||'?')+' &middot; <span class="k">Runtime</span> '+esc(d.runtime||'?')+' &middot; '+esc(d.arch||'')+(d.managed?' &middot; managed .NET':' &middot; native')+(d.ui?' &middot; <span class="k">UI</span> '+esc(d.ui):'')+'</div>'+
+        '<div><span class="k">Signing</span> '+esc(d.signature||'?')+(d.publisher?' &middot; '+esc(d.publisher):'')+'</div>';}
+      else{$('appId').style.display='none';}
       if(!$('opts').classList.contains('show')){$('opts').classList.add('show');$('optTog').textContent='- options (package / process / AI verify)';}
-      status(d.note||'identity detected.');
-    }).catch(function(){status('auto-detect failed.');});};
+      status(d.appSummary?('identified: '+d.appSummary):(d.note||'identity detected.'));
+    }).catch(function(){status('identify failed.');});};
   function doFind(url,what){if(url.indexOf('discover')>=0 && !$('q').value.trim()){return;}status('listing '+esc(what)+'...',true);$('apps').innerHTML='';
     api(url).then(function(r){return r.json();}).then(function(d){var apps=arr(d.apps);if(!apps.length){status('nothing matched. Type a path above.');return;}
       status(apps.length+' app(s). Click one to use its path.');

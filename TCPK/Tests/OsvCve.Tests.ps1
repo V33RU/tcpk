@@ -1,7 +1,7 @@
 #requires -Version 5.1
-# Pester 5: optional OSV online CVE enrichment (Get-TcpkCveMatches / Invoke-TcpkAudit -OnlineCve).
-# Tests the PURE OSV->match mapper (no network) and that the enrichment is strictly opt-in
-# (a switch, default OFF, so the audit stays offline unless asked).
+# Pester 5: online CVE via OSV. Tests the PURE OSV->match mapper (no network) and that CVE
+# matching is ONLINE-ONLY -- Get-TcpkCveMatches always queries live (no offline catalog, no
+# -OnlineCve switch), while the audit gates the whole online CVE step behind -OnlineCve.
 
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
@@ -42,12 +42,11 @@ Describe 'OSV vuln mapping (pure, no network)' {
     }
 }
 
-Describe 'OnlineCve enrichment is strictly opt-in' {
-    It 'Get-TcpkCveMatches exposes -OnlineCve as a switch (default OFF)' {
-        (Get-Command Get-TcpkCveMatches).Parameters.Keys | Should -Contain 'OnlineCve'
-        (Get-Command Get-TcpkCveMatches).Parameters['OnlineCve'].SwitchParameter | Should -BeTrue
+Describe 'CVE matching is online-only' {
+    It 'Get-TcpkCveMatches is online-only -- no -OnlineCve switch (always queries live, no offline catalog)' {
+        (Get-Command Get-TcpkCveMatches).Parameters.Keys | Should -Not -Contain 'OnlineCve'
     }
-    It 'Invoke-TcpkAudit exposes -OnlineCve' {
+    It 'Invoke-TcpkAudit gates the online CVE step behind -OnlineCve' {
         (Get-Command Invoke-TcpkAudit).Parameters.Keys | Should -Contain 'OnlineCve'
     }
 }

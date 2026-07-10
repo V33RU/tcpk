@@ -611,7 +611,7 @@ th,td{padding:7px 11px}
           </div>
           <div class="chkrow">
             <label class="chk"><input type="checkbox" id="deepRuntime"/> deep runtime</label>
-            <label class="chk"><input type="checkbox" id="onlineCve"/> online CVE (OSV)</label>
+            <label class="chk" title="Live CVE: OSV (NuGet/Electron) + NVD/CPE (native libs). Uncheck = offline catalog only."><input type="checkbox" id="onlineCve" checked/> online CVE (OSV + NVD)</label>
             <label class="chk"><input type="checkbox" id="enableLlm"/> AI-verify findings with the selected agent</label>
           </div>
           <div class="note" id="agentNote">agent: ollama (local) -- <a onclick="go(1)">configure</a></div>
@@ -740,8 +740,11 @@ refreshAgentChip();
 function onTargetInput(){var t=val('target').trim();$('toAudit').disabled=!t;window._target=t;window._dcLoaded=false;}
 function onTargetSet(t){window._target=t;$('targetChip').style.display='flex';$('targetChipTxt').textContent=t;}
 function pick(path){$('target').value=path;$('toAudit').disabled=false;onTargetSet(path);detect();}
-async function detect(){var t=val('target').trim();if(!t)return;$('ident').textContent='detecting...';onTargetSet(t);
-  try{var r=await api('/api/identify',{json:{path:t}});$('ident').textContent=r.note||'';$('toAudit').disabled=false;window._ident=r;}catch(e){$('ident').textContent='detect failed';}}
+async function detect(){var t=val('target').trim();if(!t)return;$('ident').textContent='identifying...';onTargetSet(t);
+  try{var r=await api('/api/identify',{json:{path:t}});
+    if(r.appSummary){$('ident').innerHTML='<b style="color:var(--accent)">'+esc(r.appName||r.packageName||'app')+'</b>'+(r.appVersion?' v'+esc(r.appVersion):'')+' &middot; '+esc(r.appType||'')+' &middot; '+esc(r.runtime||'')+' '+esc(r.arch||'')+(r.managed?' (managed .NET)':' (native)')+(r.ui?' &middot; UI: '+esc(r.ui):'')+'<br>signing: '+esc(r.signature||'?')+(r.publisher?' &middot; '+esc(r.publisher):'');}
+    else{$('ident').textContent=r.note||'';}
+    $('toAudit').disabled=false;window._ident=r;}catch(e){$('ident').textContent='identify failed';}}
 function appRow(a){var d=document.createElement('div');d.className='app-row';d.innerHTML='<span>'+esc(a.name||a.path)+'</span><span class="p">'+esc(a.path||'')+'</span>';d.onclick=function(){pick(a.path);};return d;}
 function render(apps){var box=$('apps');box.innerHTML='';if(!apps||!apps.length){box.innerHTML='<div class="note">no matches</div>';return;}apps.slice(0,60).forEach(function(a){box.appendChild(appRow(a));});}
 async function search(){var q=val('q').trim();var box=$('apps');box.innerHTML='<div class="note">searching...</div>';try{var r=await api('/api/discover?q='+encodeURIComponent(q));render(r.apps);}catch(e){box.innerHTML='<div class="note">search failed</div>';}}
