@@ -72,7 +72,7 @@ function Export-TcpkReportHtml {
         # MISSING here and fell through to the default grey -- so the flagship IL-proven findings
         # were visually indistinguishable from INFO/Skipped. That is fixed below.
         $confColor = @{
-            'Confirmed (IL)'='#2ea043'; 'Confirmed (dynamic)'='#1f9c8a'; 'Confirmed'='#388bfd'; 'Confirmed (LLM)'='#58a6ff'
+            'Confirmed (exploit)'='#f85149'; 'Confirmed (IL)'='#2ea043'; 'Confirmed (dynamic)'='#1f9c8a'; 'Confirmed'='#388bfd'; 'Confirmed (LLM)'='#58a6ff'
             'Inferred'='#d29922'; 'Unverified'='#bb8009'
             'Likely-FP (IL)'='#6a7585'; 'Likely-FP (LLM)'='#da3633'; 'Uncertain (LLM)'='#a371f7'
             'Skipped'='#6a7585'
@@ -115,8 +115,8 @@ function Export-TcpkReportHtml {
         # evidence-tier rollup (honest confidence summary -- so a reader does not treat an Inferred
         # string-scan hit the same as an IL-proven one). Proven = IL or dynamic; Confirmed = other
         # Confirmed tiers; Inferred = unverified heuristic; Weak = Likely-FP / Uncertain.
-        $confProven    = @($all | Where-Object { "$($_.Confidence)" -like 'Confirmed (IL)*' -or "$($_.Confidence)" -like 'Confirmed (dynamic)*' }).Count
-        $confConfirmed = @($all | Where-Object { "$($_.Confidence)" -like 'Confirmed*' -and "$($_.Confidence)" -notlike 'Confirmed (IL)*' -and "$($_.Confidence)" -notlike 'Confirmed (dynamic)*' }).Count
+        $confProven    = @($all | Where-Object { "$($_.Confidence)" -like 'Confirmed (IL)*' -or "$($_.Confidence)" -like 'Confirmed (dynamic)*' -or "$($_.Confidence)" -like 'Confirmed (exploit)*' }).Count
+        $confConfirmed = @($all | Where-Object { "$($_.Confidence)" -like 'Confirmed*' -and "$($_.Confidence)" -notlike 'Confirmed (IL)*' -and "$($_.Confidence)" -notlike 'Confirmed (dynamic)*' -and "$($_.Confidence)" -notlike 'Confirmed (exploit)*' }).Count
         $confInferred  = @($all | Where-Object { "$($_.Confidence)" -eq 'Inferred' -or "$($_.Confidence)" -eq 'Unverified' }).Count
         $confWeak      = @($all | Where-Object { "$($_.Confidence)" -like 'Likely-FP*' -or "$($_.Confidence)" -like 'Uncertain*' }).Count
         $confSummaryHtml = @"
@@ -489,7 +489,8 @@ $($ruleRows -join "`n")
             $group = $all | Where-Object Severity -eq $sev | Sort-Object `
                 @{ E = {
                     $c = "$($_.Confidence)"
-                    if     ($c -like 'Confirmed (IL)*')      { 0 }
+                    if     ($c -like 'Confirmed (exploit)*') { 0 }
+                    elseif ($c -like 'Confirmed (IL)*')      { 0 }
                     elseif ($c -like 'Confirmed (dynamic)*') { 1 }
                     elseif ($c -eq   'Confirmed')            { 2 }
                     elseif ($c -like 'Confirmed*')           { 3 }
