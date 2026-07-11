@@ -38,8 +38,8 @@ function Export-TcpkReportSarif {
         $ver = try {
             $v = (Get-Module TCPK | Select-Object -First 1).Version
             if (-not $v -and $script:TcpkRoot) { $v = (Import-PowerShellDataFile -Path (Join-Path $script:TcpkRoot 'TCPK.psd1')).ModuleVersion }
-            if ($v) { "$v" } else { '2.3.0' }
-        } catch { '2.3.0' }
+            if ($v) { "$v" } else { '2.4.1' }
+        } catch { '2.4.1' }
 
         $levelOf = @{ CRITICAL='error'; HIGH='error'; MEDIUM='warning'; LOW='note'; INFO='note' }
         $bandScore = @{ CRITICAL='9.5'; HIGH='8.0'; MEDIUM='5.5'; LOW='2.0'; INFO='0.0' }

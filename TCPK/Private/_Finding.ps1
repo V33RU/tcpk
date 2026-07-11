@@ -99,6 +99,8 @@ $script:TcpkCvssArchetypes = [ordered]@{
 # always a local temp-file race), so they get a real, tier-matched vector here.
 $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^exploit\.secret-recovered';                                                                                                                            A = 'live-credential' }
+    @{ Rx = '^intercept\.cleartext-credential';                                                                                                                      A = 'live-credential' }
+    @{ Rx = '^intercept\.(weak-transport|session-token)';                                                                                                            A = 'cleartext-net' }
     @{ Rx = '^callsites\.insecure-temp';                                                                                                                            A = 'local-tempfile' }
     @{ Rx = '^(tls-bypass|tls-handshake|wcf|truststore)\.|^electron\.cert';                                                                                                         A = 'net-mitm' }
     @{ Rx = '^(scheme|dns|tls)\.';                                                                                                                                   A = 'cleartext-net' }
