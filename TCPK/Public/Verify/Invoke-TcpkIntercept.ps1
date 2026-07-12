@@ -48,13 +48,16 @@ function Invoke-TcpkIntercept {
         [Parameter(Mandatory, ParameterSetName = 'ParseProxy')][string]$FlowFile,
         [Parameter(Mandatory, ParameterSetName = 'ParseHook')][string]$HookFile,
         [Parameter(Mandatory, ParameterSetName = 'Active')][string]$Target,
-        [Parameter(ParameterSetName = 'Active')][ValidateSet('Proxy', 'Hook')][string]$Mode = 'Proxy',
+        [Parameter(ParameterSetName = 'Active')][ValidateSet('Proxy', 'Hook', 'Tamper')][string]$Mode = 'Proxy',
         [Parameter(ParameterSetName = 'Active')][switch]$ConfirmDynamic,
         [Parameter(ParameterSetName = 'Active')][int]$Port = 0,
         [Parameter(ParameterSetName = 'Active')][int]$DurationSec = 20,
         [Parameter(ParameterSetName = 'Active')][string]$MitmdumpPath,
         [Parameter(ParameterSetName = 'Active')][string]$FridaPath,
-        [Parameter(ParameterSetName = 'Active')][string[]]$ExtraArgs = @()
+        [Parameter(ParameterSetName = 'Active')][string[]]$ExtraArgs = @(),
+        # -Mode Tamper: literal in-flight rewrite rules, 'find=>replace' (optionally
+        # 'find=>replace=>req|resp|both'), e.g. 'role=user=>role=admin'.
+        [Parameter(ParameterSetName = 'Active')][string[]]$TamperRules = @()
     )
 
     if ($PSCmdlet.ParameterSetName -eq 'ParseProxy') {
@@ -96,6 +99,36 @@ function Invoke-TcpkIntercept {
                 -Fix 'Drive the app UI during capture, increase -DurationSec, or extend the hook set to the target TLS library.')
         }
         return (ConvertFrom-TcpkHookCapture -HookFile $cap)
+    }
+
+    # --- Tamper mode: mitmproxy MODIFIES matching traffic in flight (probe server-side authz / injection) ---
+    if ($Mode -eq 'Tamper') {
+        if (-not (Assert-TcpkWindows 'Invoke-TcpkIntercept')) { return }
+        if (-not @($TamperRules).Count) { throw "-Mode Tamper requires -TamperRules, e.g. -TamperRules 'role=user=>role=admin'." }
+        $mitm = Get-TcpkMitmdump -Override $MitmdumpPath
+        if (-not $mitm) { throw "mitmdump not found. Drop the portable mitmproxy binary in tools\mitmproxy\ or add it to PATH." }
+        $tamperAddon = Get-TcpkTamperAddon
+        if (-not (Test-Path -LiteralPath $tamperAddon)) { throw "tamper addon missing: $tamperAddon" }
+        if ($Port -le 0) { $Port = Get-TcpkFreePort }
+        $log = Join-Path ([System.IO.Path]::GetTempPath()) ("tcpk-tamper-" + [guid]::NewGuid().ToString('N') + ".log")
+        $env:TCPK_TAMPER_RULES = (ConvertTo-TcpkTamperRules -Rules $TamperRules)
+        $env:TCPK_TAMPER_OUT = $log
+        $mp = $null; $tp = $null; $ph = $env:HTTP_PROXY; $ps = $env:HTTPS_PROXY
+        try {
+            Write-TcpkInfo "[intercept] tamper mitmdump on 127.0.0.1:$Port ($(@($TamperRules).Count) rule(s)); launching $(Split-Path $Target -Leaf) (~${DurationSec}s)"
+            $mp = Start-Process -FilePath $mitm -ArgumentList @('--listen-host', '127.0.0.1', '-p', "$Port", '-s', "$tamperAddon", '-q') -PassThru -WindowStyle Minimized -ErrorAction Stop
+            Start-Sleep -Seconds 2
+            $env:HTTP_PROXY = "http://127.0.0.1:$Port"; $env:HTTPS_PROXY = "http://127.0.0.1:$Port"
+            $tp = Start-Process -FilePath $Target -ArgumentList $ExtraArgs -PassThru -WindowStyle Minimized -ErrorAction Stop
+            $deadline = (Get-Date).AddSeconds($DurationSec)
+            while ((Get-Date) -lt $deadline -and $tp -and -not $tp.HasExited) { Start-Sleep -Milliseconds 500 }
+        } finally {
+            $env:HTTP_PROXY = $ph; $env:HTTPS_PROXY = $ps
+            if ($tp -and -not $tp.HasExited) { try { Stop-Process -Id $tp.Id -Force -ErrorAction SilentlyContinue } catch { } }
+            if ($mp -and -not $mp.HasExited) { try { Stop-Process -Id $mp.Id -Force -ErrorAction SilentlyContinue } catch { } }
+            Remove-Item Env:\TCPK_TAMPER_RULES, Env:\TCPK_TAMPER_OUT -ErrorAction SilentlyContinue
+        }
+        return (ConvertFrom-TcpkTamperLog -LogFile $log -Rules $TamperRules -Target $Target)
     }
 
     # --- Proxy mode: mitmproxy (launches a Windows app through a local mitmdump) ---

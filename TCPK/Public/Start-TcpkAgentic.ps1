@@ -59,7 +59,7 @@ function Start-TcpkAgentic {
     catch { throw "Could not bind 127.0.0.1:$Port -- $($_.Exception.Message)" }
 
     $actualPort = ([System.Net.IPEndPoint]$listener.LocalEndpoint).Port
-    $ver = try { "$((Get-Module TCPK | Select-Object -First 1).Version)" } catch { '2.4.2-dev' }
+    $ver = try { "$((Get-Module TCPK | Select-Object -First 1).Version)" } catch { '2.4.3-dev' }
     $state = @{
         Token = $token; Port = $actualPort; Version = $ver; Stop = $false
         Jobs = @{}                                   # jobId -> running/finished audit (shared with Invoke-TcpkWebApi)

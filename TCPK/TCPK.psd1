@@ -1,6 +1,6 @@
 @{
     RootModule        = 'TCPK.psm1'
-    ModuleVersion     = '2.4.2'
+    ModuleVersion     = '2.4.3'
     GUID              = 'a3f7c1d2-9b4e-4c8a-b1f3-7c2a4d5e8f01'
     Author            = 'TCPK contributors'
     CompanyName       = 'Open source'
@@ -22,7 +22,7 @@
             Prerelease   = 'dev'
             LicenseUri   = 'https://opensource.org/licenses/MIT'
             ProjectUri   = ''
-            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.2-dev (in development): the agentic workbench gains an Interception tab that parses a captured traffic session (mitmproxy or Frida) into intercept.* findings, discovery-only. v2.4.1-dev: NEW Invoke-TcpkIntercept adds thick-client traffic interception -- proxy mode (mitmproxy) and hook mode (Frida, the Echo Mirage approach) parsing captured flows into intercept.* findings. v2.3.0: autonomous-agent call-graph + taint-trace tools, a prover verification gate, and Invoke-TcpkSecretRecovery + a Confirmed (exploit) tier.'
+            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.3-dev (in development): closes the last thick-client pentest gaps -- NEW Test-TcpkCredentialLiveness (gated) replays a recovered/observed credential against a live http/sql/ftp service and reports Confirmed (exploit) if it authenticates; and Invoke-TcpkIntercept -Mode Tamper modifies matching traffic in flight (mitmproxy) to probe server-side authorization/injection. v2.4.2-dev: Interception tab in the workbench. v2.4.1-dev: Invoke-TcpkIntercept (proxy + Frida hook interception). v2.3.0: agent call-graph tools, a prover verification gate, and Invoke-TcpkSecretRecovery + a Confirmed (exploit) tier.'
         }
     }
 }

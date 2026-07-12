@@ -22,6 +22,44 @@ function Get-TcpkInterceptAddon {
     return (Join-Path (Split-Path $PSScriptRoot -Parent) 'Data/tcpk_capture.py')
 }
 
+# Path to the bundled mitmproxy tamper addon.
+function Get-TcpkTamperAddon {
+    return (Join-Path (Split-Path $PSScriptRoot -Parent) 'Data/tcpk_tamper.py')
+}
+
+# Turn 'find=>replace' (optionally 'find=>replace=>req|resp|both') rule strings into the
+# JSON list the tamper addon reads. Always emits a JSON ARRAY (PS 5.1-safe: single-item
+# ConvertTo-Json would otherwise emit an object).
+function ConvertTo-TcpkTamperRules {
+    param([string[]]$Rules)
+    $items = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($r in @($Rules)) {
+        $parts = "$r" -split '=>', 3
+        if ($parts.Count -lt 2) { continue }
+        $where = if ($parts.Count -ge 3 -and $parts[2]) { $parts[2] } else { 'both' }
+        $items.Add(([ordered]@{ find = $parts[0]; replace = $parts[1]; where = $where } | ConvertTo-Json -Compress))
+    }
+    return ('[' + (($items.ToArray()) -join ',') + ']')
+}
+
+# Turn the tamper addon's log (TCPKTAMPER lines) into a finding: what was modified in flight.
+function ConvertFrom-TcpkTamperLog {
+    param([string]$LogFile, [string[]]$Rules, [string]$Target)
+    $applied = @()
+    if (Test-Path -LiteralPath $LogFile) { $applied = @(Get-Content -LiteralPath $LogFile | Where-Object { "$_" -match 'TCPKTAMPER' }) }
+    if (-not $applied.Count) {
+        return (New-TcpkFinding -Module 'network' -RuleId 'intercept.tamper-inactive' -Severity 'INFO' -Confidence 'Inferred' `
+            -Title 'Tamper rules matched no traffic' -File $Target -Evidence "$(@($Rules).Count) rule(s), 0 applied" `
+            -Description "The app produced no traffic matching the tamper rules. It may not have sent the targeted request, may pin certificates / ignore the proxy, or the rule string did not match the on-the-wire bytes." `
+            -Fix 'Drive the app to send the targeted request, confirm the rule matches the wire bytes, and ensure the app honours the proxy and trusts the mitmproxy CA.')
+    }
+    return (New-TcpkFinding -Module 'network' -RuleId 'intercept.tamper-applied' -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
+        -Title "Modified $($applied.Count) live request/response(s) in flight" -File $Target `
+        -Evidence (($applied | Select-Object -First 8) -join ' | ') -Cwe @('CWE-602', 'CWE-807') `
+        -Description "TCPK modified the app's traffic in flight via the mitmproxy tamper addon. Use this to probe whether the backend re-validates client-supplied values (authorization, role, price, injection) SERVER-side rather than trusting the client -- if a tampered value is honoured, the server trusts the client." `
+        -Fix 'Enforce every security decision server-side and validate all input independently of the client; never trust a client-supplied value.')
+}
+
 # A free loopback TCP port.
 function Get-TcpkFreePort {
     $l = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)

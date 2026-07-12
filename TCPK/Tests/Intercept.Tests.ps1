@@ -76,3 +76,30 @@ Describe 'Invoke-TcpkIntercept -HookFile (Frida hook capture)' {
         @(Invoke-TcpkIntercept -HookFile $script:hf | Where-Object { $_.RuleId -eq 'intercept.api-hook-plaintext' }).Count | Should -BeGreaterThan 0
     }
 }
+
+Describe 'Tamper rule handling (Mode Tamper support)' {
+    It 'converts find=>replace(=>where) rules to a JSON array' {
+        $j = & (Get-Module TCPK) { ConvertTo-TcpkTamperRules -Rules @('a=>b=>req', 'c=>d') }
+        $p = $j | ConvertFrom-Json
+        @($p).Count      | Should -Be 2
+        $p[0].find       | Should -Be 'a'
+        $p[0].replace    | Should -Be 'b'
+        $p[0].where      | Should -Be 'req'
+        $p[1].where      | Should -Be 'both'
+    }
+    It 'reports a Confirmed (dynamic) finding when the tamper log has entries' {
+        $log = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-tl-' + [guid]::NewGuid().ToString('N') + '.log')
+        Set-Content -LiteralPath $log -Value "TCPKTAMPER req: 'x' -> 'y'"
+        $f = & (Get-Module TCPK) { param($l) ConvertFrom-TcpkTamperLog -LogFile $l -Rules @('x=>y') -Target 't' } $log
+        $f.RuleId     | Should -Be 'intercept.tamper-applied'
+        $f.Confidence | Should -Be 'Confirmed (dynamic)'
+        Remove-Item $log -Force -ErrorAction SilentlyContinue
+    }
+    It 'reports an INFO note when nothing was tampered' {
+        $log = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-tl-' + [guid]::NewGuid().ToString('N') + '.log')
+        Set-Content -LiteralPath $log -Value ''
+        $f = & (Get-Module TCPK) { param($l) ConvertFrom-TcpkTamperLog -LogFile $l -Rules @('x=>y') -Target 't' } $log
+        $f.RuleId | Should -Be 'intercept.tamper-inactive'
+        Remove-Item $log -Force -ErrorAction SilentlyContinue
+    }
+}

@@ -2,6 +2,16 @@
 
 Release history for TCPK. Newest first.
 
+## v2.4.3-dev
+
+Closes the last two genuine thick-client pentest gaps. (The rest of the exploitation surface was already the K01-K10 Exploit bucket: DPAPI decrypt, memory flag-flip, GUI unlock, Frida TLS-bypass generator, pipe MITM, DLL/COM hijack scaffolds -- so this adds only what was actually missing, not duplicates.)
+
+NEW Test-TcpkCredentialLiveness (Exploit bucket, GATED). Replays a credential recovered by Invoke-TcpkSecretRecovery or observed by Invoke-TcpkIntercept against a live service (http / sql / ftp) and reports exploit.credential-live as Confirmed (exploit) CRITICAL if the service accepts it -- turning an exposed secret into demonstrated impact. HTTP uses a with-credential vs without-credential comparison so an unprotected URL cannot false-positive (confirmed only when anonymous is rejected and authenticated is accepted); SQL uses whichever .NET SqlClient the host has; FTP attempts a listing. Gated behind Enable-TcpkExploit + -ConfirmActive; authorized targets only.
+
+NEW Invoke-TcpkIntercept -Mode Tamper. mitmproxy MODIFIES matching traffic in flight (literal find=>replace rules via -TamperRules and the bundled tcpk_tamper.py addon), so you can probe whether the backend re-validates client-supplied values (role / authorization / price / injection) server-side or trusts the client. Each change is reported as intercept.tamper-applied (Confirmed dynamic). Complements the observe-only proxy/hook modes.
+
+Verified on Linux: credential liveness passes 4/4 against a local HTTP listener (valid credential -> Confirmed exploit, wrong credential rejected, gate + -ConfirmActive enforced); the tamper addon is proven with a REAL mitmproxy round-trip -- a request body role=user was rewritten to role=admin before it reached the upstream, which echoed the modified value. Windows-pending: launching a real Windows target through tamper/proxy mode, and SQL/FTP liveness against a live backend.
+
 ## v2.4.2-dev
 
 NEW Interception tab in the agentic workbench (Start-TcpkAgentic). Load a captured traffic session -- a mitmproxy flows.jsonl (proxy) or a Frida hook.log (hook) written by Invoke-TcpkIntercept -- and it renders the intercept.* findings in the workbench, colour-coded by severity and confidence. DISCOVERY-SAFE by design: the tab only PARSES a local capture via the ungated -FlowFile / -HookFile path (a new /api/agent/intercept endpoint backed by Get-TcpkAgentInterceptReview); it never launches or injects, so the gated active capture stays a CLI operation and off the loopback browser -- preserving the workbench's discovery-only invariant. Verified on Linux: the backend endpoint returns findings from real captures and errors gracefully on a missing file; the workbench HTML + JS is intact and JavaScript-syntax-valid; the full 71-file test suite shows ZERO regressions from the change (identical pass/fail with and without it). Windows/browser-pending: the interactive click-through in a real browser.
