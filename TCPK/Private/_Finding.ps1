@@ -100,6 +100,8 @@ $script:TcpkCvssArchetypes = [ordered]@{
 $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^exploit\.secret-recovered';                                                                                                                            A = 'live-credential' }
     @{ Rx = '^exploit\.credential-live';                                                                                                                             A = 'live-credential' }
+    @{ Rx = '^exploit\.check-bypassed';                                                                                                                              A = 'client-bypass' }
+    @{ Rx = '^exploit\.stored-credential';                                                                                                                           A = 'local-at-rest' }
     @{ Rx = '^intercept\.cleartext-credential';                                                                                                                      A = 'live-credential' }
     @{ Rx = '^intercept\.(weak-transport|session-token)';                                                                                                            A = 'cleartext-net' }
     @{ Rx = '^callsites\.insecure-temp';                                                                                                                            A = 'local-tempfile' }

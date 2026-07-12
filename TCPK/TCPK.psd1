@@ -1,6 +1,6 @@
 @{
     RootModule        = 'TCPK.psm1'
-    ModuleVersion     = '2.4.3'
+    ModuleVersion     = '2.4.4'
     GUID              = 'a3f7c1d2-9b4e-4c8a-b1f3-7c2a4d5e8f01'
     Author            = 'TCPK contributors'
     CompanyName       = 'Open source'
@@ -22,7 +22,7 @@
             Prerelease   = 'dev'
             LicenseUri   = 'https://opensource.org/licenses/MIT'
             ProjectUri   = ''
-            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.3-dev (in development): closes the last thick-client pentest gaps -- NEW Test-TcpkCredentialLiveness (gated) replays a recovered/observed credential against a live http/sql/ftp service and reports Confirmed (exploit) if it authenticates; and Invoke-TcpkIntercept -Mode Tamper modifies matching traffic in flight (mitmproxy) to probe server-side authorization/injection. v2.4.2-dev: Interception tab in the workbench. v2.4.1-dev: Invoke-TcpkIntercept (proxy + Frida hook interception). v2.3.0: agent call-graph tools, a prover verification gate, and Invoke-TcpkSecretRecovery + a Confirmed (exploit) tier.'
+            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.4-dev (in development): NEW Invoke-TcpkHookBypass (gated) forces the return value of a named native export via Frida -- flip a client-side auth/license/integrity check the app trusts (verified: forced libc atoi to return 999 in a live process); and NEW Get-TcpkStoredCredentials (gated, Windows) enumerates and decrypts the Windows Credential Manager. v2.4.3-dev: Test-TcpkCredentialLiveness + Invoke-TcpkIntercept -Mode Tamper. v2.4.1-2.4.2-dev: Invoke-TcpkIntercept (proxy + Frida hook) and the workbench Interception tab. v2.3.0: agent call-graph tools, a prover verification gate, and Invoke-TcpkSecretRecovery.'
         }
     }
 }
