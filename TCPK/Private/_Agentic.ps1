@@ -46,6 +46,7 @@ function Invoke-TcpkAgenticApi {
             'POST /api/agent/review'    { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentReview -Dll "$(if($b){$b.dll})" -Method "$(if($b){$b.method})" -Agent $b)) }
             'POST /api/agent/auto'      { return (Start-TcpkAgentAutoJob -Request $Request -State $State) }
             'GET /api/agent/auto-status'{ return (Get-TcpkAgentAutoStatus -State $State -JobId "$($Request.Query['job'])") }
+            'POST /api/agent/intercept' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentInterceptReview -File "$(if($b){$b.file})" -Kind "$(if($b){$b.kind})")) }
             default                     { return (New-TcpkWebJson 404 @{ error = 'no such agent endpoint' }) }
         }
     }
@@ -325,6 +326,27 @@ function Get-TcpkAgentReview {
     return @{ method = $Method; reachable = $reach; sinks = $sinkList; il = $ilText; ai = $ai; cloud = $cloud }
 }
 
+# POST /api/agent/intercept {file, kind} -- parse an EXISTING mitmproxy (proxy) or Frida
+# (hook) capture into intercept.* findings for the workbench. DISCOVERY-SAFE: it only
+# parses a local capture via the ungated -FlowFile / -HookFile path -- it never launches
+# or injects (the gated active capture stays a CLI operation, off the browser).
+function Get-TcpkAgentInterceptReview {
+    [CmdletBinding()] param([AllowEmptyString()][string]$File, [AllowEmptyString()][string]$Kind)
+    if (-not "$File" -or -not (Test-Path -LiteralPath "$File" -PathType Leaf)) { return @{ error = 'capture file not found' } }
+    $p = (Resolve-Path -LiteralPath "$File").Path
+    $kind = if ("$Kind" -eq 'hook') { 'hook' } else { 'proxy' }
+    $findings = @()
+    try {
+        $findings = if ($kind -eq 'hook') { Invoke-TcpkIntercept -HookFile $p } else { Invoke-TcpkIntercept -FlowFile $p }
+    } catch { return @{ error = "parse failed: $($_.Exception.Message)" } }
+    $rows = @(@($findings) | ForEach-Object { [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = "$($_.Title)"; evidence = "$($_.Evidence)" } })
+    $counts = [ordered]@{ crit = 0; high = 0; med = 0; low = 0; info = 0 }
+    foreach ($r in $rows) {
+        switch ("$($r.sev)".ToUpper()) { 'CRITICAL' { $counts.crit++ } 'HIGH' { $counts.high++ } 'MEDIUM' { $counts.med++ } 'LOW' { $counts.low++ } default { $counts.info++ } }
+    }
+    return @{ kind = $kind; count = $rows.Count; counts = $counts; findings = $rows }
+}
+
 # GET /api/agent/llm-models -- locally-pulled ollama models (best-effort), so the Connect
 # step can show what is available and hint a pull when ollama is reachable but empty.
 function Get-TcpkAgentLlmModels {
@@ -541,6 +563,8 @@ th,td{padding:7px 11px}
       <div class="step" data-p="6"><div class="num">6</div><div><div class="t">Report</div><div class="s">export</div></div></div>
       <div class="railsep">autonomous</div>
       <div class="step" data-p="7"><div class="num">7</div><div><div class="t">Agent</div><div class="s">full auto</div></div></div>
+      <div class="railsep">interception</div>
+      <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
       <div class="legend">
         <h5>CONFIDENCE LADDER</h5>
         <div><span class="cdot" style="background:var(--il)"></span>Confirmed (IL) -- proven</div>
@@ -699,6 +723,20 @@ th,td{padding:7px 11px}
         </div>
       </div>
 
+      <div class="pane" data-p="8">
+        <h2>Interception</h2>
+        <p class="lead">Review a captured traffic session as findings. Capture with the CLI (Invoke-TcpkIntercept, gated) using mitmproxy (proxy mode) or Frida (hook mode), then load the capture file here. Discovery-only: this pane parses a local capture, it never launches or injects.</p>
+        <div class="panel">
+          <div class="row">
+            <div style="flex:1"><label>capture file (mitmproxy flows.jsonl or Frida hook.log)</label><input id="icFile" placeholder="C:\path\tcpk-flows.jsonl"/></div>
+            <div><label>kind</label><select id="icKind"><option value="proxy">proxy (mitmproxy)</option><option value="hook">hook (Frida)</option></select></div>
+            <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="go mini" onclick="loadCapture()">Load capture</button></div>
+          </div>
+          <div class="note" id="icStatus">point at a capture written by Invoke-TcpkIntercept.</div>
+        </div>
+        <div id="icFindings"></div>
+      </div>
+
     </main>
   </div>
 
@@ -804,6 +842,17 @@ async function dl(file){try{var res=await fetch('/api/report?job='+JOB+'&file='+
 function log(m,cls){var el=$('console');var line=cls?('<span class="'+cls+'">'+esc(m)+'</span>'):esc(m);el.innerHTML+=line+'\n';el.scrollTop=el.scrollHeight;}
 function toggleDock(){$('dock').classList.toggle('collapsed');}
 function openDock(){$('dock').classList.remove('collapsed');}
+// ---- phase 8: interception (review a mitmproxy/frida capture) ----
+async function loadCapture(){var f=val('icFile').trim();var kind=val('icKind');var box=$('icFindings');var st=$('icStatus');
+  if(!f){st.textContent='enter a capture file path';return;}
+  st.textContent='parsing...';box.innerHTML='';
+  try{var r=await api('/api/agent/intercept',{json:{file:f,kind:kind}});
+    if(r.error){st.textContent=r.error;return;}
+    st.textContent=r.count+' finding'+(r.count===1?'':'s')+' from the '+esc(r.kind)+' capture';
+    if(!r.findings||!r.findings.length){box.innerHTML='<div class="note">no interception findings in this capture.</div>';return;}
+    r.findings.forEach(function(f){var k=sevKey(f.sev),cc=confClass(f.conf);var d=document.createElement('div');d.className='panel';d.style.margin='6px 0';
+      d.innerHTML='<div><span class="pill '+k+'">'+esc(f.sev)+'</span> <span class="cb '+cc+'">'+esc(f.conf)+'</span> <b>'+esc(f.title)+'</b></div><div class="note" style="margin-top:4px">'+esc(f.rule)+' -- '+esc(f.evidence)+'</div>';box.appendChild(d);});
+  }catch(e){st.textContent='parse failed';}}
 // ---- phase 4: decompile / IL view ----
 function fmtSize(b){b=b||0;if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
 function mkModRow(path,badge,name,sub,onopen){

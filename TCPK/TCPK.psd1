@@ -1,6 +1,6 @@
 @{
     RootModule        = 'TCPK.psm1'
-    ModuleVersion     = '2.4.1'
+    ModuleVersion     = '2.4.2'
     GUID              = 'a3f7c1d2-9b4e-4c8a-b1f3-7c2a4d5e8f01'
     Author            = 'TCPK contributors'
     CompanyName       = 'Open source'
@@ -22,7 +22,7 @@
             Prerelease   = 'dev'
             LicenseUri   = 'https://opensource.org/licenses/MIT'
             ProjectUri   = ''
-            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.1-dev (in development): NEW Invoke-TcpkIntercept adds thick-client traffic interception by orchestrating mitmproxy (mitmdump) and parsing captured flows into intercept.* findings -- endpoints confirmed on the wire, HTTP Basic / bearer credentials, credential parameters, and cleartext-http transport (Confirmed dynamic). v2.3.0: the autonomous agent gained call-graph + taint-trace tools and a prover verification gate; Invoke-TcpkSecretRecovery + a Confirmed (exploit) tier recover a plaintext secret from a shipped key + IV + ciphertext.'
+            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.2-dev (in development): the agentic workbench gains an Interception tab that parses a captured traffic session (mitmproxy or Frida) into intercept.* findings, discovery-only. v2.4.1-dev: NEW Invoke-TcpkIntercept adds thick-client traffic interception -- proxy mode (mitmproxy) and hook mode (Frida, the Echo Mirage approach) parsing captured flows into intercept.* findings. v2.3.0: autonomous-agent call-graph + taint-trace tools, a prover verification gate, and Invoke-TcpkSecretRecovery + a Confirmed (exploit) tier.'
         }
     }
 }
