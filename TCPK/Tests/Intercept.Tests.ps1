@@ -46,3 +46,33 @@ Describe 'Invoke-TcpkIntercept -FlowFile' {
         $c.Evidence | Should -Not -Match 'hunter2'   # the password value stays masked
     }
 }
+
+Describe 'Invoke-TcpkIntercept -HookFile (Frida hook capture)' {
+    BeforeAll {
+        $b = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes('admin:S3cr3t!'))
+        $lines = @(
+            'TCPKHOOK ' + ([ordered]@{ dir = 'send'; func = 'SSL_write'; len = 1; data = "GET /login HTTP/1.1`r`nHost: api.hooktest`r`nAuthorization: Basic $b`r`n`r`n" } | ConvertTo-Json -Compress)
+            'TCPKHOOK ' + ([ordered]@{ dir = 'send'; func = 'send';      len = 1; data = 'POST /set HTTP/1.1 password=hunter2&x=1' } | ConvertTo-Json -Compress)
+            'TCPKHOOK ' + ([ordered]@{ dir = 'send'; func = 'SSL_write'; len = 1; data = "X`r`nAuthorization: Bearer eyJ.aa.bb`r`n" } | ConvertTo-Json -Compress)
+        )
+        $script:hf = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-hook-' + [guid]::NewGuid().ToString('N') + '.log')
+        Set-Content -LiteralPath $script:hf -Value $lines
+    }
+    AfterAll { if ($script:hf -and (Test-Path $script:hf)) { Remove-Item $script:hf -Force -ErrorAction SilentlyContinue } }
+
+    It 'recovers Basic credentials captured at the API' {
+        @(Invoke-TcpkIntercept -HookFile $script:hf | Where-Object { $_.RuleId -eq 'intercept.cleartext-credential' -and $_.Evidence -match 'admin' }).Count | Should -BeGreaterThan 0
+    }
+    It 'flags a credential parameter in a hooked buffer' {
+        @(Invoke-TcpkIntercept -HookFile $script:hf | Where-Object { $_.Evidence -match 'password' }).Count | Should -BeGreaterThan 0
+    }
+    It 'flags a bearer token captured via the hook' {
+        @(Invoke-TcpkIntercept -HookFile $script:hf | Where-Object { $_.RuleId -eq 'intercept.session-token' }).Count | Should -BeGreaterThan 0
+    }
+    It 'confirms the endpoint from the hooked HTTP request' {
+        @(Invoke-TcpkIntercept -HookFile $script:hf | Where-Object { $_.RuleId -eq 'intercept.endpoint-confirmed' -and $_.File -match 'api.hooktest' }).Count | Should -BeGreaterThan 0
+    }
+    It 'notes TLS plaintext recovered when an SSL function was hooked' {
+        @(Invoke-TcpkIntercept -HookFile $script:hf | Where-Object { $_.RuleId -eq 'intercept.api-hook-plaintext' }).Count | Should -BeGreaterThan 0
+    }
+}

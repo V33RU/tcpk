@@ -119,3 +119,110 @@ function ConvertFrom-TcpkInterceptCapture {
     }
     return $findings.ToArray()
 }
+
+# ---- Hook mode (Frida inline API hooking, the Echo Mirage approach) -----------
+
+# Locate the frida CLI: explicit override, then tools\frida\, then PATH.
+function Get-TcpkFrida {
+    param([string]$Override)
+    $cands = @()
+    if ($Override) { $cands += $Override }
+    $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $cands += (Join-Path $repo 'tools/frida/frida')
+    $cands += (Join-Path $repo 'tools/frida/frida.exe')
+    foreach ($c in $cands) { if ($c -and (Test-Path -LiteralPath $c)) { return (Resolve-Path -LiteralPath $c).Path } }
+    $cmd = Get-Command 'frida' -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    return $null
+}
+
+# Path to the bundled Frida hook script.
+function Get-TcpkHookScript { return (Join-Path (Split-Path $PSScriptRoot -Parent) 'Data/tcpk_hook.js') }
+
+# Parse a Frida hook capture (lines of 'TCPKHOOK <json>' written by tcpk_hook.js) into
+# intercept.* findings. The buffers are raw plaintext read at the socket/TLS API, so the
+# detection is protocol-agnostic. Deterministic; the unit-testable core of hook mode.
+function ConvertFrom-TcpkHookCapture {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$HookFile)
+    if (-not (Test-Path -LiteralPath $HookFile)) { return @() }
+
+    $credSeen = New-Object 'System.Collections.Generic.HashSet[string]'
+    $tokSeen  = New-Object 'System.Collections.Generic.HashSet[string]'
+    $epSeen   = New-Object 'System.Collections.Generic.HashSet[string]'
+    $findings = New-Object 'System.Collections.Generic.List[object]'
+    $tlsSeen  = $false
+    $secretRx = '(?i)(password|passwd|pwd|token|apikey|api_key|secret|access_key)=([^&\s]{3,})'
+    $tlsFuncs = @('SSL_write', 'SSL_read', 'EncryptMessage', 'DecryptMessage')
+
+    foreach ($line in (Get-Content -LiteralPath $HookFile)) {
+        $ix = "$line".IndexOf('TCPKHOOK ')
+        if ($ix -lt 0) { continue }
+        $rec = $null; try { $rec = ("$line".Substring($ix + 9)) | ConvertFrom-Json } catch { continue }
+        if ("$($rec.dir)" -eq 'meta') { continue }
+        $data = "$($rec.data)"; if (-not $data) { continue }
+        $func = "$($rec.func)"
+        if ($tlsFuncs -contains $func) { $tlsSeen = $true }
+
+        # HTTP request line + Host -> a confirmed live endpoint
+        if ($data -match '(?im)^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+\S+\s+HTTP/1' -and $data -match '(?im)^Host:\s*([^\r\n]+)') {
+            $h = "$($matches[1])".Trim()
+            if ($h -and $epSeen.Add($h)) {
+                $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.endpoint-confirmed' `
+                    -Severity 'INFO' -Confidence 'Confirmed (dynamic)' `
+                    -Title "Backend endpoint confirmed via API hook: $h" -File $h `
+                    -Evidence "captured an HTTP request to $h (hooked $func)" `
+                    -Description "Captured an HTTP request to $h by hooking $func in the target process (no proxy, no CA). Confirms a live backend destination." `
+                    -Fix 'Confirm this endpoint is expected and authenticated over TLS.'))
+            }
+        }
+        # HTTP Basic credentials
+        if ($data -match '(?im)Authorization:\s*Basic\s+([A-Za-z0-9+/=]+)') {
+            $dec = ''; try { $dec = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($matches[1])) } catch { }
+            if ($dec -match '^(.*?):(.*)$') {
+                $u = $matches[1]; $p = $matches[2]
+                if ($credSeen.Add("basic|$u")) {
+                    $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.cleartext-credential' `
+                        -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
+                        -Title 'HTTP Basic credentials captured via API hook' -File 'hook' `
+                        -Evidence ("user '$u' pass '" + (Format-TcpkMaskedSecret $p) + "' (hooked $func)") -Cwe @('CWE-522') `
+                        -Description "Recovered HTTP Basic credentials by hooking $func inside the process, so TLS / certificate pinning did not prevent capture. Assess whether the credential is also network-exposed (proxy mode) or only recoverable with local code execution." `
+                        -Fix 'Use a short-lived token bound to the client; rotate the exposed credential.'))
+                }
+            }
+        }
+        # bearer / session token
+        if ($data -match '(?im)Authorization:\s*Bearer\s+([^\r\n]+)') {
+            if ($tokSeen.Add('bearer')) {
+                $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.session-token' `
+                    -Severity 'MEDIUM' -Confidence 'Confirmed (dynamic)' `
+                    -Title 'Bearer/session token captured via API hook' -File 'hook' `
+                    -Evidence ('Bearer ' + (Format-TcpkMaskedSecret ("$($matches[1])".Trim())) + " (hooked $func)") -Cwe @('CWE-522') `
+                    -Description "Captured a bearer token by hooking $func. A captured token can be replayed within its validity." `
+                    -Fix 'Keep token lifetimes short and bind tokens to the client.'))
+            }
+        }
+        # credential/secret parameters (protocol-agnostic)
+        foreach ($m in [regex]::Matches($data, $secretRx)) {
+            $pn = $m.Groups[1].Value; $pv = $m.Groups[2].Value
+            if ($credSeen.Add("param|$pn|$pv")) {
+                $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.cleartext-credential' `
+                    -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
+                    -Title 'Credential/secret parameter captured via API hook' -File 'hook' `
+                    -Evidence ("$pn = " + (Format-TcpkMaskedSecret $pv) + " (hooked $func)") -Cwe @('CWE-522') `
+                    -Description "The app sent a '$pn' value, recovered by hooking $func in the process regardless of transport encryption." `
+                    -Fix 'Do not send credentials/secrets in the clear inside the protocol; use a proper auth flow.'))
+            }
+        }
+    }
+
+    if ($tlsSeen) {
+        $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.api-hook-plaintext' `
+            -Severity 'LOW' -Confidence 'Confirmed (dynamic)' `
+            -Title 'TLS plaintext recovered via in-process API hook' -File 'hook' `
+            -Evidence 'plaintext captured at the SSL/TLS API (SSL_write/SSL_read or SChannel)' -Cwe @('CWE-319') `
+            -Description "Plaintext was recovered by hooking the TLS functions inside the process, demonstrating that transport encryption and certificate pinning do not protect the data from code running in the app context (a malicious dependency, a local attacker, or the tester). This is the interception capability, not a remote vulnerability by itself." `
+            -Fix 'Recognize that client-side TLS / pinning does not defend against local code execution; minimize what the client can access and protect secrets at rest.'))
+    }
+    return $findings.ToArray()
+}

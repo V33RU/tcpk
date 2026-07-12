@@ -43,29 +43,63 @@ function Invoke-TcpkIntercept {
 .OUTPUTS
     [TcpkFinding] - intercept.* findings ('Confirmed (dynamic)' for observed traffic).
 #>
-    [CmdletBinding(DefaultParameterSetName = 'Parse')]
+    [CmdletBinding(DefaultParameterSetName = 'ParseProxy')]
     param(
-        [Parameter(Mandatory, ParameterSetName = 'Parse')][string]$FlowFile,
+        [Parameter(Mandatory, ParameterSetName = 'ParseProxy')][string]$FlowFile,
+        [Parameter(Mandatory, ParameterSetName = 'ParseHook')][string]$HookFile,
         [Parameter(Mandatory, ParameterSetName = 'Active')][string]$Target,
+        [Parameter(ParameterSetName = 'Active')][ValidateSet('Proxy', 'Hook')][string]$Mode = 'Proxy',
         [Parameter(ParameterSetName = 'Active')][switch]$ConfirmDynamic,
         [Parameter(ParameterSetName = 'Active')][int]$Port = 0,
         [Parameter(ParameterSetName = 'Active')][int]$DurationSec = 20,
         [Parameter(ParameterSetName = 'Active')][string]$MitmdumpPath,
+        [Parameter(ParameterSetName = 'Active')][string]$FridaPath,
         [Parameter(ParameterSetName = 'Active')][string[]]$ExtraArgs = @()
     )
 
-    if ($PSCmdlet.ParameterSetName -eq 'Parse') {
+    if ($PSCmdlet.ParameterSetName -eq 'ParseProxy') {
         if (-not (Test-Path -LiteralPath $FlowFile)) { throw "Flow file not found: $FlowFile" }
         return (ConvertFrom-TcpkInterceptCapture -FlowFile $FlowFile)
+    }
+    if ($PSCmdlet.ParameterSetName -eq 'ParseHook') {
+        if (-not (Test-Path -LiteralPath $HookFile)) { throw "Hook file not found: $HookFile" }
+        return (ConvertFrom-TcpkHookCapture -HookFile $HookFile)
     }
 
     Assert-TcpkExploitEnabled 'Invoke-TcpkIntercept'
     if (-not $ConfirmDynamic) {
         throw "Invoke-TcpkIntercept LAUNCHES the target and actively intercepts its traffic. Re-run with -ConfirmDynamic to acknowledge (authorized targets only)."
     }
-    if (-not (Assert-TcpkWindows 'Invoke-TcpkIntercept')) { return }
     if (-not (Test-Path -LiteralPath $Target)) { throw "Target not found: $Target" }
 
+    # --- Hook mode: Frida inline API hooking (works regardless of proxy / CA / pinning) ---
+    if ($Mode -eq 'Hook') {
+        $frida = Get-TcpkFrida -Override $FridaPath
+        if (-not $frida) { throw "frida not found. Install with 'pip install frida-tools', drop the frida binary in tools\frida\, or add it to PATH." }
+        $hookScript = Get-TcpkHookScript
+        if (-not (Test-Path -LiteralPath $hookScript)) { throw "hook script missing: $hookScript" }
+        $cap = Join-Path ([System.IO.Path]::GetTempPath()) ("tcpk-hook-" + [guid]::NewGuid().ToString('N') + ".log")
+        $fp = $null
+        try {
+            Write-TcpkInfo "[intercept] frida-spawning $(Split-Path $Target -Leaf) with the TCPK hook (~${DurationSec}s)"
+            $fargs = @('-f', $Target, '-l', $hookScript, '-q') + @($ExtraArgs)
+            $fp = Start-Process -FilePath $frida -ArgumentList $fargs -PassThru -RedirectStandardOutput $cap -RedirectStandardError "$cap.err" -WindowStyle Minimized -ErrorAction Stop
+            $deadline = (Get-Date).AddSeconds($DurationSec)
+            while ((Get-Date) -lt $deadline -and $fp -and -not $fp.HasExited) { Start-Sleep -Milliseconds 500 }
+        } finally {
+            if ($fp -and -not $fp.HasExited) { try { Stop-Process -Id $fp.Id -Force -ErrorAction SilentlyContinue } catch { } }
+        }
+        if (-not (Test-Path -LiteralPath $cap)) {
+            return (New-TcpkFinding -Module 'network' -RuleId 'intercept.no-traffic' -Severity 'INFO' -Confidence 'Inferred' `
+                -Title 'No traffic captured (hook mode)' -File $Target -Evidence "no hooked buffers in ${DurationSec}s" `
+                -Description "Frida produced no captured buffers. The app may not have sent traffic yet, may detect and block instrumentation, or the hooked functions may not match its network stack (check the recon network fingerprint)." `
+                -Fix 'Drive the app UI during capture, increase -DurationSec, or extend the hook set to the target TLS library.')
+        }
+        return (ConvertFrom-TcpkHookCapture -HookFile $cap)
+    }
+
+    # --- Proxy mode: mitmproxy (launches a Windows app through a local mitmdump) ---
+    if (-not (Assert-TcpkWindows 'Invoke-TcpkIntercept')) { return }
     $mitm = Get-TcpkMitmdump -Override $MitmdumpPath
     if (-not $mitm) { throw "mitmdump not found. Drop the portable mitmproxy binary in tools\mitmproxy\ (https://mitmproxy.org/downloads) or add it to PATH." }
     $addon = Get-TcpkInterceptAddon
