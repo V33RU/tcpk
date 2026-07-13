@@ -12,6 +12,8 @@ NEW Get-TcpkStoredCredentials (Exploit bucket, GATED, Windows) -- the stored-cre
 
 Both gated behind Enable-TcpkExploit plus a -ConfirmDynamic / -Confirm acknowledgement; authorized targets only. Still open (the last two niche items, to build and verify on a live/Windows target): SQL-injection execution for a Confirmed (IL) sink, and deep-link / protocol-handler active exploitation.
 
+Agentic workbench cleanup (keep-what-is-real pass): removed the decorative dashboard risk-gauge and severity donut, a dead unused CSS block, and a stale "building next" comment. The real severity counters, the findings triage table, and all eight functional tabs (Connect / Target / Audit / Decompile / AI review / Report / Autonomous agent / Interception) are unchanged.
+
 ## v2.4.3-dev
 
 Closes the last two genuine thick-client pentest gaps. (The rest of the exploitation surface was already the K01-K10 Exploit bucket: DPAPI decrypt, memory flag-flip, GUI unlock, Frida TLS-bypass generator, pipe MITM, DLL/COM hijack scaffolds -- so this adds only what was actually missing, not duplicates.)

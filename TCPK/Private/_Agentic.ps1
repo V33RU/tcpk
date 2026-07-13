@@ -32,8 +32,8 @@ function Invoke-TcpkAgenticApi {
         return @{ Status = 200; ContentType = 'text/html; charset=utf-8'; Body = (Get-TcpkAgenticAppHtml) }
     }
 
-    # Agentic-only routes (auth-gated). Phase 2 (decompile) + Phase 3 (AI review) wiring
-    # lands here; for now they return a 'pending' marker so the SPA shows "building next".
+    # Agentic-only routes (auth-gated): decompile / IL, per-method AI review, the
+    # interception-capture review, and the autonomous-agent job. All wired and live.
     if ($path -like '/api/agent/*') {
         if (-not (Test-TcpkWebRequestAuth -Request $Request -Token $State.Token -Port $State.Port)) {
             return (New-TcpkWebJson 401 @{ error = 'unauthorized' })
@@ -473,13 +473,6 @@ button:disabled{opacity:.4;cursor:default}
 .bar{height:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin:10px 0}
 .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
 .dash{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:6px 0 14px}
-.gauge{position:relative;width:128px;height:128px;flex:0 0 auto}
-.gauge svg{transform:rotate(-90deg)}
-.gauge .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.gauge .ctr b{font:700 30px var(--mono)}.gauge .ctr small{color:var(--muted);font-size:10px}
-.donut{position:relative;width:118px;height:118px;border-radius:50%;flex:0 0 auto;background:var(--panel2)}
-.donut .hole{position:absolute;inset:20px;border-radius:50%;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center}
-.donut .hole b{font:700 22px var(--mono)}.donut .hole small{color:var(--muted);font-size:10px}
 .counts{display:flex;gap:8px;flex-wrap:wrap}
 .cstat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 13px;text-align:center;min-width:64px}
 .cstat b{font:700 19px var(--mono);display:block;line-height:1.1}.cstat small{color:var(--muted);font-size:10px}
@@ -507,8 +500,6 @@ td.ttl{white-space:normal;max-width:520px;color:#dbe3ea}
 .vcard{border:1px solid var(--border);border-left-width:3px;border-radius:7px;padding:9px;margin-bottom:9px;font:11px var(--mono);color:#c9d1d9}
 .vcard.crit{border-left-color:var(--crit)}.vcard.med{border-left-color:var(--med)}
 .vcard .h{display:flex;gap:7px;align-items:center;margin-bottom:6px}
-.soon{border:1px dashed var(--border);border-radius:9px;padding:18px;text-align:center;color:var(--muted);line-height:1.75;margin-top:10px}
-.soon b{color:var(--text);font:700 13px var(--mono)}
 .kbd{font:11px var(--mono);background:var(--panel2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--llm)}
 .dl{display:inline-block;margin:6px 9px 0 0}
 .dock{border-top:1px solid var(--border);background:#0c1018;height:172px;display:flex;flex-direction:column;transition:height .2s}
@@ -650,8 +641,6 @@ th,td{padding:7px 11px}
 
         <div class="panel">
           <div class="dash">
-            <div class="gauge"><svg width="128" height="128" viewBox="0 0 128 128"><circle cx="64" cy="64" r="52" fill="none" stroke="var(--panel2)" stroke-width="11"/><circle id="riskRing" cx="64" cy="64" r="52" fill="none" stroke="var(--il)" stroke-width="11" stroke-linecap="round" stroke-dasharray="0 326.7"/></svg><div class="ctr"><b id="riskNum">0</b><small>risk index</small></div></div>
-            <div class="donut" id="donut"><div class="hole"><b id="donutTot">0</b><small>findings</small></div></div>
             <div class="counts">
               <div class="cstat s-crit"><b id="c-crit">0</b><small>critical</small></div>
               <div class="cstat s-high"><b id="c-high">0</b><small>high</small></div>
@@ -816,16 +805,7 @@ function populateFromResult(){var mf=(result&&result.model&&result.model.finding
   counts={crit:0,high:0,med:0,low:0,info:0};FINDINGS=[];
   mf.forEach(function(f){var k=sevKey(f.sev);if(counts[k]!==undefined)counts[k]++;FINDINGS.push({sev:f.sev,conf:f.conf,rule:f.rule,title:f.title});});
   renderTriage();paint();log('[step] '+mf.length+' findings loaded into triage','c-step');}
-function riskFrom(c){return Math.min(100,c.crit*45+c.high*18+c.med*6+c.low*2);}
-function riskColor(r){return r>=70?'var(--crit)':r>=40?'var(--high)':r>=15?'var(--med)':'var(--il)';}
-function paint(){for(var k in counts)$('c-'+k).textContent=counts[k];
-  var r=riskFrom(counts);var C=2*Math.PI*52;$('riskRing').setAttribute('stroke-dasharray',(r/100*C).toFixed(1)+' '+C.toFixed(1));$('riskRing').setAttribute('stroke',riskColor(r));$('riskNum').textContent=r;
-  drawDonut();}
-function drawDonut(){var c=counts,tot=c.crit+c.high+c.med+c.low+c.info,el=$('donut');$('donutTot').textContent=tot;
-  if(!tot){el.style.background='var(--panel2)';return;}
-  var acc=0,segs=[],map=[['crit','--crit'],['high','--high'],['med','--med'],['low','--low'],['info','--info']];
-  map.forEach(function(m){var v=c[m[0]];if(v<=0)return;var a=(acc/tot*360).toFixed(1),b=((acc+v)/tot*360).toFixed(1);segs.push('var('+m[1]+') '+a+'deg '+b+'deg');acc+=v;});
-  el.style.background='conic-gradient('+segs.join(',')+')';}
+function paint(){for(var k in counts)$('c-'+k).textContent=counts[k];}
 function sevKey(s){s=(s||'INFO').toUpperCase();var m={CRITICAL:'crit',HIGH:'high',MEDIUM:'med',LOW:'low',INFO:'info'};return m[s]||'info';}
 function confClass(c){c=(c||'').toLowerCase();if(c.indexOf('il')>=0)return 'il';if(c.indexOf('dynamic')>=0)return 'dyn';if(c.indexOf('llm')>=0)return 'llm';if(c.indexOf('confirmed')>=0)return 'conf';return '';}
 function toggleFilter(k){if(FILTER[k]){delete FILTER[k];}else{FILTER[k]=true;}
