@@ -119,7 +119,7 @@ function Invoke-TcpkIntercept {
             $mp = Start-Process -FilePath $mitm -ArgumentList @('--listen-host', '127.0.0.1', '-p', "$Port", '-s', "$tamperAddon", '-q') -PassThru -WindowStyle Minimized -ErrorAction Stop
             Start-Sleep -Seconds 2
             $env:HTTP_PROXY = "http://127.0.0.1:$Port"; $env:HTTPS_PROXY = "http://127.0.0.1:$Port"
-            $tp = Start-Process -FilePath $Target -ArgumentList $ExtraArgs -PassThru -WindowStyle Minimized -ErrorAction Stop
+            $tp = if (@($ExtraArgs).Count) { Start-Process -FilePath $Target -ArgumentList $ExtraArgs -PassThru -WindowStyle Minimized -ErrorAction Stop } else { Start-Process -FilePath $Target -PassThru -WindowStyle Minimized -ErrorAction Stop }
             $deadline = (Get-Date).AddSeconds($DurationSec)
             while ((Get-Date) -lt $deadline -and $tp -and -not $tp.HasExited) { Start-Sleep -Milliseconds 500 }
         } finally {
@@ -148,7 +148,7 @@ function Invoke-TcpkIntercept {
         Start-Sleep -Seconds 2
         $env:HTTP_PROXY = "http://127.0.0.1:$Port"; $env:HTTPS_PROXY = "http://127.0.0.1:$Port"
         Write-TcpkInfo "[intercept] launching $(Split-Path $Target -Leaf) via proxy (~${DurationSec}s). Trust the mitmproxy CA if TLS does not intercept."
-        $tp = Start-Process -FilePath $Target -ArgumentList $ExtraArgs -PassThru -WindowStyle Minimized -ErrorAction Stop
+        $tp = if (@($ExtraArgs).Count) { Start-Process -FilePath $Target -ArgumentList $ExtraArgs -PassThru -WindowStyle Minimized -ErrorAction Stop } else { Start-Process -FilePath $Target -PassThru -WindowStyle Minimized -ErrorAction Stop }
         $deadline = (Get-Date).AddSeconds($DurationSec)
         while ((Get-Date) -lt $deadline -and $tp -and -not $tp.HasExited) { Start-Sleep -Milliseconds 500 }
     } finally {

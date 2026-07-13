@@ -4,6 +4,10 @@
 # secret into demonstrated impact. Active by nature (it makes one real auth attempt); the
 # public cmdlet gates it (Enable-TcpkExploit + -ConfirmActive). Authorized targets only.
 
+# System.Net.Http is auto-loaded in PowerShell 7 but NOT in Windows PowerShell 5.1, so the
+# HttpClient types below fail to resolve on 5.1 unless the assembly is loaded explicitly.
+Add-Type -AssemblyName System.Net.Http -ErrorAction SilentlyContinue
+
 # One HTTP GET, returning the status code (0 on a connection error). No redirects followed
 # so a 401 is not masked by a login-page redirect to 200.
 function Invoke-TcpkHttpProbe {

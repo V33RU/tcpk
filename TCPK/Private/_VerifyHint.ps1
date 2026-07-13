@@ -58,7 +58,10 @@ function Get-TcpkVerifyHint {
     )
 
     $f   = if ($File) { $File } else { '<file>' }
-    $dir = if ($File) { Split-Path -Parent $File } else { '<install-dir>' }
+    # $File may be a .NET type/method name from IL analysis (e.g. 'App.DownloaderClient/<>c'),
+    # not a filesystem path. Split-Path would read the '/' as a PSProvider and throw, so only
+    # split a real Windows path (contains a backslash) and guard it.
+    $dir = if ($File -and $File -match '\\') { try { Split-Path -Parent $File } catch { '<install-dir>' } } else { '<install-dir>' }
     $hostName = if ($Evidence -match 'https?://([^/\s|]+)') { $matches[1] } else { '<host>' }
 
     $h = switch -Regex ($RuleId) {
