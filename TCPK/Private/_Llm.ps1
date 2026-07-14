@@ -14,7 +14,7 @@ $script:TcpkLlmConfig = $null
 # /models), so they use the 'openai' dialect.
 $script:TcpkLlmProviders = @{
     'ollama'    = @{ dialect='openai';    baseUrl='http://localhost:11434/v1'; needsKey=$false; cloud=$false; defaultModel='qwen2.5-coder:7b' }
-    'claude'    = @{ dialect='anthropic'; baseUrl='https://api.anthropic.com';  needsKey=$true;  cloud=$true;  defaultModel='claude-sonnet-4-5' }
+    'claude'    = @{ dialect='anthropic'; baseUrl='https://api.anthropic.com';  needsKey=$true;  cloud=$true;  defaultModel='claude-sonnet-5' }
     'openai'    = @{ dialect='openai';    baseUrl='https://api.openai.com/v1';  needsKey=$true;  cloud=$true;  defaultModel='gpt-4o' }
     'gemini'    = @{ dialect='openai';    baseUrl='https://generativelanguage.googleapis.com/v1beta/openai'; needsKey=$true; cloud=$true; defaultModel='gemini-2.0-flash' }
     'grok'      = @{ dialect='openai';    baseUrl='https://api.x.ai/v1';        needsKey=$true;  cloud=$true;  defaultModel='grok-2-latest' }

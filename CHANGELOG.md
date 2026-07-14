@@ -2,6 +2,16 @@
 
 Release history for TCPK. Newest first.
 
+## v2.4.4-rc1
+
+Release candidate for the 2.4.x line. It consolidates the interception + exploitation work in the v2.4.1-dev through v2.4.4-dev entries below, and adds a review pass on the LLM and MCP subsystems:
+
+- SECURITY: Data/llm-config.json (which stores a cloud API key in plaintext once the operator configures one) is no longer tracked in git. The .gitignore rule for it was already present, but the file had been committed, so a tracked file bypasses the ignore and a key-write could have been staged; it is now untracked (the committed copy held an empty key, so nothing leaked). The module falls back to a built-in default when the file is absent, so a fresh clone is unaffected.
+- MCP server: serverInfo.version is now read live from the module (was a hardcoded, stale 2.1.0); the tcpk_cve_match tool description now states LIVE online CVE (OSV + NVD, network required) instead of the removed offline catalog; and the tcpk_audit summary points at report.md (was a non-existent findings.md).
+- LLM: the default Claude model is refreshed to claude-sonnet-5 (the previous id was stale); the model field is still free-text so any provider model can be typed.
+
+Verified on Linux: the MCP server answers a real JSON-RPC handshake (initialize / tools/list / ping) and a live tcpk_info tool call; the module imports and the LLM backend resolves (ollama, cloud-gated). Windows-runtime paths were verified on Windows earlier in this line.
+
 ## v2.4.4-dev
 
 Adds the remaining thick-client exploitation primitives (the last specializations on top of the existing K01-K10 Exploit bucket).

@@ -47,7 +47,8 @@ foreach ($cand in @(
 
 if (-not $tcpkPsd1) { Log-Stderr "TCPK module not found near $PSScriptRoot"; exit 1 }
 try { Import-Module $tcpkPsd1 -Force *>$null } catch { Log-Stderr "Import-Module failed: $($_.Exception.Message)"; exit 1 }
-Log-Stderr "TCPK module loaded from $tcpkPsd1"
+$script:TcpkVersion = try { "$((Get-Module TCPK | Select-Object -First 1).Version)" } catch { '0.0.0' }
+Log-Stderr "TCPK module loaded from $tcpkPsd1 (v$script:TcpkVersion)"
 
 # ---------------------------------------------------------------------------
 # Small helpers
@@ -133,7 +134,7 @@ $script:ToolHandlers = @{
             reports     = @{
                 html = Join-Path $outDir 'index.html'
                 json = Join-Path $outDir 'findings.json'
-                markdown = Join-Path $outDir 'findings.md'
+                markdown = Join-Path $outDir 'report.md'
                 profile = Join-Path $outDir 'profile.json'
                 strings = Join-Path $outDir 'strings.json'
                 exploits = Join-Path $outDir 'exploits.json'
@@ -218,7 +219,7 @@ $script:ToolDefs = @(
     [ordered]@{ name = 'tcpk_strings'; description = 'Extract + categorize interesting literals (URLs, file paths, registry keys, IPs, emails, command refs, secret-ish) from the target first-party binaries.';
         inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{ target = @{ type = 'string'; description = 'Install directory' } }; required = @('target') } },
 
-    [ordered]@{ name = 'tcpk_cve_match'; description = 'Match the target shipped components against the offline CVE catalog. Returns vulnerable / present / possibly-embedded matches.';
+    [ordered]@{ name = 'tcpk_cve_match'; description = 'Match the target shipped components against LIVE online CVE data (OSV for managed/JS/native ecosystems, NVD by CPE for native libraries). Online-only; needs network. Returns vulnerable / present matches.';
         inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{ target = @{ type = 'string' }; includePatched = @{ type = 'boolean'; description = 'Also return components matched but already patched' } }; required = @('target') } },
 
     [ordered]@{ name = 'tcpk_audit'; description = 'Run the full TCPK audit (static + manifest + OS + creds + network + webview2 + logging + memory + anti-debug + recon + CVE). Writes reports and returns a summary with the outDir. Takes ~1-3 minutes.';
@@ -291,7 +292,7 @@ while ($true) {
                 Send-Result $id ([ordered]@{
                     protocolVersion = '2024-11-05'
                     capabilities    = @{ tools = @{} }
-                    serverInfo      = @{ name = 'tcpk'; version = '2.1.0' }
+                    serverInfo      = @{ name = 'tcpk'; version = $script:TcpkVersion }
                 })
             }
             'notifications/initialized' { }          # notification -> no reply
