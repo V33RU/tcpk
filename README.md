@@ -6,7 +6,7 @@
   Portable Windows thick-client / MSIX security audit tool.
   **Find. Verify. Report.**
 
-  PowerShell engine, WPF/WinForms GUI, a loopback web control panel, an agentic AI workbench, and a native MCP server.
+  PowerShell engine, WPF/WinForms GUI, an agentic AI workbench (loopback browser UI), and a native MCP server.
   Authorized testing only.
 </div>
 
@@ -21,16 +21,11 @@ and TCPK runs ~168 checks across 10+ buckets, streams findings live, and writes
 HTML + Excel reports. Every finding carries a confidence label, a **computed CVSS v4.0
 base score**, CWE, MITRE ATT&CK, and an OWASP TASVS / Desktop-App-Top-10 mapping.
 
-The same audit also drives a **loopback web control panel** (new in v1.5.0) --
-discovery-only, token-gated, bound to `127.0.0.1`:
-
-![TCPK web control panel](assets/tcpk-webui.png)
-
-New in **v2.0.0**, an **agentic AI workbench** (`TCPK-Agentic.bat`) takes a target from
-audit -> decompile -> AI line-by-line review in one phased UI -- including an **autonomous
-agent** that investigates on its own: it reasons, calls read-only tools, and records
-findings, each one cross-checked against the deterministic IL prover. Loopback-only,
-discovery-only, local-first (Ollama):
+The audit also drives an **agentic AI workbench** (`TCPK-Agentic.bat`) -- a loopback-only,
+token-gated browser UI bound to `127.0.0.1` that takes a target from audit -> decompile ->
+AI line-by-line review in one phased UI -- including an **autonomous agent** that
+investigates on its own: it reasons, calls read-only tools, and records findings, each one
+cross-checked against the deterministic IL prover. Discovery-only, local-first (Ollama):
 
 ![TCPK agentic AI workbench](assets/tcpk-agenticai.png)
 
@@ -54,7 +49,7 @@ discovery-only, local-first (Ollama):
   **NVD by CPE** for native libraries (OpenSSL / zlib / SQLite / ...), version-accurate so a
   patched library is not flagged. Matching is ONLINE-ONLY -- no offline CVE catalog is
   bundled -- and it sends only the package/CPE name + version and fails closed with no network.
-  It is on by default in the GUI, web panel and agentic workbench (skip it for an air-gapped
+  It is on by default in the GUI and agentic workbench (skip it for an air-gapped
   run) and requested with `-OnlineCve` in the CLI. Either way the matches are embedded in a
   **CycloneDX** `sbom.cdx.json` for hand-off to Grype / OSV-Scanner / Dependency-Track.
 - **Optional local-first AI triage.** `-EnableLlm` (or the GUI "AI-verify findings" box)
@@ -62,7 +57,7 @@ discovery-only, local-first (Ollama):
   Cloud providers are gated behind an explicit opt-in (the decompiled IL never leaves
   the machine by default).
 - **Run it your way, read it anywhere.** Drive an audit from the WinForms GUI, the CLI, or
-  a **loopback-only web control panel** (`TCPK-WebUI.bat` -- binds 127.0.0.1, token-gated,
+  the **loopback-only agentic workbench** (`TCPK-Agentic.bat` -- binds 127.0.0.1, token-gated,
   discovery-only) with live progress, pause/resume, and result tabs. Every audit also writes
   a self-contained offline **`intel.html`** dashboard (severity + the evidence ladder, a
   classified recon endpoint map, filterable per-finding cards) next to the HTML / Excel /

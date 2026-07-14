@@ -1,5 +1,7 @@
 #requires -Version 5.1
-# Pester 5: v1.5.0 local web control panel (Start-TcpkWebUi internals). Tests the PURE
+# Pester 5: loopback HTTP + /api engine in _WebUi.ps1 (Invoke-TcpkWebApi and helpers).
+# The standalone Start-TcpkWebUi entry point was removed in favour of the agentic workbench,
+# but this engine still powers it (Start-TcpkAgentic delegates /api/* here). Tests the PURE
 # pieces -- token, host/auth, target validation, the request dispatcher -- plus the ASYNC
 # audit flow (background job -> /api/status poll -> result tabs), pause/resume/cancel, the
 # list-all enumerator, and report-download path-traversal hardening. No real socket needed

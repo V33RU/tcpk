@@ -38,7 +38,8 @@ WHAT'S IN HERE
 --------------
 
   TCPK.bat          Recommended launcher (runs the GUI script in STA mode).
-  TCPK-WebUI.bat    Web control panel -- loopback 127.0.0.1, token-gated, discovery-only.
+  TCPK-Agentic.bat  Agentic AI workbench -- loopback 127.0.0.1 browser UI, token-gated,
+                    discovery-only (audit / decompile / AI review / autonomous agent).
   Start-TCPKGui.ps1 The GUI source script (run directly with -STA if you prefer).
   TCPK.exe          Compiled launcher (branded icon). Must sit beside the TCPK\
                     module folder AND be rebuilt from Start-TCPKGui.ps1 to find it.
