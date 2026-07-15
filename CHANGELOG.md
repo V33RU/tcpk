@@ -2,13 +2,16 @@
 
 Release history for TCPK. Newest first.
 
-## v2.4.4-rc1
+## v2.4.4
 
-Release candidate for the 2.4.x line. It consolidates the interception + exploitation work in the v2.4.1-dev through v2.4.4-dev entries below, and adds a review pass on the LLM and MCP subsystems:
+Stable release of the 2.4.x line. It consolidates the interception + exploitation work in the v2.4.1-dev through v2.4.4-dev entries below, and adds a review pass on the LLM and MCP subsystems:
 
 - SECURITY: Data/llm-config.json (which stores a cloud API key in plaintext once the operator configures one) is no longer tracked in git. The .gitignore rule for it was already present, but the file had been committed, so a tracked file bypasses the ignore and a key-write could have been staged; it is now untracked (the committed copy held an empty key, so nothing leaked). The module falls back to a built-in default when the file is absent, so a fresh clone is unaffected.
 - MCP server: serverInfo.version is now read live from the module (was a hardcoded, stale 2.1.0); the tcpk_cve_match tool description now states LIVE online CVE (OSV + NVD, network required) instead of the removed offline catalog; and the tcpk_audit summary points at report.md (was a non-existent findings.md).
 - LLM: the default Claude model is refreshed to claude-sonnet-5 (the previous id was stale); the model field is still free-text so any provider model can be typed.
+- Desktop GUI: Start-TCPKGui.ps1 gains an Interception / Live Exploit tab surfacing the active 2.4.x cmdlets that were previously CLI-only (Invoke-TcpkIntercept proxy/hook/tamper, Invoke-TcpkHookBypass, Get-TcpkStoredCredentials, Test-TcpkCredentialLiveness), each behind the exploit gate.
+- The standalone web control panel (Start-TcpkWebUi / TCPK-WebUI.bat) was removed. The agentic workbench (Start-TcpkAgentic / TCPK-Agentic.bat) provides the loopback browser surface and reuses the same web API engine, so there is one source of truth.
+- Windows-verify fixes found while testing the active layer on Windows: Invoke-TcpkIntercept no longer fails to launch a target with no extra args; the http credential-liveness probe loads System.Net.Http on Windows PowerShell 5.1; and the verify-hint helper no longer throws when a finding's file field is a .NET type name rather than a path.
 
 Verified on Linux: the MCP server answers a real JSON-RPC handshake (initialize / tools/list / ping) and a live tcpk_info tool call; the module imports and the LLM backend resolves (ollama, cloud-gated). Windows-runtime paths were verified on Windows earlier in this line.
 

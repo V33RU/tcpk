@@ -19,10 +19,9 @@
     PrivateData = @{
         PSData = @{
             Tags         = @('Security','Pentest','Thick-Client','MSIX','DotNet','WinUI','WebView2')
-            Prerelease   = 'rc1'
             LicenseUri   = 'https://opensource.org/licenses/MIT'
             ProjectUri   = ''
-            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.4-rc1 (release candidate for the 2.4.x line): the full thick-client pentest layer -- interception (mitmproxy proxy + Frida hook + in-flight tamper) and the workbench Interception tab; secret recovery; credential liveness; the Frida return-bypass of a client-side check; and Windows Credential Manager extraction. All exploit paths are gated (Enable-TcpkExploit). Plus a review pass on the LLM + MCP subsystems: the LLM API-key config file is no longer git-tracked, the MCP server reports the live module version and the correct online-CVE tool description, and the default Claude model is refreshed. v2.3.0 was the last full release.'
+            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.4 (stable release of the 2.4.x line): the full thick-client pentest layer -- interception (mitmproxy proxy + Frida hook + in-flight tamper) and the workbench Interception tab; secret recovery; credential liveness; the Frida return-bypass of a client-side check; and Windows Credential Manager extraction. All exploit paths are gated (Enable-TcpkExploit). Plus a review pass on the LLM + MCP subsystems: the LLM API-key config file is no longer git-tracked, the MCP server reports the live module version and the correct online-CVE tool description, and the default Claude model is refreshed. The previous full release was v2.3.0.'
         }
     }
 }
