@@ -99,7 +99,9 @@ Describe 'F3: ALPC enumeration' {
             [bool]('TcpkAlpc' -as [type]) | Should -BeTrue
         }
     }
-    It 'enumerates ALPC ports or falls back, always emitting an alpc.* finding' {
+    It 'enumerates ALPC ports or falls back, always emitting an alpc.* finding' -Skip:($IsWindows -eq $false) {
+        # ALPC is a Windows kernel object; Test-TcpkMailslotsAlpc returns early via
+        # Assert-TcpkWindows off Windows, so there is nothing to enumerate here.
         InModuleScope TCPK {
             $r = Test-TcpkMailslotsAlpc -NameLike @('tcpk-nope-xyz')
             $rules = @($r | ForEach-Object { "$($_.RuleId)" })
@@ -152,7 +154,7 @@ Describe 'F5: OSV CVE cache' {
             $r = Get-TcpkOsvMatches -Components @(@{ Name = 'testpkg'; Version = '9.9.9' }) -Ecosystem 'npm'
             @($r).Count | Should -BeGreaterThan 0
             "$(@($r)[0].Cve)" | Should -Be 'CVE-TEST-1'
-            Assert-MockCalled Get-TcpkOsvQueryNet -Times 0 -Scope It
+            Should -Invoke Get-TcpkOsvQueryNet -Times 0 -Scope It
         }
     }
     It 'falls back to empty (no throw) when the network core returns nothing' {

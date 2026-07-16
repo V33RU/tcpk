@@ -55,7 +55,8 @@ Describe 'Finding aggregation (same rule -> one finding + Affected list)' {
 }
 
 Describe 'DLL signing matrix (Get-TcpkSigningMatrix)' {
-    It 'reports signed vs unsigned per DLL (information only, no findings)' {
+    It 'reports signed vs unsigned per DLL (information only, no findings)' -Skip:($IsWindows -eq $false) {
+        # Authenticode signature verification (Get-TcpkSigningMatrix) is a Windows-only operation.
         $dir = Join-Path $script:work 'sig'; New-Item -ItemType Directory -Path $dir -Force | Out-Null
         Copy-Item "$env:WINDIR\System32\winhttp.dll" $dir -ErrorAction SilentlyContinue
         # a fake unsigned "DLL" (not a real PE -> NotSigned)

@@ -21,7 +21,8 @@ Describe 'Test-TcpkTlsHandshake (gated)' {
         try { Disable-TcpkExploit | Out-Null } catch {}
         { Test-TcpkTlsHandshake -Endpoint '127.0.0.1:1' } | Should -Throw
     }
-    It 'returns tls-handshake.unreachable for a dead port (no throw) once enabled' {
+    It 'returns tls-handshake.unreachable for a dead port (no throw) once enabled' -Skip:($IsWindows -eq $false) {
+        # Test-TcpkTlsHandshake uses the Windows SChannel stack; it returns early off Windows.
         Enable-TcpkExploit -Acknowledge | Out-Null
         $r = @(Test-TcpkTlsHandshake -Endpoint '127.0.0.1:9' -TimeoutMs 1500)
         ($r | Where-Object RuleId -eq 'tls-handshake.unreachable') | Should -Not -BeNullOrEmpty

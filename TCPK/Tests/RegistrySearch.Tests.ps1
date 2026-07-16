@@ -12,7 +12,7 @@ BeforeAll {
     Import-Module $psd1 -Force
 
     # --- fixture MSIX dir with a manifest carrying a known identity ---
-    $script:fx = Join-Path $env:TEMP ('tcpk-reg-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-reg-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
     @'
 <?xml version="1.0" encoding="utf-8"?>
@@ -31,13 +31,17 @@ BeforeAll {
     # helper to call a module-private function from the test
     $script:Inv = { param($sb, $a) & (Get-Module TCPK) $sb @a }
 
-    # --- a real HKCU key we own, for the functional checks ---
+    # --- a real HKCU key we own, for the functional checks (Windows only; the HKCU: drive
+    # does not exist off Windows, and the checks that read it are skipped there) ---
     $script:rkLeaf = 'TcpkRegTest_' + [guid]::NewGuid().ToString('N')
-    $script:rkPath = "HKCU:\SOFTWARE\$($script:rkLeaf)"
-    New-Item -Path $script:rkPath -Force | Out-Null
-    New-ItemProperty -Path $script:rkPath -Name 'ConnString' `
-        -Value 'DefaultEndpointsProtocol=https;AccountName=foo;AccountKey=YWJjZGVmZ2hpamtsbW5vcA==' `
-        -PropertyType String -Force | Out-Null
+    $script:rkPath = $null
+    if ($IsWindows -ne $false) {
+        $script:rkPath = "HKCU:\SOFTWARE\$($script:rkLeaf)"
+        New-Item -Path $script:rkPath -Force | Out-Null
+        New-ItemProperty -Path $script:rkPath -Name 'ConnString' `
+            -Value 'DefaultEndpointsProtocol=https;AccountName=foo;AccountKey=YWJjZGVmZ2hpamtsbW5vcA==' `
+            -PropertyType String -Force | Out-Null
+    }
 }
 
 AfterAll {
@@ -85,7 +89,7 @@ Describe 'Get-TcpkRegistrySearchRoots - includes HKCR (Classes)' {
     }
 }
 
-Describe 'Registry checks accept a term array and find app data' {
+Describe 'Registry checks accept a term array and find app data' -Skip:($IsWindows -eq $false) {
     It 'Test-TcpkRegistryValues finds a secret value via a matching term' {
         $f = @(Test-TcpkRegistryValues -NameLike @('zzz-no-match', $script:rkLeaf)) |
              Where-Object RuleId -eq 'registry.secret-value'
@@ -113,7 +117,7 @@ Describe 'Get-TcpkNameTerms / Test-TcpkNameInclude - shared predicate' {
     }
 }
 
-Describe 'Name-matched OS checks accept a term array (multi-term)' {
+Describe 'Name-matched OS checks accept a term array (multi-term)' -Skip:($IsWindows -eq $false) {
     It 'Test-TcpkAutoStart surveys all entries when given no terms' {
         # A real machine always has at least one Run-key autostart entry.
         @(Test-TcpkAutoStart) | Where-Object RuleId -eq 'autostart.run-key' | Should -Not -BeNullOrEmpty

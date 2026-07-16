@@ -141,7 +141,8 @@ Describe 'gRPC / SignalR channels' {
 }
 
 Describe 'Browser token store' {
-    It 'finds a Chromium store and classifies a DPAPI-only key' {
+    It 'finds a Chromium store and classifies a DPAPI-only key' -Skip:($IsWindows -eq $false) {
+        # Browser token-store classification (DPAPI os_crypt key) is a Windows-only path.
         $fakeAppData = Join-Path $script:work 'appdata'
         $profile = Join-Path $fakeAppData 'MyChatApp\User Data\Default'
         $netDir  = Join-Path $profile 'Network'
