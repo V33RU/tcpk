@@ -7,16 +7,18 @@
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
-    $script:fx = Join-Path $env:TEMP ('tcpk-gaps-' + [guid]::NewGuid().ToString('N'))
+    # [IO.Path]::GetTempPath(), not $env:TEMP: the latter is null on Linux/.NET and
+    # crashed BeforeAll (Join-Path -Path null) before any test could run.
+    $script:fx = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-gaps-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
     $script:dll = Join-Path $script:fx 'GapMarkers.dll'
     $script:compiled = $false
+    # Add-Type, not System.CodeDom CSharpCodeProvider: CompileAssemblyFromSource throws
+    # PlatformNotSupportedException on .NET Core, so the old path could never build the
+    # fixture off .NET Framework and every assertion here silently skipped. Add-Type emits
+    # the same string literals into the #US heap, so the callsite rules and the odd-aligned
+    # UTF-16 scan are exercised for real on modern .NET. Falls back to Skipped on failure.
     try {
-        $prov = New-Object Microsoft.CSharp.CSharpCodeProvider
-        $cp = New-Object System.CodeDom.Compiler.CompilerParameters
-        $cp.GenerateExecutable = $false
-        $cp.OutputAssembly = $script:dll
-        $cp.ReferencedAssemblies.Add('System.dll') | Out-Null
         $src = @'
 public class GapMarkers {
     public string a = "XamlReader";
@@ -25,8 +27,8 @@ public class GapMarkers {
     public string d = "Elevation:Administrator!new:{0002DF01-0000-0000-C000-000000000046}";
 }
 '@
-        $r = $prov.CompileAssemblyFromSource($cp, $src)
-        $script:compiled = (Test-Path $script:dll) -and ($r.Errors.Count -eq 0)
+        Add-Type -TypeDefinition $src -OutputAssembly $script:dll -OutputType Library -ErrorAction Stop
+        $script:compiled = Test-Path $script:dll
     } catch { }
 }
 AfterAll {

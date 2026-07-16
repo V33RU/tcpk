@@ -12,11 +12,21 @@ BeforeAll {
 
     $script:work = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-mloc-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:work -Force | Out-Null
+    $script:fxReady = $false
+    $script:fxError = $null
     if ($script:cecil) {
-        # method whose NAME says nothing about the weakness, but invokes Process.Start
+      try {
+        # method whose NAME says nothing about the weakness, but invokes Process.Start.
+        # No -ReferencedAssemblies: on .NET Core System.Diagnostics.Process is not in
+        # 'System', so pinning references to it fails with CS0103; the Add-Type default
+        # reference set resolves Process on both .NET Framework and .NET 5+.
         $src = "using System; using System.Diagnostics; public class Worker { public void HandleRequest(string p){ Process.Start(p); } }"
         $script:dll = Join-Path $script:work 'Worker.dll'
-        Add-Type -TypeDefinition $src -OutputAssembly $script:dll -OutputType Library -ReferencedAssemblies 'System'
+        Add-Type -TypeDefinition $src -OutputAssembly $script:dll -OutputType Library
+        $script:fxReady = $true
+      } catch {
+        $script:fxError = $_.Exception.Message
+      }
     }
 }
 
@@ -43,7 +53,10 @@ Describe 'Get-TcpkCallsiteSinkApiRegex (shared sink-API regex)' {
 }
 
 Describe 'Get-TcpkMethodIl -CallsApi (locate by invoked sink)' {
-    BeforeEach { if (-not $script:cecil) { Set-ItResult -Skipped -Because 'Mono.Cecil (ILSpy) not available' } }
+    BeforeEach {
+        if (-not $script:cecil)   { Set-ItResult -Skipped -Because 'Mono.Cecil (ILSpy) not available' }
+        elseif (-not $script:fxReady) { Set-ItResult -Skipped -Because "C# fixture did not compile on this runtime: $script:fxError" }
+    }
 
     It 'does NOT find the method by the rule suffix alone (the old miss)' {
         $m = & (Get-Module TCPK) { param($d) Get-TcpkMethodIl -DllPath $d -SymbolHint 'command-execution' -MaxMethods 2 } $script:dll

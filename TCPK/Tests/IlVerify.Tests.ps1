@@ -11,7 +11,20 @@ BeforeAll {
 
     $script:work = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-ilv-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:work -Force | Out-Null
+
+    # On .NET 5+ (PowerShell 7) BinaryFormatter serialization is an obsolete-as-error
+    # diagnostic (SYSLIB0011). The type is still present and compile-loadable, so the
+    # IlvDeser fixture suppresses only that one ID to keep the real BinaryFormatter::
+    # Deserialize call site in the emitted IL (what the deser.binaryformatter prover
+    # keys on). Windows PowerShell 5.1 (.NET Framework) has no such diagnostic, so no
+    # option is passed there. If a future runtime removes the type entirely and the
+    # compile still throws, the catch below degrades the suite to Skipped, not Failed.
+    $deserOpts = @{}
+    if ($PSVersionTable.PSEdition -eq 'Core') { $deserOpts['CompilerOptions'] = '/nowarn:SYSLIB0011' }
+    $script:fxReady = $false
+    $script:fxError = $null
     if ($script:cecil) {
+      try {
         $a = "using System; using System.Diagnostics; public class IlvA { public void Dyn(string u){ Process.Start(u); } public void Con(){ Process.Start(`"notepad.exe`"); } }"
         $script:dllA = Join-Path $script:work 'IlvA.dll'; Add-Type -TypeDefinition $a -OutputAssembly $script:dllA -OutputType Library
         $b = "using System; using System.Diagnostics; public class IlvB { public void Only(){ Process.Start(`"calc.exe`"); } }"
@@ -21,7 +34,7 @@ BeforeAll {
 
         # deser tainted: reads a file (external source) then BinaryFormatter.Deserialize
         $dt = "using System; using System.IO; using System.Runtime.Serialization.Formatters.Binary; public class IlvDeser { public object Load(string p){ var b=File.ReadAllBytes(p); var bf=new BinaryFormatter(); using(var ms=new MemoryStream(b)){ return bf.Deserialize(ms);} } }"
-        $script:dllDeser = Join-Path $script:work 'IlvDeser.dll'; Add-Type -TypeDefinition $dt -OutputAssembly $script:dllDeser -OutputType Library
+        $script:dllDeser = Join-Path $script:work 'IlvDeser.dll'; Add-Type -TypeDefinition $dt -OutputAssembly $script:dllDeser -OutputType Library @deserOpts
         # deser referenced only (string), never invoked
         $dr = "public class IlvDeserRef { public string n = `"BinaryFormatter is dangerous`"; }"
         $script:dllDeserRef = Join-Path $script:work 'IlvDeserRef.dll'; Add-Type -TypeDefinition $dr -OutputAssembly $script:dllDeserRef -OutputType Library
@@ -34,6 +47,10 @@ BeforeAll {
         # reachable + dynamic argument but NOT tainted (a private field, no source, no param)
         $fl = "using System; using System.Diagnostics; public class IlvField { private string _c = `"x`"; public void Go(){ Process.Start(_c); } }"
         $script:dllField = Join-Path $script:work 'IlvField.dll'; Add-Type -TypeDefinition $fl -OutputAssembly $script:dllField -OutputType Library
+        $script:fxReady = $true
+      } catch {
+        $script:fxError = $_.Exception.Message
+      }
     }
 }
 
@@ -52,7 +69,10 @@ Describe 'Confirm-TcpkCallsiteUsage (IL reachability + argument analysis)' {
             ,($f | & (Get-Module TCPK) { $input | Confirm-TcpkCallsiteUsage })
         }
     }
-    BeforeEach { if (-not $script:cecil) { Set-ItResult -Skipped -Because 'Mono.Cecil (ILSpy) not available' } }
+    BeforeEach {
+        if (-not $script:cecil)   { Set-ItResult -Skipped -Because 'Mono.Cecil (ILSpy) not available' }
+        elseif (-not $script:fxReady) { Set-ItResult -Skipped -Because "C# fixtures did not compile on this runtime: $script:fxError" }
+    }
 
     It 'marks a reachable call with a dynamic argument as Confirmed (IL)' {
         $r = & $script:JudgeSb $script:dllA
@@ -90,7 +110,10 @@ Describe 'Confirm-TcpkCallsiteUsage (P/Invoke, deserialization, bounded taint)' 
             ,($f | & (Get-Module TCPK) { $input | Confirm-TcpkCallsiteUsage })
         }
     }
-    BeforeEach { if (-not $script:cecil) { Set-ItResult -Skipped -Because 'Mono.Cecil (ILSpy) not available' } }
+    BeforeEach {
+        if (-not $script:cecil)   { Set-ItResult -Skipped -Because 'Mono.Cecil (ILSpy) not available' }
+        elseif (-not $script:fxReady) { Set-ItResult -Skipped -Because "C# fixtures did not compile on this runtime: $script:fxError" }
+    }
 
     It 'confirms unsafe deserialization fed by external input as Confirmed (IL)' {
         $r = & $script:JudgeR 'deser.binaryformatter' 'HIGH' $script:dllDeser
