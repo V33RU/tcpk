@@ -69,5 +69,32 @@ function Test-TcpkXxe {
                 -Cwe @('CWE-611','CWE-827') `
                 -Fix 'Set DtdProcessing=Prohibit and XmlResolver=null on every XmlReaderSettings instance.'
         }
+
+        # 3. Deterministic IL proof: read the actual constant fed to each XML setter, so
+        # DtdProcessing.Parse (unsafe) is told apart from Prohibit/Ignore (safe) and a real
+        # XmlResolver from the null-resolver mitigation. This is what actually detects XXE
+        # in a compiled assembly -- the source-string regexes above rarely survive C#
+        # compilation (they become ldc.i4.2 + set_DtdProcessing). Confidence 'Confirmed (IL)'.
+        foreach ($v in (Get-TcpkXxeVerdicts -DllPath $pe.FullName)) {
+            $ev = New-Object 'System.Collections.Generic.List[string]'
+            $ev.Add($v.Reason)
+            $ev.Add('')
+            $ev.Add('LOCATION (open THIS assembly in ILSpy/dnSpy - the setter is here):')
+            $ev.Add("  Assembly : $($v.Assembly)")
+            $ev.Add("  Namespace: $($v.Namespace)")
+            $ev.Add("  Type     : $($v.Type)")
+            $ev.Add("  Method   : $($v.Method)")
+            $ev.Add("  MD token : $($v.Token)")
+            $ev.Add('')
+            $ev.Add('IL PROOF (the setter and the constant it is fed):')
+            $ev.Add($v.Il)
+            New-TcpkFinding -Module 'static' -RuleId ('xxe.' + $v.Kind) `
+                -Severity $v.Severity -Confidence 'Confirmed (IL)' `
+                -Title "XXE primitive proven from IL: $($v.Type)::$($v.Method) in $($pe.Name)" `
+                -File $pe.FullName -Evidence ($ev -join "`n") `
+                -Cwe @('CWE-611') `
+                -Description 'Proven from IL: this method configures its XML parser to process DTDs / external entities (the exact setter and its constant argument are in the Evidence). If attacker-controlled XML reaches this parser, it enables local file disclosure, SSRF, or entity-expansion DoS. The misconfiguration is proven deterministically; whether untrusted XML reaches the reader determines exploitability.' `
+                -Fix 'Set XmlReaderSettings.DtdProcessing=Prohibit (or Ignore) and XmlResolver=null. On XmlDocument set XmlResolver=null. Never assign XmlUrlResolver when parsing untrusted input.'
+        }
     }
 }

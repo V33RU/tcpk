@@ -445,6 +445,148 @@ function Get-TcpkTlsCallbackVerdicts {
     }
 }
 
+# Return the Int32 a constant-int load (ldc.i4*) pushes, or $null if the instruction is
+# not a constant int. Handles the packed forms (ldc.i4.0..8, ldc.i4.m1) and the operand
+# forms (ldc.i4, ldc.i4.s). Used to read the concrete enum/bool argument fed to a setter.
+function Get-TcpkIlI4Value {
+    param($Ins)
+    if ($null -eq $Ins) { return $null }
+    switch ($Ins.OpCode.Name) {
+        'ldc.i4.0'  { return 0 }
+        'ldc.i4.1'  { return 1 }
+        'ldc.i4.2'  { return 2 }
+        'ldc.i4.3'  { return 3 }
+        'ldc.i4.4'  { return 4 }
+        'ldc.i4.5'  { return 5 }
+        'ldc.i4.6'  { return 6 }
+        'ldc.i4.7'  { return 7 }
+        'ldc.i4.8'  { return 8 }
+        'ldc.i4.m1' { return -1 }
+        'ldc.i4'    { try { return [int]$Ins.Operand } catch { return $null } }
+        'ldc.i4.s'  { try { return [int]$Ins.Operand } catch { return $null } }
+        default     { return $null }
+    }
+}
+
+# Deterministic XXE detection from IL. A text scan sees the setter/type NAME but not the
+# argument VALUE, so it cannot tell DtdProcessing.Parse (unsafe) from Prohibit/Ignore
+# (safe), nor a real XmlResolver from the null-resolver mitigation. This reads the constant
+# fed to each dangerous System.Xml setter and only reports a PROVEN-unsafe construct:
+#   set_DtdProcessing(2 = Parse)   set_ProhibitDtd(0 = false)   set_XmlResolver(newobj resolver)
+# The value argument of a 1-arg instance setter is the value-producing instruction right
+# before the call (this is pushed first, the argument last), skipping nop. Returns one
+# verdict per proven construct, materialized to plain strings so results survive Dispose.
+function Get-TcpkXxeVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+
+    $fileName = Split-Path -Leaf $DllPath
+    $hits = New-Object 'System.Collections.Generic.List[object]'   # interim: holds Cecil refs
+
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    $opn = $ins.OpCode.Name
+                    if ($opn -ne 'call' -and $opn -ne 'callvirt') { continue }
+                    $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($null -eq $mref) { continue }
+                    $sink = $mref.Name
+                    if ($sink -ne 'set_DtdProcessing' -and $sink -ne 'set_XmlResolver' -and $sink -ne 'set_ProhibitDtd') { continue }
+                    $declFull = "$($mref.DeclaringType.FullName)"
+                    if ($declFull -notmatch '^System\.Xml\.') { continue }
+
+                    # Value argument = value-producing instruction immediately before the call.
+                    $arg = $ins.Previous
+                    while ($arg -and $arg.OpCode.Name -eq 'nop') { $arg = $arg.Previous }
+                    if ($null -eq $arg) { continue }
+
+                    $kind = $null; $reason = $null
+                    if ($sink -eq 'set_DtdProcessing') {
+                        # DtdProcessing enum: Prohibit=0, Ignore=1, Parse=2. Only Parse is unsafe.
+                        if ((Get-TcpkIlI4Value $arg) -eq 2) {
+                            $kind = 'dtd-processing-parse'
+                            $reason = "$declFull.DtdProcessing is set to Parse (ldc.i4.2): DTD processing is enabled."
+                        }
+                    } elseif ($sink -eq 'set_ProhibitDtd') {
+                        # Legacy XmlReaderSettings/XmlTextReader.ProhibitDtd: false (0) allows DTDs.
+                        if ((Get-TcpkIlI4Value $arg) -eq 0) {
+                            $kind = 'prohibitdtd-false'
+                            $reason = "$declFull.ProhibitDtd is set to false (ldc.i4.0): DTD processing is enabled."
+                        }
+                    } elseif ($sink -eq 'set_XmlResolver') {
+                        # A non-null resolver enables external entity fetch. Setting it to null
+                        # (ldnull) is the mitigation, not a finding. XmlSecureResolver is also a
+                        # mitigation wrapper, so exclude it.
+                        if ($arg.OpCode.Name -eq 'newobj') {
+                            $ctor = $arg.Operand -as [Mono.Cecil.MethodReference]
+                            $rt = if ($ctor) { "$($ctor.DeclaringType.FullName)" } else { '' }
+                            if ($rt -match '(XmlUrlResolver|XmlPreloadedResolver)' -or ($rt -match 'XmlResolver' -and $rt -notmatch 'XmlSecureResolver')) {
+                                $kind = 'external-xml-resolver'
+                                $reason = "$declFull.XmlResolver is assigned a non-null $($ctor.DeclaringType.Name): external entity resolution is enabled."
+                            }
+                        }
+                    }
+                    if (-not $kind) { continue }
+
+                    # IL proof snippet: up to 4 instructions ending at the sink call.
+                    $back = New-Object 'System.Collections.Generic.List[object]'
+                    $p = $ins; $c = 0
+                    while ($p -and $c -lt 4) { $back.Insert(0, $p); $p = $p.Previous; $c++ }
+                    $snip = New-Object 'System.Collections.Generic.List[string]'
+                    foreach ($bi in $back) {
+                        $bo = if ($null -ne $bi.Operand) { " $($bi.Operand)" } else { '' }
+                        $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo))
+                    }
+                    $hits.Add([pscustomobject]@{ Type = $t; Method = $m; Kind = $kind; Reason = $reason; Il = ($snip -join "`n") })
+                }
+            }
+        }
+
+        # Per-method escalation: a single method that BOTH enables DTD and assigns a non-null
+        # resolver has a full external-entity read primitive (file disclosure / SSRF) on the
+        # same parser -> CRITICAL. Either alone is HIGH. Keyed per method, not per type, so a
+        # DTD-enabling method and a separate resolver-setting method do not cross-escalate.
+        $methFlags = @{}
+        foreach ($h in $hits) {
+            $mk = "$($h.Type.FullName)::$($h.Method.Name)"
+            if (-not $methFlags.ContainsKey($mk)) { $methFlags[$mk] = [pscustomobject]@{ Dtd = $false; Resolver = $false } }
+            if ($h.Kind -eq 'dtd-processing-parse' -or $h.Kind -eq 'prohibitdtd-false') { $methFlags[$mk].Dtd = $true }
+            if ($h.Kind -eq 'external-xml-resolver') { $methFlags[$mk].Resolver = $true }
+        }
+
+        # Materialize to plain strings (safe after Dispose).
+        $out = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($h in $hits) {
+            $t = $h.Type; $m = $h.Method
+            $mk = "$($t.FullName)::$($m.Name)"
+            $sev = if ($methFlags[$mk].Dtd -and $methFlags[$mk].Resolver) { 'CRITICAL' } else { 'HIGH' }
+            $ns  = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+            $tok = '0x{0:X8}' -f $m.MetadataToken.ToInt32()
+            $out.Add([pscustomobject]@{
+                File      = $fileName
+                Assembly  = $asm.MainModule.Name
+                Namespace = $ns
+                Type      = $t.FullName
+                Method    = $m.Name
+                Token     = $tok
+                Kind      = $h.Kind
+                Reason    = $h.Reason
+                Severity  = $sev
+                Il        = $h.Il
+            })
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}
+
 # Constant vs dynamic IL load opcodes (for the argument-source heuristic below).
 $script:TcpkIlConstLoads = @(
     'ldstr','ldnull','ldc.i4','ldc.i4.s','ldc.i4.m1',

@@ -10,6 +10,8 @@ The audit now separates findings by ASSURANCE. NEW Get-TcpkAssuranceSplit partit
 
 Verified on DVTA via userspace pwsh: the summary reframes to "10 proven + 18 leads"; -ConfirmedOnly returns the 10 proven (all Confirmed*). Pure PowerShell, no Windows-runtime dependency. Follow-ups: default the HTML report view to proven-first with leads collapsed, and gate per-rule precision (false-positive rate) in bench/.
 
+DETERMINISTIC XXE proof (converts a lead class into proven findings). The old xxe.* rules regex the assembly's raw text for source expressions like "DtdProcessing = DtdProcessing.Parse", which do NOT survive C# compilation (they become ldc.i4.2 + set_DtdProcessing), so XXE went effectively undetected in compiled thick clients. NEW Get-TcpkXxeVerdicts (Mono.Cecil, modelled on the proven Get-TcpkTlsCallbackVerdicts) reads the CONSTANT fed to each System.Xml setter, so it tells DtdProcessing.Parse (unsafe, ldc.i4.2) apart from Prohibit/Ignore (safe) and a real XmlResolver from the null-resolver mitigation -- a distinction a text scan cannot make. Test-TcpkXxe now emits xxe.dtd-processing-parse / xxe.external-xml-resolver / xxe.prohibitdtd-false at Confidence 'Confirmed (IL)'; a method that both enables DTD and assigns a non-null resolver (full external-entity read primitive) is escalated to CRITICAL, either alone is HIGH. Verified with a compiled fixture (TCPK/Tests/Xxe.Tests.ps1, 6 assertions): the four vulnerable methods are flagged, all four safe variants (Prohibit, Ignore, null resolver, default) are not.
+
 ## v2.4.4
 
 Stable release of the 2.4.x line. It consolidates the interception + exploitation work in the v2.4.1-dev through v2.4.4-dev entries below, and adds a review pass on the LLM and MCP subsystems:
