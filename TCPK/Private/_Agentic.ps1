@@ -383,7 +383,7 @@ function Start-TcpkAgentAutoJob {
     $goal  = if ($b -and "$($b.goal)")  { "$($b.goal)" }  else { 'Find the most serious vulnerabilities in this .NET target.' }
     $model = if ($b -and "$($b.model)") { "$($b.model)" } else { 'qwen2.5-coder:7b' }
     $jobId = [guid]::NewGuid().ToString('N')
-    $job = Start-Job -ScriptBlock (Get-TcpkAgentAutoJobScript) -ArgumentList $State.Psd1, $target, $goal, $model, 14
+    $job = Start-Job -ScriptBlock (Get-TcpkAgentAutoJobScript) -ArgumentList $State.Psd1, $target, $goal, $model, 20
     $State.AgentJobs[$jobId] = @{
         Job = $job; Steps = (New-Object 'System.Collections.Generic.List[object]')
         Findings = @(); Summary = ''; Done = $false; Result = $null
@@ -545,19 +545,20 @@ th,td{padding:7px 11px}
 
   <div class="mid">
     <nav class="rail">
-      <div class="railsep first">workflow</div>
+      <div class="railsep first" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:4px">SCAN<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Guided. You drive each step; optionally AI-verify the leads.</div></div>
       <div class="step active" data-p="1"><div class="num">1</div><div><div class="t">Connect</div><div class="s">session + agent</div></div></div>
       <div class="step" data-p="2"><div class="num">2</div><div><div class="t">Target</div><div class="s">pick the app</div></div></div>
       <div class="step" data-p="3"><div class="num">3</div><div><div class="t">Audit</div><div class="s">discovery scan</div></div></div>
       <div class="step" data-p="4"><div class="num">4</div><div><div class="t">Decompile</div><div class="s">code to source</div></div></div>
       <div class="step" data-p="5"><div class="num">5</div><div><div class="t">AI review</div><div class="s">line-by-line</div></div></div>
       <div class="step" data-p="6"><div class="num">6</div><div><div class="t">Report</div><div class="s">export</div></div></div>
-      <div class="railsep">autonomous</div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">AGENT <span style="font-weight:600;font-size:9px;color:#fff;background:#2ea043;border-radius:8px;padding:1px 6px">AUTONOMOUS</span><div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Give a goal; the model investigates on its own. The IL prover confirms each finding.</div></div>
       <div class="step" data-p="7"><div class="num">7</div><div><div class="t">Agent</div><div class="s">full auto</div></div></div>
-      <div class="railsep">interception</div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">INTERCEPT<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Review a proxy or hook capture you made with the CLI.</div></div>
       <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
       <div class="legend">
         <h5>CONFIDENCE LADDER</h5>
+        <div style="font-size:9px;color:var(--dim);margin:-2px 0 5px;line-height:1.3">how sure the tool is. green = the tool proved it; blue = a check confirmed it; grey = an unverified lead to check by hand.</div>
         <div><span class="cdot" style="background:var(--il)"></span>Confirmed (IL) -- proven</div>
         <div><span class="cdot" style="background:var(--dyn)"></span>Confirmed (dynamic)</div>
         <div><span class="cdot" style="background:var(--llm)"></span>Confirmed (LLM)</div>
@@ -697,18 +698,18 @@ th,td{padding:7px 11px}
       </div>
 
       <div class="pane" data-p="7">
-        <h2>Autonomous agent</h2>
-        <p class="lead">The real thing: the AI agent drives the investigation itself -- it reasons, calls read-only tools (list sinks, decompile, check reachability), and records findings. Every claim is grounded in the IL prover. Local ollama, discovery-only, the exploit bucket is never exposed.</p>
+        <h2>Autonomous agent <span style="font:600 11px sans-serif;color:#fff;background:#2ea043;border-radius:8px;padding:2px 8px;vertical-align:middle">AUTONOMOUS</span></h2>
+        <p class="lead"><b>This is the autonomous mode.</b> You give a goal in plain English; a local model then investigates on its own -- it reads the code, picks which methods to inspect, walks the call graph, and submits what it believes are bugs. It does NOT get the final say: the deterministic IL prover re-checks every submission and marks it <b>CONFIRMED</b> (proven path to the sink), <b>NEEDS REVIEW</b>, or <b>REFUTED</b>. The agent proposes, the prover disposes. Read-only tools only; the exploit bucket is never exposed.</p>
         <div class="panel">
           <div class="row">
             <div style="flex:3"><label>Goal</label><input id="autoGoal" value="Find the most serious vulnerabilities in this .NET target."/></div>
             <div style="flex:0 0 auto"><button class="go" id="autoRun" onclick="runAuto()">Run autonomous agent</button></div>
           </div>
-          <div class="note" id="autoStatus">uses the agent from step 1 (ollama). Needs a capable code model -- qwen2.5-coder:7b recommended for reliable multi-step behaviour.</div>
+          <div class="note" id="autoStatus"><b>Local ollama only.</b> If you picked a cloud agent in step 1, switch the provider back to ollama. Use a capable code model (qwen2.5-coder:7b or better) for reliable multi-step behaviour.</div>
         </div>
         <div class="cv" style="grid-template-columns:1.4fr 1fr">
           <div class="col"><h4>AGENT TRANSCRIPT (reason -&gt; act -&gt; observe)</h4><div id="autoTranscript"><div class="note">click "Run autonomous agent" -- you'll see every step the agent decides, live</div></div></div>
-          <div class="col"><h4>FINDINGS (IL-grounded)</h4><div id="autoFindings"><div class="note">-</div></div></div>
+          <div class="col"><h4>FINDINGS (verdict by the IL prover)</h4><div id="autoFindings"><div class="note">-</div></div></div>
         </div>
       </div>
 
@@ -966,10 +967,31 @@ function renderAutoStep(st){var box=$('autoTranscript');var label=st.type==='too
   html+='</div>';box.innerHTML+=html;box.scrollTop=box.scrollHeight;
   if(st.type==='tool')log('[step] agent -> '+st.tool+(st.thought?(' ('+st.thought+')'):''),'c-step');
   if(st.type==='final')log('[step] agent done','c-step');}
-function renderAutoFindings(f,summary){var box=$('autoFindings');f=f||[];var html='';
+// The deterministic gate result -- the agent PROPOSES, the IL prover DISPOSES.
+// confirmed (green) = the prover proved a tainted path to the sink; review (amber) =
+// reachable but the taint source is unproven; refuted (grey) = the prover ruled it out.
+function autoVerdict(v){v=(v||'').toLowerCase();
+  if(v==='confirmed')return '<span class="pill" style="background:#2ea043;color:#fff">CONFIRMED by IL prover</span>';
+  if(v==='review')   return '<span class="pill" style="background:#d29922;color:#111">NEEDS REVIEW</span>';
+  if(v==='refuted')  return '<span class="pill" style="background:#6e7681;color:#fff">REFUTED by IL prover</span>';
+  return '<span class="pill" style="background:#6e7681;color:#fff">unverified</span>';}
+function renderAutoFindings(f,summary){var box=$('autoFindings');f=(f||[]).slice();
+  var rank={confirmed:0,review:1,refuted:2};
+  f.sort(function(a,b){var ra=rank[(a.verdict_class||'').toLowerCase()];var rb=rank[(b.verdict_class||'').toLowerCase()];
+    if(ra===undefined)ra=3;if(rb===undefined)rb=3;return ra-rb;});
+  var html='';
   if(summary){html+='<div class="note" style="color:var(--text);margin-bottom:8px">'+esc(summary)+'</div>';}
   if(!f.length){html+='<div class="note">no findings recorded.</div>';}
-  else{f.forEach(function(x){var sk=sevKey(x.severity);html+='<div class="vcard '+(sk==='crit'||sk==='high'?'crit':'med')+'"><div class="h"><span class="pill '+sk+'">'+esc((x.severity||'?').toUpperCase())+'</span><span class="cb '+(x.il_reachable?'il':'')+'">IL reachable: '+x.il_reachable+'</span></div><div style="margin:5px 0"><b>'+esc(x.title||'')+'</b></div><div style="font:11px var(--mono);color:var(--dim)">'+esc(x.method||'')+'</div><div style="margin-top:4px">'+esc(x.rationale||'')+'</div></div>';});}
+  else{f.forEach(function(x){var sk=sevKey(x.severity);
+    html+='<div class="vcard '+(sk==='crit'||sk==='high'?'crit':'med')+'">'
+      +'<div class="h">'+autoVerdict(x.verdict_class)
+      +'<span class="pill '+sk+'">'+esc((x.severity||'?').toUpperCase())+'</span>'
+      +'<span class="cb '+(x.il_reachable?'il':'')+'">IL reachable: '+x.il_reachable+'</span></div>'
+      +'<div style="margin:5px 0"><b>'+esc(x.title||'')+'</b></div>'
+      +'<div style="font:11px var(--mono);color:var(--dim)">'+esc(x.method||'')+'</div>'
+      +'<div style="margin-top:4px">'+esc(x.rationale||'')+'</div>'
+      +(x.taint_verdict?'<div class="note" style="margin-top:4px">IL prover verdict: '+esc(x.taint_verdict)+'</div>':'')
+      +'</div>';});}
   box.innerHTML=html;}
 </script>
 </body></html>

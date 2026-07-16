@@ -1,20 +1,27 @@
 function Start-TcpkAgentic {
 <#
 .SYNOPSIS
-    Launch the TCPK Agentic workbench -- a phased, AI-driven browser front-end that
-    audits a target, decompiles its code, and reviews it line-by-line with an LLM
-    whose claims are cross-checked by the IL prover. Loopback-only, discovery-only.
+    Launch the TCPK Agentic workbench -- a loopback-only, discovery-only browser
+    front-end with three modes: a guided SCAN pipeline, an autonomous AGENT that
+    investigates the target itself, and an INTERCEPT review of captured traffic.
+    Every LLM claim is cross-checked by the deterministic IL prover.
 
 .DESCRIPTION
     Starts a LOOPBACK-ONLY HTTP server (raw TcpListener; no admin / no urlacl, no
-    external dependencies) and opens your browser to a 6-phase workbench:
+    external dependencies) and opens your browser to a three-mode workbench:
 
-        1 Connect   -> session + engine status
+      SCAN (guided -- you drive each step):
+        1 Connect   -> pick the AI agent + engine status
         2 Target    -> pick an install dir / EXE / MSIX-MSI-ZIP, or an installed app
-        3 Audit     -> run the discovery scan, findings stream in live
-        4 Decompile -> crack modules open to source (ilspycmd / asar)        [staged]
-        5 AI review -> line-by-line LLM review, cross-checked by the IL prover [staged]
+        3 Audit     -> run the discovery scan; findings stream in live
+        4 Decompile -> disassemble .NET modules to IL (Mono.Cecil), sinks highlighted
+        5 AI review -> single-method LLM opinion, cross-checked by the IL prover
         6 Report    -> download the generated reports
+      AGENT (autonomous):
+        7 Agent     -> give a goal; a local model reasons, calls read-only tools, and
+                       submits findings the IL prover confirms / reviews / refutes
+      INTERCEPT:
+        8 Intercept -> load a proxy / hook capture and review its findings
 
     SECURITY MODEL (identical to Start-TcpkWebUi -- this is a pentest tool, the panel
     is built not to become a hole):

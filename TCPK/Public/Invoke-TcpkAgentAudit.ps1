@@ -26,7 +26,9 @@ function Invoke-TcpkAgentAudit {
     ollama model tag (default qwen2.5-coder:1.5b).
 
 .PARAMETER MaxSteps
-    Hard cap on agent iterations (default 12).
+    Hard cap on agent iterations (default 20). The per-candidate flow
+    (inspect -> taint -> callers -> submit) needs room; below ~20 the agent
+    often runs out of budget mid-investigation.
 
 .PARAMETER StreamTagged
     Emit AGS<tab>json per step and AGR<tab>json for the final result (used by the web
@@ -41,7 +43,7 @@ function Invoke-TcpkAgentAudit {
         [Parameter(Mandatory)][string]$Target,
         [string]$Goal = 'Find the most serious vulnerabilities in this .NET target.',
         [string]$Model = 'qwen2.5-coder:7b',
-        [int]$MaxSteps = 14,
+        [int]$MaxSteps = 20,
         [switch]$StreamTagged
     )
     $emit = if ($StreamTagged) { { param($e) Write-Output ("AGS`t" + ($e | ConvertTo-Json -Depth 6 -Compress)) } } else { $null }
