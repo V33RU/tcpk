@@ -1,35 +1,53 @@
 function Invoke-TcpkLlmCodeJudgment {
 <#
 .SYNOPSIS
-    L1 -- LLM-assisted verification of code-construct findings.
+    L1 -- LLM skeptic-refute triage of code-construct LEAD findings.
 
 .DESCRIPTION
-    For findings whose RuleId implies a code weakness (callsites.*, tls-bypass.*,
-    deser.*, xxe.*, webview2.*), this:
-      1. Extracts the relevant method's IL from the flagged DLL (Mono.Cecil).
-      2. Asks the LLM whether the code actually exhibits the weakness.
-      3. Updates each finding's Confidence and appends the LLM's reasoning.
+    This is the agentic precision engine for the audit's LEADS. For each Inferred /
+    Unverified code-construct finding (RuleId callsites.*, tls-bypass.*, deser.*, xxe.*,
+    webview2.*) it:
+      1. Extracts the flagged method's IL from the DLL (Mono.Cecil).
+      2. Runs an ADVERSARIAL N-vote skeptic (Invoke-TcpkLlmSkepticVote): the model is
+         asked to REFUTE the finding and defaults to 'not-real'. A MAJORITY of 'real'
+         verdicts is required to promote; a model error, unparseable reply, or 'uncertain'
+         is an abstain that can never create a 'real' majority (default-refuted-if-uncertain).
+      3. Rewrites Confidence from the vote: a real majority -> 'Confirmed (LLM)' (moves the
+         lead into PROVEN); a not-real majority -> 'Likely-FP (LLM)' (drops it out of the
+         lead pile); anything unresolved -> left AS the lead it was.
 
-    LLM verdicts are labelled 'Inferred (LLM)' / 'Confirmed (LLM)' -- the
-    deterministic evidence stays intact so a human can verify. The LLM
-    accelerates triage; it is not the source of truth.
+    It triages LEADS ONLY. A finding that already carries a deterministic tier
+    (Confirmed (IL) / Confirmed (dynamic) / Confirmed / Likely-FP (IL) / ...) passes
+    through UNCHANGED -- a local model never overrides deterministic proof. The
+    deterministic evidence stays intact in every case; the LLM accelerates triage, it is
+    not the source of truth, and Severity is never changed.
 
-    Requires a reachable LLM backend (Test-TcpkLlm) and the Mono.Cecil bridge
+    Requires a reachable LLM backend (Test-TcpkLlmAvailable) and the Mono.Cecil bridge
     (ships with ILSpy). Findings it can't process are returned unchanged.
 
 .PARAMETER Findings
-    Pipeline of [TcpkFinding] objects (e.g. from Invoke-TcpkAudit output or
-    a findings.json re-loaded into objects).
+    Pipeline of [TcpkFinding] objects (e.g. from Invoke-TcpkAudit output or a
+    findings.json re-loaded into objects).
+
+.PARAMETER Votes
+    Number of independent adversarial votes per lead (default 3). A majority
+    (floor(Votes/2)+1) of 'real' verdicts is required to promote. The loop early-stops
+    once either side locks a majority, so the typical cost is 2 calls per lead. Set 1 for
+    a fast single-shot pass.
 
 .OUTPUTS
-    [TcpkFinding] -- same objects, with Confidence/Description updated where judged.
+    [TcpkFinding] -- same objects, with Confidence/Description updated where a lead was judged.
 #>
     [CmdletBinding()]
-    param([Parameter(Mandatory, ValueFromPipeline)][object[]]$Findings)
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)][object[]]$Findings,
+        [int]$Votes = 3
+    )
 
     begin {
         $all = New-Object 'System.Collections.Generic.List[object]'
         $codeRules = '^(callsites\.|tls-bypass\.|deser\.|xxe\.|webview2\.)'
+        $leadConf  = @('Inferred', 'Unverified')   # skeptic triages LEADS only
         $llmOk = $false
         try { $llmOk = Test-TcpkLlmAvailable } catch { $llmOk = $false }
         if (-not $llmOk) {
@@ -40,10 +58,14 @@ function Invoke-TcpkLlmCodeJudgment {
             Write-Warning "Mono.Cecil (ILSpy) not found -- cannot extract IL. Findings returned unchanged."
         }
         $systemPrompt = @'
-You are a senior application security analyst reading decompiled .NET CIL (IL).
-Decide whether the flagged method ACTUALLY exhibits the weakness or is benign.
+You are a skeptical senior application-security reviewer performing an ADVERSARIAL second
+pass over a static finding. A static scanner flagged the method below; scanners over-report.
+Your job is to try to REFUTE the finding by reading the decompiled .NET CIL (IL) literally.
+DEFAULT to 'not-real'. Answer 'real' ONLY if the IL clearly shows the weakness is genuinely
+present. If the IL is short, ambiguous, or does not contain the dangerous construct, answer
+'not-real' or 'uncertain' -- never 'real' on a guess.
 
-You MUST reason about the IL opcodes literally. Key opcodes:
+Reason about the IL opcodes literally. Key opcodes:
 - ldc.i4.1            push the integer constant 1 (true)
 - ldc.i4.0            push the integer constant 0 (false)
 - ldc.i4.s N / ldc.i4 N   push constant N
@@ -66,8 +88,8 @@ Worked examples:
 3) IL with callvirt to X509Chain::Build      -> {"verdict":"not-real","confidence":"medium","reason":"performs real chain validation"}
 4) deserialization: real only if untrusted input reaches a Deserialize with an unsafe
    resolver; a mere type reference is not-real.
-
-If the IL is too short/ambiguous to decide, answer uncertain.
+5) XXE: real only if a DtdProcessing setter is fed the constant 2 (Parse) or a non-null
+   XmlResolver is assigned; Prohibit(0)/Ignore(1)/null is not-real.
 
 Reply with ONLY this JSON (no prose, no code fences):
 {"verdict":"real|not-real|uncertain","confidence":"high|medium|low","reason":"one concise sentence grounded in the specific opcodes you saw"}
@@ -78,9 +100,11 @@ Reply with ONLY this JSON (no prose, no code fences):
 
     end {
         foreach ($f in $all) {
-            # Pass through anything that isn't a code-construct finding, or if LLM/Cecil unavailable
+            # Pass through: LLM/Cecil unavailable, non-code-construct rule, non-lead (a
+            # deterministic tier is never second-guessed by the model), or no readable DLL.
             if (-not $llmOk -or -not $cecilOk) { $f; continue }
             if ($f.RuleId -notmatch $codeRules) { $f; continue }
+            if ("$($f.Confidence)" -notin $leadConf) { $f; continue }
             if (-not $f.File -or -not (Test-Path -LiteralPath $f.File)) { $f; continue }
             if ($f.File -notmatch '\.(dll|exe)$') { $f; continue }
 
@@ -91,12 +115,12 @@ Reply with ONLY this JSON (no prose, no code fences):
             switch -Regex ($f.RuleId) {
                 'tls-bypass|disabled-cert' {
                     $hint = 'CertificateValidation|CertValidation|ValidateCert|RemoteCertificate|ServerCertificate'
-                    $sigMatch = @('X509Chain','SslPolicyErrors')
+                    $sigMatch = @('X509Chain', 'SslPolicyErrors')
                 }
                 'deser'    { $hint = 'Deserialize|ReadObject|FromJson|FromXml' }
-                'xxe'      { $hint = 'XmlReader|LoadXml|XmlDocument|XmlResolver' }
+                'xxe'      { $hint = 'XmlReader|LoadXml|XmlDocument|XmlResolver|DtdProcessing' }
                 'webview2' { $hint = 'WebMessageReceived|CoreWebView2|WebResource' }
-                'callsites'{
+                'callsites' {
                     # Generic callsite rules name the WEAKNESS, not a method, so a name
                     # match never lands -- locate the enclosing method by the sink API it
                     # INVOKES (the same shared sink map the deterministic verifier uses).
@@ -130,27 +154,23 @@ Finding title: $($f.Title)
 Decompiled IL of the flagged method(s):
 $ilText
 "@
-            $judged = $null
-            try { $judged = Invoke-TcpkLlm -System $systemPrompt -User $userPrompt -AsJson } catch {
-                $f.Description = "$($f.Description) [LLM call failed: $($_.Exception.Message)]"
+            $verd = $null
+            try { $verd = Invoke-TcpkLlmSkepticVote -System $systemPrompt -User $userPrompt -Votes $Votes } catch {
+                $f.Description = "$($f.Description) [LLM skeptic pass errored: $($_.Exception.Message)]"
                 $f; continue
             }
 
-            if ($judged -and $judged.verdict) {
-                # Conservative policy: the LLM annotates Confidence and adds its
-                # reasoning, but NEVER changes Severity. A local model can misread
-                # IL (it does), so we do not auto-demote a real finding or auto-
-                # promote a benign one off the model's say-so. The human triages
-                # using the LLM note + the deterministic evidence that stays intact.
-                switch ($judged.verdict) {
-                    'real'      { $f.Confidence = 'Confirmed (LLM)' }
-                    'not-real'  { $f.Confidence = 'Likely-FP (LLM)' }
-                    default     { $f.Confidence = 'Uncertain (LLM)' }
-                }
-                $f.Description = "$($f.Description) [LLM verdict: $($judged.verdict) ($($judged.confidence)) -- $($judged.reason). NOTE: LLM advisory only; severity unchanged; verify against the evidence.]"
-            } else {
-                $f.Description = "$($f.Description) [LLM returned no parseable verdict.]"
+            # Default-refuted-if-uncertain, and never override deterministic proof:
+            #   real majority     -> promote to Confirmed (LLM)  (lead becomes PROVEN)
+            #   not-real majority -> demote to Likely-FP (LLM)   (drops out of the lead pile)
+            #   unresolved        -> leave the finding AS the lead it was (still needs triage)
+            switch ($verd.Tier) {
+                'Confirmed (LLM)' { $f.Confidence = 'Confirmed (LLM)' }
+                'Likely-FP (LLM)' { $f.Confidence = 'Likely-FP (LLM)' }
+                default           { }   # Uncertain: keep the original lead Confidence
             }
+            $reasonTxt = if ($verd.Reasons.Count) { (($verd.Reasons | Select-Object -First 2) -join ' | ') } else { 'no parseable model reason' }
+            $f.Description = "$($f.Description) [LLM skeptic: $($verd.Real) real / $($verd.NotReal) not-real / $($verd.Abstain) abstain of $($verd.Cast) votes (majority $($verd.Majority)) -> $($verd.Tier). $reasonTxt. Advisory only; deterministic evidence intact; severity unchanged.]"
             $f
         }
     }

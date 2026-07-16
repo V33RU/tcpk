@@ -196,3 +196,49 @@ function Invoke-TcpkLlm {
         }
     }
 }
+
+# Adversarial N-vote skeptic. Runs the same refute prompt up to $Votes times and requires a
+# MAJORITY of 'real' verdicts to promote -- the precision engine for lead triage. Policy is
+# default-refuted-if-uncertain: a model throw, an unparseable reply ($null), or an 'uncertain'
+# verdict is an ABSTAIN that counts toward neither side, so it can never create a 'real'
+# majority. Early-stops once either side locks a majority (bounds calls). Returns the tier plus
+# the tallies and the reasons, so the caller records an honest, auditable verdict.
+#   Tier: 'Confirmed (LLM)' (real majority) | 'Likely-FP (LLM)' (not-real majority) | 'Uncertain (LLM)'
+function Invoke-TcpkLlmSkepticVote {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$System,
+        [Parameter(Mandatory)][string]$User,
+        [int]$Votes = 3
+    )
+    if ($Votes -lt 1) { $Votes = 1 }
+    $majority = [int][Math]::Floor($Votes / 2) + 1
+    $real = 0; $notReal = 0; $abstain = 0
+    $reasons = New-Object 'System.Collections.Generic.List[string]'
+    for ($i = 0; $i -lt $Votes; $i++) {
+        $v = $null
+        try { $v = Invoke-TcpkLlm -System $System -User $User -AsJson } catch { $v = $null }
+        if ($null -eq $v -or -not $v.verdict) {
+            $abstain++   # throw / unparseable reply = abstain (default-refuted: never supports 'real')
+        } else {
+            switch ("$($v.verdict)".Trim().ToLower()) {
+                'real'     { $real++;    if ($v.reason) { $reasons.Add("real: $($v.reason)") } }
+                'not-real' { $notReal++; if ($v.reason) { $reasons.Add("not-real: $($v.reason)") } }
+                default    { $abstain++; if ($v.reason) { $reasons.Add("uncertain: $($v.reason)") } }
+            }
+        }
+        if ($real -ge $majority -or $notReal -ge $majority) { break }   # majority locked, stop early
+    }
+    $tier = if     ($real    -ge $majority) { 'Confirmed (LLM)' }
+            elseif ($notReal -ge $majority) { 'Likely-FP (LLM)' }
+            else                            { 'Uncertain (LLM)' }
+    [pscustomobject]@{
+        Tier     = $tier
+        Real     = $real
+        NotReal  = $notReal
+        Abstain  = $abstain
+        Cast     = ($real + $notReal + $abstain)
+        Majority = $majority
+        Reasons  = $reasons.ToArray()
+    }
+}
