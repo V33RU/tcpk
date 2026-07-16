@@ -225,3 +225,27 @@ function Get-TcpkImpactText {
     if ($Finding.Severity -and $script:TcpkImpactBand.ContainsKey($Finding.Severity)) { return $script:TcpkImpactBand[$Finding.Severity] }
     return ''
 }
+
+# Partition findings by ASSURANCE -- the precision view. 'proven' = a Confirmed* tier
+# (Confirmed / IL / dynamic / exploit / LLM), verified enough to act on. 'lead' = Inferred /
+# Unverified: a pattern match that has NOT been verified and is a candidate to triage (AI via
+# -EnableLlm, the IL prover, or manually), NOT a confirmed bug. Likely-FP / Skipped / INFO
+# recon-summaries are neither. A report should LEAD with proven and keep leads separate so an
+# unverified hit is never mistaken for a proven finding.
+function Get-TcpkAssuranceSplit {
+    [CmdletBinding()]
+    param([object[]]$Findings)
+    $proven = New-Object 'System.Collections.Generic.List[object]'
+    $leads  = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($f in @($Findings)) {
+        $c = "$($f.Confidence)"
+        if ($c -like 'Confirmed*') { $proven.Add($f) }
+        elseif ($c -eq 'Inferred' -or $c -eq 'Unverified') { $leads.Add($f) }
+    }
+    return [pscustomobject]@{
+        Proven      = $proven.ToArray()
+        Leads       = $leads.ToArray()
+        ProvenCount = $proven.Count
+        LeadCount   = $leads.Count
+    }
+}

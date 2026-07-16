@@ -68,6 +68,10 @@ function Invoke-TcpkAudit {
         [switch]$EnableDeepRuntime,
         [switch]$EnableLlm,
         [switch]$AllowCloudLlm,
+        # PRECISION: return only PROVEN findings (a Confirmed* tier). Inferred 'leads' are still
+        # written to the reports (which segregate by confidence), but are excluded from the
+        # returned pipeline -- so a CI / scripted run acts on verified bugs, not pattern hits.
+        [switch]$ConfirmedOnly,
         [string]$PauseSignalPath,
         [ValidateSet('INFO','LOW','MEDIUM','HIGH','CRITICAL')][string]$FailOn,
         # Scan profile. Full/Standard run every check; Quick skips the slow, whole-machine
@@ -785,9 +789,12 @@ function Invoke-TcpkAudit {
         if ($sc -gt 0) { Write-TcpkLog -Level INFO -Component 'summary' -Message "${sev}: $sc" | Out-Null }
     }
     $errCount = @(Get-TcpkRunLog | Where-Object { $_.level -eq 'ERROR' }).Count
+    $asr = Get-TcpkAssuranceSplit -Findings $all
     Write-TcpkLog -Level $(if ($errCount) { 'WARN' } else { 'SUCCESS' }) -Component 'audit' `
-        -Message "Audit complete in $([int]$auditSw.Elapsed.TotalSeconds)s -- $($all.Count) findings, $errCount check error(s)" `
+        -Message "Audit complete in $([int]$auditSw.Elapsed.TotalSeconds)s -- $($asr.ProvenCount) proven + $($asr.LeadCount) leads (of $($all.Count) findings), $errCount check error(s)" `
         -DurationMs ([int]$auditSw.Elapsed.TotalMilliseconds) | Out-Null
+    Write-TcpkLog -Level INFO -Component 'assurance' -Message "PROVEN: $($asr.ProvenCount) (Confirmed / IL / dynamic / exploit -- verified, act on these first)" | Out-Null
+    Write-TcpkLog -Level INFO -Component 'assurance' -Message "LEADS: $($asr.LeadCount) (Inferred -- unverified pattern matches; AI-triage with -EnableLlm, or review manually)" | Out-Null
     try { Save-TcpkRunLog -Dir $OutDir } catch { }
 
     # --- coverage manifest (which checks ran / were gated / skipped / failed) ---
@@ -806,6 +813,7 @@ function Invoke-TcpkAudit {
 
     Clear-TcpkCecilCache   # release the cached IL assemblies (file handles) now the audit is done
 
+    Write-Information -MessageData ("Assurance: $($asr.ProvenCount) proven finding(s) to act on, $($asr.LeadCount) lead(s) to triage (run -EnableLlm to AI-verify the leads).") -InformationAction Continue
     Write-Information -MessageData ("Reports written to: " + $OutDir) -InformationAction Continue
 
     # --- FailOn gate ---
@@ -817,6 +825,7 @@ function Invoke-TcpkAudit {
         }
     }
 
-    # Return all findings as an array (comma operator prevents single-element unwrap)
-    , $all.ToArray()
+    # Return findings (comma operator prevents single-element unwrap). -ConfirmedOnly returns
+    # PROVEN findings only; the written reports still contain the leads, segregated by confidence.
+    if ($ConfirmedOnly) { , @($asr.Proven) } else { , $all.ToArray() }
 }

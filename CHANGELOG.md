@@ -2,6 +2,14 @@
 
 Release history for TCPK. Newest first.
 
+## v2.4.5-dev
+
+PRECISION pass -- directly addresses the false-positive / low-assurance complaint. Root cause: TCPK was built breadth-first (~150 pattern detectors), and the deterministic IL prover only verifies callsites.* and deser.*, so most rules can only emit Inferred. The default output showed those unverified pattern hits next to the handful of proven bugs, which reads as noise (on DVTA: 10 proven vs 18 leads of 30 findings).
+
+The audit now separates findings by ASSURANCE. NEW Get-TcpkAssuranceSplit partitions findings into PROVEN (a Confirmed* tier -- IL / dynamic / exploit / LLM / plain Confirmed, verified, act on these first) and LEADS (Inferred / Unverified -- pattern matches to triage, not confirmed bugs). The audit summary and console now lead with "N proven, M leads" and point the leads at AI triage (-EnableLlm) -- the agentic AI's real job is precision: verify a lead and promote it to Confirmed (LLM) or demote it, not add more noise. NEW Invoke-TcpkAudit -ConfirmedOnly returns PROVEN findings only (the reports still contain the leads, segregated by confidence), so a CI / scripted run acts on verified bugs.
+
+Verified on DVTA via userspace pwsh: the summary reframes to "10 proven + 18 leads"; -ConfirmedOnly returns the 10 proven (all Confirmed*). Pure PowerShell, no Windows-runtime dependency. Follow-ups: default the HTML report view to proven-first with leads collapsed, and gate per-rule precision (false-positive rate) in bench/.
+
 ## v2.4.4
 
 Stable release of the 2.4.x line. It consolidates the interception + exploitation work in the v2.4.1-dev through v2.4.4-dev entries below, and adds a review pass on the LLM and MCP subsystems:
