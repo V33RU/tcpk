@@ -7,7 +7,7 @@ BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
 
-    $script:fx = Join-Path $env:TEMP ('tcpk-sess-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-sess-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
 
     # web.config: insecure forms-auth + cookie config

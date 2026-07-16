@@ -7,7 +7,7 @@ BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
     Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
-    $script:fx = Join-Path $env:TEMP ('tcpk-ecot-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-ecot-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
 }
 AfterAll {

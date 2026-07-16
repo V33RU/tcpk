@@ -5,7 +5,7 @@
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
-    $script:fx = Join-Path $env:TEMP ('tcpk-ident-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-ident-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
     # a lone .exe with no managed markers -> should classify as a native Win32 app
     Set-Content -LiteralPath (Join-Path $script:fx 'DemoApp.exe') -Value 'MZ stub' -Encoding ASCII

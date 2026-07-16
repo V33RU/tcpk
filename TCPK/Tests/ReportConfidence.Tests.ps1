@@ -39,9 +39,13 @@ Describe 'HTML report confidence segregation (audit #2)' {
         $script:html | Should -Match "id='confOnly'"
     }
     It 'sorts the proven finding before the inferred one within the same severity' {
-        $ilPos  = $script:html.IndexOf('ZZ proven RCE sink')
-        $infPos = $script:html.IndexOf('AA inferred auth gate')
-        $ilPos  | Should -BeGreaterThan 0
-        $infPos | Should -BeGreaterThan $ilPos
+        # Assert on the FINDINGS-SECTION order (the data-proven articles), not a raw whole-HTML
+        # IndexOf of the titles: the executive-summary "Most significant" line lists findings by
+        # severity only, so both titles appear there first in insertion order (AA before ZZ) and
+        # would mask the confidence sort regardless of platform. The article order is the real test.
+        $provenArt = $script:html.IndexOf("data-proven='1'")
+        $infArt    = $script:html.IndexOf("data-proven='0'")
+        $provenArt | Should -BeGreaterThan 0
+        $infArt    | Should -BeGreaterThan $provenArt
     }
 }

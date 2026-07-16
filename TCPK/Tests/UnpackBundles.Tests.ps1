@@ -6,7 +6,7 @@ BeforeAll {
     Import-Module $psd1 -Force
     Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-    $script:fx = Join-Path $env:TEMP ('tcpk-unpack-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-unpack-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
 
     # a .jar (zip) with a secret-bearing properties file

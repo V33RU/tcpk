@@ -127,7 +127,7 @@ function Resolve-TcpkWebIdentity {
     $res = [ordered]@{ packageName = ''; packageFamilyName = ''; processName = ''; note = '' }
     $p = Resolve-TcpkWebTarget $Path
     if (-not $p) { $res.note = 'target not found -- enter a valid path first'; return $res }
-    if ($p -match 'WindowsApps\\([A-Za-z0-9.\-]+)_[\d.]+_[a-z0-9]+__([a-z0-9]+)') {
+    if ($p -match 'WindowsApps[\\/]([A-Za-z0-9.\-]+)_[\d.]+_[a-z0-9]+__([a-z0-9]+)') {
         $res.packageName = $matches[1]
         $res.packageFamilyName = "$($matches[1])_$($matches[2])"
     } elseif (Test-Path -LiteralPath $p -PathType Container) {

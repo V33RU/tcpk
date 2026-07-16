@@ -8,7 +8,7 @@ BeforeAll {
     Import-Module $psd1 -Force
     try { Disable-TcpkExploit | Out-Null } catch {}   # ensure gate OFF for the throw tests
 
-    $script:fx = Join-Path $env:TEMP ('tcpk-pester-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-pester-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
 
     # appsettings.json: one digit-bearing high-entropy key (should flag),
@@ -38,8 +38,15 @@ MIIEowIBAAKCAQEA0123456789abcdefghijklmnopqrstuvwxyzFAKEKEYDATA
     $jwt = "$(& $b64u '{"alg":"none","typ":"JWT"}').$(& $b64u '{"sub":"admin","role":"root"}')."
     "token=$jwt" | Set-Content -LiteralPath (Join-Path $script:fx 'tokens.txt') -Encoding UTF8
 
-    # a real PE for the SBOM test
-    Copy-Item "$env:WINDIR\System32\version.dll" (Join-Path $script:fx 'version.dll') -Force
+    # a real PE for the SBOM test: the Windows system version.dll if present, otherwise a
+    # freshly built managed assembly (still a real PE) so the test runs off Windows too.
+    $peDest = Join-Path $script:fx 'version.dll'
+    $winVer = if ($env:WINDIR) { Join-Path $env:WINDIR 'System32\version.dll' } else { $null }
+    if ($winVer -and (Test-Path -LiteralPath $winVer)) {
+        Copy-Item $winVer $peDest -Force
+    } else {
+        Add-Type -TypeDefinition 'public class TcpkSbomFixture { public static int V() { return 1; } }' -OutputAssembly $peDest -OutputType Library
+    }
 }
 
 AfterAll {
@@ -177,7 +184,7 @@ Describe 'Exploit-chain correlation (Get-TcpkExploitChains)' {
 
 Describe 'Entry-point depth (sink reachability + alias shadowing)' {
     BeforeAll {
-        $script:pkg = Join-Path $env:TEMP ('tcpk-depth-' + [guid]::NewGuid().ToString('N'))
+        $script:pkg = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-depth-' + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $script:pkg | Out-Null
         @'
 <?xml version="1.0" encoding="utf-8"?>
