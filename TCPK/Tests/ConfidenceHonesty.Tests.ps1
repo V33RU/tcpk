@@ -11,10 +11,19 @@ BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
 
-    $script:fx = Join-Path $env:TEMP ('tcpk-honesty-' + [guid]::NewGuid().ToString('N'))
+    # $env:TEMP is null off Windows -- use the cross-platform temp path.
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-honesty-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
     $script:dll = Join-Path $script:fx 'Contoso.App.dll'
-    Copy-Item "$env:WINDIR\System32\version.dll" $script:dll -Force
+    # The three relabel detectors are pure substring/regex text scanners, so the
+    # fixture only needs a .dll file whose bytes contain the planted tokens. On
+    # Windows keep copying a real system PE (byte-identical to the prior behaviour);
+    # off Windows there is no version.dll, so create an empty base file to append to.
+    if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+        Copy-Item "$env:WINDIR\System32\version.dll" $script:dll -Force
+    } else {
+        New-Item -ItemType File -Path $script:dll | Out-Null
+    }
 
     # Plant literal tokens the detectors look for, drawn from the live rule data.
     $script:deserToken = (& (Get-Module TCPK) { (Get-TcpkData).deser_tokens })[0].token

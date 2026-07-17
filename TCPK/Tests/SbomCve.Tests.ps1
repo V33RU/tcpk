@@ -12,15 +12,13 @@ BeforeAll {
 
 Describe 'SBOM purl from deps.json (Part A)' {
     It 'uses the deps.json package id + version for a managed component' {
-        $fx = Join-Path $env:TEMP ('tcpk-sbomtA-' + [guid]::NewGuid().ToString('N'))
+        $fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-sbomtA-' + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Path $fx | Out-Null
         $compiled = $false
         try {
-            $prov = New-Object Microsoft.CSharp.CSharpCodeProvider
-            $cp = New-Object System.CodeDom.Compiler.CompilerParameters
-            $cp.GenerateExecutable = $false; $cp.OutputAssembly = (Join-Path $fx 'AcmeLib.dll')
-            $r = $prov.CompileAssemblyFromSource($cp, 'public class A { public int X() { return 1; } }')
-            $compiled = (Test-Path (Join-Path $fx 'AcmeLib.dll')) -and ($r.Errors.Count -eq 0)
+            $dll = Join-Path $fx 'AcmeLib.dll'
+            Add-Type -TypeDefinition 'public class A { public int X() { return 1; } }' -OutputAssembly $dll -OutputType Library
+            $compiled = Test-Path $dll
             $deps = '{ "targets": { ".NETCoreApp,Version=v6.0": { "AcmeLib/9.9.9": { "runtime": { "lib/net6.0/AcmeLib.dll": {} } } } }, "libraries": { "AcmeLib/9.9.9": { "type": "package" } } }'
             Set-Content -LiteralPath (Join-Path $fx 'myapp.deps.json') -Value $deps -Encoding ASCII
         } catch { }
@@ -36,7 +34,7 @@ Describe 'SBOM purl from deps.json (Part A)' {
 
 Describe 'SBOM vulnerabilities array (Part B)' {
     It 'embeds the CVE and links it to the component bom-ref' {
-        $out = Join-Path $env:TEMP ('tcpk-sbomtB-' + [guid]::NewGuid().ToString('N') + '.cdx.json')
+        $out = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-sbomtB-' + [guid]::NewGuid().ToString('N') + '.cdx.json')
         $comp = [pscustomobject]@{ Name='Newtonsoft.Json'; Version='12.0.0'; Publisher=''; Sha256='abc'; Managed=$true; Purl='pkg:nuget/Newtonsoft.Json@12.0.0'; Type='library'; BomRef='Newtonsoft.Json@12.0.0'; Path='C:\app\Newtonsoft.Json.dll' }
         $cve  = [pscustomobject]@{ Cve='CVE-2024-21907'; Package='Newtonsoft.Json'; ShippedVersion='12.0.0'; FixedVersion='13.0.1'; Status='Vulnerable'; Severity='HIGH'; Cwe=@('CWE-502'); Title='Newtonsoft.Json DoS'; Summary='nested json'; File='myapp.deps.json'; References=@('https://x') }
         try {
@@ -49,7 +47,7 @@ Describe 'SBOM vulnerabilities array (Part B)' {
         } finally { Remove-Item $out -Force -ErrorAction SilentlyContinue }
     }
     It 'marks an unconfirmed native match as in_triage' {
-        $out = Join-Path $env:TEMP ('tcpk-sbomtC-' + [guid]::NewGuid().ToString('N') + '.cdx.json')
+        $out = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-sbomtC-' + [guid]::NewGuid().ToString('N') + '.cdx.json')
         $comp = [pscustomobject]@{ Name='WebView2Loader'; Version='1.0.0'; Publisher=''; Sha256='d'; Managed=$false; Purl='pkg:generic/WebView2Loader@1.0.0'; Type='library'; BomRef='WebView2Loader@1.0.0'; Path='C:\app\WebView2Loader.dll' }
         $cve  = [pscustomobject]@{ Cve='CVE-2023-4863'; Package='libwebp'; ShippedVersion=$null; FixedVersion='1.3.2'; Status='PossiblyEmbedded'; Severity='CRITICAL'; Cwe=@('CWE-787'); Title='libwebp overflow'; Summary='webp'; File='WebView2Loader.dll'; References=@() }
         try {

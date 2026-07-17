@@ -7,7 +7,7 @@
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
-    $script:fx = Join-Path $env:TEMP ('tcpk-tasvsc-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-tasvsc-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
 }
 AfterAll {
@@ -50,13 +50,26 @@ Describe 'Test-TcpkDebugFlags - debug-build detection (CODE-2.4)' {
         $dbgDll = Join-Path $script:fx 'DebugBuilt.dll'
         $compiled = $false
         try {
-            $prov = New-Object Microsoft.CSharp.CSharpCodeProvider
-            $cp = New-Object System.CodeDom.Compiler.CompilerParameters
-            $cp.GenerateExecutable = $false
-            $cp.IncludeDebugInformation = $true     # emits DebuggableAttribute w/ IsJITOptimizerDisabled=true
-            $cp.OutputAssembly = $dbgDll
-            $r = $prov.CompileAssemblyFromSource($cp, 'public class C { public int X() { return 1; } }')
-            $compiled = (Test-Path $dbgDll) -and ($r.Errors.Count -eq 0)
+            if ($PSVersionTable.PSEdition -eq 'Core') {
+                # .NET Core: System.CodeDom CSharpCodeProvider throws PlatformNotSupportedException.
+                # Compile via Add-Type instead and emit the DebuggableAttribute explicitly with
+                # DebuggingModes.DisableOptimizations (IsJITOptimizerDisabled), the same shape a
+                # Debug build produces and what the detector reads.
+                $src = @'
+[assembly: System.Diagnostics.Debuggable(System.Diagnostics.DebuggableAttribute.DebuggingModes.DisableOptimizations)]
+public class C { public int X() { return 1; } }
+'@
+                Add-Type -TypeDefinition $src -OutputAssembly $dbgDll -OutputType Library -ErrorAction Stop
+                $compiled = Test-Path $dbgDll
+            } else {
+                $prov = New-Object Microsoft.CSharp.CSharpCodeProvider
+                $cp = New-Object System.CodeDom.Compiler.CompilerParameters
+                $cp.GenerateExecutable = $false
+                $cp.IncludeDebugInformation = $true     # emits DebuggableAttribute w/ IsJITOptimizerDisabled=true
+                $cp.OutputAssembly = $dbgDll
+                $r = $prov.CompileAssemblyFromSource($cp, 'public class C { public int X() { return 1; } }')
+                $compiled = (Test-Path $dbgDll) -and ($r.Errors.Count -eq 0)
+            }
         } catch { }
 
         if (-not $cecil -or -not $compiled) {

@@ -35,12 +35,12 @@ AfterAll {
 }
 
 Describe 'Test-TcpkSignature unsigned-despite-pipeline (G8)' {
-    It 'flags unsigned binaries when a signing pipeline is referenced' {
+    It 'flags unsigned binaries when a signing pipeline is referenced' -Skip:($IsWindows -eq $false) {
         $f = @(Test-TcpkSignature -Path $script:disc | Where-Object RuleId -eq 'authenticode.unsigned-despite-pipeline')
         $f.Count | Should -BeGreaterThan 0
         $f[0].Severity | Should -Be 'MEDIUM'
     }
-    It 'does NOT flag when there is no signing reference' {
+    It 'does NOT flag when there is no signing reference' -Skip:($IsWindows -eq $false) {
         @(Test-TcpkSignature -Path $script:clean | Where-Object RuleId -eq 'authenticode.unsigned-despite-pipeline').Count | Should -Be 0
     }
 }

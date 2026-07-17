@@ -7,17 +7,12 @@
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
-    $script:fx = Join-Path $env:TEMP ('tcpk-tlscb-' + [guid]::NewGuid().ToString('N'))
+    $tmpRoot = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
+    $script:fx = Join-Path $tmpRoot ('tcpk-tlscb-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
     $script:dll = Join-Path $script:fx 'AcmeNet.dll'
     $script:compiled = $false
-    try {
-        $prov = New-Object Microsoft.CSharp.CSharpCodeProvider
-        $cp = New-Object System.CodeDom.Compiler.CompilerParameters
-        $cp.GenerateExecutable = $false
-        $cp.OutputAssembly = $script:dll
-        $cp.ReferencedAssemblies.Add('System.dll') | Out-Null
-        $src = @'
+    $src = @'
 using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 public class AcmeTls {
@@ -26,8 +21,19 @@ public class AcmeTls {
     }
 }
 '@
-        $r = $prov.CompileAssemblyFromSource($cp, $src)
-        $script:compiled = (Test-Path $script:dll) -and ($r.Errors.Count -eq 0)
+    try {
+        if ($PSVersionTable.PSEdition -eq 'Core') {
+            # System.CodeDom CSharpCodeProvider throws PlatformNotSupportedException on .NET Core.
+            Add-Type -TypeDefinition $src -OutputAssembly $script:dll -OutputType Library
+        } else {
+            $prov = New-Object Microsoft.CSharp.CSharpCodeProvider
+            $cp = New-Object System.CodeDom.Compiler.CompilerParameters
+            $cp.GenerateExecutable = $false
+            $cp.OutputAssembly = $script:dll
+            $cp.ReferencedAssemblies.Add('System.dll') | Out-Null
+            $prov.CompileAssemblyFromSource($cp, $src) | Out-Null
+        }
+        $script:compiled = Test-Path $script:dll
     } catch { }
 }
 AfterAll {

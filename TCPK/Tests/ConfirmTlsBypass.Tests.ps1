@@ -119,7 +119,7 @@ Describe 'Confirm-TcpkTlsBypass - finding pass-through' {
     }
 
     It 'passes a cert finding with a missing file through without promoting it' {
-        $missing = Join-Path $env:TEMP ('tcpk-no-such-' + [guid]::NewGuid().ToString('N') + '.dll')
+        $missing = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-no-such-' + [guid]::NewGuid().ToString('N') + '.dll')
         $out = & (Get-Module TCPK) { param($file)
             $f = New-TcpkFinding -Module static -RuleId 'tls-bypass.cb' -Severity HIGH -Title 'cb' -File $file -Confidence 'Inferred'
             $f | Confirm-TcpkTlsBypass
