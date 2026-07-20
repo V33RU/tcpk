@@ -759,7 +759,7 @@ th,td{padding:7px 11px}
         <h2>Runtime / Live</h2>
         <p class="lead">Read-only live checks on a RUNNING process. Type the process name (or reuse your target), then click a check. Discovery-only -- reads live state (modules, ports, token, handles, IPC); it never launches, injects, or dumps. Some checks need admin.</p>
         <div class="panel">
-          <div class="row"><div style="flex:1"><label>process name (for the process checks)</label><input id="rtProc" placeholder="Configure Pro"/></div></div>
+          <div class="row"><div style="flex:1"><label>process name (for the process checks)</label><input id="rtProc" placeholder="e.g. notepad"/></div></div>
           <div class="note" style="margin-top:6px">process:</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
             <button class="go mini" onclick="rtRun('loaded-modules')">Loaded Modules</button>
