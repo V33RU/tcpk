@@ -687,36 +687,37 @@ $txtLogs.ReadOnly = $true; $txtLogs.WordWrap = $false
 $txtLogs.Text = "Run an audit -- a verbose, timed runtime trace (per-check timing, success/info/error for every step) and a runtime-analysis summary appear here."
 $tabLogs.Controls.Add($txtLogs)
 
-# --- Interception / Live Exploit tab (2.4.x active layer) ----------------------
-# Surfaces the interception + exploitation cmdlets that were previously CLI-only:
-#   Invoke-TcpkIntercept       (mitmproxy Proxy / Hook / Tamper, or parse a capture)
-#   Invoke-TcpkHookBypass      (frida native-export return override)
-#   Get-TcpkStoredCredentials  (Windows Credential Manager dump)
-#   Test-TcpkCredentialLiveness (replay a recovered credential against a live service)
-# All ACTIVE paths are gated by a local authorization checkbox + Enable-TcpkExploit.
+# --- Interception + Live Exploit tabs (2.4.x active layer) ---------------------
+# Two gated tabs surfacing the active/exploit cmdlets that were previously CLI-only:
+#   Interception        : Invoke-TcpkIntercept (mitmproxy Proxy / Tamper, or parse a capture)
+#   Live Exploit / Creds: Invoke-TcpkHookBypass (frida return override),
+#                         Get-TcpkStoredCredentials (Credential Manager dump),
+#                         Test-TcpkCredentialLiveness (replay a credential against a live service)
+# Each tab has its OWN authorization gate + output console. The helpers take the target
+# console/gate as parameters so the two tabs stay independent.
 $icptWarn = [System.Drawing.Color]::FromArgb(255,180,180)
 
-function Write-IcptLine([string]$text, [System.Drawing.Color]$color) {
-    $txtIcpt.SelectionStart = $txtIcpt.TextLength
-    $txtIcpt.SelectionLength = 0
-    $txtIcpt.SelectionColor = $color
-    $txtIcpt.AppendText($text)
-    try { $txtIcpt.ScrollToCaret() } catch {}
+function Write-IcptLine($box, [string]$text, [System.Drawing.Color]$color) {
+    $box.SelectionStart = $box.TextLength
+    $box.SelectionLength = 0
+    $box.SelectionColor = $color
+    $box.AppendText($text)
+    try { $box.ScrollToCaret() } catch {}
 }
-function Test-IcptGate {
-    if (-not $chkIcptGate.Checked) {
-        Write-IcptLine "`r`n[gate] Tick 'I am authorized' above to enable the active interception + exploit tools.`r`n" $icptWarn
+function Test-IcptGate($gate, $box) {
+    if (-not $gate.Checked) {
+        Write-IcptLine $box "`r`n[gate] Tick 'I am authorized' above to enable the active tools.`r`n" $icptWarn
         return $false
     }
     try { Enable-TcpkExploit -Acknowledge | Out-Null } catch {}
     return $true
 }
-# Run one active/parse cmdlet, stream its findings into the output box (severity-coloured).
+# Run one active/parse cmdlet, stream its findings into the given console (severity-coloured).
 # Synchronous with a wait cursor -- the active modes launch the target, so the window
 # pauses for the capture/instrument duration, matching the Exploit tab's dynamic tools.
-function Invoke-IcptTool([string]$title, [scriptblock]$call) {
-    Write-IcptLine "`r`n== $title ==`r`n" ([System.Drawing.Color]::FromArgb(102,217,239))
-    Update-Status "Interception: $title ... (the window may pause while this runs)"
+function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
+    Write-IcptLine $box "`r`n== $title ==`r`n" ([System.Drawing.Color]::FromArgb(102,217,239))
+    Update-Status "$title ... (the window may pause while this runs)"
     $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
     [System.Windows.Forms.Application]::DoEvents()
     try {
@@ -726,106 +727,158 @@ function Invoke-IcptTool([string]$title, [scriptblock]$call) {
             if (-not $f) { continue }
             $n++
             $c = $script:SevColour[[string]$f.Severity]; if (-not $c) { $c = [System.Drawing.Color]::White }
-            Write-IcptLine ("[{0}] [{1}] {2}`r`n" -f $f.Severity, $f.Confidence, $f.Title) $c
-            if ($f.Evidence) { Write-IcptLine ("      {0}`r`n" -f $f.Evidence) ([System.Drawing.Color]::FromArgb(150,150,150)) }
+            Write-IcptLine $box ("[{0}] [{1}] {2}`r`n" -f $f.Severity, $f.Confidence, $f.Title) $c
+            if ($f.Evidence) { Write-IcptLine $box ("      {0}`r`n" -f $f.Evidence) ([System.Drawing.Color]::FromArgb(150,150,150)) }
         }
-        if ($n -eq 0) { Write-IcptLine "(no findings returned)`r`n" ([System.Drawing.Color]::FromArgb(150,150,150)) }
-        else { Write-IcptLine ("-> {0} finding(s)`r`n" -f $n) ([System.Drawing.Color]::FromArgb(166,226,46)) }
+        if ($n -eq 0) { Write-IcptLine $box "(no findings returned)`r`n" ([System.Drawing.Color]::FromArgb(150,150,150)) }
+        else { Write-IcptLine $box ("-> {0} finding(s)`r`n" -f $n) ([System.Drawing.Color]::FromArgb(166,226,46)) }
     } catch {
-        Write-IcptLine ("ERROR: {0}`r`n" -f $_.Exception.Message) ([System.Drawing.Color]::FromArgb(249,38,114))
+        Write-IcptLine $box ("ERROR: {0}`r`n" -f $_.Exception.Message) ([System.Drawing.Color]::FromArgb(249,38,114))
     } finally {
         $form.Cursor = [System.Windows.Forms.Cursors]::Default
         Update-Status "Ready."
     }
 }
 
-$tabIcpt = New-Object System.Windows.Forms.TabPage
-$tabIcpt.Text = '  Interception / Live Exploit  '
-$tabIcpt.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
-[void]$tabs.TabPages.Add($tabIcpt)
+# ================= TAB A: Interception (traffic capture) =================
+$tabIcptA = New-Object System.Windows.Forms.TabPage
+$tabIcptA.Text = '  Interception  '
+$tabIcptA.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabIcptA)
 
-# Authorization banner (Dock=Top)
-$icptBanner = New-Object System.Windows.Forms.Panel
-$icptBanner.Dock = 'Top'; $icptBanner.Height = 50; $icptBanner.BackColor = [System.Drawing.Color]::FromArgb(60,20,20)
-$lblIcptWarn = New-Object System.Windows.Forms.Label
-$lblIcptWarn.Text = "ACTIVE interception + exploitation. These LAUNCH the target, instrument it, and replay credentials. LAB / AUTHORIZED targets only."
-$lblIcptWarn.ForeColor = $icptWarn
-$lblIcptWarn.Location = New-Object System.Drawing.Point(12,6); $lblIcptWarn.Size = New-Object System.Drawing.Size(1140,18)
-$icptBanner.Controls.Add($lblIcptWarn)
-$chkIcptGate = New-Object System.Windows.Forms.CheckBox
-$chkIcptGate.Text = "I am authorized to test this target -- enable active tools"
-$chkIcptGate.ForeColor = [System.Drawing.Color]::White
-$chkIcptGate.Location = New-Object System.Drawing.Point(12,26); $chkIcptGate.Size = New-Object System.Drawing.Size(460,22)
-$icptBanner.Controls.Add($chkIcptGate)
-$tabIcpt.Controls.Add($icptBanner)
+# Authorization banner
+$bannerA = New-Object System.Windows.Forms.Panel
+$bannerA.Dock = 'Top'; $bannerA.Height = 50; $bannerA.BackColor = [System.Drawing.Color]::FromArgb(60,20,20)
+$lblWarnA = New-Object System.Windows.Forms.Label
+$lblWarnA.Text = "ACTIVE traffic interception. This LAUNCHES the target through mitmproxy and observes / rewrites its traffic. LAB / AUTHORIZED targets only."
+$lblWarnA.ForeColor = $icptWarn
+$lblWarnA.Location = New-Object System.Drawing.Point(12,6); $lblWarnA.Size = New-Object System.Drawing.Size(1140,18)
+$bannerA.Controls.Add($lblWarnA)
+$chkGateA = New-Object System.Windows.Forms.CheckBox
+$chkGateA.Text = "I am authorized to test this target -- enable active tools"
+$chkGateA.ForeColor = [System.Drawing.Color]::White
+$chkGateA.Location = New-Object System.Drawing.Point(12,26); $chkGateA.Size = New-Object System.Drawing.Size(460,22)
+$bannerA.Controls.Add($chkGateA)
+$tabIcptA.Controls.Add($bannerA)
 
-# Controls panel (Dock=Top)
-$icptCtl = New-Object System.Windows.Forms.Panel
-$icptCtl.Dock = 'Top'; $icptCtl.Height = 322; $icptCtl.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+# Controls panel
+$ctlA = New-Object System.Windows.Forms.Panel
+$ctlA.Dock = 'Top'; $ctlA.Height = 200; $ctlA.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
 
-# App exe row (shared by interception + hook bypass)
-$lblIcptExe = New-Object System.Windows.Forms.Label
-$lblIcptExe.Text = "App exe (.exe to launch through the proxy / hook):"
-$lblIcptExe.Location = New-Object System.Drawing.Point(12,8); $lblIcptExe.Size = New-Object System.Drawing.Size(320,18)
-$icptCtl.Controls.Add($lblIcptExe)
-$txtIcptExe = New-Object System.Windows.Forms.TextBox
-$txtIcptExe.Location = New-Object System.Drawing.Point(336,5); $txtIcptExe.Size = New-Object System.Drawing.Size(660,24)
-$txtIcptExe.Font = New-Object System.Drawing.Font('Consolas', 9)
-$txtIcptExe.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
-$icptCtl.Controls.Add($txtIcptExe)
-$btnIcptBrowse = New-Object System.Windows.Forms.Button
-$btnIcptBrowse.Text = "Browse..."; $btnIcptBrowse.Location = New-Object System.Drawing.Point(1002,3); $btnIcptBrowse.Size = New-Object System.Drawing.Size(84,26)
-$btnIcptBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
-$icptCtl.Controls.Add($btnIcptBrowse)
-$btnIcptBrowse.Add_Click({
+# App exe row
+$lblExeA = New-Object System.Windows.Forms.Label
+$lblExeA.Text = "App exe (.exe to launch through the proxy):"
+$lblExeA.Location = New-Object System.Drawing.Point(12,8); $lblExeA.Size = New-Object System.Drawing.Size(320,18)
+$ctlA.Controls.Add($lblExeA)
+$txtExeA = New-Object System.Windows.Forms.TextBox
+$txtExeA.Location = New-Object System.Drawing.Point(336,5); $txtExeA.Size = New-Object System.Drawing.Size(660,24); $txtExeA.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtExeA.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$ctlA.Controls.Add($txtExeA)
+$btnBrowseA = New-Object System.Windows.Forms.Button
+$btnBrowseA.Text = "Browse..."; $btnBrowseA.Location = New-Object System.Drawing.Point(1002,3); $btnBrowseA.Size = New-Object System.Drawing.Size(84,26)
+$btnBrowseA.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$ctlA.Controls.Add($btnBrowseA)
+$btnBrowseA.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog
     $dlg.Filter = "Executables (*.exe)|*.exe|All files (*.*)|*.*"
-    if ($dlg.ShowDialog() -eq 'OK') { $txtIcptExe.Text = $dlg.FileName }
+    if ($dlg.ShowDialog() -eq 'OK') { $txtExeA.Text = $dlg.FileName }
 })
 
-# GroupBox 1: traffic interception (mitmproxy)
-$gbIcpt = New-Object System.Windows.Forms.GroupBox
-$gbIcpt.Text = "1. Traffic interception (mitmproxy)"
-$gbIcpt.Location = New-Object System.Drawing.Point(10,36); $gbIcpt.Size = New-Object System.Drawing.Size(578,150)
-$icptCtl.Controls.Add($gbIcpt)
-$lblIMode = New-Object System.Windows.Forms.Label; $lblIMode.Text = "Mode:"; $lblIMode.Location = New-Object System.Drawing.Point(12,26); $lblIMode.Size = New-Object System.Drawing.Size(44,18); $gbIcpt.Controls.Add($lblIMode)
-$cmbIcptMode = New-Object System.Windows.Forms.ComboBox; $cmbIcptMode.Location = New-Object System.Drawing.Point(58,23); $cmbIcptMode.Size = New-Object System.Drawing.Size(96,24); $cmbIcptMode.DropDownStyle = 'DropDownList'
-@('Proxy','Hook','Tamper') | ForEach-Object { [void]$cmbIcptMode.Items.Add($_) }; $cmbIcptMode.SelectedIndex = 0; $gbIcpt.Controls.Add($cmbIcptMode)
-$lblIDur = New-Object System.Windows.Forms.Label; $lblIDur.Text = "Duration(s):"; $lblIDur.Location = New-Object System.Drawing.Point(170,26); $lblIDur.Size = New-Object System.Drawing.Size(72,18); $gbIcpt.Controls.Add($lblIDur)
-$numIcptDur = New-Object System.Windows.Forms.NumericUpDown; $numIcptDur.Location = New-Object System.Drawing.Point(244,23); $numIcptDur.Size = New-Object System.Drawing.Size(60,24); $numIcptDur.Minimum = 3; $numIcptDur.Maximum = 600; $numIcptDur.Value = 20; $gbIcpt.Controls.Add($numIcptDur)
-$lblITam = New-Object System.Windows.Forms.Label; $lblITam.Text = "Tamper rules (find=>replace, one per line; Tamper mode):"; $lblITam.Location = New-Object System.Drawing.Point(12,52); $lblITam.Size = New-Object System.Drawing.Size(360,18); $gbIcpt.Controls.Add($lblITam)
-$txtIcptTamper = New-Object System.Windows.Forms.TextBox; $txtIcptTamper.Location = New-Object System.Drawing.Point(12,70); $txtIcptTamper.Size = New-Object System.Drawing.Size(554,34); $txtIcptTamper.Multiline = $true; $txtIcptTamper.Font = New-Object System.Drawing.Font('Consolas', 9); $gbIcpt.Controls.Add($txtIcptTamper)
-$btnIcptRun = New-Object System.Windows.Forms.Button; $btnIcptRun.Text = "Launch + capture"; $btnIcptRun.Location = New-Object System.Drawing.Point(12,112); $btnIcptRun.Size = New-Object System.Drawing.Size(150,28)
-$btnIcptRun.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnIcptRun.ForeColor = [System.Drawing.Color]::White; $btnIcptRun.FlatStyle = 'Flat'; $gbIcpt.Controls.Add($btnIcptRun)
-$btnIcptLoad = New-Object System.Windows.Forms.Button; $btnIcptLoad.Text = "Load capture file..."; $btnIcptLoad.Location = New-Object System.Drawing.Point(172,112); $btnIcptLoad.Size = New-Object System.Drawing.Size(150,28); $btnIcptLoad.FlatStyle = 'Flat'; $gbIcpt.Controls.Add($btnIcptLoad)
-$btnIcptRun.Add_Click({
-    if (-not (Test-IcptGate)) { return }
-    $exe = $txtIcptExe.Text.Trim()
-    if (-not $exe) { Write-IcptLine "`r`n[!] Set the app exe path first.`r`n" $icptWarn; return }
-    $mode = [string]$cmbIcptMode.SelectedItem
-    $dur = [int]$numIcptDur.Value
-    $rules = @($txtIcptTamper.Lines | Where-Object { $_.Trim() })
-    Invoke-IcptTool "Interception ($mode, ${dur}s): $exe" {
+# Traffic interception group
+$gbTraffic = New-Object System.Windows.Forms.GroupBox
+$gbTraffic.Text = "Traffic interception (mitmproxy)"
+$gbTraffic.Location = New-Object System.Drawing.Point(10,36); $gbTraffic.Size = New-Object System.Drawing.Size(578,150)
+$ctlA.Controls.Add($gbTraffic)
+$lblMode = New-Object System.Windows.Forms.Label; $lblMode.Text = "Mode:"; $lblMode.Location = New-Object System.Drawing.Point(12,26); $lblMode.Size = New-Object System.Drawing.Size(44,18); $gbTraffic.Controls.Add($lblMode)
+$cmbMode = New-Object System.Windows.Forms.ComboBox; $cmbMode.Location = New-Object System.Drawing.Point(58,23); $cmbMode.Size = New-Object System.Drawing.Size(96,24); $cmbMode.DropDownStyle = 'DropDownList'
+@('Proxy','Tamper') | ForEach-Object { [void]$cmbMode.Items.Add($_) }; $cmbMode.SelectedIndex = 0; $gbTraffic.Controls.Add($cmbMode)
+$lblDur = New-Object System.Windows.Forms.Label; $lblDur.Text = "Duration(s):"; $lblDur.Location = New-Object System.Drawing.Point(170,26); $lblDur.Size = New-Object System.Drawing.Size(72,18); $gbTraffic.Controls.Add($lblDur)
+$numDur = New-Object System.Windows.Forms.NumericUpDown; $numDur.Location = New-Object System.Drawing.Point(244,23); $numDur.Size = New-Object System.Drawing.Size(60,24); $numDur.Minimum = 3; $numDur.Maximum = 600; $numDur.Value = 20; $gbTraffic.Controls.Add($numDur)
+$lblTam = New-Object System.Windows.Forms.Label; $lblTam.Text = "Tamper rules (find=>replace, one per line; Tamper mode):"; $lblTam.Location = New-Object System.Drawing.Point(12,52); $lblTam.Size = New-Object System.Drawing.Size(360,18); $gbTraffic.Controls.Add($lblTam)
+$txtTamper = New-Object System.Windows.Forms.TextBox; $txtTamper.Location = New-Object System.Drawing.Point(12,70); $txtTamper.Size = New-Object System.Drawing.Size(554,34); $txtTamper.Multiline = $true; $txtTamper.Font = New-Object System.Drawing.Font('Consolas', 9); $gbTraffic.Controls.Add($txtTamper)
+$btnCap = New-Object System.Windows.Forms.Button; $btnCap.Text = "Launch + capture"; $btnCap.Location = New-Object System.Drawing.Point(12,112); $btnCap.Size = New-Object System.Drawing.Size(150,28)
+$btnCap.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCap.ForeColor = [System.Drawing.Color]::White; $btnCap.FlatStyle = 'Flat'; $gbTraffic.Controls.Add($btnCap)
+$btnLoad = New-Object System.Windows.Forms.Button; $btnLoad.Text = "Load capture file..."; $btnLoad.Location = New-Object System.Drawing.Point(172,112); $btnLoad.Size = New-Object System.Drawing.Size(150,28); $btnLoad.FlatStyle = 'Flat'; $gbTraffic.Controls.Add($btnLoad)
+$btnCap.Add_Click({
+    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
+    $exe = $txtExeA.Text.Trim()
+    if (-not $exe) { Write-IcptLine $txtOutA "`r`n[!] Set the app exe path first.`r`n" $icptWarn; return }
+    $mode = [string]$cmbMode.SelectedItem
+    $dur = [int]$numDur.Value
+    $rules = @($txtTamper.Lines | Where-Object { $_.Trim() })
+    Invoke-IcptTool $txtOutA "Interception ($mode, ${dur}s): $exe" {
         $p = @{ Target = $exe; Mode = $mode; ConfirmDynamic = $true; DurationSec = $dur }
         if ($mode -eq 'Tamper' -and $rules.Count) { $p.TamperRules = $rules }
         Invoke-TcpkIntercept @p
     }
 })
-$btnIcptLoad.Add_Click({
+$btnLoad.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog
     $dlg.Filter = "Capture files (*.jsonl;*.json;*.txt)|*.jsonl;*.json;*.txt|All files (*.*)|*.*"
     if ($dlg.ShowDialog() -eq 'OK') {
         $file = $dlg.FileName
-        Invoke-IcptTool "Parse capture: $file" { Invoke-TcpkIntercept -FlowFile $file }
+        Invoke-IcptTool $txtOutA "Parse capture: $file" { Invoke-TcpkIntercept -FlowFile $file }
     }
 })
+$tabIcptA.Controls.Add($ctlA)
 
-# GroupBox 2: native hook bypass (frida)
+$txtOutA = New-Object System.Windows.Forms.RichTextBox
+$txtOutA.Dock = 'Fill'; $txtOutA.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtOutA.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtOutA.ForeColor = [System.Drawing.Color]::White
+$txtOutA.ReadOnly = $true; $txtOutA.WordWrap = $false
+$txtOutA.Text = "Traffic interception console.`r`n`r`nSet the app exe, tick the authorization box, then:`r`n  Launch + capture -- run the target through mitmproxy (Proxy observes; Tamper rewrites in flight).`r`n  Load capture file -- parse an existing mitmproxy JSONL capture into findings.`r`n`r`nmitmdump must be on PATH or in tools\. For MSIX / packaged apps that ignore the proxy, drive the capture with Burp + Proxifier instead. Findings stream here, severity-coloured."
+$tabIcptA.Controls.Add($txtOutA)
+$txtOutA.BringToFront()
+
+# ================= TAB B: Live Exploit / Creds =================
+$tabIcptB = New-Object System.Windows.Forms.TabPage
+$tabIcptB.Text = '  Live Exploit / Creds  '
+$tabIcptB.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabIcptB)
+
+# Authorization banner
+$bannerB = New-Object System.Windows.Forms.Panel
+$bannerB.Dock = 'Top'; $bannerB.Height = 50; $bannerB.BackColor = [System.Drawing.Color]::FromArgb(60,20,20)
+$lblWarnB = New-Object System.Windows.Forms.Label
+$lblWarnB.Text = "ACTIVE exploitation. These instrument the target, read stored credentials, and replay them against live services. LAB / AUTHORIZED targets only."
+$lblWarnB.ForeColor = $icptWarn
+$lblWarnB.Location = New-Object System.Drawing.Point(12,6); $lblWarnB.Size = New-Object System.Drawing.Size(1140,18)
+$bannerB.Controls.Add($lblWarnB)
+$chkGateB = New-Object System.Windows.Forms.CheckBox
+$chkGateB.Text = "I am authorized to test this target -- enable active tools"
+$chkGateB.ForeColor = [System.Drawing.Color]::White
+$chkGateB.Location = New-Object System.Drawing.Point(12,26); $chkGateB.Size = New-Object System.Drawing.Size(460,22)
+$bannerB.Controls.Add($chkGateB)
+$tabIcptB.Controls.Add($bannerB)
+
+# Controls panel
+$ctlB = New-Object System.Windows.Forms.Panel
+$ctlB.Dock = 'Top'; $ctlB.Height = 322; $ctlB.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+
+# App exe row (for hook bypass)
+$lblExeB = New-Object System.Windows.Forms.Label
+$lblExeB.Text = "App exe (.exe to launch + hook):"
+$lblExeB.Location = New-Object System.Drawing.Point(12,8); $lblExeB.Size = New-Object System.Drawing.Size(320,18)
+$ctlB.Controls.Add($lblExeB)
+$txtExeB = New-Object System.Windows.Forms.TextBox
+$txtExeB.Location = New-Object System.Drawing.Point(336,5); $txtExeB.Size = New-Object System.Drawing.Size(660,24); $txtExeB.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtExeB.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$ctlB.Controls.Add($txtExeB)
+$btnBrowseB = New-Object System.Windows.Forms.Button
+$btnBrowseB.Text = "Browse..."; $btnBrowseB.Location = New-Object System.Drawing.Point(1002,3); $btnBrowseB.Size = New-Object System.Drawing.Size(84,26)
+$btnBrowseB.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$ctlB.Controls.Add($btnBrowseB)
+$btnBrowseB.Add_Click({
+    $dlg = New-Object System.Windows.Forms.OpenFileDialog
+    $dlg.Filter = "Executables (*.exe)|*.exe|All files (*.*)|*.*"
+    if ($dlg.ShowDialog() -eq 'OK') { $txtExeB.Text = $dlg.FileName }
+})
+
+# Native hook bypass group
 $gbHook = New-Object System.Windows.Forms.GroupBox
-$gbHook.Text = "2. Native hook bypass (frida)"
-$gbHook.Location = New-Object System.Drawing.Point(598,36); $gbHook.Size = New-Object System.Drawing.Size(578,150)
-$gbHook.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
-$icptCtl.Controls.Add($gbHook)
+$gbHook.Text = "Native hook bypass (frida)"
+$gbHook.Location = New-Object System.Drawing.Point(10,36); $gbHook.Size = New-Object System.Drawing.Size(578,150)
+$ctlB.Controls.Add($gbHook)
 $lblHFn = New-Object System.Windows.Forms.Label; $lblHFn.Text = "Function (native export):"; $lblHFn.Location = New-Object System.Drawing.Point(12,26); $lblHFn.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHFn)
 $txtHookFn = New-Object System.Windows.Forms.TextBox; $txtHookFn.Location = New-Object System.Drawing.Point(170,23); $txtHookFn.Size = New-Object System.Drawing.Size(200,24); $gbHook.Controls.Add($txtHookFn)
 $lblHMod = New-Object System.Windows.Forms.Label; $lblHMod.Text = "Module (optional):"; $lblHMod.Location = New-Object System.Drawing.Point(12,54); $lblHMod.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHMod)
@@ -836,15 +889,15 @@ $chkHookSkip = New-Object System.Windows.Forms.CheckBox; $chkHookSkip.Text = "Sk
 $btnHookRun = New-Object System.Windows.Forms.Button; $btnHookRun.Text = "Force return (bypass check)"; $btnHookRun.Location = New-Object System.Drawing.Point(12,112); $btnHookRun.Size = New-Object System.Drawing.Size(220,28)
 $btnHookRun.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnHookRun.ForeColor = [System.Drawing.Color]::White; $btnHookRun.FlatStyle = 'Flat'; $gbHook.Controls.Add($btnHookRun)
 $btnHookRun.Add_Click({
-    if (-not (Test-IcptGate)) { return }
-    $exe = $txtIcptExe.Text.Trim()
-    if (-not $exe) { Write-IcptLine "`r`n[!] Set the app exe path first.`r`n" $icptWarn; return }
+    if (-not (Test-IcptGate $chkGateB $txtOutB)) { return }
+    $exe = $txtExeB.Text.Trim()
+    if (-not $exe) { Write-IcptLine $txtOutB "`r`n[!] Set the app exe path first.`r`n" $icptWarn; return }
     $fn = $txtHookFn.Text.Trim()
-    if (-not $fn) { Write-IcptLine "`r`n[!] Enter a native export name to hook.`r`n" $icptWarn; return }
+    if (-not $fn) { Write-IcptLine $txtOutB "`r`n[!] Enter a native export name to hook.`r`n" $icptWarn; return }
     $mod = $txtHookMod.Text.Trim()
     $ret = [int]$numHookRet.Value
     $skip = $chkHookSkip.Checked
-    Invoke-IcptTool "Hook bypass: force $fn -> $ret" {
+    Invoke-IcptTool $txtOutB "Hook bypass: force $fn -> $ret" {
         $p = @{ Target = $exe; Function = $fn; ReturnValue = $ret; ConfirmDynamic = $true }
         if ($mod) { $p.Module = $mod }
         if ($skip) { $p.SkipBody = $true }
@@ -852,21 +905,22 @@ $btnHookRun.Add_Click({
     }
 })
 
-# GroupBox 3: Windows stored credentials
+# Windows stored credentials group
 $gbCred = New-Object System.Windows.Forms.GroupBox
-$gbCred.Text = "3. Windows stored credentials (Credential Manager)"
-$gbCred.Location = New-Object System.Drawing.Point(10,192); $gbCred.Size = New-Object System.Drawing.Size(578,120)
-$icptCtl.Controls.Add($gbCred)
+$gbCred.Text = "Windows stored credentials (Credential Manager)"
+$gbCred.Location = New-Object System.Drawing.Point(598,36); $gbCred.Size = New-Object System.Drawing.Size(578,150)
+$gbCred.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$ctlB.Controls.Add($gbCred)
 $lblCFilt = New-Object System.Windows.Forms.Label; $lblCFilt.Text = "Filter (optional target substring):"; $lblCFilt.Location = New-Object System.Drawing.Point(12,28); $lblCFilt.Size = New-Object System.Drawing.Size(190,18); $gbCred.Controls.Add($lblCFilt)
 $txtCredFilter = New-Object System.Windows.Forms.TextBox; $txtCredFilter.Location = New-Object System.Drawing.Point(206,25); $txtCredFilter.Size = New-Object System.Drawing.Size(200,24); $gbCred.Controls.Add($txtCredFilter)
 $chkCredReveal = New-Object System.Windows.Forms.CheckBox; $chkCredReveal.Text = "Reveal secrets (default masks)"; $chkCredReveal.Location = New-Object System.Drawing.Point(12,54); $chkCredReveal.Size = New-Object System.Drawing.Size(260,20); $gbCred.Controls.Add($chkCredReveal)
 $btnCredDump = New-Object System.Windows.Forms.Button; $btnCredDump.Text = "Dump credential vault"; $btnCredDump.Location = New-Object System.Drawing.Point(12,82); $btnCredDump.Size = New-Object System.Drawing.Size(200,28)
 $btnCredDump.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCredDump.ForeColor = [System.Drawing.Color]::White; $btnCredDump.FlatStyle = 'Flat'; $gbCred.Controls.Add($btnCredDump)
 $btnCredDump.Add_Click({
-    if (-not (Test-IcptGate)) { return }
+    if (-not (Test-IcptGate $chkGateB $txtOutB)) { return }
     $filt = $txtCredFilter.Text.Trim()
     $rev = $chkCredReveal.Checked
-    Invoke-IcptTool "Windows Credential Manager dump" {
+    Invoke-IcptTool $txtOutB "Windows Credential Manager dump" {
         $p = @{ Confirm = $true }
         if ($filt) { $p.Filter = $filt }
         if ($rev) { $p.Reveal = $true }
@@ -874,35 +928,35 @@ $btnCredDump.Add_Click({
     }
 })
 
-# GroupBox 4: credential liveness replay
+# Credential liveness group (wide, full row)
 $gbLive = New-Object System.Windows.Forms.GroupBox
-$gbLive.Text = "4. Credential liveness (replay a recovered credential)"
-$gbLive.Location = New-Object System.Drawing.Point(598,192); $gbLive.Size = New-Object System.Drawing.Size(578,120)
+$gbLive.Text = "Credential liveness (replay a recovered credential against a live service)"
+$gbLive.Location = New-Object System.Drawing.Point(10,192); $gbLive.Size = New-Object System.Drawing.Size(1166,118)
 $gbLive.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
-$icptCtl.Controls.Add($gbLive)
-$lblLProto = New-Object System.Windows.Forms.Label; $lblLProto.Text = "Protocol:"; $lblLProto.Location = New-Object System.Drawing.Point(12,24); $lblLProto.Size = New-Object System.Drawing.Size(58,18); $gbLive.Controls.Add($lblLProto)
-$cmbLiveProto = New-Object System.Windows.Forms.ComboBox; $cmbLiveProto.Location = New-Object System.Drawing.Point(72,21); $cmbLiveProto.Size = New-Object System.Drawing.Size(72,24); $cmbLiveProto.DropDownStyle = 'DropDownList'
+$ctlB.Controls.Add($gbLive)
+$lblLProto = New-Object System.Windows.Forms.Label; $lblLProto.Text = "Protocol:"; $lblLProto.Location = New-Object System.Drawing.Point(12,26); $lblLProto.Size = New-Object System.Drawing.Size(58,18); $gbLive.Controls.Add($lblLProto)
+$cmbLiveProto = New-Object System.Windows.Forms.ComboBox; $cmbLiveProto.Location = New-Object System.Drawing.Point(72,23); $cmbLiveProto.Size = New-Object System.Drawing.Size(72,24); $cmbLiveProto.DropDownStyle = 'DropDownList'
 @('http','sql','ftp') | ForEach-Object { [void]$cmbLiveProto.Items.Add($_) }; $cmbLiveProto.SelectedIndex = 0; $gbLive.Controls.Add($cmbLiveProto)
-$lblLTgt = New-Object System.Windows.Forms.Label; $lblLTgt.Text = "Target (URL / host / ftp://):"; $lblLTgt.Location = New-Object System.Drawing.Point(158,24); $lblLTgt.Size = New-Object System.Drawing.Size(160,18); $gbLive.Controls.Add($lblLTgt)
-$txtLiveTarget = New-Object System.Windows.Forms.TextBox; $txtLiveTarget.Location = New-Object System.Drawing.Point(320,21); $txtLiveTarget.Size = New-Object System.Drawing.Size(244,24); $txtLiveTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
+$lblLTgt = New-Object System.Windows.Forms.Label; $lblLTgt.Text = "Target (URL / host / ftp://):"; $lblLTgt.Location = New-Object System.Drawing.Point(160,26); $lblLTgt.Size = New-Object System.Drawing.Size(160,18); $gbLive.Controls.Add($lblLTgt)
+$txtLiveTarget = New-Object System.Windows.Forms.TextBox; $txtLiveTarget.Location = New-Object System.Drawing.Point(322,23); $txtLiveTarget.Size = New-Object System.Drawing.Size(820,24); $txtLiveTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtLiveTarget.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbLive.Controls.Add($txtLiveTarget)
-$lblLUser = New-Object System.Windows.Forms.Label; $lblLUser.Text = "User:"; $lblLUser.Location = New-Object System.Drawing.Point(12,52); $lblLUser.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLUser)
-$txtLiveUser = New-Object System.Windows.Forms.TextBox; $txtLiveUser.Location = New-Object System.Drawing.Point(54,49); $txtLiveUser.Size = New-Object System.Drawing.Size(130,24); $gbLive.Controls.Add($txtLiveUser)
-$lblLPass = New-Object System.Windows.Forms.Label; $lblLPass.Text = "Pass:"; $lblLPass.Location = New-Object System.Drawing.Point(196,52); $lblLPass.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLPass)
-$txtLivePass = New-Object System.Windows.Forms.TextBox; $txtLivePass.Location = New-Object System.Drawing.Point(238,49); $txtLivePass.Size = New-Object System.Drawing.Size(130,24); $txtLivePass.UseSystemPasswordChar = $true; $gbLive.Controls.Add($txtLivePass)
-$lblLExtra = New-Object System.Windows.Forms.Label; $lblLExtra.Text = "Bearer / DB:"; $lblLExtra.Location = New-Object System.Drawing.Point(380,52); $lblLExtra.Size = New-Object System.Drawing.Size(78,18); $gbLive.Controls.Add($lblLExtra)
-$txtLiveExtra = New-Object System.Windows.Forms.TextBox; $txtLiveExtra.Location = New-Object System.Drawing.Point(460,49); $txtLiveExtra.Size = New-Object System.Drawing.Size(104,24); $gbLive.Controls.Add($txtLiveExtra)
-$btnLiveRun = New-Object System.Windows.Forms.Button; $btnLiveRun.Text = "Test auth (replay)"; $btnLiveRun.Location = New-Object System.Drawing.Point(12,82); $btnLiveRun.Size = New-Object System.Drawing.Size(180,28)
+$lblLUser = New-Object System.Windows.Forms.Label; $lblLUser.Text = "User:"; $lblLUser.Location = New-Object System.Drawing.Point(12,56); $lblLUser.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLUser)
+$txtLiveUser = New-Object System.Windows.Forms.TextBox; $txtLiveUser.Location = New-Object System.Drawing.Point(54,53); $txtLiveUser.Size = New-Object System.Drawing.Size(150,24); $gbLive.Controls.Add($txtLiveUser)
+$lblLPass = New-Object System.Windows.Forms.Label; $lblLPass.Text = "Pass:"; $lblLPass.Location = New-Object System.Drawing.Point(216,56); $lblLPass.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLPass)
+$txtLivePass = New-Object System.Windows.Forms.TextBox; $txtLivePass.Location = New-Object System.Drawing.Point(258,53); $txtLivePass.Size = New-Object System.Drawing.Size(150,24); $txtLivePass.UseSystemPasswordChar = $true; $gbLive.Controls.Add($txtLivePass)
+$lblLExtra = New-Object System.Windows.Forms.Label; $lblLExtra.Text = "Bearer / DB:"; $lblLExtra.Location = New-Object System.Drawing.Point(420,56); $lblLExtra.Size = New-Object System.Drawing.Size(78,18); $gbLive.Controls.Add($lblLExtra)
+$txtLiveExtra = New-Object System.Windows.Forms.TextBox; $txtLiveExtra.Location = New-Object System.Drawing.Point(500,53); $txtLiveExtra.Size = New-Object System.Drawing.Size(150,24); $gbLive.Controls.Add($txtLiveExtra)
+$btnLiveRun = New-Object System.Windows.Forms.Button; $btnLiveRun.Text = "Test auth (replay)"; $btnLiveRun.Location = New-Object System.Drawing.Point(672,51); $btnLiveRun.Size = New-Object System.Drawing.Size(180,28)
 $btnLiveRun.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnLiveRun.ForeColor = [System.Drawing.Color]::White; $btnLiveRun.FlatStyle = 'Flat'; $gbLive.Controls.Add($btnLiveRun)
 $btnLiveRun.Add_Click({
-    if (-not (Test-IcptGate)) { return }
+    if (-not (Test-IcptGate $chkGateB $txtOutB)) { return }
     $proto = [string]$cmbLiveProto.SelectedItem
     $tgt = $txtLiveTarget.Text.Trim()
-    if (-not $tgt) { Write-IcptLine "`r`n[!] Enter a target URL / host.`r`n" $icptWarn; return }
+    if (-not $tgt) { Write-IcptLine $txtOutB "`r`n[!] Enter a target URL / host.`r`n" $icptWarn; return }
     $user = $txtLiveUser.Text.Trim()
     $pass = $txtLivePass.Text
     $extra = $txtLiveExtra.Text.Trim()
-    Invoke-IcptTool "Credential liveness ($proto): $tgt" {
+    Invoke-IcptTool $txtOutB "Credential liveness ($proto): $tgt" {
         $p = @{ Target = $tgt; Protocol = $proto; ConfirmActive = $true }
         if ($user) { $p.Username = $user }
         if ($pass) { $p.Password = $pass }
@@ -910,17 +964,128 @@ $btnLiveRun.Add_Click({
         Test-TcpkCredentialLiveness @p
     }
 })
+$tabIcptB.Controls.Add($ctlB)
 
-$tabIcpt.Controls.Add($icptCtl)
+$txtOutB = New-Object System.Windows.Forms.RichTextBox
+$txtOutB.Dock = 'Fill'; $txtOutB.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtOutB.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtOutB.ForeColor = [System.Drawing.Color]::White
+$txtOutB.ReadOnly = $true; $txtOutB.WordWrap = $false
+$txtOutB.Text = "Live exploit + credentials console.`r`n`r`nTick the authorization box, then:`r`n  Hook bypass -- flip a native export's return value via frida (e.g. a client-side license / integrity check).`r`n  Dump credential vault -- read this user's Windows Credential Manager entries.`r`n  Credential liveness -- replay a recovered credential (e.g. one captured in Burp) against a live http / sql / ftp service to prove it authenticates.`r`n`r`nfrida must be on PATH or in tools\ for hook bypass. Findings stream here, severity-coloured."
+$tabIcptB.Controls.Add($txtOutB)
+$txtOutB.BringToFront()
 
-# Output (Dock=Fill, added LAST so it does not cover the docked panels above)
-$txtIcpt = New-Object System.Windows.Forms.RichTextBox
-$txtIcpt.Dock = 'Fill'; $txtIcpt.Font = New-Object System.Drawing.Font('Consolas', 9.5)
-$txtIcpt.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtIcpt.ForeColor = [System.Drawing.Color]::White
-$txtIcpt.ReadOnly = $true; $txtIcpt.WordWrap = $false
-$txtIcpt.Text = "Interception + live-exploit console.`r`n`r`nSet the app exe above, tick the authorization box, then use a tool:`r`n  1. Traffic interception -- launch the target through mitmproxy (Proxy observes; Tamper rewrites in flight), or parse an existing capture.`r`n  2. Hook bypass -- flip a native export's return value via frida (e.g. a client-side license/integrity check).`r`n  3. Stored credentials -- dump the Windows Credential Manager vault for this user.`r`n  4. Credential liveness -- replay a recovered credential against a live http/sql/ftp service to prove impact.`r`n`r`nmitmproxy (mitmdump) and frida must be on PATH or in tools\. Findings stream here, severity-coloured."
-$tabIcpt.Controls.Add($txtIcpt)
-$txtIcpt.BringToFront()
+# ================= TAB: Runtime / Live (live-process analysis) =================
+# Surfaces the read-only Runtime\ checks (E-series) that were CLI-only. Every button
+# drives one Test-Tcpk* cmdlet against a running process (or the target path / system),
+# streaming its findings into the console. Values are baked into each click handler via
+# [scriptblock]::Create so there are no loop-closure pitfalls.
+function Invoke-RtCheck([string]$fn, [string]$kind) {
+    switch ($kind) {
+        'proc' {
+            $p = $txtRtProc.Text.Trim()
+            if (-not $p) { Write-IcptLine $txtRt "`r`n[!] Enter a process name (Refresh to list running).`r`n" $icptWarn; return }
+            $pe = $p -replace "'", "''"
+            Invoke-IcptTool $txtRt "$fn -ProcessName $p" ([scriptblock]::Create("$fn -ProcessName '$pe'"))
+        }
+        'trace' {
+            $p = $txtRtProc.Text.Trim()
+            if (-not $p) { Write-IcptLine $txtRt "`r`n[!] Enter a process name first.`r`n" $icptWarn; return }
+            $pe = $p -replace "'", "''"; $sec = [int]$numRtSec.Value
+            Write-IcptLine $txtRt "`r`n(capturing for ${sec}s -- exercise the app now; needs admin)`r`n" ([System.Drawing.Color]::FromArgb(214,137,16))
+            Invoke-IcptTool $txtRt "$fn -ProcessName $p -Seconds $sec" ([scriptblock]::Create("try{Enable-TcpkExploit -Acknowledge|Out-Null}catch{}; $fn -ProcessName '$pe' -Seconds $sec"))
+        }
+        'sys'  { Invoke-IcptTool $txtRt "$fn (system-wide)" ([scriptblock]::Create($fn)) }
+        'path' {
+            $t = $txtTarget.Text.Trim()
+            if (-not $t) { Write-IcptLine $txtRt "`r`n[!] Set the Target (install folder) box at the top first.`r`n" $icptWarn; return }
+            $te = $t -replace "'", "''"
+            Invoke-IcptTool $txtRt "$fn -Path $t" ([scriptblock]::Create("$fn -Path '$te'"))
+        }
+    }
+}
+
+$tabRt = New-Object System.Windows.Forms.TabPage
+$tabRt.Text = '  Runtime / Live  '
+$tabRt.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabRt)
+
+# Process-selector row (Dock=Top)
+$rtTop = New-Object System.Windows.Forms.Panel
+$rtTop.Dock = 'Top'; $rtTop.Height = 40; $rtTop.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+$lblRtProc = New-Object System.Windows.Forms.Label
+$lblRtProc.Text = "Process:"; $lblRtProc.Location = New-Object System.Drawing.Point(12,10); $lblRtProc.Size = New-Object System.Drawing.Size(56,18)
+$rtTop.Controls.Add($lblRtProc)
+$txtRtProc = New-Object System.Windows.Forms.ComboBox
+$txtRtProc.Location = New-Object System.Drawing.Point(70,7); $txtRtProc.Size = New-Object System.Drawing.Size(220,24); $txtRtProc.DropDownStyle = 'DropDown'
+$rtTop.Controls.Add($txtRtProc)
+$btnRtRefresh = New-Object System.Windows.Forms.Button
+$btnRtRefresh.Text = "Refresh"; $btnRtRefresh.Location = New-Object System.Drawing.Point(296,6); $btnRtRefresh.Size = New-Object System.Drawing.Size(74,26)
+$rtTop.Controls.Add($btnRtRefresh)
+$btnRtRefresh.Add_Click({
+    $sel = $txtRtProc.Text
+    $txtRtProc.Items.Clear()
+    try { Get-Process -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ProcessName -Unique | Sort-Object | ForEach-Object { [void]$txtRtProc.Items.Add($_) } } catch {}
+    if ($sel) { $txtRtProc.Text = $sel }
+})
+$lblRtSec = New-Object System.Windows.Forms.Label
+$lblRtSec.Text = "Trace capture (s):"; $lblRtSec.Location = New-Object System.Drawing.Point(384,10); $lblRtSec.Size = New-Object System.Drawing.Size(108,18)
+$rtTop.Controls.Add($lblRtSec)
+$numRtSec = New-Object System.Windows.Forms.NumericUpDown
+$numRtSec.Location = New-Object System.Drawing.Point(494,7); $numRtSec.Size = New-Object System.Drawing.Size(60,24); $numRtSec.Minimum = 5; $numRtSec.Maximum = 300; $numRtSec.Value = 30
+$rtTop.Controls.Add($numRtSec)
+$lblRtHint = New-Object System.Windows.Forms.Label
+$lblRtHint.Text = "read-only. Process checks use the process above; System-wide ignore it; Target-path use the Target box up top."
+$lblRtHint.Location = New-Object System.Drawing.Point(566,10); $lblRtHint.Size = New-Object System.Drawing.Size(600,18)
+$lblRtHint.ForeColor = [System.Drawing.Color]::FromArgb(86,101,115)
+$lblRtHint.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$rtTop.Controls.Add($lblRtHint)
+$tabRt.Controls.Add($rtTop)
+
+# Button grid (Dock=Top). kind: proc / trace / sys / path -- colour-coded.
+$rtBtnPanel = New-Object System.Windows.Forms.Panel
+$rtBtnPanel.Dock = 'Top'; $rtBtnPanel.Height = 156; $rtBtnPanel.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+$rtColour = @{ proc = [System.Drawing.Color]::FromArgb(230,230,230); trace = [System.Drawing.Color]::FromArgb(255,235,205); sys = [System.Drawing.Color]::FromArgb(220,235,245); path = [System.Drawing.Color]::FromArgb(225,245,225) }
+$rtSpecs = @(
+    @{ T='Loaded Modules';    Fn='Test-TcpkLoadedModulePaths';      K='proc' }
+    @{ T='Module Signatures'; Fn='Test-TcpkLoadedModuleSignatures'; K='proc' }
+    @{ T='Listening Ports';   Fn='Test-TcpkListeningPorts';         K='proc' }
+    @{ T='Process Token';     Fn='Test-TcpkProcessToken';           K='proc' }
+    @{ T='Mitigations';       Fn='Test-TcpkProcessMitigations';     K='proc' }
+    @{ T='Process DACL';      Fn='Test-TcpkProcessDacl';            K='proc' }
+    @{ T='Env Secrets';       Fn='Test-TcpkProcessEnvSecrets';      K='proc' }
+    @{ T='Child Procs';       Fn='Test-TcpkChildProcesses';         K='proc' }
+    @{ T='Handles';           Fn='Test-TcpkHandleEnumeration';      K='proc' }
+    @{ T='Windows';           Fn='Test-TcpkWindowEnumeration';      K='proc' }
+    @{ T='GUI Inspector';     Fn='Test-TcpkGuiInspector';           K='proc' }
+    @{ T='Memory Dump';       Fn='Test-TcpkMemoryDump';             K='proc' }
+    @{ T='DLL Hijack Trace';  Fn='Test-TcpkDllSearchTrace';         K='trace' }
+    @{ T='Named Pipes';       Fn='Test-TcpkNamedPipes';             K='sys' }
+    @{ T='Pipe DACLs';        Fn='Test-TcpkNamedPipeDacl';          K='sys' }
+    @{ T='ALPC / Mailslots';  Fn='Test-TcpkMailslotsAlpc';          K='sys' }
+    @{ T='COM Objects';       Fn='Test-TcpkComObjects';             K='path' }
+    @{ T='Named Objects';     Fn='Test-TcpkNamedObjects';           K='path' }
+    @{ T='RPC Surface';       Fn='Test-TcpkRpcSurface';             K='path' }
+)
+$rx = 10; $ry = 10; $rcol = 0
+foreach ($s in $rtSpecs) {
+    $b = New-Object System.Windows.Forms.Button
+    $b.Text = $s.T; $b.Size = New-Object System.Drawing.Size(180,30)
+    $b.Location = New-Object System.Drawing.Point($rx,$ry)
+    $b.BackColor = $rtColour[$s.K]; $b.FlatStyle = 'Flat'
+    $b.Add_Click([scriptblock]::Create("Invoke-RtCheck '$($s.Fn)' '$($s.K)'"))
+    $rtBtnPanel.Controls.Add($b)
+    $rcol++
+    if ($rcol -ge 6) { $rcol = 0; $rx = 10; $ry += 36 } else { $rx += 186 }
+}
+$tabRt.Controls.Add($rtBtnPanel)
+
+$txtRt = New-Object System.Windows.Forms.RichTextBox
+$txtRt.Dock = 'Fill'; $txtRt.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtRt.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtRt.ForeColor = [System.Drawing.Color]::White
+$txtRt.ReadOnly = $true; $txtRt.WordWrap = $false
+$txtRt.Text = "Runtime / live-process analysis (read-only).`r`n`r`nPick the target process (Refresh lists what's running), then click a check:`r`n  grey  = process checks (modules, ports, token, mitigations, DACL, env, handles, windows, memory)`r`n  amber = DLL Hijack Trace -- ETW capture for N seconds; exercise the app during the window (needs admin)`r`n  blue  = system-wide (named pipes, ALPC/mailslots)`r`n  green = target-path checks (COM / named objects / RPC) -- use the Target box at the top`r`n`r`nFindings stream here, severity-coloured."
+$tabRt.Controls.Add($txtRt)
+$txtRt.BringToFront()
 
 $form.Controls.Add($tabs)
 $tabs.BringToFront()

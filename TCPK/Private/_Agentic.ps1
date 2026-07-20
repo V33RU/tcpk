@@ -47,6 +47,7 @@ function Invoke-TcpkAgenticApi {
             'POST /api/agent/auto'      { return (Start-TcpkAgentAutoJob -Request $Request -State $State) }
             'GET /api/agent/auto-status'{ return (Get-TcpkAgentAutoStatus -State $State -JobId "$($Request.Query['job'])") }
             'POST /api/agent/intercept' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentInterceptReview -File "$(if($b){$b.file})" -Kind "$(if($b){$b.kind})")) }
+            'POST /api/agent/runtime'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentRuntime -Check "$(if($b){$b.check})" -Process "$(if($b){$b.process})" -Path "$(if($b){$b.path})")) }
             default                     { return (New-TcpkWebJson 404 @{ error = 'no such agent endpoint' }) }
         }
     }
@@ -133,6 +134,47 @@ function Get-TcpkAgentModules {
     # primary-target picker must never be handed a native DLL to "decompile".
     if ($Summary) { return @{ modules = @($out.ToArray()); nativeModules = @($nat.ToArray()); scanned = @($files).Count; managed = $out.Count; native = $nat.Count } }
     @($out.ToArray())
+}
+
+# POST /api/agent/runtime {check, process, path} -- run ONE read-only Runtime\ check and
+# return its findings. Discovery-only by construction: a FIXED whitelist maps a check id to
+# a cmdlet + how it is invoked (process / system-wide / target-path). The gated ETW DLL-hijack
+# trace and the heavy memory dump are deliberately NOT in the map, so this pane can never
+# launch, instrument, or dump a target -- it only reads live state.
+function Get-TcpkAgentRuntime {
+    [CmdletBinding()] param([string]$Check, [string]$Process, [string]$Path)
+    $map = @{
+        'loaded-modules'  = @{ fn = 'Test-TcpkLoadedModulePaths';      kind = 'proc' }
+        'module-sigs'     = @{ fn = 'Test-TcpkLoadedModuleSignatures'; kind = 'proc' }
+        'listening-ports' = @{ fn = 'Test-TcpkListeningPorts';         kind = 'proc' }
+        'process-token'   = @{ fn = 'Test-TcpkProcessToken';           kind = 'proc' }
+        'mitigations'     = @{ fn = 'Test-TcpkProcessMitigations';     kind = 'proc' }
+        'process-dacl'    = @{ fn = 'Test-TcpkProcessDacl';            kind = 'proc' }
+        'env-secrets'     = @{ fn = 'Test-TcpkProcessEnvSecrets';      kind = 'proc' }
+        'child-procs'     = @{ fn = 'Test-TcpkChildProcesses';         kind = 'proc' }
+        'handles'         = @{ fn = 'Test-TcpkHandleEnumeration';      kind = 'proc' }
+        'windows'         = @{ fn = 'Test-TcpkWindowEnumeration';      kind = 'proc' }
+        'gui-inspector'   = @{ fn = 'Test-TcpkGuiInspector';           kind = 'proc' }
+        'named-pipes'     = @{ fn = 'Test-TcpkNamedPipes';             kind = 'sys' }
+        'pipe-dacls'      = @{ fn = 'Test-TcpkNamedPipeDacl';          kind = 'sys' }
+        'alpc'            = @{ fn = 'Test-TcpkMailslotsAlpc';          kind = 'sys' }
+        'com-objects'     = @{ fn = 'Test-TcpkComObjects';             kind = 'path' }
+        'named-objects'   = @{ fn = 'Test-TcpkNamedObjects';           kind = 'path' }
+        'rpc-surface'     = @{ fn = 'Test-TcpkRpcSurface';             kind = 'path' }
+    }
+    $spec = $map["$Check"]
+    if (-not $spec) { return @{ error = 'unknown or non-discovery check' } }
+    $fs = @()
+    try {
+        switch ($spec.kind) {
+            'proc' { if (-not $Process) { return @{ error = 'process name required' } }; $fs = @(& $spec.fn -ProcessName $Process) }
+            'sys'  { $fs = @(& $spec.fn) }
+            'path' { $p = Resolve-TcpkWebTarget $Path; if (-not $p) { return @{ error = 'target path required (set one in step 2)' } }; $fs = @(& $spec.fn -Path $p) }
+        }
+    } catch { return @{ error = "$($_.Exception.Message)" } }
+    @{ check = "$Check"; findings = @($fs | Where-Object { $_ } | ForEach-Object {
+        [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = "$($_.Title)"; evidence = "$($_.Evidence)"; file = "$($_.File)" }
+    }) }
 }
 
 # POST /api/agent/native {dll} -- for a NON-.NET (native) PE: exploit-mitigation
@@ -556,22 +598,8 @@ th,td{padding:7px 11px}
       <div class="step" data-p="7"><div class="num">7</div><div><div class="t">Agent</div><div class="s">full auto</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">INTERCEPT<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Review a proxy or hook capture you made with the CLI.</div></div>
       <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
-      <div class="legend">
-        <h5>CONFIDENCE LADDER</h5>
-        <div style="font-size:9px;color:var(--dim);margin:-2px 0 5px;line-height:1.3">how sure the tool is. green = the tool proved it; blue = a check confirmed it; grey = an unverified lead to check by hand.</div>
-        <div><span class="cdot" style="background:var(--il)"></span>Confirmed (IL) -- proven</div>
-        <div><span class="cdot" style="background:var(--dyn)"></span>Confirmed (dynamic)</div>
-        <div><span class="cdot" style="background:var(--llm)"></span>Confirmed (LLM)</div>
-        <div><span class="cdot" style="background:var(--blue)"></span>Confirmed</div>
-        <div><span class="cdot" style="background:var(--dim)"></span>Inferred -- lead</div>
-      </div>
-      <div class="legend">
-        <h5>SEVERITY</h5>
-        <div><span class="cdot" style="background:var(--crit)"></span>critical</div>
-        <div><span class="cdot" style="background:var(--high)"></span>high</div>
-        <div><span class="cdot" style="background:var(--med)"></span>medium</div>
-        <div><span class="cdot" style="background:var(--low)"></span>low</div>
-      </div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">RUNTIME<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Read-only live checks on a running process.</div></div>
+      <div class="step" data-p="9"><div class="num">9</div><div><div class="t">Runtime</div><div class="s">live process</div></div></div>
     </nav>
 
     <main class="stage">
@@ -727,6 +755,42 @@ th,td{padding:7px 11px}
         <div id="icFindings"></div>
       </div>
 
+      <div class="pane" data-p="9">
+        <h2>Runtime / Live</h2>
+        <p class="lead">Read-only live checks on a RUNNING process. Type the process name (or reuse your target), then click a check. Discovery-only -- reads live state (modules, ports, token, handles, IPC); it never launches, injects, or dumps. Some checks need admin.</p>
+        <div class="panel">
+          <div class="row"><div style="flex:1"><label>process name (for the process checks)</label><input id="rtProc" placeholder="Configure Pro"/></div></div>
+          <div class="note" style="margin-top:6px">process:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+            <button class="go mini" onclick="rtRun('loaded-modules')">Loaded Modules</button>
+            <button class="go mini" onclick="rtRun('module-sigs')">Module Signatures</button>
+            <button class="go mini" onclick="rtRun('listening-ports')">Listening Ports</button>
+            <button class="go mini" onclick="rtRun('process-token')">Process Token</button>
+            <button class="go mini" onclick="rtRun('mitigations')">Mitigations</button>
+            <button class="go mini" onclick="rtRun('process-dacl')">Process DACL</button>
+            <button class="go mini" onclick="rtRun('env-secrets')">Env Secrets</button>
+            <button class="go mini" onclick="rtRun('child-procs')">Child Procs</button>
+            <button class="go mini" onclick="rtRun('handles')">Handles</button>
+            <button class="go mini" onclick="rtRun('windows')">Windows</button>
+            <button class="go mini" onclick="rtRun('gui-inspector')">GUI Inspector</button>
+          </div>
+          <div class="note" style="margin-top:8px">system-wide:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+            <button class="go mini" onclick="rtRun('named-pipes')">Named Pipes</button>
+            <button class="go mini" onclick="rtRun('pipe-dacls')">Pipe DACLs</button>
+            <button class="go mini" onclick="rtRun('alpc')">ALPC / Mailslots</button>
+          </div>
+          <div class="note" style="margin-top:8px">target path (uses the target from step 2):</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+            <button class="go mini" onclick="rtRun('com-objects')">COM Objects</button>
+            <button class="go mini" onclick="rtRun('named-objects')">Named Objects</button>
+            <button class="go mini" onclick="rtRun('rpc-surface')">RPC Surface</button>
+          </div>
+          <div class="note" id="rtStatus" style="margin-top:8px">pick a check.</div>
+        </div>
+        <div id="rtFindings"></div>
+      </div>
+
     </main>
   </div>
 
@@ -808,6 +872,18 @@ function populateFromResult(){var mf=(result&&result.model&&result.model.finding
   renderTriage();paint();log('[step] '+mf.length+' findings loaded into triage','c-step');}
 function paint(){for(var k in counts)$('c-'+k).textContent=counts[k];}
 function sevKey(s){s=(s||'INFO').toUpperCase();var m={CRITICAL:'crit',HIGH:'high',MEDIUM:'med',LOW:'low',INFO:'info'};return m[s]||'info';}
+async function rtRun(check){var box=$('rtFindings'),st=$('rtStatus');
+  var proc=(val('rtProc')||'').trim();
+  st.textContent='running '+check+'...';box.innerHTML='';
+  try{var r=await api('/api/agent/runtime',{json:{check:check,process:proc,path:(window._target||val('target')||'')}});
+    if(r.error){st.textContent='error: '+r.error;box.innerHTML='<div class="note">'+esc(r.error)+'</div>';return;}
+    var fs=r.findings||[];
+    st.textContent=check+': '+fs.length+' finding'+(fs.length===1?'':'s');
+    if(!fs.length){box.innerHTML='<div class="note">no findings</div>';return;}
+    box.innerHTML=fs.map(function(f){var kc=sevKey(f.sev);
+      return '<div class="vcard" style="border-left-color:var(--'+kc+')"><div class="h"><span class="pill" style="background:var(--'+kc+');color:#08130a">'+esc(f.sev)+'</span> '+esc(f.rule)+' <span style="color:var(--dim)">('+esc(f.conf)+')</span></div><div class="note">'+esc(f.title)+'</div>'+(f.evidence?'<div style="font:11px var(--mono);color:var(--dim);margin-top:3px">'+esc(f.evidence)+'</div>':'')+'</div>';
+    }).join('');
+  }catch(e){st.textContent='request failed';}}
 function confClass(c){c=(c||'').toLowerCase();if(c.indexOf('il')>=0)return 'il';if(c.indexOf('dynamic')>=0)return 'dyn';if(c.indexOf('llm')>=0)return 'llm';if(c.indexOf('confirmed')>=0)return 'conf';return '';}
 function toggleFilter(k){if(FILTER[k]){delete FILTER[k];}else{FILTER[k]=true;}
   document.querySelectorAll('.fchip').forEach(function(c){c.classList.toggle('on',!!FILTER[c.dataset.k]);});renderTriage();}
@@ -851,11 +927,13 @@ async function loadModules(){var t=(window._target||val('target')||'').trim();
   try{var r=await api('/api/agent/modules?target='+encodeURIComponent(t));var ms=r.modules||[],ns=r.nativeModules||[];
     $('dcModules').innerHTML='';
     if(!ms.length&&!ns.length){var sc=r.scanned||0;$('dcModules').innerHTML='<div class="note" style="line-height:1.5">no .dll / .exe found under this target (scanned '+sc+' file'+(sc===1?'':'s')+')</div>';$('dcStatus').textContent='0 modules';updAuditBtn();return;}
-    $('dcStatus').textContent=ms.length+' .NET / '+ns.length+' native module(s)';
+    var nMs=ms.length,nNs=ns.length;
+    $('dcStatus').textContent=nMs+' .NET module(s) to decompile'+(nNs?(' -- '+nNs+' native binaries hidden'):'');
     ms.forEach(function(m){$('dcModules').appendChild(mkModRow(m.path,'<span class="mtag net">.NET</span>',m.name,m.types+' types / '+m.methods+' methods -- decompile IL',function(el){selectModule(m.path,el);}));});
-    ns.forEach(function(m){$('dcModules').appendChild(mkModRow(m.path,'<span class="mtag nat">native</span>',m.name,fmtSize(m.size)+' -- PE / hardening / imports',function(el){selectNative(m.path,el);}));});
+    if(!nMs){var nd=document.createElement('div');nd.className='note';nd.style.lineHeight='1.5';nd.textContent='no decompilable .NET modules under this target'+(nNs?' -- it looks like a native app; its binaries are below':'');$('dcModules').appendChild(nd);}
+    if(nNs){window._natives=ns;var tg=document.createElement('div');tg.className='note';tg.style.cssText='cursor:pointer;margin-top:6px;color:var(--accent)';tg.textContent='+ show '+nNs+' native binary(ies) (PE / hardening only -- not decompilable)';tg.onclick=function(){this.remove();window._natives.forEach(function(m){$('dcModules').appendChild(mkModRow(m.path,'<span class="mtag nat">native</span>',m.name,fmtSize(m.size)+' -- PE / hardening / imports',function(el){selectNative(m.path,el);}));});};$('dcModules').appendChild(tg);}
     updAuditBtn();
-    if(ms.length===1&&!ns.length){selectModule(ms[0].path,$('dcModules').firstChild);}
+    if(nMs===1&&!nNs){selectModule(ms[0].path,$('dcModules').firstChild);}
   }catch(e){$('dcModules').innerHTML='<div class="note">load failed</div>';}}
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 async function dlJob(job,file){try{var res=await fetch('/api/report?job='+job+'&file='+encodeURIComponent(file),{headers:{'X-TCPK-Token':T}});var b=await res.blob();var u=URL.createObjectURL(b);var a=document.createElement('a');a.href=u;a.download=file;a.click();URL.revokeObjectURL(u);}catch(e){alert('download failed');}}
