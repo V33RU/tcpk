@@ -1,6 +1,6 @@
 @{
     RootModule        = 'TCPK.psm1'
-    ModuleVersion     = '2.4.5'
+    ModuleVersion     = '2.5.0'
     GUID              = 'a3f7c1d2-9b4e-4c8a-b1f3-7c2a4d5e8f01'
     Author            = 'TCPK contributors'
     CompanyName       = 'Open source'
@@ -22,7 +22,7 @@
             Prerelease   = 'dev'
             LicenseUri   = 'https://opensource.org/licenses/MIT'
             ProjectUri   = ''
-            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.4.5-dev (precision pass on top of stable 2.4.4): the audit now separates PROVEN findings (Confirmed* tiers -- act on these first) from LEADS (Inferred pattern matches to triage with AI). New Get-TcpkAssuranceSplit and Invoke-TcpkAudit -ConfirmedOnly; the summary leads with "N proven, M leads". This targets the false-positive concern -- the agentic AI verifies leads rather than reporting them as bugs. v2.4.4 (stable release of the 2.4.x line): the full thick-client pentest layer -- interception (mitmproxy proxy + Frida hook + in-flight tamper) and the workbench Interception tab; secret recovery; credential liveness; the Frida return-bypass of a client-side check; and Windows Credential Manager extraction. All exploit paths are gated (Enable-TcpkExploit). Plus a review pass on the LLM + MCP subsystems: the LLM API-key config file is no longer git-tracked, the MCP server reports the live module version and the correct online-CVE tool description, and the default Claude model is refreshed. The previous full release was v2.3.0.'
+            ReleaseNotes = 'See CHANGELOG.md for the full release history. v2.5.0-dev (workbench + GUI tooling): a Runtime / Live tab consolidating every process-based dynamic tool; an Asar tab that unpacks an Electron app.asar to read its JavaScript source; a Hex view; and a matching Runtime / Asar / Hex set plus a focused per-binary "Audit selected" in the agentic workbench. v2.4.5-dev (precision pass on top of stable 2.4.4): the audit now separates PROVEN findings (Confirmed* tiers -- act on these first) from LEADS (Inferred pattern matches to triage with AI). New Get-TcpkAssuranceSplit and Invoke-TcpkAudit -ConfirmedOnly; the summary leads with "N proven, M leads". This targets the false-positive concern -- the agentic AI verifies leads rather than reporting them as bugs. v2.4.4 (stable release of the 2.4.x line): the full thick-client pentest layer -- interception (mitmproxy proxy + Frida hook + in-flight tamper) and the workbench Interception tab; secret recovery; credential liveness; the Frida return-bypass of a client-side check; and Windows Credential Manager extraction. All exploit paths are gated (Enable-TcpkExploit). Plus a review pass on the LLM + MCP subsystems: the LLM API-key config file is no longer git-tracked, the MCP server reports the live module version and the correct online-CVE tool description, and the default Claude model is refreshed. The previous full release was v2.3.0.'
         }
     }
 }

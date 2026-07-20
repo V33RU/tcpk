@@ -435,7 +435,6 @@ $($apItems -join "`n")
 $($cveRows -join "`n")
       </tbody>
     </table>
-    <div class='cvenote'><b>Reading this table:</b> matches are queried LIVE -- NuGet / npm / Maven / PyPI / Go / crates.io via OSV (api.osv.dev) and native C libraries via NVD (services.nvd.nist.gov) by CPE. <b>Fixed in</b> is the version where the fix FIRST landed (a floor, not a downgrade); the shipped version is below it, so the component is affected -- upgrade to that version or later (ideally the latest supported release).</div>
   </div>
 </section>
 "@

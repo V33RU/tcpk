@@ -48,6 +48,10 @@ function Invoke-TcpkAgenticApi {
             'GET /api/agent/auto-status'{ return (Get-TcpkAgentAutoStatus -State $State -JobId "$($Request.Query['job'])") }
             'POST /api/agent/intercept' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentInterceptReview -File "$(if($b){$b.file})" -Kind "$(if($b){$b.kind})")) }
             'POST /api/agent/runtime'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentRuntime -Check "$(if($b){$b.check})" -Process "$(if($b){$b.process})" -Path "$(if($b){$b.path})")) }
+            'POST /api/agent/audit-binary' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentBinaryAudit -Dll "$(if($b){$b.dll})")) }
+            'POST /api/agent/asar'         { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentAsar -Target "$(if($b){$b.target})")) }
+            'POST /api/agent/asar-file'    { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentAsarFile -Dir "$(if($b){$b.dir})" -Rel "$(if($b){$b.rel})")) }
+            'POST /api/agent/hex'          { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHex -Path "$(if($b){$b.path})" -Offset ([int]("0" + "$(if($b){$b.offset})")) -Length ([int]("0" + "$(if($b){$b.length})")))) }
             default                     { return (New-TcpkWebJson 404 @{ error = 'no such agent endpoint' }) }
         }
     }
@@ -175,6 +179,141 @@ function Get-TcpkAgentRuntime {
     @{ check = "$Check"; findings = @($fs | Where-Object { $_ } | ForEach-Object {
         [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = "$($_.Title)"; evidence = "$($_.Evidence)"; file = "$($_.File)" }
     }) }
+}
+
+# POST /api/agent/audit-binary {dll} -- a FOCUSED, per-binary static audit of ONE module.
+# The Decompile pane's "Audit selected" used to call /api/run (a full app audit) per DLL, so
+# it re-discovered the whole app (e.g. an Electron app.asar) and returned identical whole-app
+# findings for every binary. This runs only the FILE-SCOPED checks against the single file, so
+# results are actually about that binary (PE hardening, IL/native sinks, secrets, TLS, deser,
+# signing). Discovery-only: reads the file, never executes it.
+function Get-TcpkAgentBinaryAudit {
+    [CmdletBinding()] param([string]$Dll)
+    $p = Resolve-TcpkWebTarget $Dll
+    if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
+    $fs = New-Object System.Collections.Generic.List[object]
+    foreach ($c in 'Test-TcpkPeMitigations','Test-TcpkCallsites','Test-TcpkSecrets','Test-TcpkTlsBypass','Test-TcpkDeserialization') {
+        if (-not (Get-Command $c -ErrorAction SilentlyContinue)) { continue }
+        try { foreach ($f in @(& $c -Path $p)) { if ($f) { $fs.Add($f) } } } catch { }
+    }
+    # Per-file Authenticode: emit a finding when the binary is not validly signed.
+    try {
+        $sig = Get-AuthenticodeSignature -LiteralPath $p -ErrorAction Stop
+        if ("$($sig.Status)" -ne 'Valid') {
+            $fs.Add([pscustomobject]@{ Severity = 'MEDIUM'; Confidence = 'Confirmed'; RuleId = 'authenticode.pe-not-signed'; Title = "$(Split-Path $p -Leaf) is not validly Authenticode-signed (status: $($sig.Status))"; Evidence = "$($sig.Status)"; File = (Split-Path $p -Leaf) })
+        }
+    } catch { }
+    @{ dll = (Split-Path $p -Leaf); findings = @($fs | Where-Object { $_ } | ForEach-Object {
+        [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = "$($_.Title)"; evidence = "$($_.Evidence)" }
+    }) }
+}
+
+# --- Asar extraction + hex view (agentic) -------------------------------------
+# For an Electron target the developer's real code is JavaScript inside resources\app.asar.
+# These routes extract the asar to a temp folder so the operator can browse/analyse the JS,
+# and provide a bounded hex view of any in-scope file. Discovery-only: files are read, never
+# executed. Extracted dirs are tracked so file reads can be scoped to them (anti-traversal).
+$script:TcpkAgentAsarDirs = @{}
+
+# POST /api/agent/asar {target} -- find the largest .asar under the target and unpack it to a
+# temp folder, returning the file list. Reuses the asar layout from Get-TcpkAsarNpmComponents.
+function Get-TcpkAgentAsar {
+    [CmdletBinding()] param([string]$Target)
+    $p = Resolve-TcpkWebTarget $Target
+    if (-not $p) { return @{ error = 'target not found (pick one in step 2)' } }
+    $dir = if (Test-Path -LiteralPath $p -PathType Container) { $p } else { Split-Path -Parent $p }
+    $asar = Get-ChildItem -LiteralPath $dir -Recurse -File -Filter '*.asar' -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 1
+    if (-not $asar) { return @{ error = 'no .asar found under the target (not an Electron app?)' } }
+    if ($asar.Length -gt 400MB) { return @{ error = "asar too large to extract ($([int]($asar.Length/1MB)) MB)" } }
+    try {
+        $bytes = [System.IO.File]::ReadAllBytes($asar.FullName)
+        if ($bytes.Length -lt 16) { return @{ error = 'asar too small / invalid' } }
+        $headerObjSize = [System.BitConverter]::ToUInt32($bytes, 4)
+        $jsonSize = [System.BitConverter]::ToUInt32($bytes, 12)
+        if (($jsonSize + 16) -gt $bytes.Length) { return @{ error = 'asar header invalid' } }
+        $tree = [System.Text.Encoding]::UTF8.GetString($bytes, 16, $jsonSize) | ConvertFrom-Json
+        $base = 8 + $headerObjSize
+        $outDir = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
+        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+        $files = New-Object System.Collections.Generic.List[object]
+        $stack = New-Object System.Collections.Generic.Stack[object]
+        $stack.Push([pscustomobject]@{ node = $tree; rel = '' })
+        $total = [int64]0; $cap = [int64]200MB
+        while ($stack.Count) {
+            $cur = $stack.Pop()
+            if (-not $cur.node.files) { continue }
+            foreach ($prop in $cur.node.files.PSObject.Properties) {
+                $child = $prop.Value
+                $childRel = if ($cur.rel) { "$($cur.rel)/$($prop.Name)" } else { "$($prop.Name)" }
+                if ($child.files) { $stack.Push([pscustomobject]@{ node = $child; rel = $childRel }); continue }
+                if ($null -eq $child.offset) { continue }
+                $sz = [int64]$child.size; $off = $base + [int64]$child.offset
+                if ($sz -lt 0 -or ($off + $sz) -gt $bytes.Length) { continue }
+                if (($total + $sz) -gt $cap -or $files.Count -ge 8000) { continue }
+                $dest = Join-Path $outDir ($childRel -replace '/', '\')
+                $ddir = Split-Path -Parent $dest
+                if ($ddir -and -not (Test-Path -LiteralPath $ddir)) { New-Item -ItemType Directory -Path $ddir -Force | Out-Null }
+                $buf = New-Object 'byte[]' $sz
+                if ($sz -gt 0) { [System.Array]::Copy($bytes, $off, $buf, 0, $sz) }
+                [System.IO.File]::WriteAllBytes($dest, $buf)
+                $files.Add([ordered]@{ path = $childRel; size = $sz })
+                $total += $sz
+            }
+        }
+        $script:TcpkAgentAsarDirs[$outDir] = $true
+        return @{ asar = $asar.FullName; outDir = $outDir; count = $files.Count; bytes = $total; files = @($files.ToArray() | Sort-Object { $_.path }) }
+    } catch { return @{ error = "$($_.Exception.Message)" } }
+}
+
+# POST /api/agent/asar-file {dir, rel} -- read one extracted file's text (bounded), scoped to
+# the tracked extract dir so a '..' cannot escape it.
+function Get-TcpkAgentAsarFile {
+    [CmdletBinding()] param([string]$Dir, [string]$Rel)
+    if (-not $Dir -or -not $script:TcpkAgentAsarDirs.ContainsKey($Dir)) { return @{ error = 'unknown extract dir (extract first)' } }
+    $full = try { [System.IO.Path]::GetFullPath((Join-Path $Dir ($Rel -replace '/', '\'))) } catch { return @{ error = 'bad path' } }
+    $root = ([System.IO.Path]::GetFullPath($Dir)).TrimEnd('\') + '\'
+    if (-not $full.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { return @{ error = 'path outside the extract dir' } }
+    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) { return @{ error = 'file not found' } }
+    $sz = (Get-Item -LiteralPath $full).Length
+    $cap = [int64]512KB
+    $bytes = [System.IO.File]::ReadAllBytes($full)
+    $trunc = $false
+    if ($bytes.Length -gt $cap) { $b2 = New-Object 'byte[]' $cap; [System.Array]::Copy($bytes, 0, $b2, 0, $cap); $bytes = $b2; $trunc = $true }
+    @{ path = $Rel; size = $sz; truncated = $trunc; text = [System.Text.Encoding]::UTF8.GetString($bytes); full = $full }
+}
+
+# POST /api/agent/hex {path, offset, length} -- a bounded hex + ASCII page of any in-scope file
+# (a native DLL, or a file from an extracted asar). Read-only, chunked (files can be huge).
+function Get-TcpkAgentHex {
+    [CmdletBinding()] param([string]$Path, [int]$Offset = 0, [int]$Length = 2048)
+    $p = Resolve-TcpkWebTarget $Path
+    if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
+    if ($Length -le 0 -or $Length -gt 8192) { $Length = 2048 }
+    if ($Offset -lt 0) { $Offset = 0 }
+    $fi = Get-Item -LiteralPath $p
+    $total = [int64]$fi.Length
+    if ($Offset -ge $total) { return @{ path = $fi.Name; size = $total; offset = $Offset; rows = @() } }
+    $count = [int][Math]::Min([int64]$Length, $total - $Offset)
+    $buf = New-Object 'byte[]' $count
+    $fsr = [System.IO.File]::OpenRead($p)
+    try { [void]$fsr.Seek($Offset, 'Begin'); [void]$fsr.Read($buf, 0, $count) } finally { $fsr.Dispose() }
+    $rows = New-Object System.Collections.Generic.List[object]
+    for ($i = 0; $i -lt $count; $i += 16) {
+        $n = [Math]::Min(16, $count - $i)
+        $hex = New-Object System.Text.StringBuilder
+        $asc = New-Object System.Text.StringBuilder
+        for ($j = 0; $j -lt 16; $j++) {
+            if ($j -lt $n) {
+                $bv = $buf[$i + $j]
+                [void]$hex.Append(('{0:x2} ' -f $bv))
+                $ch = if ($bv -ge 32 -and $bv -lt 127) { [char]$bv } else { '.' }
+                [void]$asc.Append($ch)
+            } else { [void]$hex.Append('   ') }
+            if ($j -eq 7) { [void]$hex.Append(' ') }
+        }
+        $rows.Add([ordered]@{ off = ('{0:x8}' -f ($Offset + $i)); hex = $hex.ToString().TrimEnd(); ascii = $asc.ToString() })
+    }
+    @{ path = $fi.Name; size = $total; offset = $Offset; length = $count; rows = @($rows.ToArray()) }
 }
 
 # POST /api/agent/native {dll} -- for a NON-.NET (native) PE: exploit-mitigation
@@ -600,6 +739,9 @@ th,td{padding:7px 11px}
       <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">RUNTIME<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Read-only live checks on a running process.</div></div>
       <div class="step" data-p="9"><div class="num">9</div><div><div class="t">Runtime</div><div class="s">live process</div></div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">FILES<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Unpack an Electron app.asar, or hex-view any file.</div></div>
+      <div class="step" data-p="10"><div class="num">10</div><div><div class="t">Asar</div><div class="s">unpack + browse</div></div></div>
+      <div class="step" data-p="11"><div class="num">11</div><div><div class="t">Hex</div><div class="s">byte view</div></div></div>
     </nav>
 
     <main class="stage">
@@ -791,6 +933,38 @@ th,td{padding:7px 11px}
         <div id="rtFindings"></div>
       </div>
 
+      <div class="pane" data-p="10">
+        <h2>Asar (unpack + browse)</h2>
+        <p class="lead">Electron apps ship their real code as JavaScript inside resources\app.asar. Unpack it here to browse and read the source (the native DLLs have no source -- this is the code that matters). Uses the target from step 2. Discovery-only: files are read, never executed.</p>
+        <div class="panel">
+          <div class="row">
+            <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="go mini" onclick="asarExtract()">Extract app.asar</button></div>
+            <div style="flex:1;display:flex;align-items:flex-end"><div class="note" id="asStatus">pick a target in step 2, then Extract. A large app can take ~30s.</div></div>
+            <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="go mini" id="asAuditBtn" onclick="asarToAudit()" disabled>Analyze folder in Audit</button></div>
+          </div>
+          <div class="row" style="margin-top:6px"><div style="flex:1"><input id="asFilter" placeholder="filter files -- e.g. .js, index, config, token" oninput="asarRender()"/></div></div>
+        </div>
+        <div class="row" style="align-items:stretch;gap:10px">
+          <div class="panel" style="flex:0 0 360px;max-height:58vh;overflow:auto"><h3>FILES</h3><div id="asFiles"><div class="note">not extracted yet</div></div></div>
+          <div class="panel" style="flex:1;min-width:0"><h3 id="asViewTitle">SOURCE</h3><pre id="asView" style="max-height:54vh;overflow:auto;white-space:pre-wrap;word-break:break-word;font:12px var(--mono)"><span class="note">click a file to view its source</span></pre></div>
+        </div>
+      </div>
+
+      <div class="pane" data-p="11">
+        <h2>Hex (byte view)</h2>
+        <p class="lead">Raw hex + ASCII of any in-scope file -- a native DLL, or a file from an unpacked asar. Paged (2 KB at a time). Read-only.</p>
+        <div class="panel">
+          <div class="row"><div style="flex:1"><label>file path</label><input id="hxPath" placeholder="C:\path\to\file.dll"/></div>
+            <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="go mini" onclick="hexLoad(0)">Load</button></div></div>
+          <div class="row" style="margin-top:6px;align-items:center;gap:8px">
+            <button class="go mini" onclick="hexPage(-1)">&lt; prev</button>
+            <button class="go mini" onclick="hexPage(1)">next &gt;</button>
+            <div class="note" id="hxStatus" style="flex:1">enter a path and Load.</div>
+          </div>
+        </div>
+        <div class="panel"><pre id="hxView" style="max-height:62vh;overflow:auto;font:12px var(--mono)"><span class="note">-</span></pre></div>
+      </div>
+
     </main>
   </div>
 
@@ -884,6 +1058,42 @@ async function rtRun(check){var box=$('rtFindings'),st=$('rtStatus');
       return '<div class="vcard" style="border-left-color:var(--'+kc+')"><div class="h"><span class="pill" style="background:var(--'+kc+');color:#08130a">'+esc(f.sev)+'</span> '+esc(f.rule)+' <span style="color:var(--dim)">('+esc(f.conf)+')</span></div><div class="note">'+esc(f.title)+'</div>'+(f.evidence?'<div style="font:11px var(--mono);color:var(--dim);margin-top:3px">'+esc(f.evidence)+'</div>':'')+'</div>';
     }).join('');
   }catch(e){st.textContent='request failed';}}
+// --- Asar (unpack + browse) ---
+window._asar={outDir:'',files:[]};window._asarLast='';
+async function asarExtract(){var t=(window._target||val('target')||'').trim();var st=$('asStatus');
+  if(!t){st.textContent='no target -- pick one in step 2 first';return;}
+  st.textContent='extracting app.asar (a big app can take ~30s)...';$('asFiles').innerHTML='<div class="note">extracting...</div>';$('asAuditBtn').disabled=true;
+  try{var r=await api('/api/agent/asar',{json:{target:t}});
+    if(r.error){st.textContent='error: '+r.error;$('asFiles').innerHTML='<div class="note">'+esc(r.error)+'</div>';return;}
+    window._asar={outDir:r.outDir,files:r.files||[]};
+    st.textContent=r.count+' files ('+Math.round(r.bytes/1024)+' KB) unpacked';$('asAuditBtn').disabled=false;asarRender();
+  }catch(e){st.textContent='extract failed';}}
+function asarRender(){var q=(val('asFilter')||'').toLowerCase();var fs=window._asar.files||[];var rows=[];var shown=0;
+  for(var i=0;i<fs.length&&shown<600;i++){var f=fs[i];if(q&&f.path.toLowerCase().indexOf(q)<0)continue;shown++;
+    rows.push('<div class="file" style="cursor:pointer;padding:2px 4px;font:11px var(--mono)" onclick="asarView('+i+')">'+esc(f.path)+' <span style="color:var(--dim)">('+f.size+')</span></div>');}
+  var tot=q?fs.filter(function(f){return f.path.toLowerCase().indexOf(q)>=0;}).length:fs.length;var more=tot-shown;
+  $('asFiles').innerHTML=(rows.join('')||'<div class="note">no match</div>')+(more>0?'<div class="note">... +'+more+' more (refine the filter)</div>':'');}
+async function asarView(i){var f=(window._asar.files||[])[i];if(!f)return;var rel=f.path;
+  $('asViewTitle').textContent='SOURCE: '+rel;$('asView').innerHTML='<span class="note">loading...</span>';
+  try{var r=await api('/api/agent/asar-file',{json:{dir:window._asar.outDir,rel:rel}});
+    if(r.error){$('asView').innerHTML='<span class="note">'+esc(r.error)+'</span>';return;}
+    window._asarLast=r.full;
+    $('asView').textContent=r.text+(r.truncated?'\n\n... [truncated at 512 KB]':'');
+    $('asViewTitle').innerHTML='SOURCE: '+esc(rel)+'  <a style="color:var(--accent);font:11px var(--mono);cursor:pointer" onclick="hexFromAsar()">[hex]</a>';
+  }catch(e){$('asView').innerHTML='<span class="note">load failed</span>';}}
+function hexFromAsar(){if(!window._asarLast)return;$('hxPath').value=window._asarLast;go(11);hexLoad(0);}
+function asarToAudit(){if(!window._asar.outDir)return;window._target=window._asar.outDir;var ti=$('target');if(ti)ti.value=window._asar.outDir;go(3);}
+// --- Hex (byte view) ---
+window._hex={path:'',offset:0,size:0,page:2048};
+async function hexLoad(off){var p=(val('hxPath')||'').trim();if(!p){$('hxStatus').textContent='enter a file path';return;}
+  window._hex.path=p;window._hex.offset=Math.max(0,off|0);$('hxStatus').textContent='reading...';
+  try{var r=await api('/api/agent/hex',{json:{path:p,offset:window._hex.offset,length:window._hex.page}});
+    if(r.error){$('hxStatus').textContent='error: '+r.error;$('hxView').innerHTML='<span class="note">'+esc(r.error)+'</span>';return;}
+    window._hex.size=r.size;
+    $('hxStatus').textContent=esc(r.path)+' -- '+r.size+' bytes, offset '+r.offset+' ('+((r.rows||[]).length*16)+' shown)';
+    $('hxView').textContent=(r.rows||[]).map(function(x){return x.off+'  '+x.hex+'  |'+x.ascii+'|';}).join('\n')||'(empty)';
+  }catch(e){$('hxStatus').textContent='read failed';}}
+function hexPage(d){var no=window._hex.offset+d*window._hex.page;if(no<0)no=0;if(window._hex.size&&no>=window._hex.size)return;hexLoad(no);}
 function confClass(c){c=(c||'').toLowerCase();if(c.indexOf('il')>=0)return 'il';if(c.indexOf('dynamic')>=0)return 'dyn';if(c.indexOf('llm')>=0)return 'llm';if(c.indexOf('confirmed')>=0)return 'conf';return '';}
 function toggleFilter(k){if(FILTER[k]){delete FILTER[k];}else{FILTER[k]=true;}
   document.querySelectorAll('.fchip').forEach(function(c){c.classList.toggle('on',!!FILTER[c.dataset.k]);});renderTriage();}
@@ -938,28 +1148,24 @@ async function loadModules(){var t=(window._target||val('target')||'').trim();
 function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
 async function dlJob(job,file){try{var res=await fetch('/api/report?job='+job+'&file='+encodeURIComponent(file),{headers:{'X-TCPK-Token':T}});var b=await res.blob();var u=URL.createObjectURL(b);var a=document.createElement('a');a.href=u;a.download=file;a.click();URL.revokeObjectURL(u);}catch(e){alert('download failed');}}
 async function auditSelected(){var paths=selectedModulePaths();if(!paths.length)return;
-  var prof='Quick';  // focused per-binary scan: keep static/PE/IL checks, drop whole-machine OS enumeration noise
   $('dcAudit').style.display='block';$('dcAuditBody').innerHTML='';$('dcAuditBtn').disabled=true;
-  openDock();log('[step] focused audit on '+paths.length+' selected module(s)','c-step');
-  for(var i=0;i<paths.length;i++){await auditOneDll(paths[i],prof,i+1,paths.length);}
+  openDock();log('[step] focused per-binary audit on '+paths.length+' selected module(s)','c-step');
+  for(var i=0;i<paths.length;i++){await auditOneDll(paths[i],i+1,paths.length);}
   $('dcAuditBtn').disabled=false;log('[step] selected-module audit complete','c-step');}
-async function auditOneDll(path,prof,idx,total){
+// Focused per-BINARY audit: runs only the file-scoped checks against the one module, so the
+// results are about THAT binary (not the whole app). Synchronous -- no full-audit job.
+async function auditOneDll(path,idx,total){
   var name=(path.split('\\').pop());
   var card=document.createElement('div');card.className='vcard';card.style.borderLeftColor='var(--dim)';
-  card.innerHTML='<div class="h"><span class="pill" style="background:var(--dim);color:#08130a">'+idx+'/'+total+'</span> '+esc(name)+'</div><div class="note" id="au'+idx+'">starting audit...</div>';
+  card.innerHTML='<div class="h"><span class="pill" style="background:var(--dim);color:#08130a">'+idx+'/'+total+'</span> '+esc(name)+'</div><div class="note" id="au'+idx+'">auditing binary...</div>';
   $('dcAuditBody').appendChild(card);
-  try{var r=await api('/api/run',{json:{target:path,profile:prof}});if(r.error||!r.jobId){$('au'+idx).textContent='could not start: '+esc(r.error||'unknown');return;}
-    var job=r.jobId,c={crit:0,high:0,med:0,low:0,info:0},tot=0,done=false,result=null;
-    for(var k=0;k<900&&!done;k++){await sleep(700);var s;try{s=await api('/api/status?job='+job);}catch(e){continue;}
-      (s.findings||[]).forEach(function(f){var kk=sevKey(f.sev);if(c[kk]!==undefined)c[kk]++;tot++;});
-      $('au'+idx).innerHTML='scanning... '+tot+' findings ('+c.crit+'C / '+c.high+'H / '+c.med+'M / '+c.low+'L)';
-      if(s.done){done=true;result=s.result;}}
-    var rf=(result&&result.model&&result.model.findings)?result.model.findings:null;
-    if(rf){c={crit:0,high:0,med:0,low:0,info:0};rf.forEach(function(f){var kk=sevKey(f.sev);if(c[kk]!==undefined)c[kk]++;});tot=rf.length;}
-    var rep='';if(result&&result.reports&&result.reports.length){rep=' &nbsp;|&nbsp; report: '+result.reports.map(function(x){return '<a href="#" style="color:var(--accent)" onclick="dlJob(\''+job+'\',\''+x.file+'\');return false;">'+esc(x.file)+'</a>';}).join(' ');}
-    $('au'+idx).innerHTML='<b>'+tot+' finding'+(tot===1?'':'s')+'</b> -- '+c.crit+' critical, '+c.high+' high, '+c.med+' medium, '+c.low+' low, '+c.info+' info'+rep;
-    if(rf&&rf.length){var top=rf.slice(0,15).map(function(f){var kc=sevKey(f.sev);return '<div style="font:11px var(--mono);margin-top:3px"><span class="mtag" style="background:var(--'+kc+');color:#08130a">'+esc(f.sev)+'</span> '+esc(f.rule)+' <span style="color:var(--dim)">('+esc(f.conf)+')</span> -- '+esc(f.title)+'</div>';}).join('');card.innerHTML+='<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px">'+top+(rf.length>15?('<div class="note">... +'+(rf.length-15)+' more -- open the report</div>'):'')+'</div>';}
-    else if(!rf){$('au'+idx).innerHTML+=' <span class="note">(done -- open the report for detail)</span>';}
+  try{var r=await api('/api/agent/audit-binary',{json:{dll:path}});
+    if(r.error){$('au'+idx).textContent='error: '+esc(r.error);return;}
+    var fs=r.findings||[],c={crit:0,high:0,med:0,low:0,info:0};
+    fs.forEach(function(f){var kk=sevKey(f.sev);if(c[kk]!==undefined)c[kk]++;});
+    $('au'+idx).innerHTML='<b>'+fs.length+' finding'+(fs.length===1?'':'s')+'</b> -- '+c.crit+' critical, '+c.high+' high, '+c.med+' medium, '+c.low+' low, '+c.info+' info';
+    if(fs.length){var top=fs.slice(0,15).map(function(f){var kc=sevKey(f.sev);return '<div style="font:11px var(--mono);margin-top:3px"><span class="mtag" style="background:var(--'+kc+');color:#08130a">'+esc(f.sev)+'</span> '+esc(f.rule)+' <span style="color:var(--dim)">('+esc(f.conf)+')</span> -- '+esc(f.title)+'</div>';}).join('');card.innerHTML+='<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px">'+top+(fs.length>15?('<div class="note">... +'+(fs.length-15)+' more</div>'):'')+'</div>';}
+    else{$('au'+idx).innerHTML+=' <span class="note">(nothing flagged in this binary)</span>';}
   }catch(e){$('au'+idx).textContent='audit error';}}
 async function selectNative(path,el){window._dcDll=path;window._dcMethod='';document.querySelectorAll('#dcModules .file').forEach(function(f){f.classList.remove('on');});if(el)el.classList.add('on');
   $('dcMethods').innerHTML='<div class="note">native PE -- no .NET methods to list</div>';$('dcToReview').disabled=true;

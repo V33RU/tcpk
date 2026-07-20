@@ -474,87 +474,9 @@ $chkExpEnable.Location = New-Object System.Drawing.Point(12, 30); $chkExpEnable.
 $expBanner.Controls.Add($chkExpEnable)
 $tabExploit.Controls.Add($expBanner)
 
-# --- Dynamic / Active (gated) tools toolbar (top of the output panel) ----------
-Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
-
-function Write-ExpLine([string]$text, [System.Drawing.Color]$color) {
-    $txtExpDetail.SelectionStart = $txtExpDetail.TextLength
-    $txtExpDetail.SelectionLength = 0
-    $txtExpDetail.SelectionColor = $color
-    $txtExpDetail.AppendText($text)
-    try { $txtExpDetail.ScrollToCaret() } catch {}
-}
-function Get-DynProc {
-    $p = $txtDynProc.Text.Trim()
-    if (-not $p) { $p = $txtProc.Text.Trim() }
-    return $p
-}
-function Test-DynGate {
-    if (-not $chkExpEnable.Checked) {
-        Write-ExpLine "`r`n[gate] Tick the authorization box above to enable active (modifying) tools.`r`n" ([System.Drawing.Color]::FromArgb(255,180,180))
-        return $false
-    }
-    try { Enable-TcpkExploit -Acknowledge | Out-Null } catch {}
-    return $true
-}
-function Invoke-DynTool([string]$title, [scriptblock]$call) {
-    $proc = Get-DynProc
-    Write-ExpLine "`r`n== $title ==`r`n" ([System.Drawing.Color]::FromArgb(102,217,239))
-    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
-    try {
-        $res = & $call
-        $n = 0
-        foreach ($f in @($res)) {
-            if (-not $f) { continue }
-            $n++
-            $c = $script:SevColour[[string]$f.Severity]; if (-not $c) { $c = [System.Drawing.Color]::White }
-            Write-ExpLine ("[{0}] {1}`r`n" -f $f.Severity, $f.Title) $c
-            if ($f.Evidence) { Write-ExpLine ("      {0}`r`n" -f $f.Evidence) ([System.Drawing.Color]::FromArgb(150,150,150)) }
-        }
-        if ($n -eq 0) { Write-ExpLine "(no results)`r`n" ([System.Drawing.Color]::FromArgb(150,150,150)) }
-        else { Write-ExpLine ("-> {0} result(s)`r`n" -f $n) ([System.Drawing.Color]::FromArgb(166,226,46)) }
-    } catch {
-        Write-ExpLine ("ERROR: {0}`r`n" -f $_.Exception.Message) ([System.Drawing.Color]::FromArgb(249,38,114))
-    } finally { $form.Cursor = [System.Windows.Forms.Cursors]::Default }
-}
-
-$dynBar = New-Object System.Windows.Forms.Panel
-$dynBar.Dock = 'Top'; $dynBar.Height = 84; $dynBar.BackColor = [System.Drawing.Color]::FromArgb(43,43,43)
-$lblDyn = New-Object System.Windows.Forms.Label
-$lblDyn.Text = 'Dynamic / Active tools (target app must be running):'
-$lblDyn.ForeColor = [System.Drawing.Color]::FromArgb(200,205,210)
-$lblDyn.Location = New-Object System.Drawing.Point(10,8); $lblDyn.AutoSize = $true
-$dynBar.Controls.Add($lblDyn)
-$lblDynProc = New-Object System.Windows.Forms.Label
-$lblDynProc.Text = 'ProcessName:'; $lblDynProc.ForeColor = [System.Drawing.Color]::FromArgb(200,205,210)
-$lblDynProc.Location = New-Object System.Drawing.Point(330,8); $lblDynProc.AutoSize = $true
-$dynBar.Controls.Add($lblDynProc)
-$txtDynProc = New-Object System.Windows.Forms.TextBox
-$txtDynProc.Location = New-Object System.Drawing.Point(412,6); $txtDynProc.Size = New-Object System.Drawing.Size(170,22)
-$dynBar.Controls.Add($txtDynProc)
-
-$dynDefs = @(
-    @{ T='Mem Secrets';  A={ Invoke-DynTool 'Live memory secret scan (read-only)' { Test-TcpkMemorySecrets -ProcessName (Get-DynProc) -MaxScanMB 48 } } }
-    @{ T='Proc DACL';    A={ Invoke-DynTool 'Process DACL (read-only)' { Test-TcpkProcessDacl -ProcessName (Get-DynProc) } } }
-    @{ T='Env Secrets';  A={ Invoke-DynTool 'Process environment secrets (read-only)' { Test-TcpkProcessEnvSecrets -ProcessName (Get-DynProc) } } }
-    @{ T='GUI Unlock';   A={ if (Test-DynGate) { Invoke-DynTool 'GUI unlock (dry-run)' { Invoke-TcpkGuiUnlock -ProcessName (Get-DynProc) } } } }
-    @{ T='Pipe Probe';   A={ if (Test-DynGate) { $pn=[Microsoft.VisualBasic.Interaction]::InputBox('Pipe name (no \\.\pipe\ prefix):','TCPK Pipe Probe',''); if ($pn) { Invoke-DynTool "Pipe probe: $pn" { Invoke-TcpkPipeProbe -PipeName $pn } } } } }
-    @{ T='Flag-Flip';    A={ if (Test-DynGate) { $pat=[Microsoft.VisualBasic.Interaction]::InputBox('ASCII/byte pattern to locate (DRY-RUN, no write):','TCPK Memory Flag-Flip',''); if ($pat) { Invoke-DynTool "Flag-flip dry-run: $pat" { Invoke-TcpkMemoryFlagFlip -ProcessName (Get-DynProc) -Pattern $pat -NewBytesHex '01' } } } } }
-    @{ T='Input Fuzz...';  A={ Write-ExpLine "`r`n[Input fuzz] Intrusive -- run from a console (it launches the target repeatedly):`r`n" ([System.Drawing.Color]::FromArgb(102,217,239)); Write-ExpLine "Enable-TcpkExploit -Acknowledge`r`nInvoke-TcpkInputFuzz -TargetExe '<app.exe>' -SeedFile '<sample.ext>' -ArgTemplate '{FUZZ}' -Iterations 25`r`n" ([System.Drawing.Color]::White) } }
-)
-$dxi = 10
-foreach ($d in $dynDefs) {
-    $b = New-Object System.Windows.Forms.Button
-    $b.Text = $d.T; $b.Size = New-Object System.Drawing.Size(104,30)
-    $b.Location = New-Object System.Drawing.Point($dxi,42)
-    $b.BackColor = [System.Drawing.Color]::FromArgb(230,230,230)
-    $b.FlatStyle = 'Flat'
-    $b.Add_Click($d.A)
-    $dynBar.Controls.Add($b)
-    $dxi += 110
-}
-$expSplit.Panel2.Controls.Add($dynBar)
-$dynBar.BringToFront()
+# --- The "Dynamic / Active tools" toolbar was moved to the Runtime / Live tab, which now
+# hosts every process-based check -- the read-only ones AND the gated active tools together.
+# The Exploit / CVE tab is left to CVE matches + gated PoC generation (below). ---
 
 # Bottom: run button + status
 $expBottom = New-Object System.Windows.Forms.Panel
@@ -978,7 +900,10 @@ $txtOutB.BringToFront()
 # Surfaces the read-only Runtime\ checks (E-series) that were CLI-only. Every button
 # drives one Test-Tcpk* cmdlet against a running process (or the target path / system),
 # streaming its findings into the console. Values are baked into each click handler via
-# [scriptblock]::Create so there are no loop-closure pitfalls.
+# [scriptblock]::Create so there are no loop-closure pitfalls. The gated ACTIVE tools (moved
+# here from the old Exploit toolbar) also live in this switch; they require the local
+# authorization tick (Test-IcptGate $chkRtGate) + Enable-TcpkExploit before they run.
+Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
 function Invoke-RtCheck([string]$fn, [string]$kind) {
     switch ($kind) {
         'proc' {
@@ -1001,6 +926,41 @@ function Invoke-RtCheck([string]$fn, [string]$kind) {
             $te = $t -replace "'", "''"
             Invoke-IcptTool $txtRt "$fn -Path $t" ([scriptblock]::Create("$fn -Path '$te'"))
         }
+        # Read-only live memory secret scan (capped at 48 MB, as the old toolbar did).
+        'mem' {
+            $p = $txtRtProc.Text.Trim()
+            if (-not $p) { Write-IcptLine $txtRt "`r`n[!] Enter a process name first.`r`n" $icptWarn; return }
+            $pe = $p -replace "'", "''"
+            Invoke-IcptTool $txtRt "Mem Secrets: $p" ([scriptblock]::Create("Test-TcpkMemorySecrets -ProcessName '$pe' -MaxScanMB 48"))
+        }
+        # --- gated ACTIVE tools (need the authorization tick + Enable-TcpkExploit) ---
+        'gui-unlock' {
+            if (-not (Test-IcptGate $chkRtGate $txtRt)) { return }
+            $p = $txtRtProc.Text.Trim()
+            if (-not $p) { Write-IcptLine $txtRt "`r`n[!] Enter a process name first.`r`n" $icptWarn; return }
+            $pe = $p -replace "'", "''"
+            Invoke-IcptTool $txtRt "GUI unlock (dry-run): $p" ([scriptblock]::Create("Invoke-TcpkGuiUnlock -ProcessName '$pe'"))
+        }
+        'pipe-probe' {
+            if (-not (Test-IcptGate $chkRtGate $txtRt)) { return }
+            $pn = [Microsoft.VisualBasic.Interaction]::InputBox('Pipe name (no \\.\pipe\ prefix):', 'TCPK Pipe Probe', '')
+            if (-not $pn) { return }
+            $pne = $pn -replace "'", "''"
+            Invoke-IcptTool $txtRt "Pipe probe: $pn" ([scriptblock]::Create("Invoke-TcpkPipeProbe -PipeName '$pne'"))
+        }
+        'flag-flip' {
+            if (-not (Test-IcptGate $chkRtGate $txtRt)) { return }
+            $p = $txtRtProc.Text.Trim()
+            if (-not $p) { Write-IcptLine $txtRt "`r`n[!] Enter a process name first.`r`n" $icptWarn; return }
+            $pat = [Microsoft.VisualBasic.Interaction]::InputBox('ASCII/byte pattern to locate (DRY-RUN, no write):', 'TCPK Memory Flag-Flip', '')
+            if (-not $pat) { return }
+            $pe = $p -replace "'", "''"; $pate = $pat -replace "'", "''"
+            Invoke-IcptTool $txtRt "Flag-flip dry-run: $pat" ([scriptblock]::Create("Invoke-TcpkMemoryFlagFlip -ProcessName '$pe' -Pattern '$pate' -NewBytesHex '01'"))
+        }
+        'input-fuzz' {
+            Write-IcptLine $txtRt "`r`n== Input fuzz (intrusive -- run from a console; it launches the target repeatedly) ==`r`n" ([System.Drawing.Color]::FromArgb(102,217,239))
+            Write-IcptLine $txtRt "Enable-TcpkExploit -Acknowledge`r`nInvoke-TcpkInputFuzz -TargetExe '<app.exe>' -SeedFile '<sample.ext>' -ArgTemplate '{FUZZ}' -Iterations 25`r`n" ([System.Drawing.Color]::White)
+        }
     }
 }
 
@@ -1011,7 +971,7 @@ $tabRt.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 
 # Process-selector row (Dock=Top)
 $rtTop = New-Object System.Windows.Forms.Panel
-$rtTop.Dock = 'Top'; $rtTop.Height = 40; $rtTop.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+$rtTop.Dock = 'Top'; $rtTop.Height = 66; $rtTop.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
 $lblRtProc = New-Object System.Windows.Forms.Label
 $lblRtProc.Text = "Process:"; $lblRtProc.Location = New-Object System.Drawing.Point(12,10); $lblRtProc.Size = New-Object System.Drawing.Size(56,18)
 $rtTop.Controls.Add($lblRtProc)
@@ -1039,12 +999,20 @@ $lblRtHint.Location = New-Object System.Drawing.Point(566,10); $lblRtHint.Size =
 $lblRtHint.ForeColor = [System.Drawing.Color]::FromArgb(86,101,115)
 $lblRtHint.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $rtTop.Controls.Add($lblRtHint)
+# Authorization gate for the ACTIVE (gated) tools -- the red buttons below. Read-only checks
+# do not need it. Ticking it also calls Enable-TcpkExploit before the gated tool runs.
+$chkRtGate = New-Object System.Windows.Forms.CheckBox
+$chkRtGate.Text = "I am authorized to test this target -- enable the active (gated) tools (red buttons)"
+$chkRtGate.Location = New-Object System.Drawing.Point(12,40); $chkRtGate.Size = New-Object System.Drawing.Size(620,20)
+$rtTop.Controls.Add($chkRtGate)
 $tabRt.Controls.Add($rtTop)
 
 # Button grid (Dock=Top). kind: proc / trace / sys / path -- colour-coded.
 $rtBtnPanel = New-Object System.Windows.Forms.Panel
 $rtBtnPanel.Dock = 'Top'; $rtBtnPanel.Height = 156; $rtBtnPanel.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
-$rtColour = @{ proc = [System.Drawing.Color]::FromArgb(230,230,230); trace = [System.Drawing.Color]::FromArgb(255,235,205); sys = [System.Drawing.Color]::FromArgb(220,235,245); path = [System.Drawing.Color]::FromArgb(225,245,225) }
+$rtRed = [System.Drawing.Color]::FromArgb(240,208,208)
+$rtGrey = [System.Drawing.Color]::FromArgb(230,230,230)
+$rtColour = @{ proc = $rtGrey; mem = $rtGrey; trace = [System.Drawing.Color]::FromArgb(255,235,205); sys = [System.Drawing.Color]::FromArgb(220,235,245); path = [System.Drawing.Color]::FromArgb(225,245,225); 'gui-unlock' = $rtRed; 'pipe-probe' = $rtRed; 'flag-flip' = $rtRed; 'input-fuzz' = $rtRed }
 $rtSpecs = @(
     @{ T='Loaded Modules';    Fn='Test-TcpkLoadedModulePaths';      K='proc' }
     @{ T='Module Signatures'; Fn='Test-TcpkLoadedModuleSignatures'; K='proc' }
@@ -1053,6 +1021,7 @@ $rtSpecs = @(
     @{ T='Mitigations';       Fn='Test-TcpkProcessMitigations';     K='proc' }
     @{ T='Process DACL';      Fn='Test-TcpkProcessDacl';            K='proc' }
     @{ T='Env Secrets';       Fn='Test-TcpkProcessEnvSecrets';      K='proc' }
+    @{ T='Mem Secrets';       Fn='';                                K='mem' }
     @{ T='Child Procs';       Fn='Test-TcpkChildProcesses';         K='proc' }
     @{ T='Handles';           Fn='Test-TcpkHandleEnumeration';      K='proc' }
     @{ T='Windows';           Fn='Test-TcpkWindowEnumeration';      K='proc' }
@@ -1065,6 +1034,10 @@ $rtSpecs = @(
     @{ T='COM Objects';       Fn='Test-TcpkComObjects';             K='path' }
     @{ T='Named Objects';     Fn='Test-TcpkNamedObjects';           K='path' }
     @{ T='RPC Surface';       Fn='Test-TcpkRpcSurface';             K='path' }
+    @{ T='GUI Unlock';        Fn='';                                K='gui-unlock' }
+    @{ T='Pipe Probe';        Fn='';                                K='pipe-probe' }
+    @{ T='Flag-Flip';         Fn='';                                K='flag-flip' }
+    @{ T='Input Fuzz...';     Fn='';                                K='input-fuzz' }
 )
 $rx = 10; $ry = 10; $rcol = 0
 foreach ($s in $rtSpecs) {
@@ -1083,9 +1056,244 @@ $txtRt = New-Object System.Windows.Forms.RichTextBox
 $txtRt.Dock = 'Fill'; $txtRt.Font = New-Object System.Drawing.Font('Consolas', 9.5)
 $txtRt.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtRt.ForeColor = [System.Drawing.Color]::White
 $txtRt.ReadOnly = $true; $txtRt.WordWrap = $false
-$txtRt.Text = "Runtime / live-process analysis (read-only).`r`n`r`nPick the target process (Refresh lists what's running), then click a check:`r`n  grey  = process checks (modules, ports, token, mitigations, DACL, env, handles, windows, memory)`r`n  amber = DLL Hijack Trace -- ETW capture for N seconds; exercise the app during the window (needs admin)`r`n  blue  = system-wide (named pipes, ALPC/mailslots)`r`n  green = target-path checks (COM / named objects / RPC) -- use the Target box at the top`r`n`r`nFindings stream here, severity-coloured."
+$txtRt.Text = "Runtime / live-process analysis.`r`n`r`nPick the target process (Refresh lists what's running), then click a check:`r`n  grey  = read-only process checks (modules, ports, token, mitigations, DACL, env, mem secrets, handles, windows, memory)`r`n  amber = DLL Hijack Trace -- ETW capture for N seconds; exercise the app during the window (needs admin)`r`n  blue  = system-wide (named pipes, ALPC/mailslots)`r`n  green = target-path checks (COM / named objects / RPC) -- use the Target box at the top`r`n  red   = ACTIVE / gated tools (GUI unlock, pipe probe, flag-flip, input fuzz) -- tick the authorization box first`r`n`r`nFindings stream here, severity-coloured."
 $tabRt.Controls.Add($txtRt)
 $txtRt.BringToFront()
+
+# ================= TAB: Asar (unpack + browse an Electron app.asar) =================
+# Self-contained: parses the app.asar layout ([u32@0=4][u32@4=headerSize][u32@8][u32@12=jsonSize]
+# [json][data]) and extracts each file (data[base+offset .. +size], base = 8 + headerSize) to a
+# temp folder so the operator can read the JavaScript source. Discovery-only: files are read,
+# never executed. Mirrors the agentic workbench's Asar tab.
+$script:AsarFiles = @(); $script:AsarLastFull = ''
+function Expand-GuiAsar([string]$target) {
+    if (-not $target) { return @{ error = 'set a target (install folder or app.asar) first' } }
+    if (-not (Test-Path -LiteralPath $target)) { return @{ error = 'target not found' } }
+    $dir = if (Test-Path -LiteralPath $target -PathType Container) { $target } else { Split-Path -Parent $target }
+    $asar = Get-ChildItem -LiteralPath $dir -Recurse -File -Filter '*.asar' -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 1
+    if (-not $asar) { return @{ error = 'no .asar found under the target (not an Electron app?)' } }
+    if ($asar.Length -gt 400MB) { return @{ error = "asar too large ($([int]($asar.Length/1MB)) MB)" } }
+    try {
+        $bytes = [System.IO.File]::ReadAllBytes($asar.FullName)
+        if ($bytes.Length -lt 16) { return @{ error = 'asar invalid' } }
+        $headerObjSize = [System.BitConverter]::ToUInt32($bytes, 4)
+        $jsonSize = [System.BitConverter]::ToUInt32($bytes, 12)
+        if (($jsonSize + 16) -gt $bytes.Length) { return @{ error = 'asar header invalid' } }
+        $tree = [System.Text.Encoding]::UTF8.GetString($bytes, 16, $jsonSize) | ConvertFrom-Json
+        $base = 8 + $headerObjSize
+        $outDir = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
+        New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+        $files = New-Object System.Collections.Generic.List[object]
+        $stack = New-Object System.Collections.Generic.Stack[object]
+        $stack.Push([pscustomobject]@{ node = $tree; rel = '' })
+        $total = [int64]0; $cap = [int64]200MB
+        while ($stack.Count) {
+            $cur = $stack.Pop()
+            if (-not $cur.node.files) { continue }
+            foreach ($prop in $cur.node.files.PSObject.Properties) {
+                $child = $prop.Value
+                $childRel = if ($cur.rel) { "$($cur.rel)/$($prop.Name)" } else { "$($prop.Name)" }
+                if ($child.files) { $stack.Push([pscustomobject]@{ node = $child; rel = $childRel }); continue }
+                if ($null -eq $child.offset) { continue }
+                $sz = [int64]$child.size; $off = $base + [int64]$child.offset
+                if ($sz -lt 0 -or ($off + $sz) -gt $bytes.Length) { continue }
+                if (($total + $sz) -gt $cap -or $files.Count -ge 8000) { continue }
+                $dest = Join-Path $outDir ($childRel -replace '/', '\')
+                $ddir = Split-Path -Parent $dest
+                if ($ddir -and -not (Test-Path -LiteralPath $ddir)) { New-Item -ItemType Directory -Path $ddir -Force | Out-Null }
+                $buf = New-Object 'byte[]' $sz
+                if ($sz -gt 0) { [System.Array]::Copy($bytes, $off, $buf, 0, $sz) }
+                [System.IO.File]::WriteAllBytes($dest, $buf)
+                $files.Add([pscustomobject]@{ path = $childRel; size = $sz; full = $dest })
+                $total += $sz
+            }
+        }
+        return @{ outDir = $outDir; bytes = $total; files = @($files.ToArray() | Sort-Object path) }
+    } catch { return @{ error = "$($_.Exception.Message)" } }
+}
+function Fill-AsarList {
+    $q = $txtAsarFilter.Text.Trim().ToLower()
+    $lstAsar.BeginUpdate(); $lstAsar.Items.Clear()
+    $n = 0
+    foreach ($f in $script:AsarFiles) {
+        if ($q -and $f.path.ToLower().IndexOf($q) -lt 0) { continue }
+        [void]$lstAsar.Items.Add($f); $n++
+        if ($n -ge 2500) { break }
+    }
+    $lstAsar.EndUpdate()
+}
+
+$tabAsar = New-Object System.Windows.Forms.TabPage
+$tabAsar.Text = '  Asar  '
+$tabAsar.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabAsar)
+
+$asarTop = New-Object System.Windows.Forms.Panel
+$asarTop.Dock = 'Top'; $asarTop.Height = 68; $asarTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$lblAsarT = New-Object System.Windows.Forms.Label
+$lblAsarT.Text = "app.asar / install folder:"; $lblAsarT.Location = New-Object System.Drawing.Point(12, 14); $lblAsarT.Size = New-Object System.Drawing.Size(150, 18)
+$asarTop.Controls.Add($lblAsarT)
+$txtAsarTarget = New-Object System.Windows.Forms.TextBox
+$txtAsarTarget.Location = New-Object System.Drawing.Point(166, 11); $txtAsarTarget.Size = New-Object System.Drawing.Size(600, 24); $txtAsarTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
+$asarTop.Controls.Add($txtAsarTarget)
+$btnAsarBrowse = New-Object System.Windows.Forms.Button
+$btnAsarBrowse.Text = "Browse..."; $btnAsarBrowse.Location = New-Object System.Drawing.Point(776, 10); $btnAsarBrowse.Size = New-Object System.Drawing.Size(84, 26)
+$asarTop.Controls.Add($btnAsarBrowse)
+$btnAsarExtract = New-Object System.Windows.Forms.Button
+$btnAsarExtract.Text = "Extract"; $btnAsarExtract.Location = New-Object System.Drawing.Point(866, 10); $btnAsarExtract.Size = New-Object System.Drawing.Size(90, 26)
+$btnAsarExtract.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnAsarExtract.ForeColor = [System.Drawing.Color]::White; $btnAsarExtract.FlatStyle = 'Flat'
+$asarTop.Controls.Add($btnAsarExtract)
+$btnAsarHex = New-Object System.Windows.Forms.Button
+$btnAsarHex.Text = "Hex view"; $btnAsarHex.Location = New-Object System.Drawing.Point(962, 10); $btnAsarHex.Size = New-Object System.Drawing.Size(84, 26)
+$asarTop.Controls.Add($btnAsarHex)
+$lblAsar = New-Object System.Windows.Forms.Label
+$lblAsar.Location = New-Object System.Drawing.Point(12, 44); $lblAsar.Size = New-Object System.Drawing.Size(1030, 18)
+$lblAsar.Text = "Pick a target, then Extract. A large app can take ~30s (the window pauses). Click a file to read its source; Hex view opens it in the Hex tab."
+$lblAsar.ForeColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+$asarTop.Controls.Add($lblAsar)
+$tabAsar.Controls.Add($asarTop)
+
+# Body: left panel (filter + file list, fixed 430 wide) docked Left; source viewer fills the rest.
+$asarLeft = New-Object System.Windows.Forms.Panel
+$asarLeft.Dock = 'Left'; $asarLeft.Width = 430; $asarLeft.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$asarFilterRow = New-Object System.Windows.Forms.Panel
+$asarFilterRow.Dock = 'Top'; $asarFilterRow.Height = 46; $asarFilterRow.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$asarPrompt = New-Object System.Windows.Forms.Label
+$asarPrompt.Text = "filter files:"; $asarPrompt.Location = New-Object System.Drawing.Point(6, 5); $asarPrompt.Size = New-Object System.Drawing.Size(120, 16)
+$asarPrompt.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$asarFilterRow.Controls.Add($asarPrompt)
+$txtAsarFilter = New-Object System.Windows.Forms.TextBox
+$txtAsarFilter.Location = New-Object System.Drawing.Point(6, 22); $txtAsarFilter.Size = New-Object System.Drawing.Size(416, 22); $txtAsarFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtAsarFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAsarFilter.ForeColor = [System.Drawing.Color]::White; $txtAsarFilter.BorderStyle = 'FixedSingle'
+$txtAsarFilter.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$asarFilterRow.Controls.Add($txtAsarFilter)
+$asarLeft.Controls.Add($asarFilterRow)
+$lstAsar = New-Object System.Windows.Forms.ListBox
+$lstAsar.Dock = 'Fill'; $lstAsar.Font = New-Object System.Drawing.Font('Consolas', 8.5); $lstAsar.DisplayMember = 'path'; $lstAsar.IntegralHeight = $false
+$lstAsar.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $lstAsar.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lstAsar.BorderStyle = 'None'
+$asarLeft.Controls.Add($lstAsar); $lstAsar.BringToFront()
+$tabAsar.Controls.Add($asarLeft)
+$txtAsarView = New-Object System.Windows.Forms.RichTextBox
+$txtAsarView.Dock = 'Fill'; $txtAsarView.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtAsarView.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $txtAsarView.ForeColor = [System.Drawing.Color]::White
+$txtAsarView.ReadOnly = $true; $txtAsarView.WordWrap = $false
+$txtAsarView.Text = "Extract an app.asar, then click a file on the left to read its JavaScript source here."
+$tabAsar.Controls.Add($txtAsarView); $txtAsarView.BringToFront()
+
+$btnAsarBrowse.Add_Click({
+    $dlg = New-Object System.Windows.Forms.OpenFileDialog
+    $dlg.Filter = "Electron archive / any (*.asar;*.*)|*.asar;*.*"
+    if ($dlg.ShowDialog() -eq 'OK') { $txtAsarTarget.Text = $dlg.FileName }
+})
+$btnAsarExtract.Add_Click({
+    $t = $txtAsarTarget.Text.Trim(); if (-not $t) { $t = $txtTarget.Text.Trim() }
+    $lblAsar.Text = "Extracting app.asar (a large app can take ~30s -- the window pauses)..."
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
+    $script:AsarFiles = @(); $lstAsar.Items.Clear()
+    $res = Expand-GuiAsar $t
+    $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    if ($res.error) { $lblAsar.Text = "Error: $($res.error)"; return }
+    $script:AsarFiles = @($res.files)
+    $lblAsar.Text = "$(@($res.files).Count) files ($([int]($res.bytes/1KB)) KB) unpacked to $($res.outDir)"
+    Fill-AsarList
+})
+$txtAsarFilter.Add_TextChanged({ Fill-AsarList })
+$lstAsar.Add_SelectedIndexChanged({
+    $f = $lstAsar.SelectedItem; if (-not $f) { return }
+    try {
+        $bytes = [System.IO.File]::ReadAllBytes($f.full)
+        $trunc = $false; $cap = [int]512KB
+        if ($bytes.Length -gt $cap) { $b2 = New-Object 'byte[]' $cap; [System.Array]::Copy($bytes, 0, $b2, 0, $cap); $bytes = $b2; $trunc = $true }
+        $txtAsarView.Text = [System.Text.Encoding]::UTF8.GetString($bytes) + $(if ($trunc) { "`r`n`r`n... [truncated at 512 KB]" } else { '' })
+        $script:AsarLastFull = $f.full
+    } catch { $txtAsarView.Text = "cannot read: $($_.Exception.Message)" }
+})
+
+# ================= TAB: Hex View (byte view of any file) =================
+$script:HexPath = ''; $script:HexOffset = [int64]0; $script:HexSize = [int64]0; $script:HexPageSize = 4096
+function Get-GuiHexText([string]$path, [int64]$offset, [int]$length) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return @{ error = 'file not found' } }
+    if ($length -le 0 -or $length -gt 16384) { $length = 4096 }
+    if ($offset -lt 0) { $offset = 0 }
+    $fi = Get-Item -LiteralPath $path; $total = [int64]$fi.Length
+    if ($offset -ge $total) { return @{ text = ''; size = $total; offset = $offset } }
+    $count = [int][Math]::Min([int64]$length, $total - $offset)
+    $buf = New-Object 'byte[]' $count
+    $fsr = [System.IO.File]::OpenRead($path)
+    try { [void]$fsr.Seek($offset, 'Begin'); [void]$fsr.Read($buf, 0, $count) } finally { $fsr.Dispose() }
+    $sb = New-Object System.Text.StringBuilder
+    for ($i = 0; $i -lt $count; $i += 16) {
+        $n = [Math]::Min(16, $count - $i)
+        [void]$sb.Append(('{0:x8}  ' -f ($offset + $i)))
+        $asc = New-Object System.Text.StringBuilder
+        for ($j = 0; $j -lt 16; $j++) {
+            if ($j -lt $n) { $bv = $buf[$i + $j]; [void]$sb.Append(('{0:x2} ' -f $bv)); $ch = if ($bv -ge 32 -and $bv -lt 127) { [char]$bv } else { '.' }; [void]$asc.Append($ch) }
+            else { [void]$sb.Append('   ') }
+            if ($j -eq 7) { [void]$sb.Append(' ') }
+        }
+        [void]$sb.Append(' |').Append($asc.ToString()).Append("|`r`n")
+    }
+    return @{ text = $sb.ToString(); size = $total; offset = $offset; count = $count }
+}
+function Load-GuiHex([int64]$off) {
+    $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHex.Text = 'enter a file path'; return }
+    if ($off -lt 0) { $off = 0 }
+    $r = Get-GuiHexText $p $off $script:HexPageSize
+    if ($r.error) { $lblHex.Text = "Error: $($r.error)"; $txtHex.Text = ''; return }
+    $script:HexPath = $p; $script:HexOffset = $off; $script:HexSize = $r.size
+    $txtHex.Text = $r.text
+    $lblHex.Text = "$(Split-Path $p -Leaf) -- $($r.size) bytes, offset $off ($($r.count) shown)"
+}
+
+$tabHex = New-Object System.Windows.Forms.TabPage
+$tabHex.Text = '  Hex View  '
+$tabHex.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabHex)
+$hexTop = New-Object System.Windows.Forms.Panel
+$hexTop.Dock = 'Top'; $hexTop.Height = 68; $hexTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$lblHexT = New-Object System.Windows.Forms.Label
+$lblHexT.Text = "File:"; $lblHexT.Location = New-Object System.Drawing.Point(12, 14); $lblHexT.Size = New-Object System.Drawing.Size(40, 18)
+$hexTop.Controls.Add($lblHexT)
+$txtHexPath = New-Object System.Windows.Forms.TextBox
+$txtHexPath.Location = New-Object System.Drawing.Point(54, 11); $txtHexPath.Size = New-Object System.Drawing.Size(600, 24); $txtHexPath.Font = New-Object System.Drawing.Font('Consolas', 9)
+$hexTop.Controls.Add($txtHexPath)
+$btnHexBrowse = New-Object System.Windows.Forms.Button
+$btnHexBrowse.Text = "Browse..."; $btnHexBrowse.Location = New-Object System.Drawing.Point(662, 10); $btnHexBrowse.Size = New-Object System.Drawing.Size(80, 26)
+$hexTop.Controls.Add($btnHexBrowse)
+$btnHexLoad = New-Object System.Windows.Forms.Button
+$btnHexLoad.Text = "Load"; $btnHexLoad.Location = New-Object System.Drawing.Point(748, 10); $btnHexLoad.Size = New-Object System.Drawing.Size(64, 26)
+$btnHexLoad.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnHexLoad.ForeColor = [System.Drawing.Color]::White; $btnHexLoad.FlatStyle = 'Flat'
+$hexTop.Controls.Add($btnHexLoad)
+$btnHexPrev = New-Object System.Windows.Forms.Button
+$btnHexPrev.Text = "< Prev"; $btnHexPrev.Location = New-Object System.Drawing.Point(818, 10); $btnHexPrev.Size = New-Object System.Drawing.Size(68, 26)
+$hexTop.Controls.Add($btnHexPrev)
+$btnHexNext = New-Object System.Windows.Forms.Button
+$btnHexNext.Text = "Next >"; $btnHexNext.Location = New-Object System.Drawing.Point(892, 10); $btnHexNext.Size = New-Object System.Drawing.Size(68, 26)
+$hexTop.Controls.Add($btnHexNext)
+$lblHex = New-Object System.Windows.Forms.Label
+$lblHex.Location = New-Object System.Drawing.Point(12, 44); $lblHex.Size = New-Object System.Drawing.Size(1030, 18)
+$lblHex.Text = "Enter a file path (a native DLL, or a file from an extracted asar), then Load. Paged 4 KB at a time (Prev / Next)."
+$lblHex.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$hexTop.Controls.Add($lblHex)
+$tabHex.Controls.Add($hexTop)
+$txtHex = New-Object System.Windows.Forms.RichTextBox
+$txtHex.Dock = 'Fill'; $txtHex.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtHex.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18); $txtHex.ForeColor = [System.Drawing.Color]::FromArgb(210, 210, 210)
+$txtHex.ReadOnly = $true; $txtHex.WordWrap = $false
+$tabHex.Controls.Add($txtHex); $txtHex.BringToFront()
+$btnHexBrowse.Add_Click({
+    $dlg = New-Object System.Windows.Forms.OpenFileDialog; $dlg.Filter = "All files (*.*)|*.*"
+    if ($dlg.ShowDialog() -eq 'OK') { $txtHexPath.Text = $dlg.FileName }
+})
+$btnHexLoad.Add_Click({ Load-GuiHex 0 })
+$btnHexPrev.Add_Click({ Load-GuiHex ($script:HexOffset - $script:HexPageSize) })
+$btnHexNext.Add_Click({ if (-not $script:HexSize -or ($script:HexOffset + $script:HexPageSize) -lt $script:HexSize) { Load-GuiHex ($script:HexOffset + $script:HexPageSize) } })
+
+# Wire the Asar "Hex view" button (created in the Asar top row) now that the Hex tab exists.
+$btnAsarHex.Add_Click({
+    if (-not $script:AsarLastFull) { $lblAsar.Text = "Select a file first, then Hex view."; return }
+    $txtHexPath.Text = $script:AsarLastFull; $tabs.SelectedTab = $tabHex; Load-GuiHex 0
+})
 
 $form.Controls.Add($tabs)
 $tabs.BringToFront()
@@ -2515,6 +2723,12 @@ if ($ack -ne [System.Windows.Forms.DialogResult]::Yes) {
     [System.Windows.Forms.MessageBox]::Show("Terms not accepted. TCPK will exit.", "TCPK", 'OK', 'Information') | Out-Null
     return
 }
+
+# The disclaimer strip is added + BringToFront'd after the TabControl, so the Fill tabs end
+# up overlapping the strip -- the tab's bottom row (the Exploit "gate" line + Generate button)
+# was clipped behind it. Re-assert the tabs to the front, after all controls + styling, so the
+# Fill reserves its space above BOTH the disclaimer strip and the reports footer.
+$tabs.BringToFront()
 
 # Show
 [void]$form.ShowDialog()

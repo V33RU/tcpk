@@ -2,6 +2,15 @@
 
 Release history for TCPK. Newest first.
 
+## v2.5.0-dev
+
+Workbench + GUI file-analysis tooling, on top of the 2.4.5-dev precision work below.
+
+- Desktop GUI: consolidated every process-based dynamic tool into a single Runtime / Live tab -- the read-only checks (loaded modules, ports, token, mitigations, DACL, env, memory, handles, windows, DLL-hijack ETW trace, named pipes/ALPC, COM/named-objects/RPC) plus the gated active tools (GUI unlock, pipe probe, flag-flip, input fuzz) moved out of the Exploit tab, which is now just CVE matches + PoC generation. Split the old Interception tab into Interception (mitmproxy proxy/tamper) and Live Exploit / Creds (Frida hook, Credential Manager dump, credential-liveness replay).
+- Desktop GUI: two new file tabs -- Asar (unpack an Electron app.asar and read its JavaScript source in a dark-themed file browser) and Hex View (paged hex + ASCII of any file). Fixed the Exploit tab's clipped bottom row (the tab control overlapped the disclaimer strip).
+- Agentic workbench: matching Runtime, Asar and Hex panels. The Decompile "Audit selected" now runs a FOCUSED per-binary audit (file-scoped PE / IL / secret / signing checks on the one module) instead of re-auditing the whole app, so each DLL gets its own findings instead of the same app.asar results repeated for every binary. The module list leads with decompilable .NET modules (native binaries behind a toggle); removed the confidence-ladder / severity legend from the rail.
+- HTML report: dropped the redundant "Reading this table" explainer under the CVE section.
+
 ## v2.4.5-dev
 
 PRECISION pass -- directly addresses the false-positive / low-assurance complaint. Root cause: TCPK was built breadth-first (~150 pattern detectors), and the deterministic IL prover only verifies callsites.* and deser.*, so most rules can only emit Inferred. The default output showed those unverified pattern hits next to the handful of proven bugs, which reads as noise (on DVTA: 10 proven vs 18 leads of 30 findings).
