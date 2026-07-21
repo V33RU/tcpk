@@ -48,10 +48,15 @@ function Invoke-TcpkAgenticApi {
             'GET /api/agent/auto-status'{ return (Get-TcpkAgentAutoStatus -State $State -JobId "$($Request.Query['job'])") }
             'POST /api/agent/intercept' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentInterceptReview -File "$(if($b){$b.file})" -Kind "$(if($b){$b.kind})")) }
             'POST /api/agent/runtime'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentRuntime -Check "$(if($b){$b.check})" -Process "$(if($b){$b.process})" -Path "$(if($b){$b.path})")) }
+            'GET /api/agent/proclist'   { return (New-TcpkWebJson 200 (Get-TcpkAgentProcList)) }
+            'POST /api/agent/procmon'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentProcmon -Proc "$(if($b){$b.proc})")) }
             'POST /api/agent/audit-binary' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentBinaryAudit -Dll "$(if($b){$b.dll})")) }
             'POST /api/agent/asar'         { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentAsar -Target "$(if($b){$b.target})")) }
             'POST /api/agent/asar-file'    { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentAsarFile -Dir "$(if($b){$b.dir})" -Rel "$(if($b){$b.rel})")) }
             'POST /api/agent/hex'          { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHex -Path "$(if($b){$b.path})" -Offset ([int]("0" + "$(if($b){$b.offset})")) -Length ([int]("0" + "$(if($b){$b.length})")))) }
+            'POST /api/agent/inspect'      { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHexInspect -Path "$(if($b){$b.path})" -Offset ([int64]("0" + "$(if($b){$b.offset})")))) }
+            'POST /api/agent/hexfind'      { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHexFind -Path "$(if($b){$b.path})" -Query "$(if($b){$b.query})" -Kind "$(if($b){$b.kind})" -From ([int64]("0" + "$(if($b){$b.from})")))) }
+            'POST /api/agent/strings'      { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHexStrings -Path "$(if($b){$b.path})" -Min ([int]("0" + "$(if($b){$b.min})")) -Filter "$(if($b){$b.filter})" -Kind "$(if($b){$b.kind})")) }
             default                     { return (New-TcpkWebJson 404 @{ error = 'no such agent endpoint' }) }
         }
     }
@@ -179,6 +184,50 @@ function Get-TcpkAgentRuntime {
     @{ check = "$Check"; findings = @($fs | Where-Object { $_ } | ForEach-Object {
         [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = "$($_.Title)"; evidence = "$($_.Evidence)"; file = "$($_.File)" }
     }) }
+}
+
+# GET /api/agent/proclist -- running processes for the Process (live watch) picker. Read-only.
+function Get-TcpkAgentProcList {
+    $list = New-Object System.Collections.Generic.List[object]
+    try { Get-Process -ErrorAction SilentlyContinue | Sort-Object ProcessName | ForEach-Object { $list.Add(@{ name = "$($_.ProcessName)"; pid = $_.Id }) } } catch {}
+    return @{ procs = $list.ToArray() }
+}
+# POST /api/agent/procmon {proc} -- a full read-only snapshot of ONE running process for the
+# live-watch view (identity, memory, loaded modules, TCP connections, child processes). The
+# browser polls this on an interval. Observes only -- never launches / injects / dumps.
+function Get-TcpkAgentProcmon {
+    [CmdletBinding()] param([string]$Proc)
+    $t = "$Proc".Trim(); if (-not $t) { return @{ error = 'no process' } }
+    $p = $null
+    if ($t -match '^\d+$') { try { $p = Get-Process -Id ([int]$t) -ErrorAction Stop } catch {} }
+    if (-not $p -and $t -match '\(pid\s+(\d+)\)') { try { $p = Get-Process -Id ([int]$Matches[1]) -ErrorAction Stop } catch {} }
+    if (-not $p) { $nm = $t -replace '\.exe$', ''; try { $p = Get-Process -Name $nm -ErrorAction Stop | Select-Object -First 1 } catch {} }
+    if (-not $p) { return @{ error = "process not found: $t" } }
+    $pid2 = $p.Id
+    $path = ''; try { $path = $p.MainModule.FileName } catch { $path = '(access denied)' }
+    $desc = ''; $comp = ''; $prod = ''; $fver = ''
+    try { $fvi = $p.MainModule.FileVersionInfo; $desc = "$($fvi.FileDescription)"; $comp = "$($fvi.CompanyName)"; $prod = "$($fvi.ProductName)"; $fver = "$($fvi.FileVersion)" } catch {}
+    $ci = $null; try { $ci = Get-CimInstance Win32_Process -Filter "ProcessId=$pid2" -ErrorAction SilentlyContinue } catch {}
+    $parent = ''; $cmd = ''; if ($ci) { $parent = "$($ci.ParentProcessId)"; $cmd = "$($ci.CommandLine)" }
+    $owner = ''; try { if ($ci) { $ow = $ci | Invoke-CimMethod -MethodName GetOwner -ErrorAction SilentlyContinue; if ($ow -and $ow.User) { $owner = "$($ow.Domain)\$($ow.User)" } } } catch {}
+    $started = ''; try { $started = $p.StartTime.ToString('yyyy-MM-dd HH:mm:ss') } catch {}
+    $prio = ''; try { $prio = "$($p.PriorityClass)" } catch {}
+    $sess = ''; try { $sess = "$($p.SessionId)" } catch {}
+    $mods = New-Object System.Collections.Generic.List[object]
+    try { foreach ($m in $p.Modules) { $mn = ''; $mf = ''; try { $mn = "$($m.ModuleName)" } catch {}; try { $mf = "$($m.FileName)" } catch {}; $mods.Add(@{ name = $mn; path = $mf }) } } catch {}
+    $conns = New-Object System.Collections.Generic.List[object]
+    try { foreach ($c in (Get-NetTCPConnection -OwningProcess $pid2 -ErrorAction SilentlyContinue)) { $conns.Add(@{ local = "$($c.LocalAddress):$($c.LocalPort)"; remote = "$($c.RemoteAddress):$($c.RemotePort)"; state = "$($c.State)" }) } } catch {}
+    $kids = New-Object System.Collections.Generic.List[object]
+    try { foreach ($k in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$pid2" -ErrorAction SilentlyContinue)) { $kids.Add(@{ name = "$($k.Name)"; pid = $k.ProcessId }) } } catch {}
+    $cpu = 0; try { $cpu = [Math]::Round($p.CPU, 1) } catch {}
+    return @{
+        ok = $true; pid = $pid2; name = "$($p.ProcessName)"; path = $path; desc = $desc; company = $comp; product = $prod; fver = $fver
+        parent = $parent; user = $owner; started = $started; priority = $prio; session = $sess; cmd = $cmd
+        ws = [Math]::Round($p.WorkingSet64 / 1MB, 1); priv = [Math]::Round($p.PrivateMemorySize64 / 1MB, 1)
+        peak = [Math]::Round($p.PeakWorkingSet64 / 1MB, 1); virt = [Math]::Round($p.VirtualMemorySize64 / 1MB, 1)
+        handles = $p.HandleCount; threads = $p.Threads.Count; cpu = $cpu
+        modules = $mods.ToArray(); conns = $conns.ToArray(); children = $kids.ToArray()
+    }
 }
 
 # POST /api/agent/audit-binary {dll} -- a FOCUSED, per-binary static audit of ONE module.
@@ -314,6 +363,115 @@ function Get-TcpkAgentHex {
         $rows.Add([ordered]@{ off = ('{0:x8}' -f ($Offset + $i)); hex = $hex.ToString().TrimEnd(); ascii = $asc.ToString() })
     }
     @{ path = $fi.Name; size = $total; offset = $Offset; length = $count; rows = @($rows.ToArray()) }
+}
+
+# POST /api/agent/inspect {path, offset} -- Data Inspector: interpret the 16 bytes at an offset
+# as int/uint 8/16/32/64 (LE + BE), float/double, ASCII / UTF-16, and a u32 epoch timestamp.
+function Get-TcpkAgentHexInspect {
+    [CmdletBinding()] param([string]$Path, [int64]$Offset = 0)
+    $p = Resolve-TcpkWebTarget $Path
+    if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
+    if ($Offset -lt 0) { $Offset = 0 }
+    $total = [int64](Get-Item -LiteralPath $p).Length
+    if ($Offset -ge $total) { return @{ error = 'offset past end of file' } }
+    $n = [int][Math]::Min([int64]16, $total - $Offset)
+    $buf = New-Object 'byte[]' 16
+    $fsr = [System.IO.File]::OpenRead($p)
+    try { [void]$fsr.Seek($Offset, 'Begin'); [void]$fsr.Read($buf, 0, $n) } finally { $fsr.Dispose() }
+    $be = { param($len) $c = New-Object 'byte[]' $len; [System.Array]::Copy($buf, 0, $c, 0, $len); [System.Array]::Reverse($c); , $c }
+    $rows = New-Object System.Collections.Generic.List[object]
+    $add = { param($k, $v) $rows.Add([ordered]@{ n = $k; v = "$v" }) }
+    & $add 'int8'      ([sbyte]$buf[0]);            & $add 'uint8'     ($buf[0])
+    & $add 'int16 LE'  ([System.BitConverter]::ToInt16($buf, 0));  & $add 'int16 BE' ([System.BitConverter]::ToInt16((& $be 2), 0))
+    & $add 'uint16 LE' ([System.BitConverter]::ToUInt16($buf, 0)); & $add 'uint16 BE'([System.BitConverter]::ToUInt16((& $be 2), 0))
+    & $add 'int32 LE'  ([System.BitConverter]::ToInt32($buf, 0));  & $add 'int32 BE' ([System.BitConverter]::ToInt32((& $be 4), 0))
+    & $add 'uint32 LE' ([System.BitConverter]::ToUInt32($buf, 0)); & $add 'uint32 BE'([System.BitConverter]::ToUInt32((& $be 4), 0))
+    & $add 'int64 LE'  ([System.BitConverter]::ToInt64($buf, 0));  & $add 'uint64 LE'([System.BitConverter]::ToUInt64($buf, 0))
+    & $add 'float LE'  ([System.BitConverter]::ToSingle($buf, 0)); & $add 'double LE'([System.BitConverter]::ToDouble($buf, 0))
+    $asc = -join (0..([Math]::Min(15, $n - 1)) | ForEach-Object { $b = $buf[$_]; if ($b -ge 32 -and $b -lt 127) { [char]$b } else { '.' } })
+    & $add 'ASCII (16)' $asc
+    try { & $add 'UTF-16 (8)' (([System.Text.Encoding]::Unicode.GetString($buf, 0, 16)) -replace '[\x00-\x1f]', '.') } catch { }
+    try { $u = [System.BitConverter]::ToUInt32($buf, 0); if ($u -gt 0 -and $u -lt 4102444800) { & $add 'u32 as epoch' ([System.DateTimeOffset]::FromUnixTimeSeconds($u).UtcDateTime.ToString('u')) } } catch { }
+    @{ offset = $Offset; size = $total; rows = @($rows.ToArray()) }
+}
+
+# Naive byte-substring search (fine for typical DLL/asar sizes); returns -1 if not found.
+function Find-TcpkBytesIndex {
+    [CmdletBinding()] param([byte[]]$Hay, [byte[]]$Needle, [int64]$Start)
+    $nlen = $Needle.Length; if ($nlen -eq 0) { return [int64]-1 }
+    $lim = $Hay.Length - $nlen
+    for ($i = [int]([Math]::Max([int64]0, $Start)); $i -le $lim; $i++) {
+        $ok = $true
+        for ($j = 0; $j -lt $nlen; $j++) { if ($Hay[$i + $j] -ne $Needle[$j]) { $ok = $false; break } }
+        if ($ok) { return [int64]$i }
+    }
+    return [int64]-1
+}
+
+# POST /api/agent/hexfind {path, query, kind, from} -- find the next 'hex' or 'ascii' match at
+# or after 'from'. Reads the whole file (size-guarded).
+function Get-TcpkAgentHexFind {
+    [CmdletBinding()] param([string]$Path, [string]$Query, [string]$Kind = 'ascii', [int64]$From = 0)
+    $p = Resolve-TcpkWebTarget $Path
+    if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
+    if ([string]::IsNullOrEmpty($Query)) { return @{ error = 'empty search' } }
+    if ((Get-Item -LiteralPath $p).Length -gt 300MB) { return @{ error = 'file too large to search' } }
+    $needle = $null
+    if ($Kind -eq 'hex') {
+        $hx = ($Query -replace '[^0-9a-fA-F]', '')
+        if ($hx.Length -lt 2 -or ($hx.Length % 2)) { return @{ error = 'hex needs an even number of hex digits' } }
+        $needle = [byte[]](0..(($hx.Length / 2) - 1) | ForEach-Object { [Convert]::ToByte($hx.Substring($_ * 2, 2), 16) })
+    } else {
+        $needle = [System.Text.Encoding]::ASCII.GetBytes($Query)
+    }
+    $bytes = [System.IO.File]::ReadAllBytes($p)
+    $idx = Find-TcpkBytesIndex -Hay $bytes -Needle $needle -Start $From
+    @{ offset = $idx; size = $bytes.Length; needleLen = $needle.Length }
+}
+
+# POST /api/agent/strings {path, min, filter, kind} -- extract printable ASCII + UTF-16LE
+# ("wide") strings with their byte offsets, so a name / URL / path / function name can be
+# clicked to jump into the hex view. 'filter' narrows to strings containing a substring
+# (case-insensitive) -- this is the "find a name" case. Reads the whole file (size-guarded);
+# a regex over a Latin1 view keeps every match's byte offset exact and is fast.
+function Get-TcpkAgentHexStrings {
+    [CmdletBinding()] param([string]$Path, [int]$Min = 4, [string]$Filter = '', [string]$Kind = 'both', [int]$Cap = 2000)
+    $p = Resolve-TcpkWebTarget $Path
+    if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
+    if ((Get-Item -LiteralPath $p).Length -gt 300MB) { return @{ error = 'file too large to scan' } }
+    if ($Min -lt 2) { $Min = 2 } elseif ($Min -gt 200) { $Min = 200 }
+    if ($Cap -lt 1) { $Cap = 1 } elseif ($Cap -gt 20000) { $Cap = 20000 }
+    $bytes = [System.IO.File]::ReadAllBytes($p)
+    $lat = [System.Text.Encoding]::GetEncoding(28591)   # Latin1: 1 byte <-> 1 char, offsets preserved
+    $text = $lat.GetString($bytes)
+    $flt = "$Filter"
+    $hits = New-Object System.Collections.Generic.List[object]
+    $total = 0
+    $cmp = [System.StringComparison]::OrdinalIgnoreCase
+    if ($Kind -eq 'both' -or $Kind -eq 'ascii') {
+        foreach ($m in ([regex]::Matches($text, "[\x20-\x7E]{$Min,}"))) {
+            $v = $m.Value
+            if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
+            $total++
+            if ($hits.Count -lt $Cap) {
+                if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }
+                $hits.Add([pscustomobject]@{ offset = [int64]$m.Index; kind = 'a'; text = $v })
+            }
+        }
+    }
+    if ($Kind -eq 'both' -or $Kind -eq 'wide') {
+        foreach ($m in ([regex]::Matches($text, "(?:[\x20-\x7E]\x00){$Min,}"))) {
+            $v = [System.Text.Encoding]::Unicode.GetString($bytes, $m.Index, $m.Length)
+            if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
+            $total++
+            if ($hits.Count -lt $Cap) {
+                if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }
+                $hits.Add([pscustomobject]@{ offset = [int64]$m.Index; kind = 'w'; text = $v })
+            }
+        }
+    }
+    $items = @($hits | Sort-Object offset)
+    @{ items = $items; total = $total; capped = [bool]($total -gt $items.Count); min = $Min; size = $bytes.Length }
 }
 
 # POST /api/agent/native {dll} -- for a NON-.NET (native) PE: exploit-mitigation
@@ -609,7 +767,8 @@ $script:TCPK_AGENTIC_HTML = @'
 <style>
 :root{--bg:#0a0d13;--panel:#161b22;--panel2:#1c2230;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--dim:#6e7681;
 --accent:#56d364;--blue:#58a6ff;--crit:#f85149;--high:#db6d28;--med:#d29922;--low:#3fb950;--info:#6a7585;
---il:#2ea043;--dyn:#39c5cf;--llm:#bc8cff;--mono:"Cascadia Code","Fira Code",Consolas,monospace}
+--il:#2ea043;--dyn:#39c5cf;--llm:#bc8cff;--mono:"Cascadia Code","Fira Code",Consolas,monospace;
+--hxNull:#5a5a5a;--hxWs:#61afef;--hxAsc:#98c379;--hxCtl:#d19a66;--hxHigh:#c678dd;--hxSep:#5a6472}
 *{box-sizing:border-box}html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 "Segoe UI",system-ui,Arial,sans-serif}
 a{color:var(--blue);cursor:pointer;text-decoration:none}a:hover{text-decoration:underline}
@@ -739,6 +898,7 @@ th,td{padding:7px 11px}
       <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">RUNTIME<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Read-only live checks on a running process.</div></div>
       <div class="step" data-p="9"><div class="num">9</div><div><div class="t">Runtime</div><div class="s">live process</div></div></div>
+      <div class="step" data-p="12"><div class="num">12</div><div><div class="t">Process</div><div class="s">live watch</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">FILES<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Unpack an Electron app.asar, or hex-view any file.</div></div>
       <div class="step" data-p="10"><div class="num">10</div><div><div class="t">Asar</div><div class="s">unpack + browse</div></div></div>
       <div class="step" data-p="11"><div class="num">11</div><div><div class="t">Hex</div><div class="s">byte view</div></div></div>
@@ -933,6 +1093,24 @@ th,td{padding:7px 11px}
         <div id="rtFindings"></div>
       </div>
 
+      <div class="pane" data-p="12">
+        <h2>Process (live watch)</h2>
+        <p class="lead">Continuously re-reads ONE running process -- identity, memory, loaded modules, TCP connections, child processes -- refreshing on an interval. Read-only: it observes live state, never launches / injects / dumps.</p>
+        <div class="panel">
+          <div class="row" style="gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div style="flex:1;min-width:180px"><label>process (name or PID)</label><input id="pmProc" placeholder="e.g. notepad or 1234"/></div>
+            <button class="go mini" onclick="pmRefresh()">Refresh list</button>
+            <select id="pmList" onchange="if(this.value)$('pmProc').value=this.value"><option value="">-- running --</option></select>
+            <div><label>every (s)</label><input id="pmInt" style="width:56px" value="2"/></div>
+            <button class="go mini" id="pmStartBtn" onclick="pmStart()">Start</button>
+            <button class="go mini" id="pmStopBtn" onclick="pmStop()" disabled>Stop</button>
+          </div>
+          <div class="row" style="margin-top:6px"><div style="flex:1"><input id="pmFilter" placeholder="module filter -- e.g. system32, .net, appname" oninput="pmRender()"/></div></div>
+          <div class="note" id="pmStatus" style="margin-top:6px">pick a process, then Start.</div>
+        </div>
+        <div class="panel" style="margin-top:8px;max-height:62vh;overflow:auto"><div id="pmView" style="font:12px var(--mono);white-space:pre-wrap;word-break:break-word"><span class="note">not running</span></div></div>
+      </div>
+
       <div class="pane" data-p="10">
         <h2>Asar (unpack + browse)</h2>
         <p class="lead">Electron apps ship their real code as JavaScript inside resources\app.asar. Unpack it here to browse and read the source (the native DLLs have no source -- this is the code that matters). Uses the target from step 2. Discovery-only: files are read, never executed.</p>
@@ -952,17 +1130,41 @@ th,td{padding:7px 11px}
 
       <div class="pane" data-p="11">
         <h2>Hex (byte view)</h2>
-        <p class="lead">Raw hex + ASCII of any in-scope file -- a native DLL, or a file from an unpacked asar. Paged (2 KB at a time). Read-only.</p>
+        <p class="lead">Raw hex + ASCII of any in-scope file -- a native DLL, or a file from an unpacked asar. Go to an offset, find a hex / ASCII pattern, and inspect the bytes at an offset as typed values. Read-only.</p>
         <div class="panel">
           <div class="row"><div style="flex:1"><label>file path</label><input id="hxPath" placeholder="C:\path\to\file.dll"/></div>
             <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="go mini" onclick="hexLoad(0)">Load</button></div></div>
-          <div class="row" style="margin-top:6px;align-items:center;gap:8px">
+          <div class="row" style="margin-top:6px;gap:8px;align-items:flex-end;flex-wrap:wrap">
             <button class="go mini" onclick="hexPage(-1)">&lt; prev</button>
             <button class="go mini" onclick="hexPage(1)">next &gt;</button>
-            <div class="note" id="hxStatus" style="flex:1">enter a path and Load.</div>
+            <div><label>go to offset (hex)</label><input id="hxGoto" style="width:110px" placeholder="1a4"/></div>
+            <button class="go mini" onclick="hexGoto()">Go</button>
+            <div><label>find</label><input id="hxFind" style="width:150px" placeholder="pattern"/></div>
+            <select id="hxKind"><option value="ascii">ascii</option><option value="hex">hex</option></select>
+            <button class="go mini" onclick="hexFind()">Find next</button>
+          </div>
+          <div class="row" style="margin-top:6px;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div><label>strings: min len</label><input id="hxSMin" style="width:56px" value="4"/></div>
+            <div><label>filter by name / substring</label><input id="hxSFilter" style="width:200px" placeholder="e.g. http, .dll, Password"/></div>
+            <select id="hxSKind"><option value="both">ascii+wide</option><option value="ascii">ascii</option><option value="wide">wide (UTF-16)</option></select>
+            <button class="go mini" onclick="hexStrings()">List strings</button>
+            <span class="note" id="hxSInfo"></span>
+          </div>
+          <div class="note" id="hxStatus" style="margin-top:6px">enter a path and Load.</div>
+        </div>
+        <div class="panel" id="hxSPanel" style="display:none">
+          <div class="note" style="margin-bottom:4px">click a row to jump to its offset in the hex view (a = ascii, w = wide / UTF-16)</div>
+          <div id="hxSList" style="max-height:26vh;overflow:auto;font:12px var(--mono)"></div>
+        </div>
+        <div class="row" style="align-items:stretch;gap:10px">
+          <div class="panel" style="flex:1;min-width:0"><pre id="hxView" style="max-height:58vh;overflow:auto;font:12px var(--mono);line-height:1.35"><span class="note">-</span></pre></div>
+          <div class="panel" style="flex:0 0 300px">
+            <h3>DATA INSPECTOR</h3>
+            <div class="note" style="margin:-4px 0 6px">bytes at offset <span id="hxInsOff" style="color:var(--accent)">0x0</span> -- click a hex row, or set below</div>
+            <div class="row" style="align-items:flex-end;gap:6px"><div><label>offset (hex)</label><input id="hxInsIn" style="width:110px" placeholder="0"/></div><button class="go mini" onclick="hexInspect()">Inspect</button></div>
+            <table style="width:100%;font:11px var(--mono);margin-top:8px;border-collapse:collapse" id="hxInsTab"><tbody><tr><td class="note">load a file, then inspect an offset</td></tr></tbody></table>
           </div>
         </div>
-        <div class="panel"><pre id="hxView" style="max-height:62vh;overflow:auto;font:12px var(--mono)"><span class="note">-</span></pre></div>
       </div>
 
     </main>
@@ -1058,6 +1260,38 @@ async function rtRun(check){var box=$('rtFindings'),st=$('rtStatus');
       return '<div class="vcard" style="border-left-color:var(--'+kc+')"><div class="h"><span class="pill" style="background:var(--'+kc+');color:#08130a">'+esc(f.sev)+'</span> '+esc(f.rule)+' <span style="color:var(--dim)">('+esc(f.conf)+')</span></div><div class="note">'+esc(f.title)+'</div>'+(f.evidence?'<div style="font:11px var(--mono);color:var(--dim);margin-top:3px">'+esc(f.evidence)+'</div>':'')+'</div>';
     }).join('');
   }catch(e){st.textContent='request failed';}}
+// --- Process (live watch) ---
+window._pm={data:null,timer:null};
+async function pmRefresh(){try{var r=await api('/api/agent/proclist');var s=$('pmList');s.innerHTML='<option value="">-- running --</option>'+(r.procs||[]).map(function(p){var lbl=p.name+'  (pid '+p.pid+')';return '<option value="'+esc(lbl)+'">'+esc(p.name)+'  ('+p.pid+')</option>';}).join('');$('pmStatus').textContent=(r.procs||[]).length+' processes -- pick one, then Start';}catch(e){$('pmStatus').textContent='list failed';}}
+async function pmTick(){var t=(val('pmProc')||'').trim();if(!t){$('pmStatus').textContent='enter a process (name or PID)';pmStop();return;}
+  try{var r=await api('/api/agent/procmon',{json:{proc:t}});if(r.error){$('pmStatus').textContent=r.error;return;}window._pm.data=r;$('pmStatus').textContent='watching '+esc(r.name)+' (pid '+r.pid+') -- '+new Date().toLocaleTimeString();pmRender();}catch(e){$('pmStatus').textContent='read failed';}}
+function pmStart(){pmStop();var n=parseInt(val('pmInt')||'2',10);if(isNaN(n)||n<1)n=2;$('pmStartBtn').disabled=true;$('pmStopBtn').disabled=false;pmTick();window._pm.timer=setInterval(pmTick,n*1000);}
+function pmStop(){if(window._pm.timer){clearInterval(window._pm.timer);window._pm.timer=null;}$('pmStartBtn').disabled=false;$('pmStopBtn').disabled=true;}
+function pmRender(){var d=window._pm.data;if(!d){$('pmView').innerHTML='<span class="note">not running</span>';return;}
+  var flt=(val('pmFilter')||'').toLowerCase();
+  function hd(t){return '\n<span style="color:var(--dyn);font-weight:700">'+t+'</span>\n';}
+  function row(l,v,c){return '<span style="color:var(--dim)">  '+esc(l)+'</span>   <span style="color:'+(c||'var(--text)')+'">'+esc(v)+'</span>\n';}
+  var h='<span style="color:var(--dim)">monitoring -- '+new Date().toLocaleTimeString()+'</span>\n';
+  h+=hd('PROCESS');
+  h+=row('name / pid', d.name+' ('+d.pid+')'+(d.parent?('    parent '+d.parent):''));
+  h+=row('path', d.path||'', 'var(--accent)');
+  if(d.desc)h+=row('description', d.desc);
+  if(d.company)h+=row('company', d.company);
+  if(d.product||d.fver)h+=row('product', (d.product||'')+(d.fver?('  (v'+d.fver+')'):''));
+  if(d.user)h+=row('user', d.user, 'var(--med)');
+  if(d.started)h+=row('started', d.started+'    priority '+(d.priority||'')+'    session '+(d.session||''));
+  if(d.cmd)h+=row('command', d.cmd, 'var(--dim)');
+  h+=hd('MEMORY');
+  h+=row('memory', 'WS '+d.ws+' MB | private '+d.priv+' MB | peak '+d.peak+' MB | virtual '+d.virt+' MB');
+  h+=row('counts', 'handles '+d.handles+'    threads '+d.threads+'    cpu '+d.cpu+'s');
+  var mods=(d.modules||[]);var total=mods.length;if(flt)mods=mods.filter(function(m){return ((m.name||'')+' '+(m.path||'')).toLowerCase().indexOf(flt)>=0;});
+  h+=hd('MODULES ('+mods.length+(flt?(' of '+total):'')+')');
+  h+=mods.map(function(m){var nm=(m.name||'');var pad=nm.length<34?nm+Array(34-nm.length+3).join(' '):nm+'  ';return '  <span style="color:#98c379">'+esc(pad)+'</span><span style="color:var(--dim)">'+esc(m.path||'')+'</span>';}).join('\n')+(mods.length?'\n':'');
+  var cons=(d.conns||[]);h+=hd('NETWORK -- TCP ('+cons.length+')');
+  h+=cons.length?cons.map(function(c){return '  <span style="color:var(--text)">'+esc(c.local)+'</span> <span style="color:var(--dim)">-&gt;</span> <span style="color:#d19a66">'+esc(c.remote)+'</span>    <span style="color:'+(c.state==='Established'?'var(--accent)':'var(--dim)')+'">'+esc(c.state)+'</span>';}).join('\n')+'\n':'  <span style="color:var(--dim)">(none)</span>\n';
+  var kids=(d.children||[]);h+=hd('CHILD PROCESSES ('+kids.length+')');
+  h+=kids.length?kids.map(function(k){return '  <span style="color:var(--med)">'+esc(k.name)+'</span> <span style="color:var(--dim)">(pid '+k.pid+')</span>';}).join('\n')+'\n':'  <span style="color:var(--dim)">(none)</span>\n';
+  $('pmView').innerHTML=h;}
 // --- Asar (unpack + browse) ---
 window._asar={outDir:'',files:[]};window._asarLast='';
 async function asarExtract(){var t=(window._target||val('target')||'').trim();var st=$('asStatus');
@@ -1083,17 +1317,53 @@ async function asarView(i){var f=(window._asar.files||[])[i];if(!f)return;var re
   }catch(e){$('asView').innerHTML='<span class="note">load failed</span>';}}
 function hexFromAsar(){if(!window._asarLast)return;$('hxPath').value=window._asarLast;go(11);hexLoad(0);}
 function asarToAudit(){if(!window._asar.outDir)return;window._target=window._asar.outDir;var ti=$('target');if(ti)ti.value=window._asar.outDir;go(3);}
-// --- Hex (byte view) ---
-window._hex={path:'',offset:0,size:0,page:2048};
+// --- Hex (byte view) + data inspector + go-to / find ---
+window._hex={path:'',offset:0,size:0,page:2048,rows:[],hl:-1};
+// ImHex-style byte colouring: null=dim, whitespace=blue, printable=green, control=orange, high=purple.
+function bcol(v){if(v===0)return'var(--hxNull)';if(v===9||v===10||v===13)return'var(--hxWs)';if(v>=32&&v<=126)return'var(--hxAsc)';if(v<32||v===127)return'var(--hxCtl)';return'var(--hxHigh)';}
+function hexRender(){var rows=window._hex.rows||[];var hl=window._hex.hl;
+  $('hxView').innerHTML=(rows.map(function(x){var ro=parseInt(x.off,16);var hot=(hl>=0&&hl>=ro&&hl<ro+16);
+    var pairs=(x.hex.match(/[0-9a-fA-F]{2}/g)||[]);
+    var hx='';for(var i=0;i<pairs.length;i++){var v=parseInt(pairs[i],16);hx+='<span style="color:'+bcol(v)+'">'+pairs[i]+'</span>'+(i===7?'  ':' ');}
+    var asc=(x.ascii||'');var ah='';for(var i=0;i<asc.length;i++){var v=(i<pairs.length)?parseInt(pairs[i],16):46;ah+='<span style="color:'+bcol(v)+'">'+esc(asc[i])+'</span>';}
+    return '<div onclick="hexInspect('+ro+')" style="cursor:pointer;padding:0 2px'+(hot?';background:rgba(88,166,255,.20)':'')+'"><span style="color:var(--accent)">'+x.off+'</span>  '+hx+'<span style="color:var(--hxSep)">|</span>'+ah+'<span style="color:var(--hxSep)">|</span></div>';
+  }).join(''))||'<span class="note">(empty)</span>';}
 async function hexLoad(off){var p=(val('hxPath')||'').trim();if(!p){$('hxStatus').textContent='enter a file path';return;}
   window._hex.path=p;window._hex.offset=Math.max(0,off|0);$('hxStatus').textContent='reading...';
   try{var r=await api('/api/agent/hex',{json:{path:p,offset:window._hex.offset,length:window._hex.page}});
     if(r.error){$('hxStatus').textContent='error: '+r.error;$('hxView').innerHTML='<span class="note">'+esc(r.error)+'</span>';return;}
-    window._hex.size=r.size;
-    $('hxStatus').textContent=esc(r.path)+' -- '+r.size+' bytes, offset '+r.offset+' ('+((r.rows||[]).length*16)+' shown)';
-    $('hxView').textContent=(r.rows||[]).map(function(x){return x.off+'  '+x.hex+'  |'+x.ascii+'|';}).join('\n')||'(empty)';
+    window._hex.size=r.size;window._hex.rows=r.rows||[];
+    $('hxStatus').textContent=esc(r.path)+' -- '+r.size+' bytes, offset 0x'+(r.offset).toString(16)+' ('+((r.rows||[]).length*16)+' shown)';
+    hexRender();
   }catch(e){$('hxStatus').textContent='read failed';}}
 function hexPage(d){var no=window._hex.offset+d*window._hex.page;if(no<0)no=0;if(window._hex.size&&no>=window._hex.size)return;hexLoad(no);}
+function hexGoto(){var o=parseInt((val('hxGoto')||'0'),16);if(isNaN(o))o=0;var pg=Math.floor(o/window._hex.page)*window._hex.page;window._hex.hl=o;hexLoad(pg).then(function(){hexInspect(o);});}
+async function hexFind(){var q=(val('hxFind')||'').trim();if(!q){$('hxStatus').textContent='enter a search';return;}
+  var from=(window._hex.hl>=0?window._hex.hl+1:0);$('hxStatus').textContent='searching...';
+  try{var r=await api('/api/agent/hexfind',{json:{path:(window._hex.path||val('hxPath')),query:q,kind:val('hxKind'),from:from}});
+    if(r.error){$('hxStatus').textContent='error: '+r.error;return;}
+    if(r.offset<0){$('hxStatus').textContent='no match from 0x'+from.toString(16)+' -- clear/reset to search from the top';return;}
+    var o=r.offset;var pg=Math.floor(o/window._hex.page)*window._hex.page;window._hex.hl=o;
+    await hexLoad(pg);hexInspect(o);$('hxStatus').textContent='match at 0x'+o.toString(16);
+  }catch(e){$('hxStatus').textContent='find failed';}}
+async function hexInspect(off){if(off===undefined||off===null){off=parseInt((val('hxInsIn')||'0'),16);if(isNaN(off))off=0;}
+  window._hex.hl=off;$('hxInsIn').value=off.toString(16);$('hxInsOff').textContent='0x'+off.toString(16);hexRender();
+  try{var r=await api('/api/agent/inspect',{json:{path:(window._hex.path||val('hxPath')),offset:off}});
+    if(r.error){$('hxInsTab').innerHTML='<tbody><tr><td class="note">'+esc(r.error)+'</td></tr></tbody>';return;}
+    $('hxInsTab').innerHTML='<tbody>'+(r.rows||[]).map(function(x){return '<tr><td style="color:var(--dim);padding:1px 8px 1px 0;white-space:nowrap">'+esc(x.n)+'</td><td style="word-break:break-all">'+esc(x.v)+'</td></tr>';}).join('')+'</tbody>';
+  }catch(e){}}
+async function hexStrings(){var p=(window._hex.path||val('hxPath')||'').trim();if(!p){$('hxStatus').textContent='enter a path and Load first';return;}
+  var mn=parseInt(val('hxSMin')||'4',10);if(isNaN(mn)||mn<2)mn=4;
+  $('hxSInfo').textContent='scanning...';
+  try{var r=await api('/api/agent/strings',{json:{path:p,min:mn,filter:(val('hxSFilter')||''),kind:val('hxSKind')}});
+    if(r.error){$('hxSInfo').textContent=r.error;return;}
+    var it=r.items||[];$('hxSPanel').style.display='block';
+    $('hxSList').innerHTML=it.length?it.map(function(x){var oh='0x'+x.offset.toString(16);
+      return '<div onclick="hexJump('+x.offset+')" style="cursor:pointer;padding:2px 4px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:var(--dim)">'+oh+'</span> <span style="color:var(--muted)">'+x.kind+'</span> <span style="color:var(--accent)">'+esc(x.text)+'</span></div>';
+    }).join(''):'<div class="note">no strings matched'+(val('hxSFilter')?' the filter':'')+'</div>';
+    $('hxSInfo').textContent=r.total+' match'+(r.total===1?'':'es')+(r.capped?(' (showing first '+it.length+')'):'');
+  }catch(e){$('hxSInfo').textContent='scan failed';}}
+function hexJump(o){var pg=Math.floor(o/window._hex.page)*window._hex.page;window._hex.hl=o;hexLoad(pg).then(function(){hexInspect(o);});}
 function confClass(c){c=(c||'').toLowerCase();if(c.indexOf('il')>=0)return 'il';if(c.indexOf('dynamic')>=0)return 'dyn';if(c.indexOf('llm')>=0)return 'llm';if(c.indexOf('confirmed')>=0)return 'conf';return '';}
 function toggleFilter(k){if(FILTER[k]){delete FILTER[k];}else{FILTER[k]=true;}
   document.querySelectorAll('.fchip').forEach(function(c){c.classList.toggle('on',!!FILTER[c.dataset.k]);});renderTriage();}

@@ -79,7 +79,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <div class="wrap">
 <nav class="toc">
   <div class="brand">TC<span>PK</span></div>
-  <div class="ver">v2.4.4 &middot; 184 cmdlets</div>
+  <div class="ver">v2.5.0-rc1 &middot; 184 cmdlets</div>
   <a href="#tldr">TL;DR</a>
   <a href="#threat">Why thick clients</a>
   <a href="#principles">Design principles</a>
@@ -113,7 +113,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <p class="tag">Evidence over assertion. A scanner that proves its findings.</p>
   <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
   <div class="badges">
-    <span class="badge"><b>v2.4.4</b></span>
+    <span class="badge"><b>v2.5.0-rc1</b></span>
     <span class="badge"><b>184</b> cmdlets</span>
     <span class="badge">PowerShell <b>5.1+</b></span>
     <span class="badge">WinForms GUI + <b>MCP</b> server</span>
@@ -126,8 +126,8 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 </header>
 
 <figure>
-  <img src="tcpk-gui.png" alt="TCPK GUI: target selection, live audit progress, findings table, and tabs for Recon, Exploit/CVE, SBOM, DLL Mitigation Matrix, DLL Signing, and Logs.">
-  <figcaption>The WinForms console: live per-check progress, streaming findings, and posture tabs (Recon, SBOM, DLL Mitigation Matrix, DLL Signing). The same engine drives the CLI and the MCP server.</figcaption>
+  <img src="tcpk-gui.png" alt="TCPK GUI: target selection, live audit progress, findings table, and tabs for Recon, Exploit/CVE, SBOM, DLL Mitigation Matrix, DLL Signing, Runtime/Live, Process Monitor, Hex View, Asar, and Interception.">
+  <figcaption>The WinForms console: live per-check progress, streaming findings, and posture tabs (Recon, SBOM, DLL Mitigation Matrix, DLL Signing). Plus a live layer -- a Runtime/Live tab of read-only process checks, a Process Monitor (live watch + activity capture), a Hex view (data inspector, strings, byte colouring), an Asar unpacker for Electron apps, and gated Interception / Live Exploit tabs. The same engine drives the CLI and the MCP server.</figcaption>
 </figure>
 
 <figure>
@@ -137,7 +137,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 
 <figure>
   <img src="tcpk-agenticai.png" alt="TCPK agentic AI workbench: phased rail (Connect, Target, Audit, Decompile, AI review, Report, autonomous Agent), risk gauge, severity donut, and findings triage.">
-  <figcaption>The agentic AI workbench (TCPK-Agentic.bat, new in v2.0.0) -- audit, real decompile, and AI line-by-line review in one phased UI, plus an autonomous agent that drives the investigation itself; every finding is cross-checked by the IL prover. Loopback-only, discovery-only, local-first.</figcaption>
+  <figcaption>The agentic AI workbench (TCPK-Agentic.bat, new in v2.0.0) -- audit, real decompile, and AI line-by-line review in one phased UI, plus an autonomous agent that drives the investigation itself; every finding is cross-checked by the IL prover. Also carries read-only Runtime, Asar-unpack, Hex, and Process live-watch panes. Loopback-only, discovery-only, local-first.</figcaption>
 </figure>
 
 <section id="tldr">
@@ -603,7 +603,7 @@ Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
 <footer>
-<p><b>TCPK v2.4.4</b> &middot; Thick Client Pentest Kit &middot; 184 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+<p><b>TCPK v2.5.0-rc1</b> &middot; Thick Client Pentest Kit &middot; 184 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
 </footer>
 </main>
 </div>

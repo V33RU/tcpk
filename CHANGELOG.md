@@ -2,6 +2,15 @@
 
 Release history for TCPK. Newest first.
 
+## v2.5.0-rc1
+
+Release candidate for 2.5.0 -- a GUI + agentic-workbench pass on top of the workbench file tooling in v2.5.0-dev below.
+
+- Hex view (desktop GUI + agentic workbench): a Data Inspector that decodes the bytes at an offset as typed values (int/uint 8/16/32/64 LE+BE, float/double, ASCII, UTF-16, u32 epoch); go-to-offset plus hex/ASCII find with row highlighting; a strings extractor (printable ASCII + UTF-16 "wide" strings with byte offsets, filterable, click a row to jump); and ImHex-style per-byte colouring (nulls dim, printable ASCII green, whitespace blue, control orange, high/extended purple) across both the hex and ASCII columns.
+- Process Monitor tab (desktop GUI): one tab, two clickable modes sharing a process picker + console. Live watch re-renders a target's full state on an interval -- identity, version/company/owner/command line, memory counters, the COMPLETE loaded-module list with paths, TCP connections, child processes -- colour-coded into sections, with a module filter and Save-to-file. Activity capture baselines the target then logs NEW module loads / TCP connections / child processes with timestamps over a window (duration 0 = run until Stop, or until the process exits). Read-only and poll-based (driver-free -- not a kernel Procmon).
+- Agentic workbench: Live watch ported to a new Process pane (loopback /api/agent/procmon, browser-polled). Read-only / discovery-only.
+- Desktop GUI layout: Runtime / Live reflowed to an 8-column button grid with a Clear-output button; the Live Exploit / Creds group boxes go side-by-side and full-width with a draggable splitter between the controls and the output console; the Hex strings controls fold into the find row.
+
 ## v2.5.0-dev
 
 Workbench + GUI file-analysis tooling, on top of the 2.4.5-dev precision work below.

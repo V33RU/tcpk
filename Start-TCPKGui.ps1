@@ -802,9 +802,9 @@ $gbHook.Text = "Native hook bypass (frida)"
 $gbHook.Location = New-Object System.Drawing.Point(10,36); $gbHook.Size = New-Object System.Drawing.Size(578,150)
 $ctlB.Controls.Add($gbHook)
 $lblHFn = New-Object System.Windows.Forms.Label; $lblHFn.Text = "Function (native export):"; $lblHFn.Location = New-Object System.Drawing.Point(12,26); $lblHFn.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHFn)
-$txtHookFn = New-Object System.Windows.Forms.TextBox; $txtHookFn.Location = New-Object System.Drawing.Point(170,23); $txtHookFn.Size = New-Object System.Drawing.Size(200,24); $gbHook.Controls.Add($txtHookFn)
+$txtHookFn = New-Object System.Windows.Forms.TextBox; $txtHookFn.Location = New-Object System.Drawing.Point(170,23); $txtHookFn.Size = New-Object System.Drawing.Size(200,24); $txtHookFn.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbHook.Controls.Add($txtHookFn)
 $lblHMod = New-Object System.Windows.Forms.Label; $lblHMod.Text = "Module (optional):"; $lblHMod.Location = New-Object System.Drawing.Point(12,54); $lblHMod.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHMod)
-$txtHookMod = New-Object System.Windows.Forms.TextBox; $txtHookMod.Location = New-Object System.Drawing.Point(170,51); $txtHookMod.Size = New-Object System.Drawing.Size(200,24); $gbHook.Controls.Add($txtHookMod)
+$txtHookMod = New-Object System.Windows.Forms.TextBox; $txtHookMod.Location = New-Object System.Drawing.Point(170,51); $txtHookMod.Size = New-Object System.Drawing.Size(200,24); $txtHookMod.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbHook.Controls.Add($txtHookMod)
 $lblHRet = New-Object System.Windows.Forms.Label; $lblHRet.Text = "Return value:"; $lblHRet.Location = New-Object System.Drawing.Point(12,82); $lblHRet.Size = New-Object System.Drawing.Size(90,18); $gbHook.Controls.Add($lblHRet)
 $numHookRet = New-Object System.Windows.Forms.NumericUpDown; $numHookRet.Location = New-Object System.Drawing.Point(104,79); $numHookRet.Size = New-Object System.Drawing.Size(70,24); $numHookRet.Minimum = 0; $numHookRet.Maximum = 2147483647; $numHookRet.Value = 1; $gbHook.Controls.Add($numHookRet)
 $chkHookSkip = New-Object System.Windows.Forms.CheckBox; $chkHookSkip.Text = "Skip body"; $chkHookSkip.Location = New-Object System.Drawing.Point(190,81); $chkHookSkip.Size = New-Object System.Drawing.Size(90,20); $gbHook.Controls.Add($chkHookSkip)
@@ -831,10 +831,9 @@ $btnHookRun.Add_Click({
 $gbCred = New-Object System.Windows.Forms.GroupBox
 $gbCred.Text = "Windows stored credentials (Credential Manager)"
 $gbCred.Location = New-Object System.Drawing.Point(598,36); $gbCred.Size = New-Object System.Drawing.Size(578,150)
-$gbCred.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlB.Controls.Add($gbCred)
 $lblCFilt = New-Object System.Windows.Forms.Label; $lblCFilt.Text = "Filter (optional target substring):"; $lblCFilt.Location = New-Object System.Drawing.Point(12,28); $lblCFilt.Size = New-Object System.Drawing.Size(190,18); $gbCred.Controls.Add($lblCFilt)
-$txtCredFilter = New-Object System.Windows.Forms.TextBox; $txtCredFilter.Location = New-Object System.Drawing.Point(206,25); $txtCredFilter.Size = New-Object System.Drawing.Size(200,24); $gbCred.Controls.Add($txtCredFilter)
+$txtCredFilter = New-Object System.Windows.Forms.TextBox; $txtCredFilter.Location = New-Object System.Drawing.Point(206,25); $txtCredFilter.Size = New-Object System.Drawing.Size(200,24); $txtCredFilter.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbCred.Controls.Add($txtCredFilter)
 $chkCredReveal = New-Object System.Windows.Forms.CheckBox; $chkCredReveal.Text = "Reveal secrets (default masks)"; $chkCredReveal.Location = New-Object System.Drawing.Point(12,54); $chkCredReveal.Size = New-Object System.Drawing.Size(260,20); $gbCred.Controls.Add($chkCredReveal)
 $btnCredDump = New-Object System.Windows.Forms.Button; $btnCredDump.Text = "Dump credential vault"; $btnCredDump.Location = New-Object System.Drawing.Point(12,82); $btnCredDump.Size = New-Object System.Drawing.Size(200,28)
 $btnCredDump.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCredDump.ForeColor = [System.Drawing.Color]::White; $btnCredDump.FlatStyle = 'Flat'; $gbCred.Controls.Add($btnCredDump)
@@ -854,7 +853,6 @@ $btnCredDump.Add_Click({
 $gbLive = New-Object System.Windows.Forms.GroupBox
 $gbLive.Text = "Credential liveness (replay a recovered credential against a live service)"
 $gbLive.Location = New-Object System.Drawing.Point(10,192); $gbLive.Size = New-Object System.Drawing.Size(1166,118)
-$gbLive.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlB.Controls.Add($gbLive)
 $lblLProto = New-Object System.Windows.Forms.Label; $lblLProto.Text = "Protocol:"; $lblLProto.Location = New-Object System.Drawing.Point(12,26); $lblLProto.Size = New-Object System.Drawing.Size(58,18); $gbLive.Controls.Add($lblLProto)
 $cmbLiveProto = New-Object System.Windows.Forms.ComboBox; $cmbLiveProto.Location = New-Object System.Drawing.Point(72,23); $cmbLiveProto.Size = New-Object System.Drawing.Size(72,24); $cmbLiveProto.DropDownStyle = 'DropDownList'
@@ -886,15 +884,45 @@ $btnLiveRun.Add_Click({
         Test-TcpkCredentialLiveness @p
     }
 })
-$tabIcptB.Controls.Add($ctlB)
+# Lay the three group boxes out to fill the width: gbHook | gbCred split the top row 50/50,
+# gbLive spans the full width below. Driven on resize so it holds at any window size (fixed
+# positions left a big empty band on the right of wide windows).
+$layoutCtlB = {
+    $gap = 10
+    $w = $ctlB.ClientSize.Width
+    if ($w -lt 460) { return }
+    $half = [int](($w - ($gap * 3)) / 2)
+    $gbHook.Left = $gap; $gbHook.Width = $half
+    $gbCred.Left = ($gap * 2) + $half; $gbCred.Width = $w - $gbCred.Left - $gap
+    $gbLive.Left = $gap; $gbLive.Width = $w - ($gap * 2)
+}
+$ctlB.Add_Resize($layoutCtlB)
+& $layoutCtlB
 
 $txtOutB = New-Object System.Windows.Forms.RichTextBox
 $txtOutB.Dock = 'Fill'; $txtOutB.Font = New-Object System.Drawing.Font('Consolas', 9.5)
 $txtOutB.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtOutB.ForeColor = [System.Drawing.Color]::White
 $txtOutB.ReadOnly = $true; $txtOutB.WordWrap = $false
-$txtOutB.Text = "Live exploit + credentials console.`r`n`r`nTick the authorization box, then:`r`n  Hook bypass -- flip a native export's return value via frida (e.g. a client-side license / integrity check).`r`n  Dump credential vault -- read this user's Windows Credential Manager entries.`r`n  Credential liveness -- replay a recovered credential (e.g. one captured in Burp) against a live http / sql / ftp service to prove it authenticates.`r`n`r`nfrida must be on PATH or in tools\ for hook bypass. Findings stream here, severity-coloured."
-$tabIcptB.Controls.Add($txtOutB)
-$txtOutB.BringToFront()
+$txtOutB.Text = "Live exploit + credentials console.`r`n`r`nTick the authorization box, then:`r`n  Hook bypass -- flip a native export's return value via frida (e.g. a client-side license / integrity check).`r`n  Dump credential vault -- read this user's Windows Credential Manager entries.`r`n  Credential liveness -- replay a recovered credential (e.g. one captured in Burp) against a live http / sql / ftp service to prove it authenticates.`r`n`r`nfrida must be on PATH or in tools\ for hook bypass. Findings stream here, severity-coloured.`r`n`r`n(Tip: drag the divider above this console up to give the output more room.)"
+# Draggable splitter: controls (top) + output console (bottom). Drag the divider to size the
+# output. Panel1 auto-scrolls, so the controls stay reachable even when dragged small.
+$splitB = New-Object System.Windows.Forms.SplitContainer
+$splitB.Dock = 'Fill'; $splitB.Orientation = 'Horizontal'; $splitB.SplitterWidth = 6
+$splitB.Panel1MinSize = 48; $splitB.Panel2MinSize = 80; $splitB.Panel1.AutoScroll = $true
+$splitB.Panel1.Controls.Add($ctlB)
+$splitB.Panel2.Controls.Add($txtOutB)
+$tabIcptB.Controls.Add($splitB)
+# Set the initial divider once the tab is realised (322 = controls fit exactly; less on a short
+# window). Runs once, as soon as the split has a usable height.
+$script:splitBInit = $false
+$splitB.Add_SizeChanged({
+    if ($script:splitBInit) { return }
+    $h = $splitB.Height
+    if ($h -gt 200) {
+        $d = [Math]::Min(322, $h - $splitB.SplitterWidth - $splitB.Panel2MinSize - 4)
+        if ($d -ge $splitB.Panel1MinSize) { try { $splitB.SplitterDistance = $d; $script:splitBInit = $true } catch {} }
+    }
+})
 
 # ================= TAB: Runtime / Live (live-process analysis) =================
 # Surfaces the read-only Runtime\ checks (E-series) that were CLI-only. Every button
@@ -1005,11 +1033,15 @@ $chkRtGate = New-Object System.Windows.Forms.CheckBox
 $chkRtGate.Text = "I am authorized to test this target -- enable the active (gated) tools (red buttons)"
 $chkRtGate.Location = New-Object System.Drawing.Point(12,40); $chkRtGate.Size = New-Object System.Drawing.Size(620,20)
 $rtTop.Controls.Add($chkRtGate)
+# Clear the output console (findings accumulate as you run checks).
+$btnRtClear = New-Object System.Windows.Forms.Button
+$btnRtClear.Text = "Clear output"; $btnRtClear.Location = New-Object System.Drawing.Point(660,37); $btnRtClear.Size = New-Object System.Drawing.Size(110,26); $btnRtClear.FlatStyle = 'Flat'
+$rtTop.Controls.Add($btnRtClear)
 $tabRt.Controls.Add($rtTop)
 
 # Button grid (Dock=Top). kind: proc / trace / sys / path -- colour-coded.
 $rtBtnPanel = New-Object System.Windows.Forms.Panel
-$rtBtnPanel.Dock = 'Top'; $rtBtnPanel.Height = 156; $rtBtnPanel.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+$rtBtnPanel.Dock = 'Top'; $rtBtnPanel.Height = 120; $rtBtnPanel.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
 $rtRed = [System.Drawing.Color]::FromArgb(240,208,208)
 $rtGrey = [System.Drawing.Color]::FromArgb(230,230,230)
 $rtColour = @{ proc = $rtGrey; mem = $rtGrey; trace = [System.Drawing.Color]::FromArgb(255,235,205); sys = [System.Drawing.Color]::FromArgb(220,235,245); path = [System.Drawing.Color]::FromArgb(225,245,225); 'gui-unlock' = $rtRed; 'pipe-probe' = $rtRed; 'flag-flip' = $rtRed; 'input-fuzz' = $rtRed }
@@ -1048,7 +1080,7 @@ foreach ($s in $rtSpecs) {
     $b.Add_Click([scriptblock]::Create("Invoke-RtCheck '$($s.Fn)' '$($s.K)'"))
     $rtBtnPanel.Controls.Add($b)
     $rcol++
-    if ($rcol -ge 6) { $rcol = 0; $rx = 10; $ry += 36 } else { $rx += 186 }
+    if ($rcol -ge 8) { $rcol = 0; $rx = 10; $ry += 36 } else { $rx += 186 }
 }
 $tabRt.Controls.Add($rtBtnPanel)
 
@@ -1059,6 +1091,11 @@ $txtRt.ReadOnly = $true; $txtRt.WordWrap = $false
 $txtRt.Text = "Runtime / live-process analysis.`r`n`r`nPick the target process (Refresh lists what's running), then click a check:`r`n  grey  = read-only process checks (modules, ports, token, mitigations, DACL, env, mem secrets, handles, windows, memory)`r`n  amber = DLL Hijack Trace -- ETW capture for N seconds; exercise the app during the window (needs admin)`r`n  blue  = system-wide (named pipes, ALPC/mailslots)`r`n  green = target-path checks (COM / named objects / RPC) -- use the Target box at the top`r`n  red   = ACTIVE / gated tools (GUI unlock, pipe probe, flag-flip, input fuzz) -- tick the authorization box first`r`n`r`nFindings stream here, severity-coloured."
 $tabRt.Controls.Add($txtRt)
 $txtRt.BringToFront()
+$btnRtClear.Add_Click({
+    $txtRt.Clear()
+    $txtRt.SelectionColor = [System.Drawing.Color]::FromArgb(150, 150, 150)
+    $txtRt.AppendText("(output cleared -- click a check to run again)`r`n")
+})
 
 # ================= TAB: Asar (unpack + browse an Electron app.asar) =================
 # Self-contained: parses the app.asar layout ([u32@0=4][u32@4=headerSize][u32@8][u32@12=jsonSize]
@@ -1172,13 +1209,19 @@ $lstAsar = New-Object System.Windows.Forms.ListBox
 $lstAsar.Dock = 'Fill'; $lstAsar.Font = New-Object System.Drawing.Font('Consolas', 8.5); $lstAsar.DisplayMember = 'path'; $lstAsar.IntegralHeight = $false
 $lstAsar.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $lstAsar.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lstAsar.BorderStyle = 'None'
 $asarLeft.Controls.Add($lstAsar); $lstAsar.BringToFront()
-$tabAsar.Controls.Add($asarLeft)
+# Nest the Left list + Fill viewer inside a Dock=Fill body panel so the Top strip above spans
+# the FULL width. A Dock=Left panel placed directly on the tab steals the full height and
+# pushes the top row (app.asar path + buttons) into the top-right corner.
+$asarBody = New-Object System.Windows.Forms.Panel
+$asarBody.Dock = 'Fill'
+$asarBody.Controls.Add($asarLeft)
 $txtAsarView = New-Object System.Windows.Forms.RichTextBox
 $txtAsarView.Dock = 'Fill'; $txtAsarView.Font = New-Object System.Drawing.Font('Consolas', 9.5)
 $txtAsarView.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $txtAsarView.ForeColor = [System.Drawing.Color]::White
-$txtAsarView.ReadOnly = $true; $txtAsarView.WordWrap = $false
+$txtAsarView.ReadOnly = $true; $txtAsarView.WordWrap = $false; $txtAsarView.BorderStyle = 'None'
 $txtAsarView.Text = "Extract an app.asar, then click a file on the left to read its JavaScript source here."
-$tabAsar.Controls.Add($txtAsarView); $txtAsarView.BringToFront()
+$asarBody.Controls.Add($txtAsarView); $txtAsarView.BringToFront()
+$tabAsar.Controls.Add($asarBody); $asarBody.BringToFront()
 
 $btnAsarBrowse.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog
@@ -1210,7 +1253,7 @@ $lstAsar.Add_SelectedIndexChanged({
 })
 
 # ================= TAB: Hex View (byte view of any file) =================
-$script:HexPath = ''; $script:HexOffset = [int64]0; $script:HexSize = [int64]0; $script:HexPageSize = 4096
+$script:HexPath = ''; $script:HexOffset = [int64]0; $script:HexSize = [int64]0; $script:HexPageSize = 4096; $script:HexHl = [int64]-1
 function Get-GuiHexText([string]$path, [int64]$offset, [int]$length) {
     if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return @{ error = 'file not found' } }
     if ($length -le 0 -or $length -gt 16384) { $length = 4096 }
@@ -1235,14 +1278,186 @@ function Get-GuiHexText([string]$path, [int64]$offset, [int]$length) {
     }
     return @{ text = $sb.ToString(); size = $total; offset = $offset; count = $count }
 }
+# ImHex-style byte colouring: precompute a byte -> colour-category index (built once).
+#   1 null (dim)  2 whitespace (blue)  3 printable ASCII (green)  4 control (orange)  5 high/extended (purple)
+$script:HexCatIdx = New-Object 'int[]' 256
+for ($v = 0; $v -lt 256; $v++) {
+    if ($v -eq 0) { $script:HexCatIdx[$v] = 1 }
+    elseif ($v -eq 9 -or $v -eq 10 -or $v -eq 13) { $script:HexCatIdx[$v] = 2 }
+    elseif ($v -ge 32 -and $v -le 126) { $script:HexCatIdx[$v] = 3 }
+    elseif ($v -lt 32 -or $v -eq 127) { $script:HexCatIdx[$v] = 4 }
+    else { $script:HexCatIdx[$v] = 5 }
+}
+# Colour-coded RTF for the hex page. Building RTF directly (one assignment) is far faster than
+# thousands of per-byte SelectionColor calls. colortbl: 1 dim, 2 blue, 3 green, 4 orange, 5 purple,
+# 6 separator-grey, 7 teal (offset gutter).
+function Get-GuiHexRtf([string]$path, [int64]$offset, [int]$length) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return @{ error = 'file not found' } }
+    if ($length -le 0 -or $length -gt 16384) { $length = 4096 }
+    if ($offset -lt 0) { $offset = 0 }
+    $total = [int64](Get-Item -LiteralPath $path).Length
+    if ($offset -ge $total) { return @{ rtf = ''; size = $total; offset = $offset; count = 0 } }
+    $count = [int][Math]::Min([int64]$length, $total - $offset)
+    $buf = New-Object 'byte[]' $count
+    $fsr = [System.IO.File]::OpenRead($path)
+    try { [void]$fsr.Seek($offset, 'Begin'); [void]$fsr.Read($buf, 0, $count) } finally { $fsr.Dispose() }
+    $sb = New-Object System.Text.StringBuilder (($count * 22) + 512)
+    [void]$sb.Append('{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}')
+    [void]$sb.Append('{\colortbl;\red90\green90\blue90;\red97\green175\blue239;\red152\green195\blue121;\red209\green154\blue102;\red198\green120\blue221;\red160\green160\blue160;\red78\green201\blue176;}')
+    [void]$sb.Append('\f0\fs19 ')
+    $cat = $script:HexCatIdx
+    for ($i = 0; $i -lt $count; $i += 16) {
+        $n = [Math]::Min(16, $count - $i)
+        [void]$sb.Append('\cf7 ').AppendFormat('{0:x8}  ', ($offset + $i))
+        $asc = New-Object System.Text.StringBuilder 128
+        for ($j = 0; $j -lt 16; $j++) {
+            if ($j -lt $n) {
+                $bv = $buf[$i + $j]; $ci = $cat[$bv]
+                [void]$sb.Append('\cf').Append($ci).Append(' ').AppendFormat('{0:x2} ', $bv)
+                if ($bv -ge 32 -and $bv -le 126) {
+                    $ch = [char]$bv
+                    [void]$asc.Append('\cf').Append($ci).Append(' ')
+                    if ($ch -eq '\' -or $ch -eq '{' -or $ch -eq '}') { [void]$asc.Append('\') }
+                    [void]$asc.Append($ch)
+                } else {
+                    [void]$asc.Append('\cf1 .')
+                }
+            } else {
+                [void]$sb.Append('   ')
+            }
+            if ($j -eq 7) { [void]$sb.Append(' ') }
+        }
+        [void]$sb.Append('\cf6  |').Append($asc.ToString()).Append('\cf6 |\par ')
+    }
+    [void]$sb.Append('}')
+    return @{ rtf = $sb.ToString(); size = $total; offset = $offset; count = $count }
+}
+# Data Inspector: the 16 bytes at an offset interpreted as typed values.
+function Get-GuiHexInspect([string]$path, [int64]$offset) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return @() }
+    if ($offset -lt 0) { $offset = 0 }
+    $total = [int64](Get-Item -LiteralPath $path).Length
+    if ($offset -ge $total) { return @() }
+    $n = [int][Math]::Min([int64]16, $total - $offset)
+    $buf = New-Object 'byte[]' 16
+    $fsr = [System.IO.File]::OpenRead($path)
+    try { [void]$fsr.Seek($offset, 'Begin'); [void]$fsr.Read($buf, 0, $n) } finally { $fsr.Dispose() }
+    $be = { param($len) $c = New-Object 'byte[]' $len; [System.Array]::Copy($buf, 0, $c, 0, $len); [System.Array]::Reverse($c); , $c }
+    $o = New-Object System.Collections.Generic.List[object]
+    $add = { param($k, $v) $o.Add([pscustomobject]@{ n = $k; v = "$v" }) }
+    & $add 'int8'      ([sbyte]$buf[0]);           & $add 'uint8'     ($buf[0])
+    & $add 'int16 LE'  ([System.BitConverter]::ToInt16($buf, 0));  & $add 'int16 BE'  ([System.BitConverter]::ToInt16((& $be 2), 0))
+    & $add 'uint16 LE' ([System.BitConverter]::ToUInt16($buf, 0)); & $add 'uint16 BE' ([System.BitConverter]::ToUInt16((& $be 2), 0))
+    & $add 'int32 LE'  ([System.BitConverter]::ToInt32($buf, 0));  & $add 'int32 BE'  ([System.BitConverter]::ToInt32((& $be 4), 0))
+    & $add 'uint32 LE' ([System.BitConverter]::ToUInt32($buf, 0)); & $add 'uint32 BE' ([System.BitConverter]::ToUInt32((& $be 4), 0))
+    & $add 'int64 LE'  ([System.BitConverter]::ToInt64($buf, 0));  & $add 'uint64 LE' ([System.BitConverter]::ToUInt64($buf, 0))
+    & $add 'float LE'  ([System.BitConverter]::ToSingle($buf, 0)); & $add 'double LE' ([System.BitConverter]::ToDouble($buf, 0))
+    $asc = -join (0..([Math]::Min(15, $n - 1)) | ForEach-Object { $b = $buf[$_]; if ($b -ge 32 -and $b -lt 127) { [char]$b } else { '.' } })
+    & $add 'ASCII' $asc
+    try { $u = [System.BitConverter]::ToUInt32($buf, 0); if ($u -gt 0 -and $u -lt 4102444800) { & $add 'u32 epoch' ([System.DateTimeOffset]::FromUnixTimeSeconds($u).UtcDateTime.ToString('u')) } } catch { }
+    return $o.ToArray()
+}
+# Byte search: offset of the next 'hex'/'ascii' match at/after $from, or -1 (or negative code on error).
+function Find-GuiHexOffset([string]$path, [string]$query, [string]$kind, [int64]$from) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return [int64]-1 }
+    if (-not $query) { return [int64]-1 }
+    if ((Get-Item -LiteralPath $path).Length -gt 300MB) { return [int64]-2 }
+    $needle = $null
+    if ($kind -eq 'hex') {
+        $hx = ($query -replace '[^0-9a-fA-F]', ''); if ($hx.Length -lt 2 -or ($hx.Length % 2)) { return [int64]-3 }
+        $needle = [byte[]](0..(($hx.Length / 2) - 1) | ForEach-Object { [Convert]::ToByte($hx.Substring($_ * 2, 2), 16) })
+    } else { $needle = [System.Text.Encoding]::ASCII.GetBytes($query) }
+    $bytes = [System.IO.File]::ReadAllBytes($path)
+    $nlen = $needle.Length; if (-not $nlen) { return [int64]-1 }
+    $lim = $bytes.Length - $nlen
+    for ($i = [int]([Math]::Max([int64]0, $from)); $i -le $lim; $i++) {
+        $ok = $true; for ($j = 0; $j -lt $nlen; $j++) { if ($bytes[$i + $j] -ne $needle[$j]) { $ok = $false; break } }
+        if ($ok) { return [int64]$i }
+    }
+    return [int64]-1
+}
+# Extract printable ASCII + UTF-16LE ("wide") strings with their byte offsets, so a name /
+# URL / path can be clicked to jump into the hex view. $filter narrows (case-insensitive
+# substring) -- the "find a name" case. Regex over a Latin1 view keeps every offset exact.
+function Get-GuiHexStrings([string]$path, [int]$min, [string]$filter, [string]$kind, [int]$cap) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return @{ error = 'file not found' } }
+    if ((Get-Item -LiteralPath $path).Length -gt 300MB) { return @{ error = 'file too large to scan' } }
+    if ($min -lt 2) { $min = 2 } elseif ($min -gt 200) { $min = 200 }
+    if ($cap -lt 1) { $cap = 1 } elseif ($cap -gt 20000) { $cap = 20000 }
+    $bytes = [System.IO.File]::ReadAllBytes($path)
+    $text = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes)   # Latin1: 1 byte <-> 1 char
+    $flt = "$filter"
+    $cmp = [System.StringComparison]::OrdinalIgnoreCase
+    $hits = New-Object System.Collections.Generic.List[object]
+    $total = 0
+    if ($kind -eq 'both' -or $kind -eq 'ascii') {
+        foreach ($m in ([regex]::Matches($text, "[\x20-\x7E]{$min,}"))) {
+            $v = $m.Value
+            if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
+            $total++
+            if ($hits.Count -lt $cap) { if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }; $hits.Add([pscustomobject]@{ offset = [int64]$m.Index; kind = 'a'; text = $v }) }
+        }
+    }
+    if ($kind -eq 'both' -or $kind -eq 'wide') {
+        foreach ($m in ([regex]::Matches($text, "(?:[\x20-\x7E]\x00){$min,}"))) {
+            $v = [System.Text.Encoding]::Unicode.GetString($bytes, $m.Index, $m.Length)
+            if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
+            $total++
+            if ($hits.Count -lt $cap) { if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }; $hits.Add([pscustomobject]@{ offset = [int64]$m.Index; kind = 'w'; text = $v }) }
+        }
+    }
+    $items = @($hits | Sort-Object offset)
+    return @{ items = $items; total = $total; capped = [bool]($total -gt $items.Count) }
+}
+# Button handler: scan, fill the results list, show it.
+function Do-GuiHexStrings {
+    $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHexSInfo.Text = 'load a file first'; return }
+    $min = 0; [void][int]::TryParse($txtHexSMin.Text.Trim(), [ref]$min); if ($min -lt 2) { $min = 4 }
+    $k = [string]$cmbHexSKind.SelectedItem; if ($k -eq 'ascii+wide') { $k = 'both' }
+    $lblHexSInfo.Text = 'scanning...'; $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
+    $r = Get-GuiHexStrings $p $min $txtHexSFilter.Text $k 2000
+    $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    if ($r.error) { $lblHexSInfo.Text = $r.error; return }
+    $lvHexStr.Visible = $true; $lvHexStr.BeginUpdate(); $lvHexStr.Items.Clear()
+    foreach ($x in $r.items) {
+        $it = New-Object System.Windows.Forms.ListViewItem("0x$([Convert]::ToString([int64]$x.offset,16))")
+        [void]$it.SubItems.Add($x.kind); [void]$it.SubItems.Add($x.text); $it.Tag = [int64]$x.offset
+        [void]$lvHexStr.Items.Add($it)
+    }
+    $lvHexStr.EndUpdate()
+    $lblHexSInfo.Text = "$($r.total) match$(if($r.total -eq 1){''}else{'es'})$(if($r.capped){" (showing first $($r.items.Count))"}else{''})"
+}
 function Load-GuiHex([int64]$off) {
     $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHex.Text = 'enter a file path'; return }
     if ($off -lt 0) { $off = 0 }
-    $r = Get-GuiHexText $p $off $script:HexPageSize
+    $r = Get-GuiHexRtf $p $off $script:HexPageSize
     if ($r.error) { $lblHex.Text = "Error: $($r.error)"; $txtHex.Text = ''; return }
     $script:HexPath = $p; $script:HexOffset = $off; $script:HexSize = $r.size
-    $txtHex.Text = $r.text
-    $lblHex.Text = "$(Split-Path $p -Leaf) -- $($r.size) bytes, offset $off ($($r.count) shown)"
+    if ($r.rtf) { $txtHex.Rtf = $r.rtf } else { $txtHex.Text = '' }
+    $lblHex.Text = "$(Split-Path $p -Leaf) -- $($r.size) bytes, offset 0x$([Convert]::ToString($off,16)) ($($r.count) shown)"
+    # highlight the row holding $script:HexHl (if it falls in this page)
+    if ($script:HexHl -ge $off -and $script:HexHl -lt ($off + $r.count)) {
+        $rowIdx = [int](($script:HexHl - $off) / 16)
+        try {
+            $ls = $txtHex.GetFirstCharIndexFromLine($rowIdx)
+            if ($ls -ge 0) {
+                $le = $txtHex.GetFirstCharIndexFromLine($rowIdx + 1)
+                $len = if ($le -gt $ls) { $le - $ls - 1 } else { $txtHex.TextLength - $ls }
+                $txtHex.Select($ls, [Math]::Max(0, $len)); $txtHex.SelectionBackColor = [System.Drawing.Color]::FromArgb(40, 70, 110)
+                $txtHex.Select($ls, 0); $txtHex.ScrollToCaret()
+            }
+        } catch { }
+    }
+}
+# Inspect an offset: fill the inspector list + highlight. Reads the offset box when $off < 0.
+function Do-GuiHexInspect([int64]$off) {
+    if ($off -lt 0) { try { $off = [Convert]::ToInt64(($txtHexInsIn.Text.Trim() -replace '^0x', ''), 16) } catch { $off = 0 } }
+    $script:HexHl = $off; $txtHexInsIn.Text = [Convert]::ToString($off, 16); $lblHexInsOff.Text = "offset 0x$([Convert]::ToString($off,16))"
+    # render the page holding the offset first (sets $script:HexPath + moves the highlight)
+    if ($off -ge $script:HexOffset -and $off -lt ($script:HexOffset + $script:HexPageSize) -and $script:HexPath) { Load-GuiHex $script:HexOffset } else { $pg = [int64]([Math]::Floor($off / $script:HexPageSize) * $script:HexPageSize); Load-GuiHex $pg }
+    $lvHexIns.BeginUpdate(); $lvHexIns.Items.Clear()
+    foreach ($row in (Get-GuiHexInspect $script:HexPath $off)) { $it = New-Object System.Windows.Forms.ListViewItem($row.n); [void]$it.SubItems.Add($row.v); [void]$lvHexIns.Items.Add($it) }
+    $lvHexIns.EndUpdate()
 }
 
 $tabHex = New-Object System.Windows.Forms.TabPage
@@ -1250,7 +1465,7 @@ $tabHex.Text = '  Hex View  '
 $tabHex.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 [void]$tabs.TabPages.Add($tabHex)
 $hexTop = New-Object System.Windows.Forms.Panel
-$hexTop.Dock = 'Top'; $hexTop.Height = 68; $hexTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$hexTop.Dock = 'Top'; $hexTop.Height = 96; $hexTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 $lblHexT = New-Object System.Windows.Forms.Label
 $lblHexT.Text = "File:"; $lblHexT.Location = New-Object System.Drawing.Point(12, 14); $lblHexT.Size = New-Object System.Drawing.Size(40, 18)
 $hexTop.Controls.Add($lblHexT)
@@ -1264,36 +1479,412 @@ $btnHexLoad = New-Object System.Windows.Forms.Button
 $btnHexLoad.Text = "Load"; $btnHexLoad.Location = New-Object System.Drawing.Point(748, 10); $btnHexLoad.Size = New-Object System.Drawing.Size(64, 26)
 $btnHexLoad.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnHexLoad.ForeColor = [System.Drawing.Color]::White; $btnHexLoad.FlatStyle = 'Flat'
 $hexTop.Controls.Add($btnHexLoad)
+# Row 2 (y=42): paging + go-to + find
 $btnHexPrev = New-Object System.Windows.Forms.Button
-$btnHexPrev.Text = "< Prev"; $btnHexPrev.Location = New-Object System.Drawing.Point(818, 10); $btnHexPrev.Size = New-Object System.Drawing.Size(68, 26)
+$btnHexPrev.Text = "< Prev"; $btnHexPrev.Location = New-Object System.Drawing.Point(12, 42); $btnHexPrev.Size = New-Object System.Drawing.Size(64, 26)
 $hexTop.Controls.Add($btnHexPrev)
 $btnHexNext = New-Object System.Windows.Forms.Button
-$btnHexNext.Text = "Next >"; $btnHexNext.Location = New-Object System.Drawing.Point(892, 10); $btnHexNext.Size = New-Object System.Drawing.Size(68, 26)
+$btnHexNext.Text = "Next >"; $btnHexNext.Location = New-Object System.Drawing.Point(80, 42); $btnHexNext.Size = New-Object System.Drawing.Size(64, 26)
 $hexTop.Controls.Add($btnHexNext)
+$lblHexGoto = New-Object System.Windows.Forms.Label
+$lblHexGoto.Text = "go to (hex):"; $lblHexGoto.Location = New-Object System.Drawing.Point(158, 47); $lblHexGoto.Size = New-Object System.Drawing.Size(74, 18)
+$hexTop.Controls.Add($lblHexGoto)
+$txtHexGoto = New-Object System.Windows.Forms.TextBox
+$txtHexGoto.Location = New-Object System.Drawing.Point(232, 44); $txtHexGoto.Size = New-Object System.Drawing.Size(90, 22); $txtHexGoto.Font = New-Object System.Drawing.Font('Consolas', 9)
+$hexTop.Controls.Add($txtHexGoto)
+$btnHexGo = New-Object System.Windows.Forms.Button
+$btnHexGo.Text = "Go"; $btnHexGo.Location = New-Object System.Drawing.Point(326, 42); $btnHexGo.Size = New-Object System.Drawing.Size(50, 26)
+$hexTop.Controls.Add($btnHexGo)
+$lblHexFind = New-Object System.Windows.Forms.Label
+$lblHexFind.Text = "find:"; $lblHexFind.Location = New-Object System.Drawing.Point(392, 47); $lblHexFind.Size = New-Object System.Drawing.Size(34, 18)
+$hexTop.Controls.Add($lblHexFind)
+$txtHexFind = New-Object System.Windows.Forms.TextBox
+$txtHexFind.Location = New-Object System.Drawing.Point(426, 44); $txtHexFind.Size = New-Object System.Drawing.Size(160, 22); $txtHexFind.Font = New-Object System.Drawing.Font('Consolas', 9)
+$hexTop.Controls.Add($txtHexFind)
+$cmbHexKind = New-Object System.Windows.Forms.ComboBox
+$cmbHexKind.Location = New-Object System.Drawing.Point(592, 44); $cmbHexKind.Size = New-Object System.Drawing.Size(70, 24); $cmbHexKind.DropDownStyle = 'DropDownList'
+@('ascii', 'hex') | ForEach-Object { [void]$cmbHexKind.Items.Add($_) }; $cmbHexKind.SelectedIndex = 0
+$hexTop.Controls.Add($cmbHexKind)
+$btnHexFind = New-Object System.Windows.Forms.Button
+$btnHexFind.Text = "Find next"; $btnHexFind.Location = New-Object System.Drawing.Point(668, 42); $btnHexFind.Size = New-Object System.Drawing.Size(84, 26)
+$hexTop.Controls.Add($btnHexFind)
+# Strings controls -- placed on row 2 (y=42), in the empty space to the RIGHT of "Find next".
+# List printable ASCII/wide strings (names, URLs, paths), filterable.
+$hexSep = New-Object System.Windows.Forms.Label
+$hexSep.Text = ''; $hexSep.Location = New-Object System.Drawing.Point(766, 44); $hexSep.Size = New-Object System.Drawing.Size(2, 26); $hexSep.BackColor = [System.Drawing.Color]::FromArgb(205, 205, 205)
+$hexTop.Controls.Add($hexSep)
+$lblHexSMinL = New-Object System.Windows.Forms.Label
+$lblHexSMinL.Text = "strings min:"; $lblHexSMinL.Location = New-Object System.Drawing.Point(782, 47); $lblHexSMinL.Size = New-Object System.Drawing.Size(72, 18)
+$hexTop.Controls.Add($lblHexSMinL)
+$txtHexSMin = New-Object System.Windows.Forms.TextBox
+$txtHexSMin.Text = "4"; $txtHexSMin.Location = New-Object System.Drawing.Point(856, 44); $txtHexSMin.Size = New-Object System.Drawing.Size(40, 22); $txtHexSMin.Font = New-Object System.Drawing.Font('Consolas', 9)
+$hexTop.Controls.Add($txtHexSMin)
+$lblHexSFilterL = New-Object System.Windows.Forms.Label
+$lblHexSFilterL.Text = "filter:"; $lblHexSFilterL.Location = New-Object System.Drawing.Point(902, 47); $lblHexSFilterL.Size = New-Object System.Drawing.Size(40, 18)
+$hexTop.Controls.Add($lblHexSFilterL)
+$txtHexSFilter = New-Object System.Windows.Forms.TextBox
+$txtHexSFilter.Location = New-Object System.Drawing.Point(942, 44); $txtHexSFilter.Size = New-Object System.Drawing.Size(150, 22); $txtHexSFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
+$hexTop.Controls.Add($txtHexSFilter)
+$cmbHexSKind = New-Object System.Windows.Forms.ComboBox
+$cmbHexSKind.Location = New-Object System.Drawing.Point(1098, 44); $cmbHexSKind.Size = New-Object System.Drawing.Size(100, 24); $cmbHexSKind.DropDownStyle = 'DropDownList'
+@('ascii+wide', 'ascii', 'wide') | ForEach-Object { [void]$cmbHexSKind.Items.Add($_) }; $cmbHexSKind.SelectedIndex = 0
+$hexTop.Controls.Add($cmbHexSKind)
+$btnHexStrings = New-Object System.Windows.Forms.Button
+$btnHexStrings.Text = "List strings"; $btnHexStrings.Location = New-Object System.Drawing.Point(1204, 42); $btnHexStrings.Size = New-Object System.Drawing.Size(96, 26)
+$hexTop.Controls.Add($btnHexStrings)
+$lblHexSInfo = New-Object System.Windows.Forms.Label
+$lblHexSInfo.Location = New-Object System.Drawing.Point(1306, 47); $lblHexSInfo.Size = New-Object System.Drawing.Size(260, 18); $lblHexSInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$hexTop.Controls.Add($lblHexSInfo)
 $lblHex = New-Object System.Windows.Forms.Label
-$lblHex.Location = New-Object System.Drawing.Point(12, 44); $lblHex.Size = New-Object System.Drawing.Size(1030, 18)
-$lblHex.Text = "Enter a file path (a native DLL, or a file from an extracted asar), then Load. Paged 4 KB at a time (Prev / Next)."
+$lblHex.Location = New-Object System.Drawing.Point(12, 74); $lblHex.Size = New-Object System.Drawing.Size(1030, 18)
+$lblHex.Text = "Enter a file path (a native DLL, or a file from an extracted asar), then Load. Go to an offset, find a hex/ASCII pattern, list strings, or click a row to inspect."
 $lblHex.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
 $hexTop.Controls.Add($lblHex)
 $tabHex.Controls.Add($hexTop)
+
+# Body: hex view (Fill) on the left + Data Inspector (Dock=Right) -- nested in a Fill container
+# so the top strip spans the full width.
+$hexBody = New-Object System.Windows.Forms.Panel
+$hexBody.Dock = 'Fill'
+$hexInsPanel = New-Object System.Windows.Forms.Panel
+$hexInsPanel.Dock = 'Right'; $hexInsPanel.Width = 300; $hexInsPanel.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$hexInsTop = New-Object System.Windows.Forms.Panel
+$hexInsTop.Dock = 'Top'; $hexInsTop.Height = 84; $hexInsTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$lblHexInsHdr = New-Object System.Windows.Forms.Label
+$lblHexInsHdr.Text = "DATA INSPECTOR"; $lblHexInsHdr.Location = New-Object System.Drawing.Point(8, 6); $lblHexInsHdr.Size = New-Object System.Drawing.Size(200, 16); $lblHexInsHdr.ForeColor = [System.Drawing.Color]::FromArgb(200, 205, 210); $lblHexInsHdr.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$hexInsTop.Controls.Add($lblHexInsHdr)
+$lblHexInsOff = New-Object System.Windows.Forms.Label
+$lblHexInsOff.Text = "offset 0x0"; $lblHexInsOff.Location = New-Object System.Drawing.Point(8, 26); $lblHexInsOff.Size = New-Object System.Drawing.Size(200, 16); $lblHexInsOff.ForeColor = [System.Drawing.Color]::FromArgb(78, 201, 176)
+$hexInsTop.Controls.Add($lblHexInsOff)
+$lblHexInsIn2 = New-Object System.Windows.Forms.Label
+$lblHexInsIn2.Text = "offset (hex):"; $lblHexInsIn2.Location = New-Object System.Drawing.Point(8, 54); $lblHexInsIn2.Size = New-Object System.Drawing.Size(80, 16); $lblHexInsIn2.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexInsTop.Controls.Add($lblHexInsIn2)
+$txtHexInsIn = New-Object System.Windows.Forms.TextBox
+$txtHexInsIn.Location = New-Object System.Drawing.Point(90, 51); $txtHexInsIn.Size = New-Object System.Drawing.Size(90, 22); $txtHexInsIn.Font = New-Object System.Drawing.Font('Consolas', 9); $txtHexInsIn.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexInsIn.ForeColor = [System.Drawing.Color]::White; $txtHexInsIn.BorderStyle = 'FixedSingle'
+$hexInsTop.Controls.Add($txtHexInsIn)
+$btnHexInspect = New-Object System.Windows.Forms.Button
+$btnHexInspect.Text = "Inspect"; $btnHexInspect.Location = New-Object System.Drawing.Point(188, 50); $btnHexInspect.Size = New-Object System.Drawing.Size(84, 24); $btnHexInspect.FlatStyle = 'Flat'; $btnHexInspect.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230)
+$hexInsTop.Controls.Add($btnHexInspect)
+$hexInsPanel.Controls.Add($hexInsTop)
+$lvHexIns = New-Object System.Windows.Forms.ListView
+$lvHexIns.Dock = 'Fill'; $lvHexIns.View = 'Details'; $lvHexIns.FullRowSelect = $true; $lvHexIns.GridLines = $false; $lvHexIns.HeaderStyle = 'Nonclickable'
+$lvHexIns.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexIns.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexIns.Font = New-Object System.Drawing.Font('Consolas', 9)
+[void]$lvHexIns.Columns.Add('Field', 110); [void]$lvHexIns.Columns.Add('Value', 168)
+$hexInsPanel.Controls.Add($lvHexIns); $lvHexIns.BringToFront()
+$hexBody.Controls.Add($hexInsPanel)
+# Center column: hex view (Fill) + strings results (Bottom, hidden until "List strings").
+$hexCenter = New-Object System.Windows.Forms.Panel
+$hexCenter.Dock = 'Fill'
+$lvHexStr = New-Object System.Windows.Forms.ListView
+$lvHexStr.Dock = 'Bottom'; $lvHexStr.Height = 180; $lvHexStr.Visible = $false
+$lvHexStr.View = 'Details'; $lvHexStr.FullRowSelect = $true; $lvHexStr.GridLines = $false; $lvHexStr.HeaderStyle = 'Nonclickable'; $lvHexStr.MultiSelect = $false
+$lvHexStr.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexStr.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexStr.Font = New-Object System.Drawing.Font('Consolas', 9)
+[void]$lvHexStr.Columns.Add('Offset', 90); [void]$lvHexStr.Columns.Add('K', 34); [void]$lvHexStr.Columns.Add('String (click to jump)', 1200)
+$hexCenter.Controls.Add($lvHexStr)
 $txtHex = New-Object System.Windows.Forms.RichTextBox
 $txtHex.Dock = 'Fill'; $txtHex.Font = New-Object System.Drawing.Font('Consolas', 9.5)
 $txtHex.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18); $txtHex.ForeColor = [System.Drawing.Color]::FromArgb(210, 210, 210)
-$txtHex.ReadOnly = $true; $txtHex.WordWrap = $false
-$tabHex.Controls.Add($txtHex); $txtHex.BringToFront()
+$txtHex.ReadOnly = $true; $txtHex.WordWrap = $false; $txtHex.BorderStyle = 'None'; $txtHex.HideSelection = $false
+$hexCenter.Controls.Add($txtHex); $txtHex.BringToFront()
+$hexBody.Controls.Add($hexCenter); $hexCenter.BringToFront()
+$tabHex.Controls.Add($hexBody); $hexBody.BringToFront()
 $btnHexBrowse.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog; $dlg.Filter = "All files (*.*)|*.*"
     if ($dlg.ShowDialog() -eq 'OK') { $txtHexPath.Text = $dlg.FileName }
 })
-$btnHexLoad.Add_Click({ Load-GuiHex 0 })
+$btnHexLoad.Add_Click({ $script:HexHl = [int64]-1; Load-GuiHex 0 })
 $btnHexPrev.Add_Click({ Load-GuiHex ($script:HexOffset - $script:HexPageSize) })
 $btnHexNext.Add_Click({ if (-not $script:HexSize -or ($script:HexOffset + $script:HexPageSize) -lt $script:HexSize) { Load-GuiHex ($script:HexOffset + $script:HexPageSize) } })
+$btnHexInspect.Add_Click({ Do-GuiHexInspect ([int64]-1) })
+$btnHexGo.Add_Click({ try { $o = [Convert]::ToInt64(($txtHexGoto.Text.Trim() -replace '^0x', ''), 16) } catch { $lblHex.Text = 'bad hex offset'; return }; Do-GuiHexInspect $o })
+$btnHexFind.Add_Click({
+    $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHex.Text = 'load a file first'; return }
+    $q = $txtHexFind.Text; if (-not $q) { $lblHex.Text = 'enter a search'; return }
+    $from = if ($script:HexHl -ge 0) { $script:HexHl + 1 } else { [int64]0 }
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
+    $o = Find-GuiHexOffset $p $q ([string]$cmbHexKind.SelectedItem) $from
+    $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    if ($o -eq [int64]-2) { $lblHex.Text = 'file too large to search' }
+    elseif ($o -eq [int64]-3) { $lblHex.Text = 'hex needs an even number of hex digits' }
+    elseif ($o -lt 0) { $lblHex.Text = "no match from 0x$([Convert]::ToString($from,16))" }
+    else { Do-GuiHexInspect $o; $lblHex.Text = "match at 0x$([Convert]::ToString($o,16))" }
+})
+$txtHex.Add_MouseUp({
+    if (-not $script:HexPath) { return }
+    try { $ci = $txtHex.GetCharIndexFromPosition($_.Location); $line = $txtHex.GetLineFromCharIndex($ci); $off = $script:HexOffset + ($line * 16); Do-GuiHexInspect $off } catch { }
+})
+$btnHexStrings.Add_Click({ Do-GuiHexStrings })
+$lvHexStr.Add_Click({ if ($lvHexStr.SelectedItems.Count -and $null -ne $lvHexStr.SelectedItems[0].Tag) { Do-GuiHexInspect ([int64]$lvHexStr.SelectedItems[0].Tag) } })
 
 # Wire the Asar "Hex view" button (created in the Asar top row) now that the Hex tab exists.
 $btnAsarHex.Add_Click({
     if (-not $script:AsarLastFull) { $lblAsar.Text = "Select a file first, then Hex view."; return }
     $txtHexPath.Text = $script:AsarLastFull; $tabs.SelectedTab = $tabHex; Load-GuiHex 0
 })
+
+# ================= TAB: Process Monitor (live watch + activity capture) =================
+# One tab, two clickable modes sharing a target picker + console:
+#   Live watch       -- re-render a target's live state (path, memory, handles, threads,
+#                       modules, TCP connections, child processes) every N seconds.
+#   Activity capture -- baseline the target, then poll for N seconds and LOG new module loads,
+#                       new TCP connections, and new child processes with timestamps. Poll-based
+#                       and driver-free (not a kernel Procmon), but shows what the app does live.
+$tabPmon = New-Object System.Windows.Forms.TabPage
+$tabPmon.Text = '  Process Monitor  '
+$tabPmon.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+[void]$tabs.TabPages.Add($tabPmon)
+
+$script:PmonMode = 'live'
+$script:PmonRunning = $false
+$script:PmonPid = 0
+$script:PmonSeenMod = $null; $script:PmonSeenConn = $null; $script:PmonSeenChild = $null
+$script:PmonCaptureEnd = $null
+$script:PmonTimer = New-Object System.Windows.Forms.Timer
+$script:PmonTimer.Interval = 2000
+
+$pmGreen = [System.Drawing.Color]::FromArgb(166, 226, 46)
+$pmCyan  = [System.Drawing.Color]::FromArgb(102, 217, 239)
+$pmYellow = [System.Drawing.Color]::FromArgb(214, 137, 16)
+$pmGrey  = [System.Drawing.Color]::FromArgb(150, 150, 150)
+
+$pmonTop = New-Object System.Windows.Forms.Panel
+$pmonTop.Dock = 'Top'; $pmonTop.Height = 84; $pmonTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+# Row 1: mode buttons + process picker
+$btnPmLive = New-Object System.Windows.Forms.Button
+$btnPmLive.Text = "Live watch"; $btnPmLive.Location = New-Object System.Drawing.Point(12, 10); $btnPmLive.Size = New-Object System.Drawing.Size(110, 28); $btnPmLive.FlatStyle = 'Flat'
+$pmonTop.Controls.Add($btnPmLive)
+$btnPmCap = New-Object System.Windows.Forms.Button
+$btnPmCap.Text = "Activity capture"; $btnPmCap.Location = New-Object System.Drawing.Point(126, 10); $btnPmCap.Size = New-Object System.Drawing.Size(130, 28); $btnPmCap.FlatStyle = 'Flat'
+$pmonTop.Controls.Add($btnPmCap)
+$lblPmProc = New-Object System.Windows.Forms.Label
+$lblPmProc.Text = "Process:"; $lblPmProc.Location = New-Object System.Drawing.Point(284, 16); $lblPmProc.Size = New-Object System.Drawing.Size(56, 18)
+$pmonTop.Controls.Add($lblPmProc)
+$cmbPmProc = New-Object System.Windows.Forms.ComboBox
+$cmbPmProc.Location = New-Object System.Drawing.Point(340, 12); $cmbPmProc.Size = New-Object System.Drawing.Size(260, 24); $cmbPmProc.DropDownStyle = 'DropDown'
+$pmonTop.Controls.Add($cmbPmProc)
+$btnPmRefresh = New-Object System.Windows.Forms.Button
+$btnPmRefresh.Text = "Refresh"; $btnPmRefresh.Location = New-Object System.Drawing.Point(606, 11); $btnPmRefresh.Size = New-Object System.Drawing.Size(74, 26)
+$pmonTop.Controls.Add($btnPmRefresh)
+$lblPmFilter = New-Object System.Windows.Forms.Label
+$lblPmFilter.Text = "Module filter:"; $lblPmFilter.Location = New-Object System.Drawing.Point(694, 16); $lblPmFilter.Size = New-Object System.Drawing.Size(82, 18)
+$pmonTop.Controls.Add($lblPmFilter)
+$txtPmonFilter = New-Object System.Windows.Forms.TextBox
+$txtPmonFilter.Location = New-Object System.Drawing.Point(778, 12); $txtPmonFilter.Size = New-Object System.Drawing.Size(180, 24); $txtPmonFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
+$pmonTop.Controls.Add($txtPmonFilter)
+# Row 2: interval / duration + start + stop + status
+$lblPmNum = New-Object System.Windows.Forms.Label
+$lblPmNum.Text = "Refresh interval (s):"; $lblPmNum.Location = New-Object System.Drawing.Point(12, 51); $lblPmNum.Size = New-Object System.Drawing.Size(210, 18)
+$pmonTop.Controls.Add($lblPmNum)
+$numPmNum = New-Object System.Windows.Forms.NumericUpDown
+$numPmNum.Location = New-Object System.Drawing.Point(226, 48); $numPmNum.Size = New-Object System.Drawing.Size(60, 24); $numPmNum.Minimum = 0; $numPmNum.Maximum = 3600; $numPmNum.Value = 2
+$pmonTop.Controls.Add($numPmNum)
+$btnPmStart = New-Object System.Windows.Forms.Button
+$btnPmStart.Text = "Start"; $btnPmStart.Location = New-Object System.Drawing.Point(296, 47); $btnPmStart.Size = New-Object System.Drawing.Size(80, 28)
+$btnPmStart.BackColor = [System.Drawing.Color]::FromArgb(39, 121, 78); $btnPmStart.ForeColor = [System.Drawing.Color]::White; $btnPmStart.FlatStyle = 'Flat'
+$pmonTop.Controls.Add($btnPmStart)
+$btnPmStop = New-Object System.Windows.Forms.Button
+$btnPmStop.Text = "Stop"; $btnPmStop.Location = New-Object System.Drawing.Point(382, 47); $btnPmStop.Size = New-Object System.Drawing.Size(80, 28); $btnPmStop.Enabled = $false; $btnPmStop.FlatStyle = 'Flat'
+$pmonTop.Controls.Add($btnPmStop)
+$btnPmSave = New-Object System.Windows.Forms.Button
+$btnPmSave.Text = "Save output..."; $btnPmSave.Location = New-Object System.Drawing.Point(470, 47); $btnPmSave.Size = New-Object System.Drawing.Size(104, 28); $btnPmSave.FlatStyle = 'Flat'
+$pmonTop.Controls.Add($btnPmSave)
+$lblPmStatus = New-Object System.Windows.Forms.Label
+$lblPmStatus.Location = New-Object System.Drawing.Point(584, 52); $lblPmStatus.Size = New-Object System.Drawing.Size(540, 18); $lblPmStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblPmStatus.Text = "Pick a mode, choose a process (Refresh), set the interval / duration, then Start."
+$pmonTop.Controls.Add($lblPmStatus)
+$tabPmon.Controls.Add($pmonTop)
+
+$txtPmon = New-Object System.Windows.Forms.RichTextBox
+$txtPmon.Dock = 'Fill'; $txtPmon.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtPmon.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18); $txtPmon.ForeColor = [System.Drawing.Color]::FromArgb(210, 210, 210)
+$txtPmon.ReadOnly = $true; $txtPmon.WordWrap = $false
+$txtPmon.Text = "Process Monitor.`r`n`r`n  Live watch      -- continuously re-renders one process's state (path, memory, handles, threads, modules, TCP connections, child processes).`r`n  Activity capture -- baselines the process, then logs NEW module loads / TCP connections / child processes over N seconds (exercise the app during the window).`r`n`r`nRead-only. Pick a mode above, choose a process, then Start. Some fields need admin for protected processes."
+$tabPmon.Controls.Add($txtPmon); $txtPmon.BringToFront()
+
+function Set-PmonMode([string]$m) {
+    if ($script:PmonRunning) { return }
+    $script:PmonMode = $m
+    if ($m -eq 'live') {
+        $btnPmLive.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnPmLive.ForeColor = [System.Drawing.Color]::White
+        $btnPmCap.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230); $btnPmCap.ForeColor = [System.Drawing.Color]::Black
+        $lblPmNum.Text = "Refresh interval (s):"; $numPmNum.Value = 2
+    } else {
+        $btnPmCap.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnPmCap.ForeColor = [System.Drawing.Color]::White
+        $btnPmLive.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230); $btnPmLive.ForeColor = [System.Drawing.Color]::Black
+        $lblPmNum.Text = "Capture duration (s, 0=until Stop):"; $numPmNum.Value = 20
+    }
+}
+function Resolve-PmonTarget {
+    $t = $cmbPmProc.Text.Trim(); if (-not $t) { return $null }
+    if ($t -match '\(pid\s+(\d+)\)') { try { return Get-Process -Id ([int]$Matches[1]) -ErrorAction Stop } catch { return $null } }
+    $nm = $t -replace '\.exe$', ''
+    try { return (Get-Process -Name $nm -ErrorAction Stop | Select-Object -First 1) } catch { return $null }
+}
+function Stop-Pmon {
+    try { $script:PmonTimer.Stop() } catch {}
+    $script:PmonRunning = $false
+    $btnPmStart.Enabled = $true; $btnPmStop.Enabled = $false; $btnPmLive.Enabled = $true; $btnPmCap.Enabled = $true
+}
+# RTF-escape a value for the coloured Process Monitor output.
+function Get-PmonRtfText([string]$s) {
+    if (-not $s) { return '' }
+    $o = New-Object System.Text.StringBuilder
+    foreach ($ch in $s.ToCharArray()) {
+        $code = [int]$ch
+        if ($ch -eq '\') { [void]$o.Append('\\') }
+        elseif ($ch -eq '{') { [void]$o.Append('\{') }
+        elseif ($ch -eq '}') { [void]$o.Append('\}') }
+        elseif ($code -ge 32 -and $code -le 126) { [void]$o.Append($ch) }
+        elseif ($code -gt 126) { }
+        else { [void]$o.Append(' ') }
+    }
+    return $o.ToString()
+}
+# Append a "  label   value" row to the RTF (label grey, value colour = $vc).
+function Add-PmonRow($sb, [string]$lbl, [string]$val, [int]$vc = 3) {
+    [void]$sb.Append('\cf2   ' + $lbl.PadRight(13) + '\cf' + $vc + ' ' + (Get-PmonRtfText $val) + '\par ')
+}
+function Render-PmonLive {
+    try { $p = Get-Process -Id $script:PmonPid -ErrorAction Stop } catch { Write-IcptLine $txtPmon "`r`nProcess exited.`r`n" $pmGrey; Stop-Pmon; $lblPmStatus.Text = "Process exited."; return }
+    $path = '(access denied)'; try { $path = $p.MainModule.FileName } catch {}
+    $desc = ''; $comp = ''; $prod = ''; $fver = ''
+    try { $fvi = $p.MainModule.FileVersionInfo; $desc = "$($fvi.FileDescription)"; $comp = "$($fvi.CompanyName)"; $prod = "$($fvi.ProductName)"; $fver = "$($fvi.FileVersion)" } catch {}
+    $ci = $null; try { $ci = Get-CimInstance Win32_Process -Filter "ProcessId=$($script:PmonPid)" -ErrorAction SilentlyContinue } catch {}
+    $ppid = ''; $cmd = ''; if ($ci) { $ppid = "$($ci.ParentProcessId)"; $cmd = "$($ci.CommandLine)" }
+    $owner = ''; try { if ($ci) { $ow = $ci | Invoke-CimMethod -MethodName GetOwner -ErrorAction SilentlyContinue; if ($ow -and $ow.User) { $owner = "$($ow.Domain)\$($ow.User)" } } } catch {}
+    $started = '(n/a)'; try { $started = $p.StartTime.ToString('yyyy-MM-dd HH:mm:ss') } catch {}
+    $prio = '(n/a)'; try { $prio = "$($p.PriorityClass)" } catch {}
+    $sess = '?'; try { $sess = "$($p.SessionId)" } catch {}
+    $wsMB = [Math]::Round($p.WorkingSet64 / 1MB, 1); $prvMB = [Math]::Round($p.PrivateMemorySize64 / 1MB, 1)
+    $peakMB = [Math]::Round($p.PeakWorkingSet64 / 1MB, 1); $vmMB = [Math]::Round($p.VirtualMemorySize64 / 1MB, 1)
+    $cpu = 0; try { $cpu = [Math]::Round($p.CPU, 1) } catch {}
+    $mods = @(); try { $mods = @($p.Modules) } catch {}
+    $conns = @(); try { $conns = @(Get-NetTCPConnection -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue) } catch {}
+    $kids = @(); try { $kids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -ErrorAction SilentlyContinue) } catch {}
+
+    # colortbl: 1 cyan(headers) 2 label 3 value 4 green(path/module/established) 5 dim(paths/sep) 6 yellow(user/child) 7 orange(remote) 8 red
+    $r = New-Object System.Text.StringBuilder
+    [void]$r.Append('{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}')
+    [void]$r.Append('{\colortbl;\red102\green217\blue239;\red130\green150\blue170;\red225\green225\blue225;\red152\green195\blue121;\red120\green120\blue120;\red214\green180\blue90;\red209\green154\blue102;\red224\green108\blue117;}')
+    [void]$r.Append('\f0\fs19 ')
+    [void]$r.Append('\cf5 monitoring -- ' + (Get-Date).ToString('HH:mm:ss') + '\par ')
+    [void]$r.Append('\par\cf1\b PROCESS\b0\par ')
+    Add-PmonRow $r 'Name / PID' ("$($p.ProcessName)  ($($p.Id))" + $(if ($ppid) { "    parent $ppid" } else { '' }))
+    Add-PmonRow $r 'Path' $path 4
+    if ($desc) { Add-PmonRow $r 'Description' $desc }
+    if ($comp) { Add-PmonRow $r 'Company' $comp }
+    if ($prod -or $fver) { Add-PmonRow $r 'Product' ($prod + $(if ($fver) { "  (v$fver)" } else { '' })) }
+    if ($owner) { Add-PmonRow $r 'User' $owner 6 }
+    Add-PmonRow $r 'Started' $started
+    Add-PmonRow $r 'Priority' ("$prio    session $sess")
+    if ($cmd) { Add-PmonRow $r 'Command' $cmd 5 }
+    [void]$r.Append('\par\cf1\b MEMORY\b0\par ')
+    Add-PmonRow $r 'Working set' ("$wsMB MB")
+    Add-PmonRow $r 'Private' ("$prvMB MB")
+    Add-PmonRow $r 'Peak WS' ("$peakMB MB")
+    Add-PmonRow $r 'Virtual' ("$vmMB MB")
+    Add-PmonRow $r 'Handles' ("$($p.HandleCount)    threads $($p.Threads.Count)    cpu ${cpu}s")
+    # Optional module filter (name or path substring, case-insensitive).
+    $modsAll = $mods
+    $mflt = ''; try { $mflt = $txtPmonFilter.Text.Trim() } catch {}
+    if ($mflt) {
+        $fl = $mflt.ToLower()
+        $mods = @($mods | Where-Object { $s = ''; try { $s = "$($_.ModuleName) $($_.FileName)".ToLower() } catch { try { $s = "$($_.ModuleName)".ToLower() } catch {} }; $s.Contains($fl) })
+    }
+    $modHdr = if ($mflt) { "$($mods.Count) of $($modsAll.Count), filter: $mflt" } else { "$($mods.Count)" }
+    # Show ALL modules (a real .NET app has a few hundred). A high safety cap only guards
+    # against a pathological runaway -- normal processes never hit it.
+    $modCap = 5000
+    [void]$r.Append('\par\cf1\b MODULES (' + (Get-PmonRtfText $modHdr) + ')\b0\par ')
+    foreach ($m in ($mods | Select-Object -First $modCap)) {
+        $mn = ''; $mf = ''; try { $mn = "$($m.ModuleName)" } catch {}; try { $mf = "$($m.FileName)" } catch {}
+        # Always keep a 2-space gap: when the name is longer than the column, the path would
+        # otherwise butt straight up against it. The trailing "  " is inside cf4 (invisible).
+        [void]$r.Append('\cf4     ' + (Get-PmonRtfText $mn).PadRight(38) + '  \cf5 ' + (Get-PmonRtfText $mf) + '\par ')
+    }
+    if ($mods.Count -gt $modCap) { [void]$r.Append('\cf5     ... ' + ($mods.Count - $modCap) + ' more\par ') }
+    [void]$r.Append('\par\cf1\b NETWORK -- TCP (' + $conns.Count + ')\b0\par ')
+    foreach ($c in ($conns | Select-Object -First 500)) {
+        $stc = if ("$($c.State)" -eq 'Established') { 4 } else { 2 }
+        [void]$r.Append('\cf3     ' + (Get-PmonRtfText "$($c.LocalAddress):$($c.LocalPort)") + '\cf5  -> \cf7 ' + (Get-PmonRtfText "$($c.RemoteAddress):$($c.RemotePort)") + '\cf' + $stc + '    ' + (Get-PmonRtfText "$($c.State)") + '\par ')
+    }
+    if (-not $conns.Count) { [void]$r.Append('\cf5     (none)\par ') }
+    [void]$r.Append('\par\cf1\b CHILD PROCESSES (' + $kids.Count + ')\b0\par ')
+    foreach ($k in ($kids | Select-Object -First 500)) { [void]$r.Append('\cf6     ' + (Get-PmonRtfText "$($k.Name)") + '\cf5  (pid ' + $k.ProcessId + ')\par ') }
+    if (-not $kids.Count) { [void]$r.Append('\cf5     (none)\par ') }
+    [void]$r.Append('}')
+    # Preserve the scroll position across refreshes so a long module list stays readable.
+    $top = -1; try { $top = $txtPmon.GetCharIndexFromPosition((New-Object System.Drawing.Point(2, 2))) } catch {}
+    $txtPmon.Rtf = $r.ToString()
+    if ($top -ge 0 -and $top -lt $txtPmon.TextLength) { try { $txtPmon.SelectionStart = $top; $txtPmon.SelectionLength = 0; $txtPmon.ScrollToCaret() } catch {} }
+}
+function Poll-PmonCapture {
+    if ($script:PmonCaptureEnd -and (Get-Date) -ge $script:PmonCaptureEnd) { Write-IcptLine $txtPmon "`r`n-- capture complete --`r`n" $pmCyan; Stop-Pmon; $lblPmStatus.Text = "Capture complete."; return }
+    try { $p = Get-Process -Id $script:PmonPid -ErrorAction Stop } catch { Write-IcptLine $txtPmon "`r`nProcess exited.`r`n" $pmGrey; Stop-Pmon; return }
+    $ts = (Get-Date).ToString('HH:mm:ss')
+    try { foreach ($m in $p.Modules) { $k = "$($m.FileName)"; if ($k -and -not $script:PmonSeenMod.Contains($k)) { [void]$script:PmonSeenMod.Add($k); Write-IcptLine $txtPmon ("[{0}] MODULE  {1}`r`n" -f $ts, $k) $pmGreen } } } catch {}
+    try { foreach ($c in (Get-NetTCPConnection -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue)) { $k = "$($c.LocalAddress):$($c.LocalPort)->$($c.RemoteAddress):$($c.RemotePort)"; if (-not $script:PmonSeenConn.Contains($k)) { [void]$script:PmonSeenConn.Add($k); Write-IcptLine $txtPmon ("[{0}] TCP     {1}:{2} -> {3}:{4} [{5}]`r`n" -f $ts, $c.LocalAddress, $c.LocalPort, $c.RemoteAddress, $c.RemotePort, $c.State) $pmCyan } } } catch {}
+    try { foreach ($ch in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -ErrorAction SilentlyContinue)) { $k = "$($ch.ProcessId)"; if (-not $script:PmonSeenChild.Contains($k)) { [void]$script:PmonSeenChild.Add($k); Write-IcptLine $txtPmon ("[{0}] CHILD   {1} (pid {2})`r`n" -f $ts, $ch.Name, $ch.ProcessId) $pmYellow } } } catch {}
+}
+$btnPmRefresh.Add_Click({
+    $sel = $cmbPmProc.Text
+    $cmbPmProc.Items.Clear()
+    try { Get-Process -ErrorAction SilentlyContinue | Sort-Object ProcessName | ForEach-Object { [void]$cmbPmProc.Items.Add(("{0}  (pid {1})" -f $_.ProcessName, $_.Id)) } } catch {}
+    if ($sel) { $cmbPmProc.Text = $sel }
+})
+$btnPmLive.Add_Click({ Set-PmonMode 'live' })
+$btnPmCap.Add_Click({ Set-PmonMode 'capture' })
+$script:PmonTimer.Add_Tick({ if ($script:PmonMode -eq 'live') { Render-PmonLive } else { Poll-PmonCapture } })
+$btnPmStart.Add_Click({
+    if ($script:PmonRunning) { return }
+    $p = Resolve-PmonTarget
+    if (-not $p) { $lblPmStatus.Text = "Process not found -- Refresh and pick one, or type a name / PID."; return }
+    $script:PmonPid = $p.Id
+    $n = [int]$numPmNum.Value
+    $txtPmon.Clear()
+    $script:PmonRunning = $true
+    $btnPmStart.Enabled = $false; $btnPmStop.Enabled = $true; $btnPmLive.Enabled = $false; $btnPmCap.Enabled = $false
+    if ($script:PmonMode -eq 'live') {
+        $script:PmonTimer.Interval = [Math]::Max(1, $n) * 1000
+        $lblPmStatus.Text = "Live watch: $($p.ProcessName) (pid $($p.Id)) every ${n}s -- Stop to end."
+        Render-PmonLive
+    } else {
+        $script:PmonSeenMod = New-Object 'System.Collections.Generic.HashSet[string]'
+        $script:PmonSeenConn = New-Object 'System.Collections.Generic.HashSet[string]'
+        $script:PmonSeenChild = New-Object 'System.Collections.Generic.HashSet[string]'
+        try { foreach ($m in $p.Modules) { [void]$script:PmonSeenMod.Add("$($m.FileName)") } } catch {}
+        try { foreach ($c in (Get-NetTCPConnection -OwningProcess $p.Id -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenConn.Add("$($c.LocalAddress):$($c.LocalPort)->$($c.RemoteAddress):$($c.RemotePort)") } } catch {}
+        try { foreach ($ch in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenChild.Add("$($ch.ProcessId)") } } catch {}
+        $script:PmonTimer.Interval = 1000
+        if ($n -le 0) {
+            $script:PmonCaptureEnd = $null
+            $lblPmStatus.Text = "Activity capture: $($p.ProcessName) (pid $($p.Id)) -- running until you Stop (or it exits)."
+            Write-IcptLine $txtPmon ("== Activity capture: {0} (pid {1}) -- until Stop (or exit) ==`r`n" -f $p.ProcessName, $p.Id) $pmCyan
+        } else {
+            $script:PmonCaptureEnd = (Get-Date).AddSeconds($n)
+            $lblPmStatus.Text = "Activity capture: $($p.ProcessName) (pid $($p.Id)) for ${n}s -- exercise the app now."
+            Write-IcptLine $txtPmon ("== Activity capture: {0} (pid {1}) for {2}s ==`r`n" -f $p.ProcessName, $p.Id, $n) $pmCyan
+        }
+        Write-IcptLine $txtPmon "(baseline taken; logging NEW modules / TCP connections / child processes)`r`n`r`n" $pmGrey
+    }
+    $script:PmonTimer.Start()
+})
+$btnPmStop.Add_Click({ Stop-Pmon; Write-IcptLine $txtPmon "`r`n(stopped)`r`n" $pmGrey; $lblPmStatus.Text = "Stopped." })
+# Live watch: apply the module filter immediately (only re-renders while running in live mode).
+$txtPmonFilter.Add_TextChanged({ if ($script:PmonRunning -and $script:PmonMode -eq 'live') { Render-PmonLive } })
+# Save the current console (live snapshot or activity log) to a timestamped text file.
+$btnPmSave.Add_Click({
+    if (-not $txtPmon.Text.Trim()) { $lblPmStatus.Text = "Nothing to save yet."; return }
+    $dlg = New-Object System.Windows.Forms.SaveFileDialog
+    $dlg.Filter = "Text file (*.txt)|*.txt|All files (*.*)|*.*"
+    $dlg.FileName = "tcpk-procmon-$((Get-Date).ToString('yyyyMMdd-HHmmss')).txt"
+    if ($dlg.ShowDialog() -eq 'OK') {
+        try { [System.IO.File]::WriteAllText($dlg.FileName, $txtPmon.Text); $lblPmStatus.Text = "Saved: $($dlg.FileName)" }
+        catch { $lblPmStatus.Text = "Save failed: $($_.Exception.Message)" }
+    }
+})
+$form.Add_FormClosing({ try { $script:PmonTimer.Stop() } catch {} })
+Set-PmonMode 'live'
 
 $form.Controls.Add($tabs)
 $tabs.BringToFront()
