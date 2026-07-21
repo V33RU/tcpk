@@ -89,4 +89,4 @@ no warranty. See `DISCLAIMER.txt`.
 
 ---
 
-TCPK v2.5.0-rc1 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v2.6.0-rc1 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.

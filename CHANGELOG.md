@@ -2,6 +2,19 @@
 
 Release history for TCPK. Newest first.
 
+## v2.6.0-rc1
+
+Detection uplift -- a recall + IL-proof pass on the detection engine (grounded in a code-level capability review). Cmdlet count unchanged (184; the new helpers are private).
+
+- Secrets: +17 modern provider rules -- OpenAI, OpenAI-project, Anthropic, GitLab, Google OAuth, Slack webhook + app token, SendGrid, npm, PyPI, HashiCorp Vault, DigitalOcean, Databricks, Postman, Shopify, credentials-in-URL, and hardcoded HTTP Basic auth header. All loss-free (explicit prefilters), so recall rises across the static, live-memory, and env scans at once.
+- IL prover reach: added the base `System.Data.Common.DbCommand` / `IDbCommand` / `DbDataAdapter` types (Dapper / EF-raw / DbProviderFactory) and `System.Net.Http.HttpMessageInvoker` to the injection sink map, so SQL / SSRF through the abstraction layer is now invocation- and taint-checked instead of invisible. Routed `reflection.dynamic-load` through `Confirm-TcpkCallsiteUsage` (new `reflection-load` sink family) so a tainted `Assembly.LoadFrom(path)` reaches `Confirmed (IL)`.
+- IL taint sources broadened to the input channels desktop apps actually use: `OpenFileDialog`/`SaveFileDialog`, drag-drop (`DataObject` / `DragEventArgs`), `Clipboard`, and deserialized-object results.
+- Electron insecure-by-default: correlates the extracted Electron major with an *omitted* hardening key -- `nodeIntegration` defaults ON before v5 (CRITICAL), `contextIsolation` OFF before v12 (HIGH), sandbox OFF before v20 (MEDIUM). This is the common real misconfig the explicit-value checks missed.
+- CVE triage: CISA KEV enrichment (`Get-TcpkKevSet`, cacheable + fails closed) flags every CVE match on the actively-exploited list -- the HTML report + exploit plan already render the badge.
+- Named-pipe DACL now probes In -> Out -> Duplex, so write-accepting pipe servers (the cross-user injection primitive) are read instead of reported unreadable.
+- Frida hook-mode capture parser now scans JSON REST bodies for secrets (parity with proxy mode).
+- New `DetectionUplift.Tests.ps1` (17): each new secret rule detects a real positive; the sink-map / taint / reflection additions are present and a reflection finding is IL-processed; Electron insecure-by-default fires on an old runtime and not a modern one; KEV returns a HashSet and matches case-insensitively.
+
 ## v2.5.0-rc1
 
 Release candidate for 2.5.0 -- a GUI + agentic-workbench pass on top of the workbench file tooling in v2.5.0-dev below.
