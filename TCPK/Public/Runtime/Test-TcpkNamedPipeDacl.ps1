@@ -37,21 +37,35 @@ function Test-TcpkNamedPipeDacl {
     }
 
     foreach ($pipe in $pipes) {
-        try {
-            $client = New-Object System.IO.Pipes.NamedPipeClientStream(
-                '.', $pipe.Name,
-                [System.IO.Pipes.PipeDirection]::In,
-                [System.IO.Pipes.PipeOptions]::None
-            )
-            $client.Connect(500)
-            $ac = $client.GetAccessControl()
-            $client.Dispose()
-        } catch {
+        # Probe In, then Out, then Duplex. A server created PIPE_ACCESS_INBOUND (it reads,
+        # the client WRITES) refuses an In-only client -- exactly the write-accepting pipe
+        # that is the cross-user injection primitive we most want to inspect, so an In-only
+        # probe silently reports it "unreadable". Opening for Out/Duplex and reading the ACL
+        # sends no data.
+        $ac = $null; $lastErr = 'no direction connected'
+        foreach ($dir in @('In', 'Out', 'InOut')) {
+            $client = $null
+            try {
+                $client = New-Object System.IO.Pipes.NamedPipeClientStream(
+                    '.', $pipe.Name,
+                    [System.IO.Pipes.PipeDirection]$dir,
+                    [System.IO.Pipes.PipeOptions]::None
+                )
+                $client.Connect(180)
+                $ac = $client.GetAccessControl()
+                break
+            } catch {
+                $lastErr = $_.Exception.Message
+            } finally {
+                if ($client) { try { $client.Dispose() } catch {} }
+            }
+        }
+        if (-not $ac) {
             New-TcpkFinding -Module 'runtime' -RuleId 'pipe-dacl.unreadable' `
                 -Severity 'INFO' -Confidence 'Skipped' `
                 -Title "Pipe DACL unreadable: $($pipe.Name)" `
-                -File $pipe.FullName -Evidence $_.Exception.Message `
-                -Description 'Connect failed (pipe may require non-default OpenMode or have restrictive ACL preventing the client probe).'
+                -File $pipe.FullName -Evidence $lastErr `
+                -Description 'Connect failed in all directions (In / Out / Duplex) -- the pipe likely has a restrictive ACL preventing the client probe, or a message-only OpenMode.'
             continue
         }
 

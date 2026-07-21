@@ -191,6 +191,7 @@ function ConvertFrom-TcpkHookCapture {
     $findings = New-Object 'System.Collections.Generic.List[object]'
     $tlsSeen  = $false
     $secretRx = '(?i)(password|passwd|pwd|token|apikey|api_key|secret|access_key)=([^&\s]{3,})'
+    $jsonRx   = '(?i)"(password|passwd|pwd|pass|token|apikey|api_key|secret|access_key)"\s*:\s*"([^"]{3,})"'
     $tlsFuncs = @('SSL_write', 'SSL_read', 'EncryptMessage', 'DecryptMessage')
 
     foreach ($line in (Get-Content -LiteralPath $HookFile)) {
@@ -240,8 +241,9 @@ function ConvertFrom-TcpkHookCapture {
                     -Fix 'Keep token lifetimes short and bind tokens to the client.'))
             }
         }
-        # credential/secret parameters (protocol-agnostic)
-        foreach ($m in [regex]::Matches($data, $secretRx)) {
+        # credential/secret parameters (protocol-agnostic) -- key=value form AND JSON REST bodies
+        foreach ($rx in @($secretRx, $jsonRx)) {
+        foreach ($m in [regex]::Matches($data, $rx)) {
             $pn = $m.Groups[1].Value; $pv = $m.Groups[2].Value
             if ($credSeen.Add("param|$pn|$pv")) {
                 $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.cleartext-credential' `
@@ -251,6 +253,7 @@ function ConvertFrom-TcpkHookCapture {
                     -Description "The app sent a '$pn' value, recovered by hooking $func in the process regardless of transport encryption." `
                     -Fix 'Do not send credentials/secrets in the clear inside the protocol; use a proper auth flow.'))
             }
+        }
         }
     }
 

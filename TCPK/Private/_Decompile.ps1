@@ -603,7 +603,7 @@ $script:TcpkIlDynLoads = @(
 # A bounded taint signal: if the method that feeds a dangerous sink also pulls data
 # from one of these (file/console/env/registry/network/IPC/HTTP-request), the dynamic
 # argument is treated as potentially attacker-influenced ('tainted'), not just internal.
-$script:TcpkIlSourceApiRx = '(?i)(System\.IO\.File::(Read|Open)|StreamReader::(ReadToEnd|ReadLine|Read)|ReadAllText|ReadAllBytes|ReadAllLines|Console::(ReadLine|Read|get_In)|Environment::(GetEnvironmentVariable|ExpandEnvironmentStrings|GetCommandLineArgs)|Microsoft\.Win32\.Registry|RegistryKey::(GetValue|OpenSubKey)|WebClient::(DownloadString|DownloadData|OpenRead)|HttpClient::(GetString|GetByteArray|GetStream|Get|Send|PostAsync)|ReadAsStringAsync|ReadAsByteArrayAsync|ReadAsStream|NamedPipe|PipeStream::Read|Socket::(Receive|Read)|SqlDataReader|HttpRequest(Base)?::(get_Form|get_QueryString|get_Params|get_Item|get_InputStream)|::get_QueryString|HttpListenerRequest)'
+$script:TcpkIlSourceApiRx = '(?i)(System\.IO\.File::(Read|Open)|StreamReader::(ReadToEnd|ReadLine|Read)|ReadAllText|ReadAllBytes|ReadAllLines|Console::(ReadLine|Read|get_In)|Environment::(GetEnvironmentVariable|ExpandEnvironmentStrings|GetCommandLineArgs)|Microsoft\.Win32\.Registry|RegistryKey::(GetValue|OpenSubKey)|WebClient::(DownloadString|DownloadData|OpenRead)|HttpClient::(GetString|GetByteArray|GetStream|Get|Send|PostAsync)|ReadAsStringAsync|ReadAsByteArrayAsync|ReadAsStream|NamedPipe|PipeStream::Read|Socket::(Receive|Read)|SqlDataReader|HttpRequest(Base)?::(get_Form|get_QueryString|get_Params|get_Item|get_InputStream)|::get_QueryString|HttpListenerRequest|FileDialog::get_FileName|Clipboard::(GetText|GetData|GetImage|GetFileDropList|GetContent)|DataObject::GetData|DragEventArgs::get_Data|::(Deserialize|DeserializeObject|ReadObject))'
 
 # --- interprocedural taint helpers -------------------------------------------
 # Resolve the local-variable slot index an ldloc/stloc opcode refers to (-1 if the
@@ -793,12 +793,13 @@ function Get-TcpkTaintedFields {
 function Get-TcpkCallsiteSinkMap {
     @{
         'command-execution'          = @{ Inj = $true;  Sinks = @(@{T='System.Diagnostics.Process'},@{T='System.Diagnostics.ProcessStartInfo'},@{T='CreateProcess';Mo=$true},@{T='WinExec';Mo=$true},@{T='ShellExecute';Mo=$true}) }
-        'sql-command-construction'   = @{ Inj = $true;  Sinks = @(@{T='SqlCommand'},@{T='OleDbCommand'},@{T='OdbcCommand'},@{T='MySqlCommand'},@{T='NpgsqlCommand'},@{T='SqliteCommand'},@{T='SQLiteCommand'}) }
-        'ssrf-request-build'         = @{ Inj = $true;  Sinks = @(@{T='System.Net.WebRequest'},@{T='System.Net.Http.HttpClient'},@{T='System.Net.WebClient'},@{T='System.Net.Http.HttpRequestMessage'},@{T='RestClient'}) }
+        'sql-command-construction'   = @{ Inj = $true;  Sinks = @(@{T='SqlCommand'},@{T='OleDbCommand'},@{T='OdbcCommand'},@{T='MySqlCommand'},@{T='NpgsqlCommand'},@{T='SqliteCommand'},@{T='SQLiteCommand'},@{T='System.Data.Common.DbCommand'},@{T='System.Data.IDbCommand'},@{T='System.Data.Common.DbDataAdapter'}) }
+        'ssrf-request-build'         = @{ Inj = $true;  Sinks = @(@{T='System.Net.WebRequest'},@{T='System.Net.Http.HttpClient'},@{T='System.Net.Http.HttpMessageInvoker'},@{T='System.Net.WebClient'},@{T='System.Net.Http.HttpRequestMessage'},@{T='RestClient'}) }
         'nosql-command-construction' = @{ Inj = $true;  Sinks = @(@{T='MongoCollection'},@{T='IMongoCollection'},@{T='BsonJavaScript'},@{T='FilterDefinition'},@{T='LiteCollection'}) }
         'ldap-query'                 = @{ Inj = $true;  Sinks = @(@{T='System.DirectoryServices.DirectorySearcher'},@{T='System.DirectoryServices.DirectoryEntry'}) }
         'xaml-objectdataprovider-rce'= @{ Inj = $true;  Sinks = @(@{T='XamlReader'},@{T='XamlServices'},@{T='ObjectDataProvider'}) }
         'path-traversal-build'       = @{ Inj = $true;  Sinks = @(@{T='System.IO.Path';M='Combine'},@{T='System.IO.Path';M='GetFullPath'},@{T='ZipFile'}) }
+        'reflection-load'            = @{ Inj = $true;  Sinks = @(@{T='System.Reflection.Assembly';M='Load'},@{T='System.Reflection.Assembly';M='LoadFrom'},@{T='System.Reflection.Assembly';M='LoadFile'},@{T='System.Reflection.Assembly';M='UnsafeLoadFrom'},@{T='System.Activator';M='CreateInstanceFrom'},@{T='System.AppDomain';M='Load'}) }
         'weak-symmetric-crypto'      = @{ Inj = $false; Sinks = @(@{T='DESCryptoServiceProvider'},@{T='TripleDESCryptoServiceProvider'},@{T='RC2CryptoServiceProvider'},@{T='Cryptography.DES'},@{T='Cryptography.TripleDES'},@{T='Cryptography.RC2'}) }
         'weak-hash-md5-sha1'         = @{ Inj = $false; Sinks = @(@{T='Cryptography.MD5'},@{T='MD5CryptoServiceProvider'},@{T='SHA1Managed'},@{T='SHA1CryptoServiceProvider'},@{T='Cryptography.SHA1'}) }
         'weak-rng'                   = @{ Inj = $false; Sinks = @(@{T='System.Random'}) }

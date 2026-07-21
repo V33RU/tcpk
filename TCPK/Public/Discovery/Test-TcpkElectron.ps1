@@ -105,6 +105,49 @@ function Test-TcpkElectron {
     $targets += $asars
     $targets += @(Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -in $jsNames })
 
+    # --- insecure-by-DEFAULT: an OLD Electron that OMITS a hardening key inherits the insecure
+    # default -- nodeIntegration is ON before Electron 5, contextIsolation OFF before 12, the
+    # renderer sandbox OFF before 20. The explicit-value checks below only fire on ':true'/':false';
+    # a build that simply never sets the key silently passes, though it is the MOST common real
+    # misconfig. Correlate the extracted major with key ABSENCE across the app's main/preload/asar
+    # code (a key even in a comment counts as 'set' -> conservative, no false alarm). Inferred: a
+    # version-default inference, not a proven config -- verify the webPreferences blocks.
+    if ($rv) {
+        $eMaj = Get-TcpkVersionMajor $rv.Electron
+        if ($null -ne $eMaj) {
+            $sawBW  = $false
+            $sawKey = @{ nodeIntegration = $false; contextIsolation = $false; sandbox = $false }
+            foreach ($t in ($targets | Select-Object -Unique)) {
+                $txt = ''
+                try { $txt = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($t.FullName)) } catch { continue }
+                if (-not $txt) { continue }
+                if (-not $sawBW -and ($txt -match 'BrowserWindow' -or $txt -match 'webPreferences')) { $sawBW = $true }
+                foreach ($k in @('nodeIntegration', 'contextIsolation', 'sandbox')) {
+                    if (-not $sawKey[$k] -and [regex]::IsMatch($txt, ($k + '["'']?\s*:'))) { $sawKey[$k] = $true }
+                }
+            }
+            if ($sawBW) {
+                $defaults = @(
+                    @{ key = 'nodeIntegration';  floor = 5;  sev = 'CRITICAL'; state = 'defaults to TRUE';  cwe = @('CWE-1188','CWE-94'); why = 'the renderer has full Node.js access, so any XSS or remote / attacker-influenced content becomes RCE' }
+                    @{ key = 'contextIsolation'; floor = 12; sev = 'HIGH';     state = 'defaults to FALSE'; cwe = @('CWE-1188');           why = 'preload and page JS share a context (prototype-pollution -> RCE, and any leaked Node primitive is reachable from the page)' }
+                    @{ key = 'sandbox';          floor = 20; sev = 'MEDIUM';   state = 'defaults to OFF';   cwe = @('CWE-1188');           why = 'a compromised renderer has a wider break-out surface' }
+                )
+                foreach ($d in $defaults) {
+                    if ($eMaj -lt $d.floor -and -not $sawKey[$d.key]) {
+                        New-TcpkFinding -Module 'static' -RuleId ("electron.insecure-default-" + $d.key) `
+                            -Severity $d.sev -Confidence 'Inferred' `
+                            -Title "Electron $($rv.Electron): $($d.key) $($d.state) and is never set" `
+                            -File $rv.File `
+                            -Evidence "Electron major $eMaj (< $($d.floor), where the default changed); no '$($d.key)' key found in the app's main / preload / asar code" `
+                            -Cwe $d.cwe `
+                            -Description ("This Electron build ($($rv.Electron)) is old enough that $($d.key) $($d.state) by default, and no explicit $($d.key) setting was found in the scanned main / preload / asar code -- so any BrowserWindow that does not override it inherits the insecure default, meaning $($d.why). This is the most common real-world Electron misconfiguration: not an explicit ':true' / ':false', but an OMITTED key on an old runtime. Confirm every webPreferences block sets $($d.key) explicitly, and upgrade Electron.") `
+                            -Fix "Set $($d.key) explicitly on every BrowserWindow (nodeIntegration:false, contextIsolation:true, sandbox:true, webSecurity:true) and upgrade to a supported Electron release."
+                    }
+                }
+            }
+        }
+    }
+
     foreach ($t in ($targets | Select-Object -Unique)) {
         $blob = ''
         try { $blob = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($t.FullName)) } catch { continue }

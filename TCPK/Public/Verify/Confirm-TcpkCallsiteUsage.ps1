@@ -70,7 +70,8 @@ function Confirm-TcpkCallsiteUsage {
             $rid = "$($f.RuleId)"
             $isCall  = $rid -like 'callsites.*'
             $isDeser = $rid -like 'deser.*'
-            if (-not $cecilOk -or -not ($isCall -or $isDeser)) { $f; continue }
+            $isRefl  = $rid -eq 'reflection.dynamic-load'   # dynamic assembly/type load -> injection sink
+            if (-not $cecilOk -or -not ($isCall -or $isDeser -or $isRefl)) { $f; continue }
             if (-not $f.File -or ("$($f.File)" -notmatch '\.(dll|exe)$') -or -not (Test-Path -LiteralPath $f.File)) { $f; continue }
             $leaf = Split-Path $f.File -Leaf
 
@@ -103,8 +104,8 @@ function Confirm-TcpkCallsiteUsage {
                 $f; continue
             }
 
-            # ---- callsites.* : map the suffix to its sink type(s)/method(s) ----
-            $suffix = ($rid -split '\.', 2)[-1]
+            # ---- callsites.* (and reflection.dynamic-load) : map the suffix to its sink(s) ----
+            $suffix = if ($isRefl) { 'reflection-load' } else { ($rid -split '\.', 2)[-1] }
             $spec = $map[$suffix]
             if (-not $spec) { $f; continue }
 
