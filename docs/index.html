@@ -126,18 +126,13 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 </header>
 
 <figure>
-  <img src="tcpk-gui.png" alt="TCPK GUI: target selection, live audit progress, findings table, and tabs for Recon, Exploit/CVE, SBOM, DLL Mitigation Matrix, DLL Signing, Runtime/Live, Process Monitor, Hex View, Asar, and Interception.">
-  <figcaption>The WinForms console: live per-check progress, streaming findings, and posture tabs (Recon, SBOM, DLL Mitigation Matrix, DLL Signing). Plus a live layer -- a Runtime/Live tab of read-only process checks, a Process Monitor (live watch + activity capture), a Hex view (data inspector, strings, byte colouring), an Asar unpacker for Electron apps, and gated Interception / Live Exploit tabs. The same engine drives the CLI and the MCP server.</figcaption>
+  <img src="tcpk-gui.png" alt="TCPK GUI: the Dashboard tab -- severity tiles, max CVSS, assurance donut, findings-by-severity and top findings -- above tabs for Audit, Recon, Exploit/CVE, SBOM, DLL Mitigation Matrix, DLL Signing, Runtime/Live, Process Monitor, Hex View, Asar, DLL Decompiler, and Interception.">
+  <figcaption>The WinForms console: a Dashboard overview (severity tiles, max CVSS, an assurance donut of proven vs leads vs likely-FP, and top findings), live per-check progress, streaming findings, and posture tabs (Recon, SBOM, DLL Mitigation Matrix, DLL Signing). Plus a live layer -- a Runtime/Live tab of read-only process checks, a Process Monitor (live watch + activity capture), a Hex view (data inspector, strings, byte colouring), an Asar unpacker for Electron apps, a DLL Decompiler (Mono.Cecil IL + C#), and gated Interception / Live Exploit tabs. The same engine drives the CLI and the MCP server.</figcaption>
 </figure>
 
 <figure>
-  <img src="tcpk-webui.png" alt="TCPK loopback web control panel: target picker, audit options, live progress and findings, and result tabs.">
-  <figcaption>The loopback-only web control panel (TCPK-WebUI.bat) -- binds 127.0.0.1, token-gated, discovery-only: drive an audit from the browser with live progress, pause/resume, and result tabs.</figcaption>
-</figure>
-
-<figure>
-  <img src="tcpk-agenticai.png" alt="TCPK agentic AI workbench: phased rail (Connect, Target, Audit, Decompile, AI review, Report, autonomous Agent), risk gauge, severity donut, and findings triage.">
-  <figcaption>The agentic AI workbench (TCPK-Agentic.bat, new in v2.0.0) -- audit, real decompile, and AI line-by-line review in one phased UI, plus an autonomous agent that drives the investigation itself; every finding is cross-checked by the IL prover. Also carries read-only Runtime, Asar-unpack, Hex, and Process live-watch panes. Loopback-only, discovery-only, local-first.</figcaption>
+  <img src="tcpk-agenticai.png" alt="TCPK agentic AI workbench: Dashboard (severity tiles, max CVSS, assurance donut, findings-by-severity, top findings) plus the phased rail (Connect, Target, Audit, Decompile, AI review, Report, autonomous Agent).">
+  <figcaption>The agentic AI workbench (TCPK-Agentic.bat) -- a Dashboard overview (severity tiles, max CVSS, an assurance donut of proven vs leads vs likely-FP, and top findings) over a phased workflow: audit, real decompile, and AI line-by-line review, plus an autonomous agent that drives the investigation itself; every finding is cross-checked by the IL prover. Also carries read-only Runtime, Asar-unpack, Hex, and Process live-watch panes. Loopback-only, discovery-only, local-first.</figcaption>
 </figure>
 
 <section id="tldr">
