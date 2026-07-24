@@ -2,6 +2,21 @@
 
 Release history for TCPK. Newest first.
 
+## v2.6.1
+
+An Asar-tab supply-chain audit plus a GUI alignment fix. Cmdlet count unchanged (184; the new helpers are private).
+
+**Asar tab: npm supply-chain audit.**
+
+- New **npm audit** action on the Asar tab. Point it at an Electron `app.asar` (or the install folder) and it inventories every bundled npm package (walking the packed `node_modules` tree), matches them for known CVEs against **OSV / GHSA** (reusing the existing OSV engine, `-Ecosystem 'npm'`), and -- the signal a plain CVE feed misses -- flags packages the **npm registry marks deprecated / unmaintained**. The result prints as an npm-audit-style report (severity-sorted vulnerabilities with fix versions, then deprecated packages) into the source pane. Read-only; the deprecation check is capped and the whole path fails closed offline.
+- Backend is three private helpers in `_EcosystemCve.ps1` (`Get-TcpkAsarNpmAudit`, `Get-TcpkNpmDeprecation`, `Format-TcpkNpmAuditReport`); the formatter is pure so it is unit-tested (`NpmAudit.Tests.ps1`). Verified end-to-end against a real 205-package Electron app.
+
+**Fixes.**
+
+- **Asar "filter files" alignment**: the filter textbox was anchored Left+Right inside the fixed-width left panel and stretched past it (to ~646px in a 430px panel), spilling into the source viewer. It is now a contained fixed width.
+- `Split-Path -LiteralPath ... -Parent` is an ambiguous parameter set on PowerShell 5.1; the npm-audit path now uses `[IO.Path]::GetDirectoryName` instead.
+- Report output stays pure ASCII even when an npm registry / advisory string carries emoji or other non-ASCII characters (folded to spaces).
+
 ## v2.6.0
 
 Finalises the 2.6.0 line: the detection uplift shipped in `v2.6.0-rc1` plus an accuracy pass, a UI pass, and an MCP pass. Cmdlet count unchanged (184; every new helper is private).

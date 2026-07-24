@@ -1448,12 +1448,13 @@ $asarTop.Dock = 'Top'; $asarTop.Height = 70; $asarTop.BackColor = [System.Drawin
 $asarAnchLR = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
 
 $asarRow1 = New-Object System.Windows.Forms.TableLayoutPanel
-$asarRow1.Dock = 'Top'; $asarRow1.Height = 40; $asarRow1.ColumnCount = 5; $asarRow1.RowCount = 1
+$asarRow1.Dock = 'Top'; $asarRow1.Height = 40; $asarRow1.ColumnCount = 6; $asarRow1.RowCount = 1
 [void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 164)))
 [void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
 [void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
 [void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 100)))
 [void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
+[void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 108)))
 
 $lblAsarT = New-Object System.Windows.Forms.Label
 $lblAsarT.Text = "app.asar / install folder:"; $lblAsarT.Dock = 'Fill'; $lblAsarT.TextAlign = 'MiddleLeft'
@@ -1476,15 +1477,21 @@ $btnAsarExtract.Tag = 'keep'
 $asarRow1.Controls.Add($btnAsarExtract, 3, 0)
 
 $btnAsarHex = New-Object System.Windows.Forms.Button
-$btnAsarHex.Text = "Hex view"; $btnAsarHex.Dock = 'Fill'; $btnAsarHex.Margin = New-Object System.Windows.Forms.Padding(2, 6, 8, 6)
+$btnAsarHex.Text = "Hex view"; $btnAsarHex.Dock = 'Fill'; $btnAsarHex.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
 $asarRow1.Controls.Add($btnAsarHex, 4, 0)
+
+# npm supply-chain audit of the bundled Electron packages (OSV CVEs + deprecated flags).
+$btnAsarNpm = New-Object System.Windows.Forms.Button
+$btnAsarNpm.Text = "npm audit"; $btnAsarNpm.Dock = 'Fill'; $btnAsarNpm.Margin = New-Object System.Windows.Forms.Padding(2, 6, 8, 6)
+$btnAsarNpm.BackColor = [System.Drawing.Color]::FromArgb(23, 111, 130); $btnAsarNpm.ForeColor = [System.Drawing.Color]::White; $btnAsarNpm.FlatStyle = 'Flat'
+$asarRow1.Controls.Add($btnAsarNpm, 5, 0)
 
 $asarRow2 = New-Object System.Windows.Forms.Panel
 $asarRow2.Dock = 'Top'; $asarRow2.Height = 26
 $lblAsar = New-Object System.Windows.Forms.Label
 $lblAsar.Dock = 'Fill'; $lblAsar.TextAlign = 'MiddleLeft'
 $lblAsar.Padding = New-Object System.Windows.Forms.Padding(10, 0, 10, 0)
-$lblAsar.Text = "Pick a target, then Extract. A large app can take ~30s (the window pauses). Click a file to read its source; Hex view opens it in the Hex tab."
+$lblAsar.Text = "Pick a target, then Extract (a large app can take ~30s). Click a file to read its source; Hex view opens it in the Hex tab. npm audit checks the bundled packages for CVEs + deprecations."
 $lblAsar.ForeColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
 $asarRow2.Controls.Add($lblAsar)
 
@@ -1505,7 +1512,10 @@ $asarFilterRow.Controls.Add($asarPrompt)
 $txtAsarFilter = New-Object System.Windows.Forms.TextBox
 $txtAsarFilter.Location = New-Object System.Drawing.Point(6, 22); $txtAsarFilter.Size = New-Object System.Drawing.Size(416, 22); $txtAsarFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtAsarFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAsarFilter.ForeColor = [System.Drawing.Color]::White; $txtAsarFilter.BorderStyle = 'FixedSingle'
-$txtAsarFilter.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+# Top|Left only: the left panel is a fixed 430 wide, so a Right anchor gave no benefit and
+# instead let the box stretch to a transient wider parent during layout (it ballooned to ~646px
+# and spilled past the 430 panel into the source viewer). A static width stays contained.
+$txtAsarFilter.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left)
 $asarFilterRow.Controls.Add($txtAsarFilter)
 $asarLeft.Controls.Add($asarFilterRow)
 $lstAsar = New-Object System.Windows.Forms.ListBox
@@ -1542,6 +1552,35 @@ $btnAsarExtract.Add_Click({
     $script:AsarFiles = @($res.files)
     $lblAsar.Text = "$(@($res.files).Count) files ($([int]($res.bytes/1KB)) KB) unpacked to $($res.outDir)"
     Fill-AsarList
+})
+$btnAsarNpm.Add_Click({
+    $t = $txtAsarTarget.Text.Trim(); if (-not $t) { $t = $txtTarget.Text.Trim() }
+    if (-not $t) { $lblAsar.Text = "Pick an app.asar or install folder first."; return }
+    if (-not (Test-Path -LiteralPath $t)) { $lblAsar.Text = "Not found: $t"; return }
+    $lblAsar.Text = "npm audit: scanning bundled packages, querying OSV + npm registry (the window pauses)..."
+    $txtAsarView.Text = "Running npm supply-chain audit -- this queries the network and can take a moment..."
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
+    try {
+        $mod = @(Get-Module TCPK)[0]
+        $out = & $mod {
+            param($p, $n)
+            $r = Get-TcpkAsarNpmAudit -Path $p
+            [pscustomobject]@{
+                report = (Format-TcpkNpmAuditReport -Result $r -TargetName $n)
+                pkgs   = [int]$r.packages
+                vulns  = @($r.vulns).Count
+                dep    = @($r.deprecated).Count
+            }
+        } $t (Split-Path -Leaf $t)
+        $txtAsarView.Text = "$($out.report)"
+        $txtAsarView.SelectionStart = 0; $txtAsarView.ScrollToCaret()
+        $lblAsar.Text = "npm audit done: $($out.pkgs) packages, $($out.vulns) vulnerabilities, $($out.dep) deprecated."
+    } catch {
+        $txtAsarView.Text = "npm audit failed: $($_.Exception.Message)"
+        $lblAsar.Text = "npm audit failed."
+    } finally {
+        $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    }
 })
 $txtAsarFilter.Add_TextChanged({ Fill-AsarList })
 $lstAsar.Add_SelectedIndexChanged({
