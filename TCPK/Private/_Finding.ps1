@@ -92,6 +92,61 @@ $script:TcpkCvssArchetypes = [ordered]@{
     'local-tempfile'  = 'CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:N/VI:L/VA:N/SC:N/SI:N/SA:N'  # predictable / world-readable temp file: a local user races/hijacks it (integrity-only, high effort) -> ~2.1 Low
 }
 
+# SEVERITY-ANCHORED vectors: the computed CVSS RATING must match the finding's severity
+# badge (a LOW never shows a Medium number; a HIGH never shows a Medium number). The vector
+# is chosen by (FLAVOR, SEVERITY): the flavor keeps the Attack Vector honest for a thick
+# client -- 'local' (the DEFAULT: on-disk secret, DLL hijack, weak ACL, memory, client-side
+# bypass; the attacker already has local access), 'network' (genuinely remote-triggered: a
+# server-response RCE, poisoned update, cleartext transport), 'adjacent' (on-path / MITM,
+# e.g. a TLS cert-validation bypass) -- while the severity pins the score into its band.
+# Each vector below was calibrated against the FIRST.org v4.0 engine (Get-TcpkCvss40Score):
+#   local:    CRITICAL 9.3  HIGH 8.5  MEDIUM 6.8  LOW 2.0
+#   network:  CRITICAL 9.3  HIGH 8.5  MEDIUM 6.3  LOW 2.0
+#   adjacent: CRITICAL 9.4  HIGH 7.6  MEDIUM 6.0  LOW 2.0
+# NOTE a purely-LOCAL bug reaches CRITICAL only when it yields full system compromise
+# (subsequent-system impact SC/SI/SA:H, e.g. a local privesc to SYSTEM); otherwise local
+# tops out at High -- which is CVSS v4.0 correctly rating local a notch below remote.
+$script:TcpkCvssBandVector = @{
+    'local' = @{
+        CRITICAL = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H'
+        HIGH     = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N'
+        MEDIUM   = 'CVSS:4.0/AV:L/AC:L/AT:N/PR:L/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N'
+        LOW      = 'CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N'
+    }
+    'network' = @{
+        CRITICAL = 'CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N'
+        HIGH     = 'CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:A/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N'
+        MEDIUM   = 'CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N'
+        LOW      = 'CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N'
+    }
+    'adjacent' = @{
+        CRITICAL = 'CVSS:4.0/AV:A/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:H/SC:H/SI:H/SA:H'
+        HIGH     = 'CVSS:4.0/AV:A/AC:L/AT:P/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N'
+        MEDIUM   = 'CVSS:4.0/AV:A/AC:L/AT:P/PR:N/UI:N/VC:H/VI:N/VA:N/SC:N/SI:N/SA:N'
+        LOW      = 'CVSS:4.0/AV:L/AC:H/AT:P/PR:L/UI:N/VC:L/VI:N/VA:N/SC:N/SI:N/SA:N'
+    }
+}
+
+# Archetype -> attack flavor. Anything not listed (or a rule that matches no archetype)
+# defaults to 'local' -- the correct thick-client assumption (the attacker has local access).
+$script:TcpkCvssArchetypeFlavor = @{
+    'net-mitm'        = 'adjacent'
+    'net-rce'         = 'network'
+    'untrusted-parse' = 'local'
+    'web-bridge'      = 'network'
+    'local-privesc'   = 'local'
+    'shipped-secret'  = 'local'
+    'embedded-key'    = 'local'
+    'live-credential' = 'network'
+    'low-secret'      = 'local'
+    'local-at-rest'   = 'local'
+    'client-bypass'   = 'local'
+    'weak-crypto'     = 'local'
+    'hardening'       = 'local'
+    'cleartext-net'   = 'network'
+    'local-tempfile'  = 'local'
+}
+
 # Rule-family -> archetype. First match wins; families are matched on the RuleId prefix.
 # Families that are genuinely mixed (callsites, registry, raw endpoints) deliberately
 # fall through to the 'per-finding' note rather than be assigned a misleading vector.
@@ -152,31 +207,38 @@ function Get-TcpkCvssVector {
 
     $rid = "$($Finding.RuleId)"
 
-    # Credential / secret family (secrets.* , keymaterial.*): impact depends on what the
-    # secret unlocks, which the rule's hand-assigned severity already encodes -- one
-    # archetype can't span a low-value app id and a cloud root credential. Pick a REAL,
-    # tier-matched vector so the displayed CVSS agrees with the badge (INFO returned
-    # above). Scores: 9.3 / 8.5 / 6.9 / 2.1 for CRITICAL / HIGH / MEDIUM / LOW.
-    if ($rid -match '^(secrets|keymaterial)\.') {
-        $a = switch ($sev) {
-            'CRITICAL' { 'live-credential' }
-            'HIGH'     { 'embedded-key' }
-            'MEDIUM'   { 'shipped-secret' }
-            'LOW'      { 'low-secret' }
-            default    { '' }
-        }
-        if ($a) { return (New-TcpkCvssResult -Vector $script:TcpkCvssArchetypes[$a] -Source ("archetype:" + $a)) }
-    }
-
-    foreach ($m in $script:TcpkCvssRuleArchetype) {
-        if ($rid -match $m.Rx) {
-            return (New-TcpkCvssResult -Vector $script:TcpkCvssArchetypes[$m.A] -Source ("archetype:" + $m.A))
-        }
-    }
-    if ($rid -match '^(cve|deps|pkgmanifest)\.') {
+    # CVE / dependency findings carry a REAL published advisory score -- defer to it.
+    # electron.outdated-runtime is the same case: its true risk is the specific Chromium /
+    # Node CVEs that apply (the OSV electron@ver list carries per-CVE scores), so it must NOT
+    # inherit a fabricated anchor -- defer to the per-CVE advisory instead.
+    if ($rid -match '^(cve|deps|pkgmanifest)\.' -or $rid -eq 'electron.outdated-runtime') {
         return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = 'See the linked NVD / GHSA advisory for the official CVSS v4.0 score'; Source = 'nvd' }
     }
-    return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = 'Not auto-scored (mixed class) -- assign per finding'; Source = 'per-finding' }
+
+    # Severity-anchored scoring: resolve the attack FLAVOR (local / network / adjacent),
+    # then pick the (flavor, severity) vector so the computed rating ALWAYS matches the
+    # badge. Flavor keeps the Attack Vector honest for a thick client; severity pins the
+    # band. Default flavor is 'local' -- the correct thick-client assumption.
+    $flavor = 'local'
+    if ($rid -match '^(secrets|keymaterial)\.') {
+        # A live network credential (badged CRITICAL) is reachable over the network; lower-
+        # value secrets are read from the local artifact. Either way the rating tracks the badge.
+        $flavor = if ($sev -eq 'CRITICAL') { 'network' } else { 'local' }
+    } else {
+        foreach ($m in $script:TcpkCvssRuleArchetype) {
+            if ($rid -match $m.Rx) {
+                $f = $script:TcpkCvssArchetypeFlavor["$($m.A)"]
+                if ($f) { $flavor = $f }
+                break
+            }
+        }
+    }
+
+    $band = $script:TcpkCvssBandVector[$flavor]
+    if ($band -and $band.ContainsKey($sev)) {
+        return (New-TcpkCvssResult -Vector $band[$sev] -Source ("anchored:" + $flavor))
+    }
+    return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = 'Not auto-scored -- assign per finding'; Source = 'per-finding' }
 }
 
 # Build a CVSS result for a known vector: compute the REAL v4.0 base score from the

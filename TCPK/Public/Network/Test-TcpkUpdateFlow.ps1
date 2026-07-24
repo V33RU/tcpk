@@ -44,7 +44,10 @@ function Test-TcpkUpdateFlow {
     $updatePeSample = $null
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
-        if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
+        # Skip non-first-party binaries: the Electron main exe embeds Chromium console-warning
+        # text with doc links (e.g. the document.write /updates/ page) that the URL heuristic
+        # misreads as an update endpoint -- a false positive attributed to the app.
+        if (-not (Test-TcpkIsFirstParty -Name $pe.Name -SizeBytes $pe.Length -Path $pe.FullName)) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 

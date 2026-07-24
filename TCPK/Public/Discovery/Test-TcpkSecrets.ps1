@@ -106,7 +106,14 @@ function Test-TcpkSecrets {
                 # template-placeholder pattern matches case-insensitively -- which was silently
                 # suppressing EVERY private-key-in-XML hit. The rule's own `<D>[A-Za-z0-9+/=]{20,}</D>`
                 # requirement already excludes a `<D>your-key-here</D>` placeholder.
-                if ("$($r.id)" -ne 'private-key-xml' -and ($hit -match '(?i)(&lt|&gt|&amp|<[a-z_ ]{2,}>|\bsnipped\b|\bplaceholder\b|\bexample\b|\byour[-_ ]|\bchange[-_ ]?me\b|\breplace[-_ ]?me\b|\bdummy\b|\bsample\b|\bredacted\b|x{6,}|\.\.\.|\*{4,})')) { continue }
+                # Two more false-positive classes seen in real Electron apps:
+                #  * a UI-message / i18n string, where the "credential" VALUE is a quoted
+                #    natural-language phrase -- e.g. WRONG_PASSWORD: "Wrong Password", or
+                #    "Enter your password". A real hardcoded password almost always carries a
+                #    digit/symbol, so a quoted run of 2+ pure-alpha words is a label, not a secret.
+                #  * the canonical basic-auth URL placeholder (user:pass@host / username:password@)
+                #    that appears in docs/help text (e.g. "credentials like https://user:pass@host/").
+                if ("$($r.id)" -ne 'private-key-xml' -and ($hit -match '(?i)(&lt|&gt|&amp|<[a-z_ ]{2,}>|\bsnipped\b|\bplaceholder\b|\bexample\b|\byour[-_ ]|\bchange[-_ ]?me\b|\breplace[-_ ]?me\b|\bdummy\b|\bsample\b|\bredacted\b|x{6,}|\.\.\.|\*{4,}|["''][A-Za-z]{2,}(?: [A-Za-z]{2,})+["'']|://(?:user(?:name)?|admin|test|example|foo|bar):(?:pass(?:word|wd)?|secret|test|xxx+)@)')) { continue }
                 $key = "$($r.id)::" + $hit.Substring(0, [Math]::Min(80, $hit.Length))
                 if ($seen.ContainsKey($key)) { continue }
                 $seen[$key] = $true
@@ -126,6 +133,9 @@ function Test-TcpkSecrets {
         Write-TcpkProgress -Id 77 -ParentId 1 -Activity 'Secrets scan' -Status ("{0} ({1} MB) [{2}/{3}]" -f $f.Name, [int]($f.Length / 1MB), $fileIdx, $fileTotal) -Current $fileIdx -Total $fileTotal
         if ($f.Extension.ToLowerInvariant() -in $skipExt) { continue }
         if (Test-TcpkIsFrameworkFile $f.Name)             { continue }
+        # Skip bundled runtime / Chromium / NSIS / license files (a secret matched inside a
+        # framework binary or third-party licence text is not a first-party finding).
+        if (-not (Test-TcpkIsFirstParty -Name $f.Name -SizeBytes $f.Length -Path $f.FullName)) { continue }
 
         # NO size cap: EVERY file is analyzed regardless of size. Files up to a memory-safe
         # threshold are loaded whole (and view-cached); larger files are streamed in bounded

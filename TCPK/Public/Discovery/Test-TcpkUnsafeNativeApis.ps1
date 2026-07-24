@@ -51,8 +51,10 @@ function Test-TcpkUnsafeNativeApis {
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         $info = Read-TcpkPe -Path $pe.FullName
         if (-not $info) { continue }
-        if (Test-TcpkIsFrameworkFile $pe.Name) { continue } # skip Microsoft.* / framework native
-        if (Test-TcpkIsNativeNoise $pe.Name)   { continue } # skip well-known runtimes
+        # Skip non-first-party binaries: framework, bundled native runtimes, the Electron main
+        # exe (banned CRT imports like gets/sprintf come from Chromium, not the app) and the NSIS
+        # uninstaller (lstrcpy/wsprintf are stock NSIS) -- attributing these to the app is an FP.
+        if (-not (Test-TcpkIsFirstParty -Name $pe.Name -SizeBytes $pe.Length -Path $pe.FullName)) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
         if ($text.Contains('BSJB')) { continue }            # skip managed .NET

@@ -52,6 +52,7 @@ function Get-TcpkCecilAssembly {
 # once, reused across every sink).
 $script:TcpkTaintedReturningCache = @{}
 $script:TcpkTaintedFieldCache = @{}
+$script:TcpkCrossAsmCache = @{}     # dir -> unioned tainted-returning FullNames of sibling DLLs
 
 # Dispose every cached assembly and reset. Called at the audit boundary so file
 # handles are released and a fresh run never reuses a stale parse.
@@ -60,6 +61,7 @@ function Clear-TcpkCecilCache {
     $script:TcpkCecilAsmCache = @{}
     $script:TcpkTaintedReturningCache = @{}
     $script:TcpkTaintedFieldCache = @{}
+    $script:TcpkCrossAsmCache = @{}
 }
 
 # Find a method whose name (or a method that references a token) matches a needle,
@@ -587,6 +589,189 @@ function Get-TcpkXxeVerdicts {
     }
 }
 
+# Deterministic weak-crypto detection from IL. Like Get-TcpkXxeVerdicts, this reads the
+# actual construction / constant argument rather than a source-string NAME (which rarely
+# survives C# compilation), and proves:
+#   * weak algorithm  -- newobj of a broken cipher/hash provider, or a Create() /
+#     CryptoConfig.CreateFromName(constant) factory that names one (DES/3DES/RC2/RC4/MD5/SHA1/RIPEMD160).
+#   * ecb-mode        -- set_Mode(CipherMode.ECB = 2), read as a constant.
+#   * hardcoded key/IV -- set_Key / set_IV whose value is a byte[] literal (InitializeArray
+#     / stelem), a zero-filled new byte[N], or Encoding.GetBytes("literal") -- a shipped key.
+# One verdict per proven construct, materialized to plain strings so results survive Dispose.
+function Get-TcpkCryptoVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $out = New-Object 'System.Collections.Generic.List[object]'
+
+    $weak = @{
+        'DES'       = @{ k = 'weak-cipher'; s = 'MEDIUM'; n = 'DES (56-bit, brute-forceable)' }
+        'TripleDES' = @{ k = 'weak-cipher'; s = 'LOW';    n = 'TripleDES/3DES (deprecated; 64-bit block -> Sweet32)' }
+        'RC2'       = @{ k = 'weak-cipher'; s = 'MEDIUM'; n = 'RC2 (broken block cipher)' }
+        'RC4'       = @{ k = 'weak-cipher'; s = 'MEDIUM'; n = 'RC4 (broken stream cipher)' }
+        'MD5'       = @{ k = 'weak-hash';   s = 'LOW';    n = 'MD5 (collisions; unsafe for integrity/signing)' }
+        'SHA1'      = @{ k = 'weak-hash';   s = 'LOW';    n = 'SHA-1 (collisions; unsafe for signing)' }
+        'RIPEMD160' = @{ k = 'weak-hash';   s = 'LOW';    n = 'RIPEMD-160 (obsolete)' }
+    }
+    # Map a crypto type/name string to a weak-algorithm key (TripleDES before DES).
+    $algKey = {
+        param($nm)
+        if ($nm -match '(?i)(TripleDES|3DES)')            { return 'TripleDES' }
+        if ($nm -match '(?i)\bDES\b' -or $nm -match '(?i)DESCryptoServiceProvider|DESCng') { return 'DES' }
+        if ($nm -match '(?i)\bRC2\b')                     { return 'RC2' }
+        if ($nm -match '(?i)\b(RC4|ARC4|ARCFOUR)\b')      { return 'RC4' }
+        if ($nm -match '(?i)MD5')                         { return 'MD5' }
+        if ($nm -match '(?i)SHA-?1\b|SHA1(Managed|Cng|CryptoServiceProvider)?') { return 'SHA1' }
+        if ($nm -match '(?i)RIPEMD')                      { return 'RIPEMD160' }
+        return $null
+    }
+
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                $instrs = @($m.Body.Instructions)
+                for ($i = 0; $i -lt $instrs.Count; $i++) {
+                    $ins = $instrs[$i]; $opn = $ins.OpCode.Name
+                    $kind = $null; $sev = $null; $reason = $null
+
+                    if ($opn -eq 'newobj') {
+                        $ctor = $ins.Operand -as [Mono.Cecil.MethodReference]
+                        if ($ctor) {
+                            $dt = "$($ctor.DeclaringType.FullName)"
+                            if ($dt -match '(?i)Cryptography|Crypto') {
+                                $ak = & $algKey $dt
+                                if ($ak -and $weak.ContainsKey($ak)) {
+                                    $kind = $weak[$ak].k; $sev = $weak[$ak].s
+                                    $reason = "Constructs $($weak[$ak].n) [newobj $($ctor.DeclaringType.Name)]."
+                                }
+                            }
+                        }
+                    }
+                    elseif ($opn -eq 'call' -or $opn -eq 'callvirt') {
+                        $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                        if ($mref) {
+                            $mn = "$($mref.Name)"; $dt = "$($mref.DeclaringType.FullName)"
+                            if (($mn -eq 'Create' -or $mn -eq 'CreateFromName') -and $dt -match '(?i)System\.Security\.Cryptography') {
+                                $ak = & $algKey $dt
+                                if (-not $ak) {
+                                    $a = $ins.Previous; while ($a -and $a.OpCode.Name -eq 'nop') { $a = $a.Previous }
+                                    if ($a -and $a.OpCode.Name -eq 'ldstr') { $ak = & $algKey "$($a.Operand)" }
+                                }
+                                if ($ak -and $weak.ContainsKey($ak)) {
+                                    $kind = $weak[$ak].k; $sev = $weak[$ak].s
+                                    $reason = "Factory constructs $($weak[$ak].n) [$($mref.DeclaringType.Name).$mn]."
+                                }
+                            }
+                            elseif ($mn -eq 'set_Mode' -and $dt -match '(?i)Cryptography') {
+                                $a = $ins.Previous; while ($a -and $a.OpCode.Name -eq 'nop') { $a = $a.Previous }
+                                if ((Get-TcpkIlI4Value $a) -eq 2) {
+                                    $kind = 'ecb-mode'; $sev = 'MEDIUM'
+                                    $reason = "CipherMode.ECB (ldc.i4.2) set on $($mref.DeclaringType.Name): identical plaintext blocks yield identical ciphertext (pattern leak)."
+                                }
+                            }
+                            elseif (($mn -eq 'set_Key' -or $mn -eq 'set_IV') -and $dt -match '(?i)Cryptography') {
+                                $a = $ins.Previous; while ($a -and $a.OpCode.Name -eq 'nop') { $a = $a.Previous }
+                                $src = $null
+                                if ($a) {
+                                    $an = $a.OpCode.Name
+                                    if ($an -eq 'call' -or $an -eq 'callvirt') {
+                                        $cr = $a.Operand -as [Mono.Cecil.MethodReference]
+                                        if ($cr -and "$($cr.Name)" -eq 'InitializeArray') { $src = 'an inline byte[] literal' }
+                                        elseif ($cr -and "$($cr.Name)" -eq 'GetBytes' -and $a.Previous -and $a.Previous.OpCode.Name -eq 'ldstr') { $src = 'a string literal via Encoding.GetBytes' }
+                                    }
+                                    elseif ($an -eq 'stelem.i1') { $src = 'an inline byte[] literal' }
+                                    elseif ($an -eq 'newarr') { $et = $a.Operand -as [Mono.Cecil.TypeReference]; if ($et -and "$($et.FullName)" -eq 'System.Byte') { $src = 'a zero-filled byte[] (static/all-zero value)' } }
+                                }
+                                if ($src) {
+                                    $what = if ($mn -eq 'set_Key') { 'key' } else { 'IV' }
+                                    $kind = "hardcoded-$what"; $sev = if ($mn -eq 'set_Key') { 'HIGH' } else { 'MEDIUM' }
+                                    $reason = "Symmetric $what assigned from $src on $($mref.DeclaringType.Name): the $what is baked into the binary (every install shares it)."
+                                }
+                            }
+                        }
+                    }
+
+                    if (-not $kind) { continue }
+                    # IL proof snippet: up to 5 instructions ending at this construct.
+                    $back = New-Object 'System.Collections.Generic.List[object]'
+                    $p = $ins; $c = 0
+                    while ($p -and $c -lt 5) { $back.Insert(0, $p); $p = $p.Previous; $c++ }
+                    $snip = New-Object 'System.Collections.Generic.List[string]'
+                    foreach ($bi in $back) { $bo = if ($null -ne $bi.Operand) { " $($bi.Operand)" } else { '' }; $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo)) }
+                    $ns  = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+                    $tok = '0x{0:X8}' -f $m.MetadataToken.ToInt32()
+                    $out.Add([pscustomobject]@{
+                        File = $fileName; Assembly = $asm.MainModule.Name; Namespace = $ns; Type = $t.FullName
+                        Method = $m.Name; Token = $tok; Kind = $kind; Reason = $reason; Severity = $sev; Il = ($snip -join "`n")
+                    })
+                }
+            }
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}
+
+# Deterministic Json.NET TypeNameHandling detection from IL. TypeNameHandling != None
+# turns JsonConvert.DeserializeObject / JsonSerializer into a polymorphic-deserialization
+# RCE gadget (the JSON embeds "$type" and instantiates arbitrary types). A source-string
+# match sees the enum NAME but not the value; this reads the constant fed to
+# set_TypeNameHandling and reports only a proven non-None setting. Enum: None=0, Objects=1,
+# Arrays=2, All=3, Auto=4. Returns one verdict per dangerous set, plain strings (survive Dispose).
+function Get-TcpkTypeNameHandlingVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $names = @{ 1 = 'Objects'; 2 = 'Arrays'; 3 = 'All'; 4 = 'Auto' }
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    $opn = $ins.OpCode.Name
+                    if ($opn -ne 'call' -and $opn -ne 'callvirt') { continue }
+                    $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($null -eq $mref -or "$($mref.Name)" -ne 'set_TypeNameHandling') { continue }
+                    if ("$($mref.DeclaringType.FullName)" -notmatch '(?i)Newtonsoft\.Json') { continue }
+                    $arg = $ins.Previous; while ($arg -and $arg.OpCode.Name -eq 'nop') { $arg = $arg.Previous }
+                    $val = Get-TcpkIlI4Value $arg
+                    if ($null -eq $val -or $val -le 0) { continue }   # None (0) or dynamic -> not a proven gadget
+                    $nm = if ($names.ContainsKey([int]$val)) { $names[[int]$val] } else { "value $val" }
+                    # All / Auto are the classic exploited settings -> CRITICAL; Objects/Arrays HIGH.
+                    $sev = if ($val -eq 3 -or $val -eq 4) { 'CRITICAL' } else { 'HIGH' }
+                    $back = New-Object 'System.Collections.Generic.List[object]'
+                    $p = $ins; $c = 0
+                    while ($p -and $c -lt 4) { $back.Insert(0, $p); $p = $p.Previous; $c++ }
+                    $snip = New-Object 'System.Collections.Generic.List[string]'
+                    foreach ($bi in $back) { $bo = if ($null -ne $bi.Operand) { " $($bi.Operand)" } else { '' }; $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo)) }
+                    $ns  = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+                    $tok = '0x{0:X8}' -f $m.MetadataToken.ToInt32()
+                    $out.Add([pscustomobject]@{
+                        File = $fileName; Assembly = $asm.MainModule.Name; Namespace = $ns; Type = $t.FullName
+                        Method = $m.Name; Token = $tok; Value = [int]$val; Name = $nm; Severity = $sev
+                        Reason = "TypeNameHandling.$nm (ldc.i4.$val) set on $($mref.DeclaringType.Name): polymorphic deserialization is enabled."
+                        Il = ($snip -join "`n")
+                    })
+                }
+            }
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}
+
 # Constant vs dynamic IL load opcodes (for the argument-source heuristic below).
 $script:TcpkIlConstLoads = @(
     'ldstr','ldnull','ldc.i4','ldc.i4.s','ldc.i4.m1',
@@ -669,6 +854,32 @@ function Get-TcpkTaintedReturningMethods {
     return ,$set
 }
 
+# Cross-assembly taint backbone: a helper DLL beside the target may read external input
+# and RETURN it (Config.Read(), Util.GetArg()), then the main DLL feeds that result into a
+# sink -- a source->sink path that spans the assembly boundary. Union the tainted-returning
+# method sets of every first-party DLL/EXE in the directory (each cached per assembly), so a
+# call in DLL B to a tainted-returning method defined in DLL A is recognised. Cached per
+# directory. PURELY ADDITIVE: it only adds real tainted-returning FullNames, so it can find
+# MORE genuine cross-assembly bugs but never removes an existing verdict.
+function Get-TcpkCrossAsmTaintedReturning {
+    [CmdletBinding()] param([Parameter(Mandatory)][string]$Dir, [int]$MaxDlls = 40)
+    if ($script:TcpkCrossAsmCache.ContainsKey($Dir)) { return , $script:TcpkCrossAsmCache[$Dir] }
+    $set = New-Object 'System.Collections.Generic.HashSet[string]'
+    try {
+        $dlls = @(Get-ChildItem -LiteralPath $Dir -File -ErrorAction SilentlyContinue |
+                  Where-Object { ($_.Extension -ieq '.dll' -or $_.Extension -ieq '.exe') -and $_.Length -lt 50MB -and -not (Test-TcpkIsFrameworkFile $_.Name) } |
+                  Select-Object -First $MaxDlls)
+        foreach ($d in $dlls) {
+            $asm = $null; try { $asm = Get-TcpkCecilAssembly $d.FullName } catch { }
+            if (-not $asm) { continue }
+            $tr = $null; try { $tr = Get-TcpkTaintedReturningMethods -Asm $asm -Key $d.FullName } catch { }
+            if ($tr) { foreach ($mm in $tr) { [void]$set.Add($mm) } }
+        }
+    } catch { }
+    $script:TcpkCrossAsmCache[$Dir] = $set
+    return , $set
+}
+
 # Forward intra-method dataflow: which local slots end up holding external-input-
 # derived ("tainted") values. A local is tainted when assigned directly from (a) a
 # source-API or tainted-returning call, (b) a caller parameter in a reachable method,
@@ -677,12 +888,66 @@ function Get-TcpkTaintedReturningMethods {
 # re-introducing false positives -- it completes the interprocedural signal so a
 # cross-method source can reach a sink through an intermediate local.
 function Get-TcpkMethodTaintedLocals {
-    [CmdletBinding()] param([Parameter(Mandatory)]$Instrs, [bool]$Reachable, $TaintedReturning, $TaintedFields)
+    [CmdletBinding()] param([Parameter(Mandatory)]$Instrs, [bool]$Reachable, $TaintedReturning, $TaintedFields, $Variables)
     $tl = New-Object 'System.Collections.Generic.HashSet[int]'
     if ($null -eq $TaintedReturning) { $TaintedReturning = New-Object 'System.Collections.Generic.HashSet[string]' }
     if ($null -eq $TaintedFields)    { $TaintedFields    = New-Object 'System.Collections.Generic.HashSet[string]' }
+
+    # StringBuilder-carried taint: sb.Append(input); ...; sql = sb.ToString() is THE
+    # dominant SQL / command concatenation idiom, and without this the trail dies at
+    # ToString (not a source). $sbSlots = locals declared StringBuilder; $sbTainted =
+    # those that have received an external-input-derived value. Needs $Variables (the
+    # method's local list); absent it, this degrades to the prior behaviour exactly.
+    $sbSlots   = New-Object 'System.Collections.Generic.HashSet[int]'
+    $sbTainted = New-Object 'System.Collections.Generic.HashSet[int]'
+    if ($Variables) {
+        for ($vi = 0; $vi -lt $Variables.Count; $vi++) {
+            $vt = ''; try { $vt = "$($Variables[$vi].VariableType.FullName)" } catch { }
+            if ($vt -eq 'System.Text.StringBuilder') { [void]$sbSlots.Add($vi) }
+        }
+    }
+
     for ($pass = 0; $pass -lt 3; $pass++) {
         $changed = $false
+
+        # (a) A tainted Append / AppendLine / AppendFormat / Insert / Replace argument
+        # marks the receiver StringBuilder slot as a tainted carrier.
+        if ($sbSlots.Count) {
+            for ($k = 0; $k -lt $Instrs.Count; $k++) {
+                $ci = $Instrs[$k]; $cin = $ci.OpCode.Name
+                if ($cin -ne 'call' -and $cin -ne 'callvirt') { continue }
+                $cr = $ci.Operand -as [Mono.Cecil.MethodReference]
+                if (-not $cr -or "$($cr.DeclaringType.FullName)" -ne 'System.Text.StringBuilder') { continue }
+                if ("$($cr.Name)" -notmatch '^(Append|AppendLine|AppendFormat|Insert|Replace)$') { continue }
+                # receiver = nearest preceding ldloc of a StringBuilder slot
+                $recIdx = -1; $recSlot = -1
+                for ($q = $k - 1; $q -ge 0; $q--) {
+                    if ($Instrs[$q].OpCode.Name -like 'ldloc*') {
+                        $qs = Get-TcpkIlLocalIndex $Instrs[$q]
+                        if ($qs -ge 0 -and $sbSlots.Contains($qs)) { $recIdx = $q; $recSlot = $qs; break }
+                    }
+                }
+                if ($recSlot -lt 0 -or $sbTainted.Contains($recSlot)) { continue }
+                # any value pushed between the receiver load and the call that is tainted
+                $argTainted = $false
+                for ($j = $k - 1; $j -gt $recIdx; $j--) {
+                    $jin = $Instrs[$j]; $jn = $jin.OpCode.Name
+                    if ($jn -eq 'nop' -or $jn -eq 'dup' -or $jn -eq 'box' -or $jn -like 'conv.*') { continue }
+                    if ($jn -eq 'call' -or $jn -eq 'callvirt' -or $jn -eq 'newobj') {
+                        $jr = $jin.Operand -as [Mono.Cecil.MethodReference]
+                        if ($jr -and ("$($jr.DeclaringType.FullName)::$($jr.Name)" -match $script:TcpkIlSourceApiRx -or $TaintedReturning.Contains("$($jr.FullName)"))) { $argTainted = $true; break }
+                    }
+                    elseif ($jn -in 'ldarg.1','ldarg.2','ldarg.3','ldarg.s','ldarg') { if ($Reachable) { $argTainted = $true; break } }
+                    elseif ($jn -like 'ldloc*') { $js = Get-TcpkIlLocalIndex $jin; if ($js -ge 0 -and ($tl.Contains($js) -or $sbTainted.Contains($js))) { $argTainted = $true; break } }
+                    elseif ($jn -eq 'ldfld' -or $jn -eq 'ldsfld') { $jf = $jin.Operand -as [Mono.Cecil.FieldReference]; if ($jf -and $TaintedFields.Contains("$($jf.FullName)")) { $argTainted = $true; break } }
+                }
+                if ($argTainted) { [void]$sbTainted.Add($recSlot); $changed = $true }
+            }
+        }
+
+        # (b) forward local dataflow: a local is tainted when assigned from a source /
+        # tainted-returning call, a caller parameter, another tainted local, a tainted
+        # field, or sb.ToString() on a tainted StringBuilder.
         for ($k = 1; $k -lt $Instrs.Count; $k++) {
             $st = $Instrs[$k]
             if ($st.OpCode.Name -notlike 'stloc*') { continue }
@@ -699,7 +964,17 @@ function Get-TcpkMethodTaintedLocals {
             $pin = $Instrs[$p]; $pn = $pin.OpCode.Name; $isT = $false
             if ($pn -eq 'call' -or $pn -eq 'callvirt' -or $pn -eq 'newobj') {
                 $pr = $pin.Operand -as [Mono.Cecil.MethodReference]
-                if ($pr -and ("$($pr.DeclaringType.FullName)::$($pr.Name)" -match $script:TcpkIlSourceApiRx -or $TaintedReturning.Contains("$($pr.FullName)"))) { $isT = $true }
+                if ($pr) {
+                    if ("$($pr.DeclaringType.FullName)::$($pr.Name)" -match $script:TcpkIlSourceApiRx -or $TaintedReturning.Contains("$($pr.FullName)")) { $isT = $true }
+                    elseif ("$($pr.DeclaringType.FullName)" -eq 'System.Text.StringBuilder' -and "$($pr.Name)" -eq 'ToString') {
+                        for ($q = $p - 1; $q -ge 0; $q--) {
+                            if ($Instrs[$q].OpCode.Name -like 'ldloc*') {
+                                $qs = Get-TcpkIlLocalIndex $Instrs[$q]
+                                if ($qs -ge 0 -and $sbSlots.Contains($qs)) { if ($sbTainted.Contains($qs)) { $isT = $true }; break }
+                            }
+                        }
+                    }
+                }
             }
             elseif ($pn -in 'ldarg.1','ldarg.2','ldarg.3','ldarg.s','ldarg') { if ($Reachable) { $isT = $true } }
             elseif ($pn -like 'ldloc*') {
@@ -712,6 +987,7 @@ function Get-TcpkMethodTaintedLocals {
             }
             if ($isT) { [void]$tl.Add($li); $changed = $true }
         }
+
         if (-not $changed) { break }
     }
     return ,$tl
@@ -744,7 +1020,7 @@ function Get-TcpkTaintedFields {
                 # Reachable=$true is a deliberate, slightly-permissive proxy: we lack the
                 # call graph in this pass, and the field indirection is itself the strong
                 # signal, so treat a param-fed store as a possible taint carrier.
-                $tl = Get-TcpkMethodTaintedLocals -Instrs $instrs -Reachable $true -TaintedReturning $tr -TaintedFields $set
+                $tl = Get-TcpkMethodTaintedLocals -Instrs $instrs -Reachable $true -TaintedReturning $tr -TaintedFields $set -Variables $m.Body.Variables
                 for ($k = 1; $k -lt $instrs.Count; $k++) {
                     $st = $instrs[$k]
                     if ($st.OpCode.Name -ne 'stfld' -and $st.OpCode.Name -ne 'stsfld') { continue }
@@ -874,6 +1150,21 @@ function Get-TcpkCallsiteUsage {
     $taintedReturning = $null
     try { $taintedReturning = Get-TcpkTaintedReturningMethods -Asm $asm -Key $key } catch { }
     if ($null -eq $taintedReturning) { $taintedReturning = New-Object 'System.Collections.Generic.HashSet[string]' }
+    # cross-assembly: union sibling DLLs' tainted-returning methods so a source in a helper
+    # assembly that reaches a sink here is recognised. Additive (merged into a fresh set so
+    # the per-assembly cache is never mutated); only ADDS taint, never removes a verdict.
+    try {
+        $dir = Split-Path -Parent $key
+        if ($dir) {
+            $cross = Get-TcpkCrossAsmTaintedReturning -Dir $dir
+            if ($cross -and $cross.Count) {
+                $merged = New-Object 'System.Collections.Generic.HashSet[string]'
+                foreach ($x in $taintedReturning) { [void]$merged.Add($x) }
+                foreach ($x in $cross) { [void]$merged.Add($x) }
+                $taintedReturning = $merged
+            }
+        }
+    } catch { }
     # cross-method carrier: fields that hold external input (set in one method, read in
     # another). Built once per assembly and cached.
     $taintedFields = $null
@@ -939,7 +1230,7 @@ function Get-TcpkCallsiteUsage {
                 $argKind = 'n/a'
                 if ($Injection) {
                     if ($null -eq $taintedLocals) {
-                        $taintedLocals = Get-TcpkMethodTaintedLocals -Instrs $instrs -Reachable ([bool]$reachMethod) -TaintedReturning $taintedReturning -TaintedFields $taintedFields
+                        $taintedLocals = Get-TcpkMethodTaintedLocals -Instrs $instrs -Reachable ([bool]$reachMethod) -TaintedReturning $taintedReturning -TaintedFields $taintedFields -Variables $m.Body.Variables
                     }
                     $nargs = 0; try { $nargs = $mref.Parameters.Count } catch { }
                     $seenDyn = $false; $seenConst = $false; $sawParam = $false

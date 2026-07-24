@@ -27,8 +27,9 @@ function Test-TcpkEtwProviders {
     )
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
-        if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
-        if (Test-TcpkIsNativeNoise $pe.Name)   { continue }
+        # Skip non-first-party binaries: EventRegister/EventSource in the Electron main exe and
+        # the elevate helper is standard Chromium/Electron tracing, not a first-party provider.
+        if (-not (Test-TcpkIsFirstParty -Name $pe.Name -SizeBytes $pe.Length -Path $pe.FullName)) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 

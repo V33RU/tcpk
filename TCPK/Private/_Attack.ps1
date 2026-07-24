@@ -42,6 +42,13 @@ $script:TcpkAttackMap = @(
     @{ rx = '^fuses\.cookie';                                                                            tech = @('T1539 Steal Web Session Cookie') }
     @{ rx = '^fuses\.(run-as-node|node-inspect|node-options)';                                           tech = @('T1218 System Binary Proxy Execution') }
     @{ rx = '^fuses\.(asar-integrity|load-outside)';                                                     tech = @('T1554 Compromise Host Software Binary') }
+    @{ rx = '^process\.(impactful-privileges|integrity-level|running-as-system|identity)';               tech = @('T1134 Access Token Manipulation','T1548 Abuse Elevation Control Mechanism') }
+    @{ rx = '^electron\.ipc-handler-sink';                                                               tech = @('T1059 Command and Scripting Interpreter','T1203 Exploitation for Client Execution') }
+    @{ rx = '^intercept\.(secret|token|session|cleartext)';                                              tech = @('T1557 Adversary-in-the-Middle','T1040 Network Sniffing','T1539 Steal Web Session Cookie') }
+    @{ rx = '^intercept\.tamper';                                                                        tech = @('T1565.002 Transmitted Data Manipulation') }
+    @{ rx = '^intercept\.pii';                                                                           tech = @('T1005 Data from Local System') }
+    @{ rx = '^protocol-handler';                                                                         tech = @('T1204.001 Malicious Link','T1559 Inter-Process Communication') }
+    @{ rx = '^browser\.(master-key|cookie-key|token)';                                                   tech = @('T1555.003 Credentials from Web Browsers','T1539 Steal Web Session Cookie') }
 )
 
 function Get-TcpkAttackTechnique {
@@ -74,6 +81,11 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^(cve|deps|dependencycves|sbom|pkgmanifest|osv)\.|outdated-runtime';                                     da = 'DA9 Using Components with Known Vulnerabilities' }
     @{ rx = '^(tls|tlsbypass|tlspinning|tlsprotocols|scheme|insecureschemes|backend|crlocsp|dns|truststore)|cleartext|update\.url|^electron\.cert'; da = 'DA7 Insecure Communication' }
     @{ rx = '^crypto\.|weak-symmetric-crypto|^pem|weak-crypto';                                                       da = 'DA4 Improper Cryptography Usage' }
+    @{ rx = '^electron\.ipc-handler-sink';                                                                            da = 'DA1 Injections' }
+    @{ rx = '^process\.(impactful-privileges|integrity-level)';                                                       da = 'DA5 Improper Authorization' }
+    @{ rx = '^intercept\.tamper';                                                                                     da = 'DA5 Improper Authorization' }
+    @{ rx = '^intercept\.';                                                                                           da = 'DA7 Insecure Communication' }
+    @{ rx = '^protocol-handler';                                                                                      da = 'DA6 Security Misconfiguration' }
     @{ rx = '^(authflags|jwt|session|login)|auth-bypass';                                                             da = 'DA2 Broken Authentication and Session Management' }
     @{ rx = '^(deser|xxe|csv)\.|callsites\.(command-execution|ldap-query|ssrf|format-string|sql|xpath)|injection';    da = 'DA1 Injections' }
     @{ rx = '^electronjs\.(missing-nav|csp|cmdline|permission)';                                                      da = 'DA6 Security Misconfiguration' }

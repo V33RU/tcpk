@@ -36,8 +36,10 @@ function Test-TcpkSelfHostedServer {
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if ($pe.Extension -notin '.dll','.exe') { continue }
-        if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
-        if (Test-TcpkIsNativeNoise $pe.Name)   { continue }
+        # Skip non-first-party binaries: the Electron main exe embeds V8/Chromium debug symbols
+        # (loadVMSymbols fetching localhost:8000, OnHttp* names) that look like a self-hosted
+        # server but are runtime code, not the app's -- a top false-positive source here.
+        if (-not (Test-TcpkIsFirstParty -Name $pe.Name -SizeBytes $pe.Length -Path $pe.FullName)) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 

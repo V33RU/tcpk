@@ -46,5 +46,41 @@ function Test-TcpkProcessToken {
                 -Cwe @('CWE-250') `
                 -Description 'SYSTEM is the highest local privilege; any code-exec primitive in this process becomes a full local compromise.'
         }
+
+        # Integrity level (read directly from the live token).
+        $rid = Get-TcpkProcessIntegrityRid -ProcessId $p.Id
+        if ($rid -ge 0) {
+            $intLabel = Get-TcpkIntegrityLabel $rid
+            New-TcpkFinding -Module 'runtime' -RuleId 'process.integrity-level' `
+                -Severity 'INFO' -Confidence 'Confirmed' `
+                -Title "$($p.Name) runs at $intLabel integrity" `
+                -File "$($p.Name) (PID $($p.Id))" `
+                -Evidence ("Integrity RID=0x{0:X}" -f $rid)
+        }
+
+        # Impactful token privileges. A process can enable any privilege it
+        # HOLDS via AdjustTokenPrivileges, so "present" is the capability; the
+        # finding fires on privileges that are ENABLED in the live token (the
+        # active LPE primitive) and lists any present-but-disabled ones for
+        # context. This avoids flagging the ~20 dormant privileges every
+        # elevated process carries.
+        $privRaw = Get-TcpkProcessPrivilegeString -ProcessId $p.Id
+        if ($privRaw) {
+            $split = Split-TcpkImpactfulPrivileges -PrivRaw $privRaw
+            if ($split.Enabled.Count) {
+                $sev = if ($split.SawSystemGrade) { 'MEDIUM' } else { 'LOW' }
+                $ev = "Enabled: $($split.Enabled -join ', ')"
+                if ($split.Present.Count) { $ev += "  |  Present (can self-enable): $($split.Present -join ', ')" }
+                New-TcpkFinding -Module 'runtime' -RuleId 'process.impactful-privileges' `
+                    -Severity $sev -Confidence 'Confirmed' `
+                    -Title "$($p.Name) holds impactful token privileges" `
+                    -File "$($p.Name) (PID $($p.Id))" `
+                    -Cwe @('CWE-250','CWE-269') `
+                    -Evidence $ev `
+                    -Description ('The process token has privileges that turn a code-exec primitive into local escalation. ' +
+                        'SeImpersonate / SeAssignPrimaryToken / SeTcb / SeCreateToken lead to SYSTEM (potato-style); ' +
+                        'SeDebug / SeLoadDriver / SeBackup / SeRestore / SeTakeOwnership grant cross-process or filesystem control.')
+            }
+        }
     }
 }

@@ -71,6 +71,8 @@ opt-in per machine -- TCPK never changes your Claude settings for you.
       "mcp__tcpk__tcpk_recon_profile",
       "mcp__tcpk__tcpk_strings",
       "mcp__tcpk__tcpk_cve_match",
+      "mcp__tcpk__tcpk_list_modules",
+      "mcp__tcpk__tcpk_decompile",
       "mcp__tcpk__tcpk_audit",
       "mcp__tcpk__tcpk_get_findings",
       "mcp__tcpk__tcpk_exploit_plan"
@@ -104,7 +106,7 @@ Edit `%APPDATA%\Claude\claude_desktop_config.json`:
 }
 ```
 
-Restart the client. You should see **8 `tcpk_*` tools** become available.
+Restart the client. You should see **10 `tcpk_*` tools** become available.
 
 > Adjust the path if you moved the tool. Use double backslashes in JSON.
 
@@ -118,8 +120,10 @@ Restart the client. You should see **8 `tcpk_*` tools** become available.
 | `tcpk_recon_profile` | Fingerprint the target (type, version, publisher, runtime, UI frameworks, SDKs, signing, attack-surface counts) - no full audit | `target` |
 | `tcpk_strings` | Extract categorized literals (URLs, paths, registry keys, IPs, emails, command refs, secret-ish) | `target` |
 | `tcpk_cve_match` | Match shipped components vs live CVE data (ONLINE-ONLY): OSV (NuGet/npm/Maven) + NVD (native libs by CPE); no offline catalog | `target`, `includePatched?` |
+| `tcpk_list_modules` | List the target's own modules: managed .NET assemblies (decompilable, with type/method counts) + native PE binaries; framework files filtered out | `target` |
+| `tcpk_decompile` | Decompile a .NET module with Mono.Cecil. No `method` -> the module's **sink-bearing methods** (same sink map the IL verifier uses). With `method` (`Namespace.Type::Method`) -> its **IL**, each instruction flagged when it calls a sink. This is the evidence behind `Confirmed (IL)` | `dll`, `method?` |
 | `tcpk_audit` | **Full audit** - writes HTML/JSON/MD reports + sidecars; returns a summary with `outDir` (takes ~1-3 min) | `target`, `packageName?`, `processName?`, `outDir?` |
-| `tcpk_get_findings` | Read findings from a completed audit, filter by severity / ruleId | `outDir`, `severity?`, `ruleId?`, `limit?` |
+| `tcpk_get_findings` | Read findings from a completed audit, **enriched** with computed CVSS v4.0, CWE, ATT&CK, TASVS and a how-to-verify hint; filter by severity / ruleId | `outDir`, `severity?`, `ruleId?`, `limit?`, `verbose?` |
 | `tcpk_exploit_plan` | Read the actionable CVE + exploitable-finding plan | `outDir` |
 | `tcpk_generate_poc` | **GATED** - generate a PoC artifact (Frida / proxy DLL / poisoned manifest / COM-hijack). Generates files only; never attacks | `module`, `authorized=true`, ... |
 

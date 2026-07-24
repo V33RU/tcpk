@@ -766,7 +766,7 @@ $script:TCPK_AGENTIC_HTML = @'
 <title>TCPK agentic workbench</title>
 <style>
 :root{--bg:#0a0d13;--panel:#161b22;--panel2:#1c2230;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--dim:#6e7681;
---accent:#56d364;--blue:#58a6ff;--crit:#f85149;--high:#db6d28;--med:#d29922;--low:#3fb950;--info:#6a7585;
+--accent:#2dd4bf;--blue:#58a6ff;--crit:#f85149;--high:#db6d28;--med:#d29922;--low:#3fb950;--info:#6a7585;
 --il:#2ea043;--dyn:#39c5cf;--llm:#bc8cff;--mono:"Cascadia Code","Fira Code",Consolas,monospace;
 --hxNull:#5a5a5a;--hxWs:#61afef;--hxAsc:#98c379;--hxCtl:#d19a66;--hxHigh:#c678dd;--hxSep:#5a6472}
 *{box-sizing:border-box}html,body{height:100%}
@@ -869,6 +869,66 @@ th,td{padding:7px 11px}
 .railsep{margin:14px 16px 4px;font:700 9px var(--mono);color:var(--dim);letter-spacing:.14em;text-transform:uppercase;border-top:1px solid var(--border);padding-top:11px}
 .railsep.first{border-top:none;padding-top:0;margin:2px 16px 4px}
 @media(max-width:1080px){.cv{grid-template-columns:1fr !important;height:auto !important}.cv .col{min-height:200px;max-height:48vh}}
+/* --- Dashboard: faithful port of the proposed-redesign mockup, scoped under .dbwrap so
+   the mockup class names (.card/.tile/.pill/table/...) never collide with the app's own. --- */
+.dbwrap{--line:#232a37;--line-soft:#1a202b;--raise:#1b212d;--faint:#69737f;--accent-ink:#0b0e14;--good:#37c08b;--r:9px;--r-sm:6px;--panel:#11151d;--panel2:#161b25;--dim:#9aa5b4;--text:#e7ebf2;--bg:#0b0e14;--crit:#f0555c;--high:#f5872f;--med:#e5b213;--low:#4f95d8;--info:#7d8899;--accent:#2dd4bf;font-size:13.5px;line-height:1.45}
+.dbwrap .pagehead{display:flex;align-items:baseline;gap:12px;margin:0 2px 16px;flex-wrap:wrap}
+.dbwrap .pagehead h1{font-size:19px;font-weight:700;margin:0;letter-spacing:.2px;color:var(--text)}
+.dbwrap .pagehead .sub{color:var(--dim);font-size:12.5px}.dbwrap .pagehead .sub b{color:var(--good);font-weight:600}
+.dbwrap .grid{display:grid;gap:14px}
+.dbwrap .stats{grid-template-columns:repeat(6,1fr)}
+.dbwrap .tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;position:relative;overflow:hidden}
+.dbwrap .tile .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:7px}
+.dbwrap .tile .k .dot{width:8px;height:8px;border-radius:50%}
+.dbwrap .tile .v{font-size:27px;font-weight:750;font-variant-numeric:tabular-nums;margin-top:4px;letter-spacing:-.5px}
+.dbwrap .tile .stripe{position:absolute;left:0;top:0;bottom:0;width:3px}
+.dbwrap .tile.accent .v{color:var(--accent)}
+.dbwrap .row2{grid-template-columns:1.35fr 1fr;align-items:stretch}
+.dbwrap .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.dbwrap .card h2{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:0 0 14px;font-weight:650}
+.dbwrap .card h2 .hint{float:right;text-transform:none;letter-spacing:0;color:var(--faint);font-weight:500}
+.dbwrap .sevbar{display:flex;height:14px;border-radius:6px;overflow:hidden;margin-bottom:14px;box-shadow:inset 0 0 0 1px var(--line-soft)}
+.dbwrap .sevbar i{display:block}
+.dbwrap .legend{display:flex;flex-direction:column;gap:9px}
+.dbwrap .lrow{display:grid;grid-template-columns:12px 1fr auto auto;align-items:center;gap:10px}
+.dbwrap .lrow .sw{width:11px;height:11px;border-radius:3px}
+.dbwrap .lrow .nm{color:var(--text)}
+.dbwrap .lrow .ct{font-variant-numeric:tabular-nums;font-weight:650;font-family:var(--mono);color:var(--text)}
+.dbwrap .lrow .bar{grid-column:2/5;height:5px;border-radius:3px;background:var(--line-soft);overflow:hidden;margin-top:-2px}
+.dbwrap .lrow .bar i{display:block;height:100%}
+.dbwrap .assure{display:flex;align-items:center;gap:18px}
+.dbwrap .donut{width:104px;height:104px;border-radius:50%;flex:none;background:conic-gradient(var(--accent) calc(var(--p,0)*1%),var(--line) 0);display:grid;place-items:center;position:relative}
+.dbwrap .donut::after{content:"";position:absolute;inset:12px;border-radius:50%;background:var(--panel)}
+.dbwrap .donut .in{position:relative;text-align:center}
+.dbwrap .donut .in b{font-size:22px;font-weight:750;font-variant-numeric:tabular-nums;color:var(--text)}
+.dbwrap .donut .in span{display:block;font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
+.dbwrap .akey{display:flex;flex-direction:column;gap:10px;font-size:12.5px;color:var(--text)}
+.dbwrap .akey .r{display:flex;align-items:center;gap:9px}
+.dbwrap .akey .r .d{width:10px;height:10px;border-radius:3px}
+.dbwrap .akey .r b{margin-left:auto;font-family:var(--mono)}
+.dbwrap .cvss{display:flex;align-items:flex-end;gap:8px;height:66px;margin-top:6px}
+.dbwrap .cvss .b{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px}
+.dbwrap .cvss .b .cbar{width:100%;border-radius:4px 4px 2px 2px;min-height:4px}
+.dbwrap .cvss .b .lb{font-size:10px;color:var(--faint);font-family:var(--mono)}
+.dbwrap .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.dbwrap table{border-collapse:collapse;width:100%;font-size:12.5px}
+.dbwrap thead th{text-align:left;color:var(--faint);font-weight:600;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel2);position:static}
+.dbwrap tbody td{padding:10px 12px;border-bottom:1px solid var(--line-soft);vertical-align:middle;white-space:normal}
+.dbwrap tbody tr:last-child td{border-bottom:none}
+.dbwrap tbody tr:hover{background:var(--raise)}
+.dbwrap td.sevcell{padding-left:14px;position:relative;white-space:nowrap}
+.dbwrap td.sevcell::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:3px;border-radius:3px;background:var(--s,transparent)}
+.dbwrap .dpill{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.04em;padding:3px 8px;border-radius:20px;text-transform:uppercase}
+.dbwrap .rid{font-family:var(--mono);font-size:12px;color:var(--text)}
+.dbwrap .fttl{color:var(--dim)}
+.dbwrap .conf{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;border:1px solid var(--line);white-space:nowrap;color:var(--dim)}
+.dbwrap .conf.il{color:var(--good);border-color:var(--good)}
+.dbwrap .conf.dyn{color:var(--accent);border-color:var(--accent)}
+.dbwrap .conf.inf{color:var(--dim)}
+.dbwrap .conf.fp{color:var(--faint);text-decoration:line-through}
+.dbwrap .score{font-family:var(--mono);font-weight:700;font-variant-numeric:tabular-nums}
+.dbwrap .dfile{font-family:var(--mono);font-size:11px;color:var(--faint)}
+@media(max-width:980px){.dbwrap .stats{grid-template-columns:repeat(3,1fr)}.dbwrap .row2{grid-template-columns:1fr}}
 </style></head><body>
 <div class="app">
 
@@ -885,8 +945,10 @@ th,td{padding:7px 11px}
 
   <div class="mid">
     <nav class="rail">
-      <div class="railsep first" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:4px">SCAN<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Guided. You drive each step; optionally AI-verify the leads.</div></div>
-      <div class="step active" data-p="1"><div class="num">1</div><div><div class="t">Connect</div><div class="s">session + agent</div></div></div>
+      <div class="railsep first" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:4px">OVERVIEW</div>
+      <div class="step active" data-p="0"><div class="num" style="border:none;font-size:15px">::</div><div><div class="t">Dashboard</div><div class="s">security posture</div></div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">SCAN<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Guided. You drive each step; optionally AI-verify the leads.</div></div>
+      <div class="step" data-p="1"><div class="num">1</div><div><div class="t">Connect</div><div class="s">session + agent</div></div></div>
       <div class="step" data-p="2"><div class="num">2</div><div><div class="t">Target</div><div class="s">pick the app</div></div></div>
       <div class="step" data-p="3"><div class="num">3</div><div><div class="t">Audit</div><div class="s">discovery scan</div></div></div>
       <div class="step" data-p="4"><div class="num">4</div><div><div class="t">Decompile</div><div class="s">code to source</div></div></div>
@@ -906,7 +968,17 @@ th,td{padding:7px 11px}
 
     <main class="stage">
 
-      <div class="pane on" data-p="1">
+      <div class="pane on" data-p="0"><div class="dbwrap">
+        <div class="pagehead"><h1>Audit summary</h1><div class="sub" id="dashSub">Run an audit (step 3) to populate the security posture overview.</div></div>
+        <div class="grid stats" id="kpis"></div>
+        <div class="grid row2" style="margin-top:14px">
+          <div class="card"><h2>Findings by severity <span class="hint" id="sevTotal"></span></h2><div class="sevbar" id="sevbarStack"></div><div class="legend" id="sevLegend"></div></div>
+          <div class="card"><h2>Assurance <span class="hint">proven vs leads</span></h2><div class="assure"><div class="donut" id="donut" style="--p:0"><div class="in"><b id="donutPct">0%</b><span>proven</span></div></div><div class="akey" id="akey"></div></div><h2 style="margin:18px 0 8px">CVSS band</h2><div class="cvss" id="cvssBand"></div></div>
+        </div>
+        <div style="margin-top:18px"><div class="card" style="padding:0"><div style="padding:16px 16px 12px"><h2 style="margin:0">Top findings <span class="hint">act on proven first</span></h2></div><div class="tablewrap" style="border:none"><table><thead><tr><th>Sev</th><th>Rule</th><th>Finding</th><th>Confidence</th><th>CVSS</th><th>Location</th></tr></thead><tbody id="dashTop"><tr><td colspan="6" class="fttl" style="padding:16px">no findings yet -- run an audit (step 3).</td></tr></tbody></table></div></div></div>
+      </div></div>
+
+      <div class="pane" data-p="1">
         <h2>Connect</h2>
         <p class="lead">Local agentic workbench. Choose the AI agent that verifies findings and reviews decompiled code. Nothing leaves the box unless you pick a cloud agent and allow egress.</p>
         <div class="panel">
@@ -1198,13 +1270,15 @@ async function testAgent(){var st=$('agentStatus');st.textContent='testing...';s
 function go(n){document.querySelectorAll('.pane').forEach(function(p){p.classList.toggle('on',+p.dataset.p===n);});
   document.querySelectorAll('.step').forEach(function(s){s.classList.toggle('active',+s.dataset.p===n);});
   if(n===4 && (window._target||val('target').trim()) && !window._dcLoaded){window._dcLoaded=true;setTimeout(loadModules,120);}
-  if(n===5 && window._dcMethod){prepReview();}}
+  if(n===5 && window._dcMethod){prepReview();}
+  if(n===0){renderDash();}}
 function mark(n){document.querySelectorAll('.step').forEach(function(s){if(+s.dataset.p<=n)s.classList.add('done');});}
 document.querySelectorAll('.step').forEach(function(s){s.addEventListener('click',function(){go(+s.dataset.p);});});
 $('stop').addEventListener('click',async function(){try{await api('/api/shutdown',{method:'POST'});}catch(e){}document.body.innerHTML='<p style="padding:30px;font-family:monospace">server stopped -- you can close this tab.</p>';});
 (async function(){try{var p=await api('/api/ping');$('conn').innerHTML='session authenticated -- engine v'+esc(p.version||'?')+' ready.';$('ver').textContent='v'+(p.version||'?');}catch(e){$('conn').textContent='cannot reach the local engine.';}})();
 refreshAgentChip();
 (function(){var qt=P.get('target');if(qt){$('target').value=qt;$('toAudit').disabled=false;onTargetSet(qt);detect();var mp=P.get('method');if(mp){window._dcDll=qt;window._dcMethod=mp;}var ph=P.get('phase');if(ph){go(+ph);}else{go(3);if(P.get('autorun')==='1'){setTimeout(run,1200);}}if(mp&&ph==='5'){setTimeout(function(){prepReview();runReview();},700);}if(ph==='7'&&P.get('auto')==='1'){setTimeout(runAuto,600);}}})();
+renderDash();
 function onTargetInput(){var t=val('target').trim();$('toAudit').disabled=!t;window._target=t;window._dcLoaded=false;}
 function onTargetSet(t){window._target=t;$('targetChip').style.display='flex';$('targetChipTxt').textContent=t;}
 function pick(path){$('target').value=path;$('toAudit').disabled=false;onTargetSet(path);detect();}
@@ -1234,18 +1308,18 @@ function stopPoll(){if(timer){clearInterval(timer);timer=null;}}
 async function tick(){if(!JOB)return;var s;try{s=await api('/api/status?job='+JOB);}catch(e){return;}
   (s.log||[]).forEach(function(l){log(l,'');});
   (s.findings||[]).forEach(function(f){if(!window._seenFind)window._seenFind={};var key=(f.sev||'')+'|'+(f.conf||'')+'|'+(f.rule||'');if(window._seenFind[key])return;window._seenFind[key]=1;var k=sevKey(f.sev);if(counts[k]!==undefined)counts[k]++;FINDINGS.push(f);log('[find] '+f.sev+' '+f.rule+' -- '+f.title,'c-find');});
-  if(s.findings&&s.findings.length){renderTriage();}
+  if(s.findings&&s.findings.length){renderTriage();renderDash();}
   paint();
   if(s.checksDone!==undefined)$('dockMeta').textContent=(s.paused?'paused ':'running ')+s.checksDone+'/'+(s.total||'?')+' checks';
   if(s.total)$('prog').style.width=Math.min(100,Math.round(100*(s.checksDone||0)/s.total))+'%';
-  if(s.done){stopPoll();setRun(false);$('prog').style.width='100%';$('dockMeta').textContent='done';log('[step] audit complete','c-step');mark(3);if(s.result){result=s.result;showReports();populateFromResult();}}}
+  if(s.done){stopPoll();setRun(false);$('prog').style.width='100%';$('dockMeta').textContent='done';log('[step] audit complete','c-step');mark(3);if(s.result){result=s.result;showReports();populateFromResult();go(0);}}}
 // The live FND stream can be empty (the audit writes findings to its reports without emitting
 // them on the pipeline), so on completion we (re)build the triage table + counters from the
 // authoritative result model -- same {sev,conf,rule,title} shape the stream would have used.
 function populateFromResult(){var mf=(result&&result.model&&result.model.findings)?result.model.findings:[];if(!mf.length)return;
   counts={crit:0,high:0,med:0,low:0,info:0};FINDINGS=[];
-  mf.forEach(function(f){var k=sevKey(f.sev);if(counts[k]!==undefined)counts[k]++;FINDINGS.push({sev:f.sev,conf:f.conf,rule:f.rule,title:f.title});});
-  renderTriage();paint();log('[step] '+mf.length+' findings loaded into triage','c-step');}
+  mf.forEach(function(f){var k=sevKey(f.sev);if(counts[k]!==undefined)counts[k]++;FINDINGS.push({sev:f.sev,conf:f.conf,rule:f.rule,title:f.title,file:f.file,cvss:f.cvss});});
+  renderTriage();paint();renderDash();log('[step] '+mf.length+' findings loaded into triage','c-step');}
 function paint(){for(var k in counts)$('c-'+k).textContent=counts[k];}
 function sevKey(s){s=(s||'INFO').toUpperCase();var m={CRITICAL:'crit',HIGH:'high',MEDIUM:'med',LOW:'low',INFO:'info'};return m[s]||'info';}
 async function rtRun(check){var box=$('rtFindings'),st=$('rtStatus');
@@ -1372,6 +1446,36 @@ function renderTriage(){var tb=$('triageBody');tb.innerHTML='';var active=Object
   if(!rows.length){tb.innerHTML='<tr><td colspan="4" class="note" style="padding:14px">'+(FINDINGS.length?'no findings for this filter':'no findings yet -- run an audit.')+'</td></tr>';return;}
   rows.forEach(function(f){var k=sevKey(f.sev),cc=confClass(f.conf),tr=document.createElement('tr');
     tr.innerHTML='<td><span class="pill '+k+'">'+esc(f.sev)+'</span></td><td><span class="cb '+cc+'">'+esc(f.conf)+'</span></td><td>'+esc(f.rule)+'</td><td class="ttl">'+esc(f.title)+'</td>';tb.appendChild(tr);});}
+function dScore(f){var m=((f&&f.cvss)?(''+f.cvss):'').match(/^\s*([0-9]+(?:\.[0-9])?)\s*\(/);return m?parseFloat(m[1]):null;}
+function mConf(c){c=(''+c);if(/Likely-FP/i.test(c))return 'fp';if(/dyn/i.test(c))return 'dyn';if(/Confirmed/i.test(c))return 'il';return 'inf';}
+function renderDash(){
+  var SC={crit:'--crit',high:'--high',med:'--med',low:'--low',info:'--info'},LB={crit:'Critical',high:'High',med:'Medium',low:'Low',info:'Info'},PL={crit:'Crit',high:'High',med:'Med',low:'Low',info:'Info'};
+  var order=['crit','high','med','low','info'],total=FINDINGS.length;
+  var maxc=null;FINDINGS.forEach(function(f){var s=dScore(f);if(s!=null&&(maxc==null||s>maxc))maxc=s;});
+  var kh='';order.forEach(function(k){kh+='<div class="tile"><div class="stripe" style="background:var('+SC[k]+')"></div><div class="k"><span class="dot" style="background:var('+SC[k]+')"></span>'+LB[k]+'</div><div class="v" style="color:var('+SC[k]+')">'+(counts[k]||0)+'</div></div>';});
+  kh+='<div class="tile accent"><div class="stripe" style="background:var(--accent)"></div><div class="k">Max CVSS</div><div class="v">'+(maxc!=null?maxc.toFixed(1):'-')+'</div></div>';
+  $('kpis').innerHTML=kh;
+  $('sevTotal').textContent=total+' total';
+  var sb='';order.forEach(function(k){var c=counts[k]||0;if(c>0)sb+='<i style="background:var('+SC[k]+');flex:'+c+'"></i>';});
+  $('sevbarStack').innerHTML=sb||'<i style="background:var(--line);flex:1"></i>';
+  var mx=Math.max(1,counts.crit,counts.high,counts.med,counts.low,counts.info);
+  var lg='';order.forEach(function(k){var c=counts[k]||0,w=Math.round(100*c/mx);lg+='<div class="lrow"><span class="sw" style="background:var('+SC[k]+')"></span><span class="nm">'+LB[k]+'</span><span class="ct">'+c+'</span><span></span><span class="bar"><i style="width:'+w+'%;background:var('+SC[k]+')"></i></span></div>';});
+  $('sevLegend').innerHTML=lg;
+  var proven=0,leads=0,fp=0;FINDINGS.forEach(function(f){var c=(f.conf||'');if(/^Confirmed/i.test(c))proven++;else if(/^Likely-FP/i.test(c))fp++;else leads++;});
+  var tot=proven+leads+fp,pct=tot?Math.round(100*proven/tot):0;
+  $('donut').style.setProperty('--p',pct);$('donutPct').textContent=pct+'%';
+  $('akey').innerHTML='<div class="r"><span class="d" style="background:var(--accent)"></span>Proven <span style="color:var(--faint)">&nbsp;Confirmed IL / dyn</span><b>'+proven+'</b></div><div class="r"><span class="d" style="background:var(--line)"></span>Leads <span style="color:var(--faint)">&nbsp;Inferred, triage</span><b>'+leads+'</b></div><div class="r"><span class="d" style="background:var(--faint)"></span>Likely-FP <span style="color:var(--faint)">&nbsp;IL-demoted</span><b>'+fp+'</b></div>';
+  var band={crit:0,high:0,med:0,low:0};FINDINGS.forEach(function(f){var k=sevKey(f.sev),s=dScore(f);if(s!=null&&band[k]!==undefined&&s>band[k])band[k]=s;});
+  var cb='';['crit','high','med','low'].forEach(function(k){var h=Math.round(band[k]/10*100);cb+='<div class="b"><div class="cbar" style="height:'+h+'%;background:var('+SC[k]+')"></div><div class="lb">'+k.charAt(0).toUpperCase()+'</div></div>';});
+  $('cvssBand').innerHTML=cb;
+  var rank={CRITICAL:0,HIGH:1,MEDIUM:2,LOW:3,INFO:4};
+  var sorted=FINDINGS.slice().sort(function(a,b){var ra=rank[(a.sev||'').toUpperCase()];var rb=rank[(b.sev||'').toUpperCase()];ra=(ra==null?9:ra);rb=(rb==null?9:rb);if(ra!==rb)return ra-rb;return (dScore(b)||0)-(dScore(a)||0);});
+  var th='';sorted.slice(0,12).forEach(function(f){var k=sevKey(f.sev),sc=dScore(f),cc=mConf(f.conf),loc=f.file?(''+f.file).split(/[\\/]/).pop():'-',dim=/^Likely-FP/i.test(f.conf||'');
+    th+='<tr'+(dim?' style="opacity:.55"':'')+'><td class="sevcell" style="--s:var('+SC[k]+')"><span class="dpill" style="background:color-mix(in srgb,var('+SC[k]+') 16%,transparent);color:var('+SC[k]+')">'+PL[k]+'</span></td><td class="rid">'+esc(f.rule)+'</td><td class="fttl">'+esc(f.title)+'</td><td><span class="conf '+cc+'">'+esc(f.conf)+'</span></td><td class="score" style="color:var('+(sc!=null?SC[k]:'--faint')+')">'+(sc!=null?sc.toFixed(1):'-')+'</td><td class="dfile">'+esc(loc)+'</td></tr>';});
+  $('dashTop').innerHTML=th||'<tr><td colspan="6" class="fttl" style="padding:16px">no findings yet -- run an audit (step 3).</td></tr>';
+  var t=(window._target||val('target')||'');t=t?(''+t).split(/[\\/]/).pop():'';
+  $('dashSub').innerHTML=total?(esc(t)+' &middot; <b>'+total+' findings</b> &middot; '+proven+' proven, '+leads+' leads, '+fp+' likely-FP'):'Run an audit (step 3) to populate the security posture overview.';
+}
 function showReports(){var box=$('reports');if(!result||!result.reports||!result.reports.length){box.innerHTML='<div class="note">no report files were produced.</div>';return;}
   box.innerHTML='<div class="note">click to download:</div>';
   result.reports.forEach(function(r){var a=document.createElement('a');a.className='dl';a.textContent=r.label;a.onclick=function(){dl(r.file);};box.appendChild(a);});}

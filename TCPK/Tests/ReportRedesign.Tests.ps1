@@ -39,13 +39,14 @@ AfterAll {
 }
 
 Describe 'CVSS: well-defined callsites subrule gets a real vector (not the placeholder)' {
-    It 'scores callsites.insecure-temp via the local-tempfile archetype' {
+    It 'scores callsites.insecure-temp as a local, in-band vector' {
         $v = & (Get-Module TCPK) {
             $f = New-TcpkFinding -Module 'static' -RuleId 'callsites.insecure-temp' -Severity 'LOW' -Title 't'
             Get-TcpkCvssVector $f
         }
-        $v.Source | Should -Be 'archetype:local-tempfile'
+        $v.Source | Should -Be 'anchored:local'
         $v.Vector | Should -Match '^CVSS:4\.0/AV:L/AC:H/AT:P'
+        $v.Rating | Should -Be 'Low'
         $v.Score  | Should -BeGreaterThan 0
     }
     It 'no longer emits the "assign exact CVSS" placeholder text in the rendered card' {

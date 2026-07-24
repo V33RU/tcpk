@@ -380,6 +380,17 @@ $cmbAi.Add_SelectedIndexChanged({
 $tabs = New-Object System.Windows.Forms.TabControl
 $tabs.Dock = 'Fill'
 
+# --- Dashboard tab: at-a-glance security posture (added FIRST so it is the landing tab).
+# TabPageCollection.Insert() silently no-ops on this WinForms build, so the tab must be
+# created + Add()ed before every other tab to land at index 0. Its controls are built a
+# little further down (after the Recon tab); Update-Dashboard fills it from the findings.
+$script:DashCountLbl   = @{}    # severity -> big count Label
+$script:DashCardPanels = @()    # card panels (re-themed on toggle)
+$tabDash = New-Object System.Windows.Forms.TabPage
+$tabDash.Text = '  Dashboard  '
+$tabDash.BackColor = [System.Drawing.Color]::FromArgb(13, 16, 22)
+[void]$tabs.TabPages.Add($tabDash)
+
 $tabAudit = New-Object System.Windows.Forms.TabPage
 $tabAudit.Text = '  Audit  '
 $tabAudit.BackColor = [System.Drawing.Color]::FromArgb(250, 250, 250)
@@ -389,6 +400,271 @@ $tabRecon = New-Object System.Windows.Forms.TabPage
 $tabRecon.Text = '  Recon / Target  '
 $tabRecon.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24)
 [void]$tabs.TabPages.Add($tabRecon)
+
+# Paint-data holders (read by the owner-drawn panels; set by Update-Dashboard)
+$script:DashCounts   = @{ CRITICAL = 0; HIGH = 0; MEDIUM = 0; LOW = 0; INFO = 0 }
+$script:DashAssure   = @{ Proven = 0; Leads = 0; LikelyFp = 0 }
+$script:DashCellBold = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+
+# ===== Bottom (Fill): Top findings table =====
+$dashTopBox = New-Object System.Windows.Forms.Panel
+$dashTopBox.Dock = 'Fill'
+$dashTopBox.Padding = New-Object System.Windows.Forms.Padding(22, 2, 22, 14)
+$tabDash.Controls.Add($dashTopBox)
+
+$dashTopTitle = New-Object System.Windows.Forms.Label
+$dashTopTitle.Text = 'Top findings'
+$dashTopTitle.Dock = 'Top'; $dashTopTitle.Height = 24
+$dashTopTitle.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 10.5, [System.Drawing.FontStyle]::Bold)
+
+$lvDashTop = New-Object System.Windows.Forms.ListView
+$lvDashTop.Dock = 'Fill'
+$lvDashTop.View = 'Details'
+$lvDashTop.FullRowSelect = $true
+$lvDashTop.OwnerDraw = $true
+$lvDashTop.HeaderStyle = 'Nonclickable'
+$lvDashTop.BorderStyle = 'None'
+$lvDashTop.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+[void]$lvDashTop.Columns.Add('SEV', 60)
+[void]$lvDashTop.Columns.Add('RULE', 220)
+[void]$lvDashTop.Columns.Add('FINDING', 340)
+[void]$lvDashTop.Columns.Add('CONFIDENCE', 140)
+[void]$lvDashTop.Columns.Add('CVSS', 60)
+[void]$lvDashTop.Columns.Add('LOCATION', 200)
+$lvDashTop.Add_DrawColumnHeader({
+    param($s, $e)
+    try {
+        $bg = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(22, 28, 38) } else { [System.Drawing.Color]::FromArgb(232, 235, 240) }
+        $fg = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(150, 156, 164) } else { [System.Drawing.Color]::FromArgb(90, 96, 104) }
+        $b = New-Object System.Drawing.SolidBrush($bg); $e.Graphics.FillRectangle($b, $e.Bounds); $b.Dispose()
+        $r = $e.Bounds; $r.X += 6; $r.Width -= 8
+        $fl = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis
+        [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, $e.Header.Text, $s.Font, $r, $fg, $fl)
+    } catch { $e.DrawDefault = $true }
+})
+$lvDashTop.Add_DrawItem({ param($s, $e) })   # per-cell drawing happens in DrawSubItem
+$lvDashTop.Add_DrawSubItem({
+    param($s, $e)
+    try {
+        $g = $e.Graphics
+        # selection highlight (owner-draw draws no default selection); subtle lifted band
+        $selBg = if ($e.Item.Selected) {
+            if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(32, 42, 56) } else { [System.Drawing.Color]::FromArgb(214, 228, 240) }
+        } else { $s.BackColor }
+        $bb = New-Object System.Drawing.SolidBrush($selBg); $g.FillRectangle($bb, $e.Bounds); $bb.Dispose()
+        $txt = "$($e.SubItem.Text)"
+        $sev = "$($e.Item.Tag)"
+        $font = $s.Font
+        # theme-aware colours: teal RULE + green/grey CONFIDENCE need deeper tones on white
+        $ruleCol = if ($script:DarkTheme) { if ($script:Accent) { $script:Accent } else { [System.Drawing.Color]::FromArgb(45, 212, 191) } } else { [System.Drawing.Color]::FromArgb(13, 130, 118) }
+        $okCol   = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(126, 217, 140) } else { [System.Drawing.Color]::FromArgb(17, 122, 101) }
+        $fpCol   = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(150, 120, 120) } else { [System.Drawing.Color]::FromArgb(150, 60, 60) }
+        $leadCol = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(176, 184, 194) } else { [System.Drawing.Color]::FromArgb(90, 96, 104) }
+        $col  = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(225, 229, 236) } else { [System.Drawing.Color]::FromArgb(30, 36, 45) }
+        switch ($e.ColumnIndex) {
+            0 { if ($script:SevColour.ContainsKey($txt)) { $col = $script:SevColour[$txt] }; $font = $script:DashCellBold }
+            1 { $col = $ruleCol }
+            3 {
+                if     ($txt -match '^Confirmed')  { $col = $okCol }
+                elseif ($txt -match '^Likely-FP')  { $col = $fpCol }
+                else   { $col = $leadCol }
+            }
+            4 { if ($script:SevColour.ContainsKey($sev)) { $col = $script:SevColour[$sev] }; $font = $script:DashCellBold }
+            5 { $col = [System.Drawing.Color]::FromArgb(140, 145, 150) }
+        }
+        $r = $e.Bounds; $r.X += 6; $r.Width -= 8
+        $fl = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis
+        [System.Windows.Forms.TextRenderer]::DrawText($g, $txt, $font, $r, $col, $fl)
+    } catch { $e.DrawDefault = $true }
+})
+$dashTopBox.Controls.Add($lvDashTop)
+$dashTopBox.Controls.Add($dashTopTitle)
+
+# ===== Middle row (Top): Findings-by-severity | Assurance =====
+$dashMid = New-Object System.Windows.Forms.TableLayoutPanel
+$dashMid.Dock = 'Top'; $dashMid.Height = 210
+$dashMid.ColumnCount = 2; $dashMid.RowCount = 1
+$dashMid.Padding = New-Object System.Windows.Forms.Padding(22, 4, 22, 6)
+[void]$dashMid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 56)))
+[void]$dashMid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 44)))
+[void]$dashMid.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+
+# Left: Findings by severity (per-row bars)
+$dashSevBox = New-Object System.Windows.Forms.Panel
+$dashSevBox.Dock = 'Fill'; $dashSevBox.Margin = New-Object System.Windows.Forms.Padding(0, 0, 10, 0)
+$dashSevTitle = New-Object System.Windows.Forms.Label
+$dashSevTitle.Text = 'Findings by severity'; $dashSevTitle.Dock = 'Top'; $dashSevTitle.Height = 24
+$dashSevTitle.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 10.5, [System.Drawing.FontStyle]::Bold)
+$dashSevBars = New-Object System.Windows.Forms.Panel
+$dashSevBars.Dock = 'Fill'; $dashSevBars.Tag = 'keep'
+$dashSevBars.Add_Paint({
+    param($s, $e)
+    try {
+        $g = $e.Graphics; $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias; $g.Clear($s.BackColor)
+        $order = @('CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO')
+        $names = @{ CRITICAL = 'Critical'; HIGH = 'High'; MEDIUM = 'Medium'; LOW = 'Low'; INFO = 'Info' }
+        $maxc = 1; foreach ($k in $order) { if ([int]$script:DashCounts[$k] -gt $maxc) { $maxc = [int]$script:DashCounts[$k] } }
+        $padX = 4; $labelW = 74; $countW = 40
+        $barX = $padX + $labelW; $barMax = [Math]::Max(20, $s.ClientSize.Width - $barX - $countW - $padX)
+        $rowH = [int]($s.ClientSize.Height / 5); if ($rowH -lt 20) { $rowH = 20 }
+        $lblFont = New-Object System.Drawing.Font('Segoe UI', 9)
+        $lblCol  = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(205, 211, 219) } else { [System.Drawing.Color]::FromArgb(55, 61, 69) }
+        $numCol  = if ($script:DarkTheme) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(26, 32, 41) }
+        $lblBrush = New-Object System.Drawing.SolidBrush($lblCol)
+        $numBrush = New-Object System.Drawing.SolidBrush($numCol)
+        $trackCol = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(38, 44, 54) } else { [System.Drawing.Color]::FromArgb(226, 230, 236) }
+        $track = New-Object System.Drawing.SolidBrush($trackCol)
+        $sfL = New-Object System.Drawing.StringFormat; $sfL.LineAlignment = 'Center'
+        $sfR = New-Object System.Drawing.StringFormat; $sfR.Alignment = 'Far'; $sfR.LineAlignment = 'Center'
+        for ($i = 0; $i -lt 5; $i++) {
+            $k = $order[$i]; $c = [int]$script:DashCounts[$k]; $y = $i * $rowH
+            $g.DrawString($names[$k], $lblFont, $lblBrush, (New-Object System.Drawing.RectangleF([single]$padX, [single]$y, [single]$labelW, [single]$rowH)), $sfL)
+            $barY = $y + [int]($rowH / 2) - 4
+            $g.FillRectangle($track, [single]$barX, [single]$barY, [single]$barMax, 8.0)
+            if ($c -gt 0) {
+                $w = [single]($barMax * ($c / $maxc)); if ($w -lt 3) { $w = 3 }
+                $col = if ($script:SevColour.ContainsKey($k)) { $script:SevColour[$k] } else { [System.Drawing.Color]::Gray }
+                $b = New-Object System.Drawing.SolidBrush($col); $g.FillRectangle($b, [single]$barX, [single]$barY, $w, 8.0); $b.Dispose()
+            }
+            $g.DrawString("$c", $script:DashCellBold, $numBrush, (New-Object System.Drawing.RectangleF([single]($barX + $barMax), [single]$y, [single]$countW, [single]$rowH)), $sfR)
+        }
+        $lblFont.Dispose(); $lblBrush.Dispose(); $numBrush.Dispose(); $track.Dispose(); $sfL.Dispose(); $sfR.Dispose()
+    } catch { }
+})
+$dashSevBox.Controls.Add($dashSevBars)
+$dashSevBox.Controls.Add($dashSevTitle)
+$dashMid.Controls.Add($dashSevBox, 0, 0)
+
+# Right: Assurance (Proven / Leads / Likely-FP donut + legend)
+$dashAssBox = New-Object System.Windows.Forms.Panel
+$dashAssBox.Dock = 'Fill'; $dashAssBox.Margin = New-Object System.Windows.Forms.Padding(10, 0, 0, 0)
+$dashAssTitle = New-Object System.Windows.Forms.Label
+$dashAssTitle.Text = 'Assurance  (proven vs leads)'; $dashAssTitle.Dock = 'Top'; $dashAssTitle.Height = 24
+$dashAssTitle.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 10.5, [System.Drawing.FontStyle]::Bold)
+$dashAssurance = New-Object System.Windows.Forms.Panel
+$dashAssurance.Dock = 'Fill'; $dashAssurance.Tag = 'keep'
+$dashAssurance.Add_Paint({
+    param($s, $e)
+    try {
+        $g = $e.Graphics; $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias; $g.Clear($s.BackColor)
+        $proven = [int]$script:DashAssure.Proven; $leads = [int]$script:DashAssure.Leads; $fp = [int]$script:DashAssure.LikelyFp
+        $tot = $proven + $leads + $fp
+        $accent = if ($script:Accent) { $script:Accent } else { [System.Drawing.Color]::FromArgb(45, 212, 191) }
+        $greyc = [System.Drawing.Color]::FromArgb(96, 103, 113); $fpc = [System.Drawing.Color]::FromArgb(158, 124, 124)
+        $cx = 62; $cy = [int]($s.ClientSize.Height / 2); $rad = 52; $inner = 30
+        $ring = New-Object System.Drawing.Rectangle(($cx - $rad), ($cy - $rad), ($rad * 2), ($rad * 2))
+        if ($tot -le 0) {
+            $pen = New-Object System.Drawing.Pen(([System.Drawing.Color]::FromArgb(46, 52, 62)), 16); $g.DrawEllipse($pen, $ring); $pen.Dispose()
+        } else {
+            $buckets = @(@{ c = $proven; col = $accent }, @{ c = $leads; col = $greyc }, @{ c = $fp; col = $fpc })
+            $start = -90.0
+            foreach ($bk in $buckets) {
+                if ($bk.c -le 0) { continue }
+                $sweep = [single](360.0 * ($bk.c / $tot))
+                $br = New-Object System.Drawing.SolidBrush($bk.col); $g.FillPie($br, $ring, [single]$start, $sweep); $br.Dispose()
+                $start += $sweep
+            }
+            $hole = New-Object System.Drawing.SolidBrush($s.BackColor); $g.FillEllipse($hole, ($cx - $inner), ($cy - $inner), ($inner * 2), ($inner * 2)); $hole.Dispose()
+            $tf = New-Object System.Drawing.Font('Segoe UI', 13, [System.Drawing.FontStyle]::Bold)
+            $tbCol = if ($script:DarkTheme) { [System.Drawing.Color]::White } else { [System.Drawing.Color]::FromArgb(26, 32, 41) }
+            $tb = New-Object System.Drawing.SolidBrush($tbCol)
+            $sf = New-Object System.Drawing.StringFormat; $sf.Alignment = 'Center'; $sf.LineAlignment = 'Center'
+            $g.DrawString("$tot", $tf, $tb, (New-Object System.Drawing.RectangleF(($cx - $inner), ($cy - $inner), ($inner * 2), ($inner * 2))), $sf)
+            $tf.Dispose(); $tb.Dispose(); $sf.Dispose()
+        }
+        $lx = $cx + $rad + 20; $ly = $cy - 40
+        $legFont = New-Object System.Drawing.Font('Segoe UI', 9)
+        $fgCol = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(210, 216, 224) } else { [System.Drawing.Color]::FromArgb(40, 46, 54) }
+        $fgb = New-Object System.Drawing.SolidBrush($fgCol)
+        $numX = [Math]::Max($lx + 120, $s.ClientSize.Width - 34)
+        $rows = @(@{ lab = 'Proven';    col = $accent; n = $proven }, @{ lab = 'Leads';     col = $greyc; n = $leads }, @{ lab = 'Likely-FP'; col = $fpc;   n = $fp })
+        $i = 0
+        foreach ($r in $rows) {
+            $ry = $ly + $i * 27
+            $sq = New-Object System.Drawing.SolidBrush($r.col); $g.FillRectangle($sq, $lx, $ry, 12, 12); $sq.Dispose()
+            $g.DrawString($r.lab, $legFont, $fgb, [single]($lx + 20), [single]($ry - 2))
+            $g.DrawString("$($r.n)", $script:DashCellBold, $fgb, (New-Object System.Drawing.RectangleF([single]$numX, [single]($ry - 2), 30.0, 18.0)))
+            $i++
+        }
+        $legFont.Dispose(); $fgb.Dispose()
+    } catch { }
+})
+$dashAssBox.Controls.Add($dashAssurance)
+$dashAssBox.Controls.Add($dashAssTitle)
+$dashMid.Controls.Add($dashAssBox, 1, 0)
+$tabDash.Controls.Add($dashMid)
+
+# ===== KPI card row (Top): 5 severity tiles + MAX CVSS =====
+$dashCards = New-Object System.Windows.Forms.FlowLayoutPanel
+$dashCards.Dock = 'Top'
+$dashCards.Height = 114
+$dashCards.Padding = New-Object System.Windows.Forms.Padding(18, 6, 18, 4)
+$dashCards.WrapContents = $true
+$dashCards.FlowDirection = 'LeftToRight'
+$tabDash.Controls.Add($dashCards)
+
+# card factory (also used for the MAX CVSS tile)
+function New-DashCard([string]$name, $accentStripe) {
+    $card = New-Object System.Windows.Forms.Panel
+    $card.Size = New-Object System.Drawing.Size(168, 94)
+    $card.Margin = New-Object System.Windows.Forms.Padding(0, 0, 14, 0)
+    $card.BackColor = [System.Drawing.Color]::FromArgb(19, 24, 33)
+    $card.Tag = 'keep'
+    $stripe = New-Object System.Windows.Forms.Panel
+    $stripe.Dock = 'Left'; $stripe.Width = 5
+    $stripe.BackColor = if ($accentStripe) { $accentStripe } else { [System.Drawing.Color]::FromArgb(120, 120, 120) }
+    $card.Controls.Add($stripe)
+    $lblName = New-Object System.Windows.Forms.Label
+    $lblName.Dock = 'Bottom'; $lblName.Height = 22; $lblName.Text = $name; $lblName.TextAlign = 'MiddleLeft'
+    $lblName.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+    $lblName.Padding = New-Object System.Windows.Forms.Padding(14, 0, 0, 4)
+    $lblName.ForeColor = [System.Drawing.Color]::FromArgb(176, 184, 194)
+    $card.Controls.Add($lblName)
+    $lblCount = New-Object System.Windows.Forms.Label
+    $lblCount.Dock = 'Fill'; $lblCount.Text = '-'; $lblCount.TextAlign = 'MiddleCenter'
+    $lblCount.Font = New-Object System.Drawing.Font('Segoe UI', 28, [System.Drawing.FontStyle]::Bold)
+    $lblCount.ForeColor = [System.Drawing.Color]::FromArgb(230, 234, 241)
+    $card.Controls.Add($lblCount)
+    $card | Add-Member -NotePropertyName SevStripe  -NotePropertyValue $stripe -Force
+    $card | Add-Member -NotePropertyName SevNameLbl -NotePropertyValue $lblName -Force
+    $card | Add-Member -NotePropertyName CountLbl   -NotePropertyValue $lblCount -Force
+    return $card
+}
+
+foreach ($sev in @('CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO')) {
+    $card = New-DashCard $sev $null
+    $script:DashCountLbl[$sev] = $card.CountLbl
+    $script:DashCardPanels += $card
+    $dashCards.Controls.Add($card)
+}
+# MAX CVSS tile (accent stripe; number is the highest computed CVSS score)
+$maxStripe = if ($script:Accent) { $script:Accent } else { [System.Drawing.Color]::FromArgb(45, 212, 191) }
+$dashMaxCard = New-DashCard 'MAX CVSS' $maxStripe
+$script:DashMaxCvssLbl = $dashMaxCard.CountLbl
+$script:DashMaxCvssLbl.Font = New-Object System.Drawing.Font('Segoe UI', 26, [System.Drawing.FontStyle]::Bold)
+$script:DashCardPanels += $dashMaxCard
+$dashCards.Controls.Add($dashMaxCard)
+
+# ===== Header (Top): added LAST so it docks ABOVE the cards =====
+$dashHeader = New-Object System.Windows.Forms.Panel
+$dashHeader.Dock = 'Top'; $dashHeader.Height = 56
+$dashHeader.Padding = New-Object System.Windows.Forms.Padding(20, 10, 20, 0)
+$dashTitle = New-Object System.Windows.Forms.Label
+$dashTitle.Text = 'Audit summary'
+$dashTitle.Dock = 'Top'; $dashTitle.Height = 30
+$dashTitle.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 15, [System.Drawing.FontStyle]::Bold)
+$dashTitle.ForeColor = [System.Drawing.Color]::FromArgb(233, 237, 243)
+$dashSub = New-Object System.Windows.Forms.Label
+$dashSub.Text = 'No audit run yet.'
+$dashSub.Dock = 'Top'; $dashSub.Height = 18
+$dashSub.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$dashSub.ForeColor = [System.Drawing.Color]::FromArgb(140, 145, 150)
+$dashHeader.Controls.Add($dashSub)
+$dashHeader.Controls.Add($dashTitle)
+$tabDash.Controls.Add($dashHeader)
+
+# Fill body must be front-most so the Top-docked rows carve their strips first.
+$dashTopBox.BringToFront()
 
 # Split (live log + findings) lives inside the Audit tab
 $split = New-Object System.Windows.Forms.SplitContainer
@@ -1165,29 +1441,56 @@ $tabAsar.Text = '  Asar  '
 $tabAsar.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 [void]$tabs.TabPages.Add($tabAsar)
 
+# Top bar built from TableLayoutPanel rows so the path box stretches and the buttons stay
+# right-aligned at ANY window width (absolute positions left a dead gap when maximized).
 $asarTop = New-Object System.Windows.Forms.Panel
-$asarTop.Dock = 'Top'; $asarTop.Height = 68; $asarTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$asarTop.Dock = 'Top'; $asarTop.Height = 70; $asarTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$asarAnchLR = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+
+$asarRow1 = New-Object System.Windows.Forms.TableLayoutPanel
+$asarRow1.Dock = 'Top'; $asarRow1.Height = 40; $asarRow1.ColumnCount = 5; $asarRow1.RowCount = 1
+[void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 164)))
+[void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+[void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
+[void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 100)))
+[void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
+
 $lblAsarT = New-Object System.Windows.Forms.Label
-$lblAsarT.Text = "app.asar / install folder:"; $lblAsarT.Location = New-Object System.Drawing.Point(12, 14); $lblAsarT.Size = New-Object System.Drawing.Size(150, 18)
-$asarTop.Controls.Add($lblAsarT)
+$lblAsarT.Text = "app.asar / install folder:"; $lblAsarT.Dock = 'Fill'; $lblAsarT.TextAlign = 'MiddleLeft'
+$lblAsarT.Margin = New-Object System.Windows.Forms.Padding(10, 0, 0, 0)
+$asarRow1.Controls.Add($lblAsarT, 0, 0)
+
 $txtAsarTarget = New-Object System.Windows.Forms.TextBox
-$txtAsarTarget.Location = New-Object System.Drawing.Point(166, 11); $txtAsarTarget.Size = New-Object System.Drawing.Size(600, 24); $txtAsarTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
-$asarTop.Controls.Add($txtAsarTarget)
+$txtAsarTarget.Anchor = $asarAnchLR; $txtAsarTarget.Margin = New-Object System.Windows.Forms.Padding(2, 8, 6, 0)
+$txtAsarTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
+$asarRow1.Controls.Add($txtAsarTarget, 1, 0)
+
 $btnAsarBrowse = New-Object System.Windows.Forms.Button
-$btnAsarBrowse.Text = "Browse..."; $btnAsarBrowse.Location = New-Object System.Drawing.Point(776, 10); $btnAsarBrowse.Size = New-Object System.Drawing.Size(84, 26)
-$asarTop.Controls.Add($btnAsarBrowse)
+$btnAsarBrowse.Text = "Browse..."; $btnAsarBrowse.Dock = 'Fill'; $btnAsarBrowse.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$asarRow1.Controls.Add($btnAsarBrowse, 2, 0)
+
 $btnAsarExtract = New-Object System.Windows.Forms.Button
-$btnAsarExtract.Text = "Extract"; $btnAsarExtract.Location = New-Object System.Drawing.Point(866, 10); $btnAsarExtract.Size = New-Object System.Drawing.Size(90, 26)
+$btnAsarExtract.Text = "Extract"; $btnAsarExtract.Dock = 'Fill'; $btnAsarExtract.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
 $btnAsarExtract.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnAsarExtract.ForeColor = [System.Drawing.Color]::White; $btnAsarExtract.FlatStyle = 'Flat'
-$asarTop.Controls.Add($btnAsarExtract)
+$btnAsarExtract.Tag = 'keep'
+$asarRow1.Controls.Add($btnAsarExtract, 3, 0)
+
 $btnAsarHex = New-Object System.Windows.Forms.Button
-$btnAsarHex.Text = "Hex view"; $btnAsarHex.Location = New-Object System.Drawing.Point(962, 10); $btnAsarHex.Size = New-Object System.Drawing.Size(84, 26)
-$asarTop.Controls.Add($btnAsarHex)
+$btnAsarHex.Text = "Hex view"; $btnAsarHex.Dock = 'Fill'; $btnAsarHex.Margin = New-Object System.Windows.Forms.Padding(2, 6, 8, 6)
+$asarRow1.Controls.Add($btnAsarHex, 4, 0)
+
+$asarRow2 = New-Object System.Windows.Forms.Panel
+$asarRow2.Dock = 'Top'; $asarRow2.Height = 26
 $lblAsar = New-Object System.Windows.Forms.Label
-$lblAsar.Location = New-Object System.Drawing.Point(12, 44); $lblAsar.Size = New-Object System.Drawing.Size(1030, 18)
+$lblAsar.Dock = 'Fill'; $lblAsar.TextAlign = 'MiddleLeft'
+$lblAsar.Padding = New-Object System.Windows.Forms.Padding(10, 0, 10, 0)
 $lblAsar.Text = "Pick a target, then Extract. A large app can take ~30s (the window pauses). Click a file to read its source; Hex view opens it in the Hex tab."
 $lblAsar.ForeColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
-$asarTop.Controls.Add($lblAsar)
+$asarRow2.Controls.Add($lblAsar)
+
+# add row2 first, then row1, so row1 (path + buttons) docks ABOVE the hint line
+$asarTop.Controls.Add($asarRow2)
+$asarTop.Controls.Add($asarRow1)
 $tabAsar.Controls.Add($asarTop)
 
 # Body: left panel (filter + file list, fixed 430 wide) docked Left; source viewer fills the rest.
@@ -1620,6 +1923,250 @@ $lvHexStr.Add_Click({ if ($lvHexStr.SelectedItems.Count -and $null -ne $lvHexStr
 $btnAsarHex.Add_Click({
     if (-not $script:AsarLastFull) { $lblAsar.Text = "Select a file first, then Hex view."; return }
     $txtHexPath.Text = $script:AsarLastFull; $tabs.SelectedTab = $tabHex; Load-GuiHex 0
+})
+
+# ================= TAB: DLL Decompiler (.NET assembly browser) =================
+# Browse a .NET assembly's types + methods and view IL (always, via the bundled
+# Mono.Cecil) or decompiled C# (via ilspycmd if installed; byte-context fallback).
+# The GUI reads the assembly InMemory (no file lock) so it never collides with an
+# in-flight audit that also parses the same DLL.
+$tabDec = New-Object System.Windows.Forms.TabPage
+$tabDec.Text = '  DLL Decompiler  '
+$tabDec.BackColor = [System.Drawing.Color]::FromArgb(13, 16, 22)
+[void]$tabs.TabPages.Add($tabDec)
+
+$script:DecAsm     = $null    # GUI-owned Mono.Cecil AssemblyDefinition (InMemory)
+$script:DecTypes   = $null    # all TypeDefinitions of the loaded module
+$script:DecDllPath = $null    # path of the loaded assembly
+$script:DecCurMethod = $null  # currently selected MethodDefinition
+
+# --- toolbar (Top): two TableLayoutPanel rows so it stays aligned at ANY window width
+# (absolute positions + Right-anchor broke when the window was maximized). ---
+$decBar = New-Object System.Windows.Forms.Panel
+$decBar.Dock = 'Top'; $decBar.Height = 80
+$tabDec.Controls.Add($decBar)
+
+$anchLR = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+$mkFillLabel = {
+    param($text)
+    $l = New-Object System.Windows.Forms.Label
+    $l.Text = $text; $l.Dock = 'Fill'; $l.TextAlign = 'MiddleLeft'; $l.Margin = New-Object System.Windows.Forms.Padding(4, 0, 0, 0)
+    $l
+}
+
+# Row 1: Assembly: | combo (stretch) | Browse | Scan target | Load
+$decRow1 = New-Object System.Windows.Forms.TableLayoutPanel
+$decRow1.Dock = 'Top'; $decRow1.Height = 42; $decRow1.ColumnCount = 5; $decRow1.RowCount = 1
+[void]$decRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 84)))
+[void]$decRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+[void]$decRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
+[void]$decRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 116)))
+[void]$decRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 88)))
+
+$lblDecAsm = & $mkFillLabel 'Assembly:'
+$decRow1.Controls.Add($lblDecAsm, 0, 0)
+
+$cmbDecDll = New-Object System.Windows.Forms.ComboBox
+$cmbDecDll.DropDownStyle = 'DropDown'; $cmbDecDll.Anchor = $anchLR; $cmbDecDll.Margin = New-Object System.Windows.Forms.Padding(2, 8, 6, 0)
+$decRow1.Controls.Add($cmbDecDll, 1, 0)
+
+$btnDecBrowse = New-Object System.Windows.Forms.Button
+$btnDecBrowse.Text = 'Browse...'; $btnDecBrowse.Dock = 'Fill'; $btnDecBrowse.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$decRow1.Controls.Add($btnDecBrowse, 2, 0)
+
+$btnDecScan = New-Object System.Windows.Forms.Button
+$btnDecScan.Text = 'Scan target'; $btnDecScan.Dock = 'Fill'; $btnDecScan.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$decRow1.Controls.Add($btnDecScan, 3, 0)
+
+$btnDecLoad = New-Object System.Windows.Forms.Button
+$btnDecLoad.Text = 'Load'; $btnDecLoad.Dock = 'Fill'; $btnDecLoad.Margin = New-Object System.Windows.Forms.Padding(2, 6, 6, 6)
+$decRow1.Controls.Add($btnDecLoad, 4, 0)
+
+# Row 2: Filter types: | filter box | status (stretch)
+$decRow2 = New-Object System.Windows.Forms.TableLayoutPanel
+$decRow2.Dock = 'Top'; $decRow2.Height = 34; $decRow2.ColumnCount = 3; $decRow2.RowCount = 1
+[void]$decRow2.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 84)))
+[void]$decRow2.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 290)))
+[void]$decRow2.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+
+$lblDecFilter = & $mkFillLabel 'Filter types:'
+$decRow2.Controls.Add($lblDecFilter, 0, 0)
+
+$txtDecFilter = New-Object System.Windows.Forms.TextBox
+$txtDecFilter.Anchor = $anchLR; $txtDecFilter.Margin = New-Object System.Windows.Forms.Padding(2, 6, 6, 0)
+$decRow2.Controls.Add($txtDecFilter, 1, 0)
+
+$lblDecStatus = & $mkFillLabel 'Load a .NET assembly (Browse, or Scan target) to browse its types + methods.'
+$decRow2.Controls.Add($lblDecStatus, 2, 0)
+
+# add row2 first, then row1, so row1 (Assembly) docks ABOVE row2 (Filter)
+$decBar.Controls.Add($decRow2)
+$decBar.Controls.Add($decRow1)
+
+# --- main area (Fill): Types | Methods | Code ---
+$decMain = New-Object System.Windows.Forms.TableLayoutPanel
+$decMain.Dock = 'Fill'; $decMain.ColumnCount = 3; $decMain.RowCount = 1
+$decMain.BackColor = [System.Drawing.Color]::FromArgb(13, 16, 22)
+[void]$decMain.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 24)))
+[void]$decMain.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 26)))
+[void]$decMain.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 50)))
+[void]$decMain.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+$tabDec.Controls.Add($decMain)
+# Fill body must be front-most so the Top toolbar carves its strip first (same pattern
+# as $asarBody / $hexBody / $txtPmon); otherwise decBar overlaps the top of decMain.
+$decMain.BringToFront()
+
+# column helper: a Panel with a Top title label + a Fill body control
+$decTypesBox = New-Object System.Windows.Forms.Panel; $decTypesBox.Dock = 'Fill'; $decTypesBox.Margin = New-Object System.Windows.Forms.Padding(6, 4, 3, 6)
+$lblDecTypes = New-Object System.Windows.Forms.Label; $lblDecTypes.Text = 'Types'; $lblDecTypes.Dock = 'Top'; $lblDecTypes.Height = 22; $lblDecTypes.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9.5, [System.Drawing.FontStyle]::Bold)
+$lstDecTypes = New-Object System.Windows.Forms.ListBox; $lstDecTypes.Dock = 'Fill'; $lstDecTypes.Font = New-Object System.Drawing.Font('Consolas', 9); $lstDecTypes.IntegralHeight = $false; $lstDecTypes.HorizontalScrollbar = $true
+$decTypesBox.Controls.Add($lstDecTypes); $decTypesBox.Controls.Add($lblDecTypes)
+$decMain.Controls.Add($decTypesBox, 0, 0)
+
+$decMethodsBox = New-Object System.Windows.Forms.Panel; $decMethodsBox.Dock = 'Fill'; $decMethodsBox.Margin = New-Object System.Windows.Forms.Padding(3, 4, 3, 6)
+$lblDecMethods = New-Object System.Windows.Forms.Label; $lblDecMethods.Text = 'Methods'; $lblDecMethods.Dock = 'Top'; $lblDecMethods.Height = 22; $lblDecMethods.Font = New-Object System.Drawing.Font('Segoe UI Semibold', 9.5, [System.Drawing.FontStyle]::Bold)
+$lstDecMethods = New-Object System.Windows.Forms.ListBox; $lstDecMethods.Dock = 'Fill'; $lstDecMethods.Font = New-Object System.Drawing.Font('Consolas', 9); $lstDecMethods.IntegralHeight = $false; $lstDecMethods.HorizontalScrollbar = $true
+$decMethodsBox.Controls.Add($lstDecMethods); $decMethodsBox.Controls.Add($lblDecMethods)
+$decMain.Controls.Add($decMethodsBox, 1, 0)
+
+$decCodeBox = New-Object System.Windows.Forms.Panel; $decCodeBox.Dock = 'Fill'; $decCodeBox.Margin = New-Object System.Windows.Forms.Padding(3, 4, 6, 6)
+$decCodeBar = New-Object System.Windows.Forms.Panel; $decCodeBar.Dock = 'Top'; $decCodeBar.Height = 30
+$btnDecIl = New-Object System.Windows.Forms.Button; $btnDecIl.Text = 'IL'; $btnDecIl.Location = New-Object System.Drawing.Point(0, 2); $btnDecIl.Size = New-Object System.Drawing.Size(60, 24)
+$btnDecCs = New-Object System.Windows.Forms.Button; $btnDecCs.Text = 'Decompile C#'; $btnDecCs.Location = New-Object System.Drawing.Point(66, 2); $btnDecCs.Size = New-Object System.Drawing.Size(120, 24)
+$chkDecWrap = New-Object System.Windows.Forms.CheckBox; $chkDecWrap.Text = 'Wrap'; $chkDecWrap.Checked = $true; $chkDecWrap.Location = New-Object System.Drawing.Point(194, 5); $chkDecWrap.Size = New-Object System.Drawing.Size(60, 20)
+$lblDecCodeHint = New-Object System.Windows.Forms.Label; $lblDecCodeHint.Text = 'IL via Mono.Cecil (always); C# needs ilspycmd on PATH'; $lblDecCodeHint.Location = New-Object System.Drawing.Point(262, 2); $lblDecCodeHint.Size = New-Object System.Drawing.Size(520, 24); $lblDecCodeHint.TextAlign = 'MiddleLeft'
+$decCodeBar.Controls.Add($btnDecIl); $decCodeBar.Controls.Add($btnDecCs); $decCodeBar.Controls.Add($chkDecWrap); $decCodeBar.Controls.Add($lblDecCodeHint)
+$txtDecCode = New-Object System.Windows.Forms.RichTextBox; $txtDecCode.Dock = 'Fill'; $txtDecCode.ReadOnly = $true; $txtDecCode.Font = New-Object System.Drawing.Font('Consolas', 9.5); $txtDecCode.WordWrap = $true
+$txtDecCode.Text = "Select a type on the left, then a method, to disassemble its IL here." + [Environment]::NewLine + "Click 'Decompile C#' to reconstruct C# for the selected method (requires ilspycmd)."
+$decCodeBox.Controls.Add($txtDecCode); $decCodeBox.Controls.Add($decCodeBar)
+$decMain.Controls.Add($decCodeBox, 2, 0)
+# Wrap toggle: long IL operand lines (fully-qualified type names) overflow otherwise.
+$chkDecWrap.Add_CheckedChanged({ $txtDecCode.WordWrap = $chkDecWrap.Checked; $txtDecCode.Refresh() })
+# Hover tooltips so cut-off Type / Method names are still fully readable.
+$decTip = New-Object System.Windows.Forms.ToolTip
+$decTip.AutoPopDelay = 12000; $decTip.InitialDelay = 350; $decTip.ReshowDelay = 80
+foreach ($lst in @($lstDecTypes, $lstDecMethods)) {
+    $lst | Add-Member -NotePropertyName _TipIdx -NotePropertyValue -1 -Force
+    $lst.Add_MouseMove({
+        param($s, $e)
+        $idx = $s.IndexFromPoint($e.Location)
+        if ($idx -ne $s._TipIdx) {
+            $s._TipIdx = $idx
+            $txt = if ($idx -ge 0 -and $idx -lt $s.Items.Count) { "$($s.Items[$idx])" } else { '' }
+            $decTip.SetToolTip($s, $txt)
+        }
+    })
+}
+
+# --- Decompiler logic ---
+function Ensure-DecCecil {
+    if ('Mono.Cecil.AssemblyDefinition' -as [type]) { return $true }
+    $m = @(Get-Module TCPK)
+    if ($m.Count) { try { [void](& $m[0] { Test-TcpkCecilAvailable }) } catch { } }
+    return (('Mono.Cecil.AssemblyDefinition' -as [type]) -ne $null)
+}
+
+function Populate-DecTypes {
+    $lstDecTypes.BeginUpdate(); $lstDecTypes.Items.Clear()
+    $flt = "$($txtDecFilter.Text)".Trim()
+    if ($script:DecTypes) {
+        foreach ($ty in $script:DecTypes) {
+            if ($flt -and ($ty.FullName -notmatch [regex]::Escape($flt))) { continue }
+            [void]$lstDecTypes.Items.Add($ty)
+        }
+    }
+    $lstDecTypes.EndUpdate()
+    $lstDecMethods.Items.Clear()
+}
+
+function Load-DecAssembly([string]$path) {
+    if (-not (Ensure-DecCecil)) { $lblDecStatus.Text = 'Mono.Cecil not available (tools\ILSpy\Mono.Cecil.dll missing).'; return }
+    $path = "$path".Trim('"').Trim()
+    if (-not $path -or -not (Test-Path -LiteralPath $path)) { $lblDecStatus.Text = "File not found: $path"; return }
+    if ($script:DecAsm) { try { $script:DecAsm.Dispose() } catch { } ; $script:DecAsm = $null }
+    $script:DecCurMethod = $null    # drop any method held from the previous assembly
+    $lstDecTypes.Items.Clear(); $lstDecMethods.Items.Clear(); $txtDecCode.Clear()
+    $lblDecStatus.Text = 'Reading assembly...'; [System.Windows.Forms.Application]::DoEvents()
+    $rp = New-Object Mono.Cecil.ReaderParameters; $rp.InMemory = $true
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($path, $rp) }
+    catch { $lblDecStatus.Text = "Not a .NET assembly / unreadable: $($_.Exception.Message)"; return }
+    $script:DecAsm = $asm; $script:DecDllPath = $path
+    $types = New-Object System.Collections.Generic.List[object]
+    try { foreach ($ty in $asm.MainModule.GetTypes()) { if ($ty.Name -ne '<Module>') { $types.Add($ty) } } } catch { }
+    $script:DecTypes = $types
+    Populate-DecTypes
+    $lblDecStatus.Text = ("{0}  --  {1} types  ({2})" -f (Split-Path $path -Leaf), $types.Count, $asm.MainModule.Runtime)
+}
+
+function Show-DecIl {
+    $m = $lstDecMethods.SelectedItem
+    if (-not $m) { return }
+    $script:DecCurMethod = $m
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine("// $($m.DeclaringType.FullName)::$($m.Name)")
+    [void]$sb.AppendLine("// returns $($m.ReturnType.FullName)")
+    if (-not $m.HasBody) {
+        [void]$sb.AppendLine('// (no managed body -- abstract / extern / P-Invoke / interface)')
+    } else {
+        [void]$sb.AppendLine("// $($m.Body.Instructions.Count) IL instructions, $($m.Body.Variables.Count) locals")
+        [void]$sb.AppendLine('')
+        foreach ($ins in $m.Body.Instructions) {
+            $op  = $ins.OpCode.Name
+            $arg = if ($null -ne $ins.Operand) { " $($ins.Operand)" } else { '' }
+            [void]$sb.AppendLine(("  IL_{0:X4}: {1,-11}{2}" -f $ins.Offset, $op, $arg))
+            if ($sb.Length -gt 200000) { [void]$sb.AppendLine('  ... (truncated)'); break }
+        }
+    }
+    $txtDecCode.Text = $sb.ToString(); $txtDecCode.SelectionStart = 0; $txtDecCode.ScrollToCaret()
+}
+
+# --- wire events ---
+$btnDecBrowse.Add_Click({
+    $ofd = New-Object System.Windows.Forms.OpenFileDialog
+    $ofd.Filter = '.NET assemblies (*.dll;*.exe)|*.dll;*.exe|All files (*.*)|*.*'
+    $seed = "$($txtTarget.Text)"
+    if ($seed -and (Test-Path -LiteralPath $seed)) { $ofd.InitialDirectory = if (Test-Path -LiteralPath $seed -PathType Leaf) { Split-Path -LiteralPath $seed -Parent } else { $seed } }
+    if ($ofd.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $cmbDecDll.Text = $ofd.FileName; Load-DecAssembly $ofd.FileName }
+})
+$btnDecScan.Add_Click({
+    $base = "$($txtTarget.Text)"
+    if (-not $base) { $lblDecStatus.Text = 'Set a target at the top first.'; return }
+    if (Test-Path -LiteralPath $base -PathType Leaf) { $base = Split-Path -LiteralPath $base -Parent }
+    if (-not (Test-Path -LiteralPath $base)) { $lblDecStatus.Text = "Target path not found: $base"; return }
+    $lblDecStatus.Text = 'Scanning for assemblies...'; [System.Windows.Forms.Application]::DoEvents()
+    $found = @(Get-ChildItem -LiteralPath $base -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -eq '.dll' -or $_.Extension -eq '.exe' } | Sort-Object FullName | Select-Object -First 800)
+    $cmbDecDll.Items.Clear()
+    foreach ($f in $found) { [void]$cmbDecDll.Items.Add($f.FullName) }
+    if ($found.Count) { $cmbDecDll.SelectedIndex = 0 }
+    $lblDecStatus.Text = ("{0} assemblies under {1}{2}" -f $found.Count, $base, $(if ($found.Count -ge 800) { ' (capped at 800)' } else { '' }))
+})
+$btnDecLoad.Add_Click({ Load-DecAssembly $cmbDecDll.Text })
+$cmbDecDll.Add_SelectedIndexChanged({ if ($cmbDecDll.SelectedItem) { Load-DecAssembly "$($cmbDecDll.SelectedItem)" } })
+$txtDecFilter.Add_TextChanged({ Populate-DecTypes })
+$lstDecTypes.Add_SelectedIndexChanged({
+    $ty = $lstDecTypes.SelectedItem
+    if (-not $ty) { return }
+    $lstDecMethods.BeginUpdate(); $lstDecMethods.Items.Clear()
+    try { foreach ($mm in $ty.Methods) { [void]$lstDecMethods.Items.Add($mm) } } catch { }
+    $lstDecMethods.EndUpdate()
+    $lblDecMethods.Text = ("Methods ({0})" -f $lstDecMethods.Items.Count)
+})
+$lstDecMethods.Add_SelectedIndexChanged({ Show-DecIl })
+$btnDecIl.Add_Click({ Show-DecIl })
+$btnDecCs.Add_Click({
+    # Use the CURRENT method selection (belongs to the loaded assembly); fall back to the
+    # last-shown method only if it matches the current selection state.
+    $m = $lstDecMethods.SelectedItem; if (-not $m) { $m = $script:DecCurMethod }
+    if (-not $m -or -not $script:DecDllPath) { $lblDecStatus.Text = 'Select a method first.'; return }
+    $lblDecStatus.Text = "Decompiling $($m.Name) (this can take a while on large assemblies)..."
+    $txtDecCode.Text = 'Running ilspycmd (or byte-context fallback)...'; [System.Windows.Forms.Application]::DoEvents()
+    try {
+        $res = Invoke-TcpkDecompile -Dll $script:DecDllPath -Search $m.Name -Context 10 3>$null
+        if (-not $res -or -not "$res".Trim()) { $res = "(no C# match for '$($m.Name)'. If ilspycmd is not installed, only IL is available.)" }
+        $txtDecCode.Text = "$res"; $txtDecCode.SelectionStart = 0; $txtDecCode.ScrollToCaret()
+        $lblDecStatus.Text = "Decompiled $($m.Name)."
+    } catch { $txtDecCode.Text = "Decompile failed: $($_.Exception.Message)"; $lblDecStatus.Text = 'Decompile failed.' }
 })
 
 # ================= TAB: Process Monitor (live watch + activity capture) =================
@@ -2644,7 +3191,7 @@ $script:UiFontName = 'Consolas'
 $script:UiFontSize = 10
 
 # Modern flat-UI accent + owner-drawn tab colours
-$script:Accent     = [System.Drawing.Color]::FromArgb(78, 201, 176)   # teal accent
+$script:Accent     = [System.Drawing.Color]::FromArgb(45, 212, 191)   # teal accent
 $script:AccentDim  = [System.Drawing.Color]::FromArgb(58, 150, 132)
 $script:AccentText = [System.Drawing.Color]::FromArgb(18, 20, 22)      # dark text on accent
 $script:TabBg      = [System.Drawing.Color]::FromArgb(45, 45, 48)
@@ -2775,21 +3322,22 @@ function Apply-UiFont {
 
 function Get-UiPalette([bool]$dark) {
     if ($dark) {
-        # High-contrast layered dark (VS Code / GitHub-dark style). Distinct layers:
-        # window (#1E1E1E) < panel (#2D2D30) < input fields (#3C3C3C, lifted so they
-        # stand out) ; text areas are deep (#181818) for log readability. Text is
-        # near-white for strong contrast (the old muted blue-grey was the visibility issue).
-        @{ FormBg =[System.Drawing.Color]::FromArgb(30,30,30);   PanelBg=[System.Drawing.Color]::FromArgb(45,45,48)
-           InputBg=[System.Drawing.Color]::FromArgb(60,60,60);   TextBg =[System.Drawing.Color]::FromArgb(24,24,24)
-           TextFg =[System.Drawing.Color]::FromArgb(236,236,236)
-           ListBg =[System.Drawing.Color]::FromArgb(37,37,38);   ListFg =[System.Drawing.Color]::FromArgb(236,236,236)
-           LabelFg=[System.Drawing.Color]::FromArgb(242,242,242) }
+        # Layered dark, blue-biased (deeper + more considered than a flat grey). Distinct
+        # layers: window ground (#0C0F15) < panel (#131821) < input fields (#1C2330, lifted
+        # so they stand out) ; text/log areas are deepest (#0D1016) for readability. Near-
+        # white text with a faint blue cast reads as intentional, not inherited grey.
+        @{ FormBg =[System.Drawing.Color]::FromArgb(12,15,21);   PanelBg=[System.Drawing.Color]::FromArgb(19,24,33)
+           InputBg=[System.Drawing.Color]::FromArgb(28,35,48);   TextBg =[System.Drawing.Color]::FromArgb(13,16,22)
+           TextFg =[System.Drawing.Color]::FromArgb(230,234,241)
+           ListBg =[System.Drawing.Color]::FromArgb(18,23,31);   ListFg =[System.Drawing.Color]::FromArgb(230,234,241)
+           LabelFg=[System.Drawing.Color]::FromArgb(233,237,243) }
     } else {
-        @{ FormBg =[System.Drawing.Color]::FromArgb(248,249,250); PanelBg=[System.Drawing.Color]::FromArgb(238,240,242)
+        # Light: white cards raised on a soft grey-blue ground (modern, not flat).
+        @{ FormBg =[System.Drawing.Color]::FromArgb(240,242,246); PanelBg=[System.Drawing.Color]::White
            InputBg=[System.Drawing.Color]::White;                 TextBg =[System.Drawing.Color]::White
-           TextFg =[System.Drawing.Color]::FromArgb(24,24,24)
-           ListBg =[System.Drawing.Color]::White;                 ListFg =[System.Drawing.Color]::FromArgb(24,24,24)
-           LabelFg=[System.Drawing.Color]::FromArgb(28,28,28) }
+           TextFg =[System.Drawing.Color]::FromArgb(26,32,41)
+           ListBg =[System.Drawing.Color]::White;                 ListFg =[System.Drawing.Color]::FromArgb(26,32,41)
+           LabelFg=[System.Drawing.Color]::FromArgb(30,36,45) }
     }
 }
 
@@ -2804,10 +3352,13 @@ function Set-CtlThemeRecursive($ctl, $pal) {
             'TabPage'        { $c.BackColor = $pal.TextBg }
             'Label'          { $c.ForeColor = $pal.LabelFg; $c.BackColor = $ctl.BackColor }
             'CheckBox'       { $c.ForeColor = $pal.LabelFg; $c.BackColor = $ctl.BackColor }
-            'TextBox'        { $c.BackColor = $pal.InputBg; $c.ForeColor = $pal.TextFg }
-            'RichTextBox'    { $c.BackColor = $pal.TextBg;  $c.ForeColor = $pal.TextFg }
-            'ListView'       { $c.BackColor = $pal.ListBg;  $c.ForeColor = $pal.ListFg }
-            'ComboBox'       { $c.BackColor = $pal.InputBg; $c.ForeColor = $pal.TextFg }
+            'TextBox'          { $c.BackColor = $pal.InputBg; $c.ForeColor = $pal.TextFg }
+            'RichTextBox'      { $c.BackColor = $pal.TextBg;  $c.ForeColor = $pal.TextFg }
+            'ListView'         { $c.BackColor = $pal.ListBg;  $c.ForeColor = $pal.ListFg }
+            'ListBox'          { $c.BackColor = $pal.ListBg;  $c.ForeColor = $pal.ListFg }
+            'ComboBox'         { $c.BackColor = $pal.InputBg; $c.ForeColor = $pal.TextFg }
+            'FlowLayoutPanel'  { $c.BackColor = $pal.PanelBg }
+            'TableLayoutPanel' { $c.BackColor = $pal.PanelBg }
             'Button'         { $c.BackColor = $pal.PanelBg; $c.ForeColor = $pal.LabelFg; try { $c.FlatAppearance.BorderColor = $script:Accent } catch { } }
         }
         if ($c.Controls.Count -gt 0) { Set-CtlThemeRecursive $c $pal }
@@ -2845,6 +3396,140 @@ function Update-ListSeverityColours {
     }
 }
 
+# Append a coloured run to a RichTextBox (used to build the summary + top-issues panels).
+function Add-DashRun($rtb, [string]$text, $color, [bool]$bold) {
+    $rtb.SelectionStart  = $rtb.TextLength
+    $rtb.SelectionLength = 0
+    if ($color) { $rtb.SelectionColor = $color }
+    $style = if ($bold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
+    $rtb.SelectionFont = New-Object System.Drawing.Font($rtb.Font.FontFamily, $rtb.Font.Size, $style)
+    $rtb.AppendText($text)
+}
+
+function Update-Dashboard {
+    # Recompute the Dashboard + restyle for the current theme. Prefers the enriched
+    # $script:LastFindings (carries CvssScore/CvssRating/File/Confidence sub-types); falls
+    # back to the live $lvFindings table for counts before any audit has stashed findings.
+    # Safe in the empty state and before/after a theme toggle.
+    if (-not $script:DashCountLbl) { return }
+    $pal  = Get-UiPalette $script:DarkTheme
+    $dimC = [System.Drawing.Color]::FromArgb(140, 145, 150)
+    $valC = $pal.LabelFg
+    $sevRank = @{ CRITICAL = 0; HIGH = 1; MEDIUM = 2; LOW = 3; INFO = 4 }
+
+    $counts = @{ CRITICAL = 0; HIGH = 0; MEDIUM = 0; LOW = 0; INFO = 0 }
+    $confirmed = 0; $proven = 0; $leads = 0; $fp = 0
+    $rules = @{}
+    $maxScore = $null
+    $rows = New-Object System.Collections.Generic.List[object]
+
+    # NOTE: never wrap $script:LastFindings with @() -- if it is a generic List, @(list)
+    # throws "Argument types do not match" on PS 5.1. Enumerate it bare instead.
+    $useLf = $false
+    if ($script:LastFindings) { foreach ($x in $script:LastFindings) { $useLf = $true; break } }
+    if ($useLf) {
+        foreach ($f in $script:LastFindings) {
+            $sev = "$($f.Severity)".ToUpper()
+            if ($counts.ContainsKey($sev)) { $counts[$sev]++ }
+            $conf = "$($f.Confidence)"
+            if     ($conf -match '^Confirmed') { $confirmed++; $proven++ }
+            elseif ($conf -match '^Likely-FP') { $fp++ }
+            else   { $leads++ }
+            $rid = "$($f.RuleId)"; if ($rid) { $rules[$rid] = $true }
+            $sc = $null; try { if ($null -ne $f.CvssScore -and "$($f.CvssScore)" -ne '') { $sc = [double]$f.CvssScore } } catch { }
+            if ($null -ne $sc -and ($null -eq $maxScore -or $sc -gt $maxScore)) { $maxScore = $sc }
+            $loc = if ($f.File) { Split-Path "$($f.File)" -Leaf } elseif ($f.Module) { "$($f.Module)" } else { '-' }
+            $rows.Add([pscustomobject]@{ Sev = $sev; Rule = $rid; Finding = "$($f.Title)"; Conf = $conf; Cvss = $sc; Loc = $loc })
+        }
+        $total = $rows.Count
+    } else {
+        foreach ($it in $lvFindings.Items) {
+            $s = "$($it.Text)"; if ($counts.ContainsKey($s)) { $counts[$s]++ }
+            $c1 = if ($it.SubItems.Count -gt 1) { "$($it.SubItems[1].Text)" } else { '' }
+            if ($c1 -match '^Confirmed') { $confirmed++ }
+        }
+        $total = $lvFindings.Items.Count
+    }
+    $script:DashAssure = @{ Proven = $proven; Leads = $leads; LikelyFp = $fp }
+    $script:DashCounts = $counts
+
+    # --- KPI cards (Tag='keep' -> restyle name caption here so it stays legible in light) ---
+    $nameFg = if ($script:DarkTheme) { [System.Drawing.Color]::FromArgb(176, 184, 194) } else { [System.Drawing.Color]::FromArgb(90, 96, 104) }
+    foreach ($card in $script:DashCardPanels) {
+        $card.BackColor = $pal.PanelBg
+        if ($card.SevNameLbl) { $card.SevNameLbl.BackColor = $pal.PanelBg; $card.SevNameLbl.ForeColor = $nameFg }
+        if ($card.CountLbl)   { $card.CountLbl.BackColor   = $pal.PanelBg }
+    }
+    foreach ($sev in @('CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO')) {
+        if (-not $script:DashCountLbl.ContainsKey($sev)) { continue }
+        $lbl = $script:DashCountLbl[$sev]
+        $n   = [int]$counts[$sev]
+        $lbl.Text = "$n"
+        $sc  = if ($script:SevColour -and $script:SevColour.ContainsKey($sev)) { $script:SevColour[$sev] } else { $valC }
+        if ($n -eq 0) {
+            $lbl.ForeColor = [System.Drawing.Color]::FromArgb(92, 98, 106)
+            $lbl.Parent.SevStripe.BackColor = [System.Drawing.Color]::FromArgb(58, 64, 72)
+        } else {
+            $lbl.ForeColor = $sc
+            $lbl.Parent.SevStripe.BackColor = $sc
+        }
+    }
+
+    # --- MAX CVSS tile ---
+    if ($script:DashMaxCvssLbl) {
+        if ($null -ne $maxScore) {
+            $script:DashMaxCvssLbl.Text = ('{0:0.0}' -f $maxScore)
+            $script:DashMaxCvssLbl.ForeColor = if ($script:Accent) { $script:Accent } else { [System.Drawing.Color]::FromArgb(45, 212, 191) }
+        } else {
+            $script:DashMaxCvssLbl.Text = '-'
+            $script:DashMaxCvssLbl.ForeColor = [System.Drawing.Color]::FromArgb(92, 98, 106)
+        }
+    }
+
+    # --- owner-drawn panels ---
+    if ($dashSevBars)   { $dashSevBars.BackColor   = $pal.TextBg; $dashSevBars.Invalidate() }
+    if ($dashAssurance) { $dashAssurance.BackColor = $pal.TextBg; $dashAssurance.Invalidate() }
+
+    # --- header subtitle ---
+    $tgt = "$($txtTarget.Text)"; if (-not $tgt) { $tgt = "$($txtPkg.Text)" }; if (-not $tgt) { $tgt = '(not set)' }
+    if ($total -eq 0) {
+        $dashSub.Text = 'No audit run yet.'
+    } else {
+        $maxTxt = if ($null -ne $maxScore) { ('{0:0.0}' -f $maxScore) } else { '-' }
+        $dashSub.Text = ("{0}  --  {1} findings  --  {2} confirmed  --  {3} distinct rules  --  max CVSS {4}" -f (Split-Path $tgt -Leaf), $total, $confirmed, $rules.Count, $maxTxt)
+    }
+
+    # --- Top findings table ---
+    $lvDashTop.BeginUpdate()
+    $lvDashTop.Items.Clear()
+    $lvDashTop.BackColor = $pal.TextBg
+    if ($rows.Count) {
+        $sorted = @($rows | Sort-Object @{ E = { $sevRank["$($_.Sev)"] } }, @{ E = { if ($null -ne $_.Cvss) { -1 * [double]$_.Cvss } else { 0 } } })
+        $show = [Math]::Min(14, $sorted.Count)
+        for ($i = 0; $i -lt $show; $i++) {
+            $r  = $sorted[$i]
+            $it = New-Object System.Windows.Forms.ListViewItem("$($r.Sev)")
+            $it.Tag = "$($r.Sev)"
+            [void]$it.SubItems.Add("$($r.Rule)")
+            [void]$it.SubItems.Add("$($r.Finding)")
+            [void]$it.SubItems.Add("$($r.Conf)")
+            [void]$it.SubItems.Add($(if ($null -ne $r.Cvss) { ('{0:0.0}' -f $r.Cvss) } else { '-' }))
+            [void]$it.SubItems.Add("$($r.Loc)")
+            [void]$lvDashTop.Items.Add($it)
+        }
+    }
+    $lvDashTop.EndUpdate()
+
+    # --- panels + labels follow the theme (uniform deep ground) ---
+    foreach ($p in @($dashTopBox, $dashMid, $dashSevBox, $dashAssBox, $dashHeader, $dashCards)) {
+        if ($p) { $p.BackColor = $pal.TextBg }
+    }
+    foreach ($l in @($dashTopTitle, $dashSevTitle, $dashAssTitle, $dashTitle)) {
+        if ($l) { $l.BackColor = $pal.TextBg; $l.ForeColor = $pal.LabelFg }
+    }
+    $dashSub.BackColor = $pal.TextBg; $dashSub.ForeColor = $dimC
+}
+
 function Apply-UiTheme {
     $pal = Get-UiPalette $script:DarkTheme
     Update-SevColours $script:DarkTheme
@@ -2877,6 +3562,7 @@ function Apply-UiTheme {
     }
     # Keep the disclaimer strip red regardless of theme
     if ($disclaimerStrip) { $disclaimerStrip.BackColor = [System.Drawing.Color]::FromArgb(120,0,0); $disclaimerStrip.ForeColor = [System.Drawing.Color]::White }
+    try { Update-Dashboard } catch { }
     [System.Windows.Forms.Application]::DoEvents()
 }
 
@@ -3011,6 +3697,10 @@ $btnRun.Add_Click({
         return
     }
 
+    # Jump to the Audit tab so the live log + findings are visible while the run streams
+    # (the user may have launched on the Dashboard landing tab).
+    try { $tabs.SelectedTab = $tabAudit } catch { }
+
     $btnRun.Enabled = $false
     $btnOpenHtml.Enabled = $false
     $btnOpenExcel.Enabled = $false
@@ -3021,6 +3711,8 @@ $btnRun.Add_Click({
     $btnPause.Text = "Pause"; $btnPause.Enabled = $true
     $txtLog.Clear()
     $lvFindings.Items.Clear()
+    $script:LastFindings = $null   # empty the dashboard for the new run
+    try { Update-Dashboard } catch { }
 
     Write-LogLine "TCPK $(if ($script:TcpkVersion) { "v$($script:TcpkVersion)" }) -- audit starting" ([System.Drawing.Color]::FromArgb(46, 204, 113))
     Write-LogLine "Target:    $target"
@@ -3162,6 +3854,27 @@ $btnRun.Add_Click({
         try {
             $findings = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json
 
+            # Enrich each finding with its computed CVSS (Get-TcpkCvssVector is module-private)
+            # so the Dashboard can show MAX CVSS + per-finding scores. One module-scope call
+            # over all findings; falls back to the raw set if anything goes wrong.
+            $script:LastFindings = $null
+            try {
+                $mod = @(Get-Module TCPK)[0]
+                if ($mod) {
+                    $script:LastFindings = & $mod {
+                        param($fs)
+                        foreach ($f in $fs) {
+                            $sc = $null; $rt = ''
+                            try { $cv = Get-TcpkCvssVector $f; if ($cv) { $sc = $cv.Score; $rt = $cv.Rating } } catch { }
+                            $f | Add-Member -NotePropertyName CvssScore  -NotePropertyValue $sc -Force
+                            $f | Add-Member -NotePropertyName CvssRating -NotePropertyValue $rt -Force
+                            $f
+                        }
+                    } $findings
+                }
+            } catch { }
+            if (-not $script:LastFindings) { $script:LastFindings = $findings }
+
             # AI verification now runs INLINE inside Invoke-TcpkAudit (via the
             # -EnableLlm / -AllowCloudLlm wiring set up before the job started), so
             # findings.json already carries the AI verdicts and every report
@@ -3175,6 +3888,7 @@ $btnRun.Add_Click({
             # instead of redrawing per finding.
             $lvFindings.BeginUpdate()
             try { foreach ($f in $sorted) { Add-Finding $f } } finally { $lvFindings.EndUpdate() }
+            try { Update-Dashboard } catch { }
             Write-LogLine "Loaded $(@($findings).Count) findings into the table." ([System.Drawing.Color]::FromArgb(46, 204, 113))
         } catch {
             Write-LogLine "Could not parse findings.json: $($_.Exception.Message)" ([System.Drawing.Color]::FromArgb(231, 76, 60))
@@ -3235,6 +3949,8 @@ $btnRun.Add_Click({
     Write-LogLine ""
     Write-LogLine "Audit complete. Reports in: $outDir" ([System.Drawing.Color]::FromArgb(46, 204, 113))
     Update-Status "Audit complete -- $($lvFindings.Items.Count) findings shown."
+    # Land on the Dashboard so the severity summary is the first thing seen post-audit.
+    try { Update-Dashboard; $tabs.SelectedTab = $tabDash } catch { }
     $btnRun.Enabled = $true
     # pause/resume: audit finished -> disable Pause and clear any signal
     $btnPause.Enabled = $false; $btnPause.Text = "Pause"

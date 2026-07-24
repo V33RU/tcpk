@@ -26,6 +26,69 @@ function Test-TcpkWebPrefsContext {
     return [regex]::IsMatch($ctx, '(?i)(webPreferences|new\s+BrowserWindow|new\s+BrowserView|webContents)')
 }
 
+# Extract main-process IPC handler bodies from Electron JS. For each
+# ipcMain.handle/handleOnce/on(channel, callback) it returns the channel, the
+# callback parameter names, the "payload" params (everything after the first,
+# which is the IpcMainEvent), and the callback body text (brace-matched, or the
+# arrow expression). This is what lets the caller correlate a RENDERER-supplied
+# argument with a dangerous sink inside the same handler -- the top Electron RCE
+# class (ipcMain.handle('run', (e, cmd) => exec(cmd))). Body capped for safety on
+# minified bundles. Pure string parsing; feed it Get-TcpkJsCodeOnly output.
+function Get-TcpkJsHandlerBodies {
+    [CmdletBinding()] param([Parameter(Mandatory)][string]$Code, [int]$BodyCap = 4000)
+    $out = New-Object System.Collections.Generic.List[object]
+    if (-not $Code) { return $out }
+    $n = $Code.Length
+    foreach ($m in [regex]::Matches($Code, '(?i)ipcMain\s*\.\s*(handle|handleOnce|on)\s*\(')) {
+        $j = $m.Index + $m.Length            # first char after '('
+        # --- arg 1: channel, up to the top-level comma ---
+        $depth = 0; $chan = New-Object System.Text.StringBuilder
+        while ($j -lt $n) {
+            $c = $Code[$j]
+            if ($c -eq '(' -or $c -eq '[' -or $c -eq '{') { $depth++ }
+            elseif ($c -eq ')' -or $c -eq ']' -or $c -eq '}') { if ($depth -le 0) { break }; $depth-- }
+            elseif ($c -eq ',' -and $depth -le 0) { $j++; break }
+            [void]$chan.Append($c); $j++
+        }
+        $channel = $chan.ToString().Trim().Trim('''"')
+        while ($j -lt $n -and [char]::IsWhiteSpace($Code[$j])) { $j++ }
+        if ($j + 5 -le $n -and $Code.Substring($j, 5) -ieq 'async') { $j += 5; while ($j -lt $n -and [char]::IsWhiteSpace($Code[$j])) { $j++ } }
+
+        # --- arg 2: callback params ---
+        $params = @()
+        if ($j + 8 -le $n -and $Code.Substring($j, 8) -ieq 'function') {
+            $j += 8; while ($j -lt $n -and $Code[$j] -ne '(') { $j++ }
+        }
+        if ($j -lt $n -and $Code[$j] -eq '(') {
+            $ps = $j; $pd = 0
+            while ($j -lt $n) { $c = $Code[$j]; if ($c -eq '(') { $pd++ } elseif ($c -eq ')') { $pd--; if ($pd -le 0) { break } }; $j++ }
+            $inner = $Code.Substring($ps + 1, [Math]::Max(0, $j - $ps - 1))
+            $params = @($inner -split ',' | ForEach-Object { (($_ -replace '[=:{].*$', '') -replace '[^\w$]', '').Trim() } | Where-Object { $_ })
+            $j++
+        } else {
+            $idm = [regex]::Match($Code.Substring($j, [Math]::Min(40, $n - $j)), '^\s*([A-Za-z_$][\w$]*)')
+            if ($idm.Success) { $params = @($idm.Groups[1].Value); $j += $idm.Length }
+        }
+        while ($j -lt $n -and [char]::IsWhiteSpace($Code[$j])) { $j++ }
+        if ($j + 1 -lt $n -and $Code[$j] -eq '=' -and $Code[$j + 1] -eq '>') { $j += 2; while ($j -lt $n -and [char]::IsWhiteSpace($Code[$j])) { $j++ } }
+
+        # --- body: brace block, or arrow expression up to the handle-call close paren ---
+        $body = ''
+        if ($j -lt $n -and $Code[$j] -eq '{') {
+            $bs = $j; $bd = 0
+            while ($j -lt $n -and ($j - $bs) -lt $BodyCap) { $c = $Code[$j]; if ($c -eq '{') { $bd++ } elseif ($c -eq '}') { $bd--; if ($bd -le 0) { $j++; break } }; $j++ }
+            $body = $Code.Substring($bs, [Math]::Min($BodyCap, [Math]::Min($j, $n) - $bs))
+        } else {
+            $bs = $j; $bd = 0
+            while ($j -lt $n -and ($j - $bs) -lt $BodyCap) { $c = $Code[$j]; if ($c -eq '(' -or $c -eq '[' -or $c -eq '{') { $bd++ } elseif ($c -eq ']' -or $c -eq '}') { $bd-- } elseif ($c -eq ')') { if ($bd -le 0) { break }; $bd-- }; $j++ }
+            $body = $Code.Substring($bs, [Math]::Min($BodyCap, [Math]::Min($j, $n) - $bs))
+        }
+        $payload = @(if ($params.Count -gt 1) { $params[1..($params.Count - 1)] })
+        $out.Add([pscustomobject]@{ Channel = $channel; Params = $params; Payload = $payload; Body = $body })
+    }
+    return $out
+}
+
 # True if a PE is the bundled Chromium / Electron runtime (the app's main .exe) or a
 # Chromium-shipped GPU / vendor binary. String-scanning these for APP-behaviour heuristics
 # is a false-positive factory: the Chromium binary embeds EVERY recognized CLI flag
@@ -47,6 +110,11 @@ function Test-TcpkIsChromiumRuntime {
     if ($Text) {
         if ($Text -match 'v8_context_snapshot|chrome_100_percent|chrome_200_percent|icudtl\.dat') { return $true }
         if (($Text -match 'Chromium') -and ($Text -match 'Electron')) { return $true }
+        # The Electron MAIN exe embeds version markers ("Electron/42.4.1", "Chrome/148.0.7778.265")
+        # but not the literal word "Chromium" -- so the app-named main .exe (which IS the Electron
+        # runtime, not first-party code) is caught here.
+        if ($Text -match 'Electron/\d+\.\d+\.\d+')                       { return $true }
+        if ($Text -match 'Chrome/\d+\.\d+\.\d+\.\d+' -and $Text -match '(?i)node\.js/v?\d') { return $true }
     }
     return $false
 }

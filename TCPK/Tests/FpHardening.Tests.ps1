@@ -78,3 +78,52 @@ Describe 'Test-TcpkSecrets AWS rule precision (case-sensitive + .pak skip)' {
         finally { Remove-Item -LiteralPath $d -Recurse -Force }
     }
 }
+
+Describe 'Test-TcpkEndpoints loopback vs non-production (audit-found FP)' {
+    It 'treats a loopback URL as INFO recon, not a HIGH non-production leak' {
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'config.json') -Encoding ASCII -Value '{"u":"http://127.0.0.1:3000/api","v":"http://localhost:8080/"}'
+        try {
+            $f = @(Test-TcpkEndpoints -Path $d)
+            @($f | Where-Object { $_.RuleId -eq 'endpoints.non-production' }).Count | Should -Be 0
+            @($f | Where-Object { $_.RuleId -eq 'endpoints.loopback' -and $_.Severity -eq 'INFO' }).Count | Should -BeGreaterThan 0
+        } finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+    It 'STILL flags a shipped external dev/staging URL (as MEDIUM)' {
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'config.json') -Encoding ASCII -Value '{"api":"https://api.staging.corp.example/v1"}'
+        try {
+            $f = @(Test-TcpkEndpoints -Path $d | Where-Object { $_.RuleId -eq 'endpoints.non-production' })
+            $f.Count | Should -BeGreaterThan 0
+            $f[0].Severity | Should -Be 'MEDIUM'
+        } finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+}
+
+Describe 'Test-TcpkSecrets credential value hardening (audit-found FPs)' {
+    It 'does NOT flag a UI / i18n message whose value is a natural-language phrase' {
+        # Real Electron FP: WRONG_PASSWORD: "Wrong Password" (an error string, not a secret).
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'app.js') -Encoding ASCII -Value 'const WRONG_PASSWORD = "Wrong Password"; const m = "Enter your password";'
+        try { @(Test-TcpkSecrets -Path $d | Where-Object RuleId -eq 'secrets.cleartext-credential').Count | Should -Be 0 }
+        finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+    It 'STILL flags a real hardcoded password (has a digit/symbol)' {
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'cfg.js') -Encoding ASCII -Value 'const cfg = { password: "R3alP@ssw0rd2024" };'
+        try { @(Test-TcpkSecrets -Path $d | Where-Object RuleId -eq 'secrets.cleartext-credential').Count | Should -BeGreaterThan 0 }
+        finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+    It 'does NOT flag the canonical basic-auth URL placeholder (user:pass@host)' {
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'doc.js') -Encoding ASCII -Value '// credentials like https://user:pass@host/ are blocked'
+        try { @(Test-TcpkSecrets -Path $d | Where-Object RuleId -eq 'secrets.basic-auth-in-url').Count | Should -Be 0 }
+        finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+    It 'STILL flags real credentials embedded in a URL' {
+        $d = New-FpDir
+        Set-Content -LiteralPath (Join-Path $d 'db.js') -Encoding ASCII -Value 'const u = "postgres://svcacct:Wint3r2024Pass@10.44.12.9/db";'
+        try { @(Test-TcpkSecrets -Path $d | Where-Object RuleId -eq 'secrets.basic-auth-in-url').Count | Should -BeGreaterThan 0 }
+        finally { Remove-Item -LiteralPath $d -Recurse -Force }
+    }
+}

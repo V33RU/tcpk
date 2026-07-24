@@ -49,7 +49,9 @@ function Test-TcpkEntropySecrets {
     foreach ($f in $files) {
         if ($emitted -ge $cap) { break }
         if ($f.Extension.ToLowerInvariant() -notin $textExt) { continue }
-        if (Test-TcpkIsFrameworkFile $f.Name) { continue }
+        # Skip non-first-party text: framework manifests AND third-party license/notice files
+        # (LICENSES.chromium.html is full of high-entropy Maven/artifact paths that are NOT secrets).
+        if (-not (Test-TcpkIsFirstParty -Name $f.Name -SizeBytes $f.Length -Path $f.FullName)) { continue }
         # NuGet/runtime manifests are full of package hashes + long identifiers, not secrets
         if ($f.Name -match '(?i)\.(deps|runtimeconfig|nuspec)\.json$') { continue }
         # Certificate-pin / public-key trust stores hold base64 SHA-256 cert FINGERPRINTS

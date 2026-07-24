@@ -45,25 +45,72 @@ function ConvertTo-TcpkTamperRules {
 # Turn the tamper addon's log (TCPKTAMPER lines) into a finding: what was modified in flight.
 function ConvertFrom-TcpkTamperLog {
     param([string]$LogFile, [string[]]$Rules, [string]$Target)
-    $applied = @()
-    if (Test-Path -LiteralPath $LogFile) { $applied = @(Get-Content -LiteralPath $LogFile | Where-Object { "$_" -match 'TCPKTAMPER' }) }
+    $lines = @()
+    if (Test-Path -LiteralPath $LogFile) { $lines = @(Get-Content -LiteralPath $LogFile) }
+    $applied = @($lines | Where-Object { "$_" -match '^\s*TCPKTAMPER\b' -and "$_" -notmatch 'TCPKTAMPERRESP' })
+    $respLog = @($lines | Where-Object { "$_" -match 'TCPKTAMPERRESP' })
     if (-not $applied.Count) {
         return (New-TcpkFinding -Module 'network' -RuleId 'intercept.tamper-inactive' -Severity 'INFO' -Confidence 'Inferred' `
             -Title 'Tamper rules matched no traffic' -File $Target -Evidence "$(@($Rules).Count) rule(s), 0 applied" `
             -Description "The app produced no traffic matching the tamper rules. It may not have sent the targeted request, may pin certificates / ignore the proxy, or the rule string did not match the on-the-wire bytes." `
             -Fix 'Drive the app to send the targeted request, confirm the rule matches the wire bytes, and ensure the app honours the proxy and trusts the mitmproxy CA.')
     }
-    return (New-TcpkFinding -Module 'network' -RuleId 'intercept.tamper-applied' -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
+
+    $findings = New-Object 'System.Collections.Generic.List[object]'
+    $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.tamper-applied' -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
         -Title "Modified $($applied.Count) live request/response(s) in flight" -File $Target `
         -Evidence (($applied | Select-Object -First 8) -join ' | ') -Cwe @('CWE-602', 'CWE-807') `
         -Description "TCPK modified the app's traffic in flight via the mitmproxy tamper addon. Use this to probe whether the backend re-validates client-supplied values (authorization, role, price, injection) SERVER-side rather than trusting the client -- if a tampered value is honoured, the server trusts the client." `
-        -Fix 'Enforce every security decision server-side and validate all input independently of the client; never trust a client-supplied value.')
+        -Fix 'Enforce every security decision server-side and validate all input independently of the client; never trust a client-supplied value.'))
+
+    # Response-differential verdict: for requests whose value TCPK tampered, did the server
+    # ACCEPT (2xx/3xx) or REJECT (4xx/5xx) the change? An accepted tamper is the strong signal
+    # that the backend trusts the client-supplied value instead of re-validating it server-side.
+    if ($respLog.Count) {
+        $accepted = @(); $rejected = @()
+        foreach ($rl in $respLog) {
+            $sm = [regex]::Match("$rl", 'status=(\d{3})')
+            if (-not $sm.Success) { continue }
+            $code = [int]$sm.Groups[1].Value
+            if ($code -ge 200 -and $code -lt 400) { $accepted += $code } else { $rejected += $code }
+        }
+        if ($accepted.Count) {
+            $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.tamper-accepted' -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
+                -Title "Server returned success to $($accepted.Count) tampered request(s)" -File $Target `
+                -Evidence ("tampered-request response codes: " + (($accepted | Select-Object -First 8) -join ', ')) -Cwe @('CWE-602','CWE-639','CWE-807') `
+                -Description "For $($accepted.Count) request(s) whose security-relevant value TCPK altered in flight, the backend returned a 2xx/3xx success. That is the differential signal that the server may be TRUSTING the client-supplied value rather than re-validating it -- the class behind broken access control / IDOR / price or role tampering. Confirm the tampered field actually changed the outcome (not a static page)." `
+                -Fix 'Re-validate every security-relevant value (identity, role, price, entitlement) on the server against the authenticated session; never trust a client-supplied value even if the client normally sends the right one.'))
+        }
+        if ($rejected.Count -and -not $accepted.Count) {
+            $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.tamper-rejected' -Severity 'INFO' -Confidence 'Confirmed (dynamic)' `
+                -Title "Server rejected $($rejected.Count) tampered request(s)" -File $Target `
+                -Evidence ("tampered-request response codes: " + (($rejected | Select-Object -First 8) -join ', ')) `
+                -Description "The backend returned a 4xx/5xx to every tampered request, which is consistent with server-side re-validation (good). Still confirm the rejection is due to server-side checks and not an unrelated error." `
+                -Fix 'No action if the rejections are genuine server-side authorization/validation failures; keep enforcing server-side.'))
+        }
+    }
+    return $findings.ToArray()
 }
 
 # A free loopback TCP port.
 function Get-TcpkFreePort {
     $l = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
     $l.Start(); $p = ([System.Net.IPEndPoint]$l.LocalEndpoint).Port; $l.Stop(); return $p
+}
+
+# Luhn check -- keeps the payment-card (PAN) response-mining rule from firing on any
+# random 13-16 digit run. Returns $true only for a Luhn-valid digit string.
+function Test-TcpkLuhn {
+    [CmdletBinding()] param([string]$Digits)
+    $d = "$Digits" -replace '\D', ''
+    if ($d.Length -lt 13 -or $d.Length -gt 19) { return $false }
+    $sum = 0; $alt = $false
+    for ($i = $d.Length - 1; $i -ge 0; $i--) {
+        $n = [int][string]$d[$i]
+        if ($alt) { $n *= 2; if ($n -gt 9) { $n -= 9 } }
+        $sum += $n; $alt = -not $alt
+    }
+    return ($sum % 10 -eq 0)
 }
 
 # Parse a captured-flows JSONL file (written by tcpk_capture.py) into intercept.* findings.
@@ -136,6 +183,57 @@ function ConvertFrom-TcpkInterceptCapture {
                 }
             }
         }
+
+        # --- response-body mining: secrets / tokens / PII RETURNED by the server ---
+        # A server that echoes a credential, hands back another user's token, or returns
+        # PII in its response body is a data-exposure primitive the request-only scan misses.
+        $respHay = "$($flow.resp_body)"
+        if ($respHay) {
+            foreach ($rx in @($secretRx, $jsonRx)) {
+                foreach ($m in [regex]::Matches($respHay, $rx)) {
+                    $pname = $m.Groups[1].Value; $pval = $m.Groups[2].Value
+                    if ($credSeen.Add("resp|$hst|$pname|$pval")) {
+                        $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.secret-in-response' `
+                            -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
+                            -Title 'Credential/secret returned in a response body' -File $url `
+                            -Evidence ("$pname = " + (Format-TcpkMaskedSecret $pval) + " from $hst$wire") -Cwe @('CWE-200','CWE-359') `
+                            -Description "The server at $hst returned a '$pname' value in its response body$wire. A response that hands back a credential / secret / token is a data-exposure sink -- captured on the wire and reachable by any client that can make the call." `
+                            -Fix 'Never return secrets/credentials in a response body; return opaque handles and scope every field to the authenticated caller.'))
+                    }
+                }
+            }
+            # JWT-shaped token returned to the client (replayable session material)
+            $jm = [regex]::Match($respHay, 'eyJ[A-Za-z0-9_-]{6,}\.eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{4,}')
+            if ($jm.Success -and $tokSeen.Add("resp-jwt|$hst")) {
+                $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.token-in-response' `
+                    -Severity $(if ($isHttp) { 'HIGH' } else { 'MEDIUM' }) -Confidence 'Confirmed (dynamic)' `
+                    -Title 'JWT / session token returned in a response body' -File $url `
+                    -Evidence ('JWT ' + (Format-TcpkMaskedSecret $jm.Value) + " from $hst$wire") -Cwe @('CWE-522') `
+                    -Description "The server returned a JWT-shaped token in its response$wire. Captured on the wire (or logged), it can be replayed for its validity window." `
+                    -Fix 'Deliver session tokens over pinned TLS with short lifetimes; prefer an httpOnly cookie over a body-returned token.'))
+            }
+            # PII returned in the response: US SSN (dashed) and Luhn-valid payment card (PAN)
+            if (($sm = [regex]::Match($respHay, '\b\d{3}-\d{2}-\d{4}\b')).Success -and $credSeen.Add("pii-ssn|$hst")) {
+                $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.pii-in-response' `
+                    -Severity 'MEDIUM' -Confidence 'Confirmed (dynamic)' `
+                    -Title 'US SSN pattern returned in a response body' -File $url `
+                    -Evidence "SSN-shaped value observed in the response from $hst$wire" -Cwe @('CWE-359') `
+                    -Description "The server returned a value matching a US SSN in its response$wire. Confirm it is the caller's OWN data and minimized; PII on the wire is an exposure." `
+                    -Fix 'Return only the minimum PII the caller is entitled to, over pinned TLS; mask or tokenize where possible.'))
+            }
+            foreach ($cm in [regex]::Matches($respHay, '\b(?:\d[ -]?){13,19}\b')) {
+                if (-not (Test-TcpkLuhn $cm.Value)) { continue }
+                if ($credSeen.Add("pii-pan|$hst")) {
+                    $findings.Add((New-TcpkFinding -Module 'network' -RuleId 'intercept.pii-in-response' `
+                        -Severity 'MEDIUM' -Confidence 'Confirmed (dynamic)' `
+                        -Title 'Payment-card (PAN) returned in a response body' -File $url `
+                        -Evidence "Luhn-valid card number observed in the response from $hst$wire" -Cwe @('CWE-359') `
+                        -Description "The server returned a Luhn-valid payment-card number in its response$wire. Confirm PCI scope and that the PAN is masked / tokenized rather than returned in full." `
+                        -Fix 'Never return a full PAN; return only the last four digits (or a token) over pinned TLS.'))
+                }
+                break
+            }
+        }
     }
 
     foreach ($ekey in $endpoints.Keys) {
@@ -192,7 +290,8 @@ function ConvertFrom-TcpkHookCapture {
     $tlsSeen  = $false
     $secretRx = '(?i)(password|passwd|pwd|token|apikey|api_key|secret|access_key)=([^&\s]{3,})'
     $jsonRx   = '(?i)"(password|passwd|pwd|pass|token|apikey|api_key|secret|access_key)"\s*:\s*"([^"]{3,})"'
-    $tlsFuncs = @('SSL_write', 'SSL_read', 'EncryptMessage', 'DecryptMessage')
+    $tlsFuncs = @('SSL_write', 'SSL_read', 'EncryptMessage', 'DecryptMessage',
+                  'WinHttpWriteData', 'WinHttpReadData', 'HttpSendRequestW', 'HttpSendRequestA', 'InternetReadFile')
 
     foreach ($line in (Get-Content -LiteralPath $HookFile)) {
         $ix = "$line".IndexOf('TCPKHOOK ')

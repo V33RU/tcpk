@@ -91,7 +91,12 @@ function Invoke-TcpkAudit {
         # Self-elevation: if set AND the current session is not elevated, relaunch the same
         # audit as admin via UAC (Start-Process -Verb RunAs) so the elevation-gated checks
         # (Defender exclusions, deeper ACLs) actually run. Never auto-elevates without this.
-        [switch]$Elevate
+        [switch]$Elevate,
+        # Launch-and-observe: when the target is NOT already running, EXECUTE its main exe
+        # (minimized) so the bucket-E live-process checks have something to observe, then stop
+        # it at the end. Requires -Acknowledge (it runs the target binary); authorized/lab use
+        # only. An already-running instance or an explicit -ProcessName is observed instead.
+        [switch]$LaunchTarget
     )
 
     # --- preflight ---
@@ -371,7 +376,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkProgramDataAcls'     { Test-TcpkProgramDataAcls     -NameLike $idTerms }
         _RunCheck 'Test-TcpkScheduledTaskAcl'    { Test-TcpkScheduledTaskAcl    -NameLike $idTerms }
         _RunCheck 'Test-TcpkWmiPersistence'      { Test-TcpkWmiPersistence      -NameLike $idTerms }
-        _RunCheck 'Test-TcpkProtocolHandlers'    { Test-TcpkProtocolHandlers    -NameLike $idTerms }
+        _RunCheck 'Test-TcpkProtocolHandlers'    { Test-TcpkProtocolHandlers    -NameLike $idTerms -TargetPath $expanded }
         _RunCheck 'Test-TcpkShimCache'           { Test-TcpkShimCache           -NameLike $idTerms }
         _RunCheck 'Test-TcpkAppPaths'            { Test-TcpkAppPaths            -NameLike $idTerms }
         _RunCheck 'Test-TcpkIfeoHijack'          { Test-TcpkIfeoHijack          -NameLike $idTerms }
@@ -394,6 +399,30 @@ function Invoke-TcpkAudit {
     }
 
     # ----- Bucket E (runtime / live process, 14 cmdlets) -----
+    # Launch-and-observe (gated): when nothing is running yet, execute the target's main exe
+    # minimized so the live-process checks have a process. Stopped again after bucket E.
+    $script:TcpkLaunchedProc = $null
+    if ($LaunchTarget) {
+        if (-not $Acknowledge) {
+            Write-Warning "[TCPK] -LaunchTarget requires -Acknowledge (it EXECUTES the target binary). Skipping launch; run only software you are authorized to."
+        } elseif ($ProcessName -and (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)) {
+            Write-Information "  [launch-target] '$ProcessName' is already running; observing the existing instance." -InformationAction Continue
+        } else {
+            $mainExe = $null; try { $mainExe = Get-TcpkMainExePath -Dir $expanded } catch { }
+            if ($mainExe) {
+                Write-Information ("  [launch-target] launching '{0}' minimized for live-process checks (stopped at the end)." -f (Split-Path -Leaf $mainExe)) -InformationAction Continue
+                $script:TcpkLaunchedProc = Start-TcpkTargetProcess -ExePath $mainExe -WaitSec 6
+                if ($script:TcpkLaunchedProc) {
+                    $ProcessName = [IO.Path]::GetFileNameWithoutExtension($mainExe)
+                    Write-TcpkLog -Level INFO -Component 'audit.launch' -Message "launched $ProcessName (PID $($script:TcpkLaunchedProc.Id))" | Out-Null
+                } else {
+                    Write-Warning "[TCPK] -LaunchTarget: the target did not start or exited immediately; live-process checks stay gated."
+                }
+            } else {
+                Write-Warning "[TCPK] -LaunchTarget: could not resolve a main .exe under the target; skipping launch."
+            }
+        }
+    }
     # Auto-attach: if the caller did not name a process (and did not opt out), find the
     # target's own running process so these checks fire without -ProcessName. Read-only.
     if (-not $ProcessName -and -not $NoAutoProcess) {
@@ -441,6 +470,13 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkDllSearchTrace'          { Test-TcpkDllSearchTrace          -ProcessName $ProcessName -Seconds 30 }
         _RunCheck 'Test-TcpkMemoryDump'              { Test-TcpkMemoryDump              -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkMemorySecrets'           { Test-TcpkMemorySecrets           -ProcessName $ProcessName }
+    }
+
+    # Stop the instance TCPK launched (-LaunchTarget); the live checks that needed it are done.
+    if ($script:TcpkLaunchedProc) {
+        Write-Information ("  [launch-target] stopping the launched instance (PID {0})." -f $script:TcpkLaunchedProc.Id) -InformationAction Continue
+        try { Stop-TcpkTargetProcess -Proc $script:TcpkLaunchedProc } catch { }
+        $script:TcpkLaunchedProc = $null
     }
 
     # ----- Bucket F (network, 6 cmdlets) -----

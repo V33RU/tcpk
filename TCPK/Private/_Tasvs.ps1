@@ -24,6 +24,12 @@ $script:TcpkTasvsMap = @(
     @{ rx='^(reflectionloading|nativeinterop|pinvoke|unsafenativeapis|zipslip|embeddedscripts|electron|rpcsurface)'; tasvs=@('TASVS-CODE Code Quality'); da=@('DA8 Poor Code Quality') }
     @{ rx='^(chain|protocol\.sink|msix\.alias|msix\.|manifest|uacmanifest)';              tasvs=@('TASVS-ARCH Architecture & Threat Modeling'); da=@('DA6 Security Misconfiguration') }
     @{ rx='^(fs\.|registry\.(diff|snapshot))';                                            tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA6 Security Misconfiguration') }
+    @{ rx='^process\.(impactful-privileges|integrity-level|running-as-system|identity|dacl)'; tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    @{ rx='^intercept\.tamper';                                                           tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA5 Improper Authorization') }
+    @{ rx='^intercept\.';                                                                 tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA7 Insecure Communication') }
+    @{ rx='^protocol-handler';                                                            tasvs=@('TASVS-PLATFORM Platform Interaction / IPC'); da=@('DA6 Security Misconfiguration') }
+    @{ rx='^browser\.';                                                                   tasvs=@('TASVS-STORAGE Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }
+    @{ rx='^electron\.ipc-handler-sink';                                                  tasvs=@('TASVS-PLATFORM Platform Interaction / IPC'); da=@('DA1 Injection') }
 )
 
 function Get-TcpkTasvsControl {

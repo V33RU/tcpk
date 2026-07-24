@@ -97,13 +97,18 @@ function Test-TcpkElectron {
         'enableWebSQL'                 = @{ rx = '\bwebSQL["'']?\s*:\s*true';                        sev='LOW';      desc='Deprecated WebSQL storage enabled -- an obsolete, removed-from-browsers engine; disable to shrink the attack surface.' }
     }
 
-    # search targets: every .asar (JS is plaintext inside) + loose main/preload JS.
-    # NB: Get-ChildItem -Include is SILENTLY IGNORED with -LiteralPath (it would return
-    # EVERY file and we'd scan PNGs/configs for Electron flags). Filter by name explicitly.
-    $jsNames = @('main.js','preload.js','index.js','app.js')
+    # search targets: every .asar (JS is plaintext inside) + loose main/preload JS,
+    # INCLUDING webpack/rollup-bundled output (main.bundle.js, background.js, a hashed
+    # main.a1b2c3.js, etc.) which the old exact-name allow-list silently skipped -- so a
+    # non-asar / bundled Electron app previously reported nothing. Match a bounded set of
+    # main-process-ish names, exclude node_modules, and cap size to avoid slurping a giant
+    # renderer/vendor bundle. NB: Get-ChildItem -Include is SILENTLY IGNORED with
+    # -LiteralPath (it would return EVERY file), so filter by name explicitly.
+    $jsRx = '(?i)^(main|preload|index|app|background|electron(-main)?|entry|renderer)(\.[\w-]+)?\.js$'
     $targets = @()
     $targets += $asars
-    $targets += @(Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -in $jsNames })
+    $targets += @(Get-ChildItem -LiteralPath $dir -Recurse -File -Filter '*.js' -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '(?i)[\\/]node_modules[\\/]' -and $_.Length -lt 5MB -and $_.Name -match $jsRx })
 
     # --- insecure-by-DEFAULT: an OLD Electron that OMITS a hardening key inherits the insecure
     # default -- nodeIntegration is ON before Electron 5, contextIsolation OFF before 12, the
@@ -327,6 +332,48 @@ function Test-TcpkElectron {
                     -File $t.FullName -Evidence "$regCount handler(s); no event.senderFrame / sender-origin check found" -Cwe @('CWE-346','CWE-749') `
                     -Description 'The app registers main-process IPC handlers but no event.senderFrame / sender-origin validation was found. If untrusted or remote content is ever loaded into a renderer (or a sub-frame), it can invoke these handlers -- turning a renderer compromise / XSS into the privileged main-process action.' `
                     -Fix 'In each privileged handler, verify event.senderFrame.url (or origin) against an allow-list before acting; reject calls from unexpected frames.'
+            }
+        }
+
+        # --- G3b: IPC handler body reaches a dangerous sink (renderer-driven RCE) ---
+        # The highest-impact Electron IPC bug: a handler that feeds its renderer-supplied
+        # argument into exec / shell / eval / fs / loadURL. We parse each handler body and
+        # correlate a payload param with a sink -- direct arg flow -> Confirmed (higher sev);
+        # a sink merely reachable from the handler -> Inferred (arg flow not proven).
+        $ipcSinks = @(
+            @{ rx = '\b(execSync|execFileSync|execFile|exec|spawnSync|spawn|fork)\s*\('; kind = 'command-execution'; sev = 'CRITICAL'; inf = 'HIGH';   cwe = @('CWE-78','CWE-94') }
+            @{ rx = '\beval\s*\(|new\s+Function\s*\(';                                    kind = 'dynamic-code-eval'; sev = 'CRITICAL'; inf = 'HIGH';   cwe = @('CWE-95','CWE-94') }
+            @{ rx = '\bshell\s*\.\s*(openExternal|openPath)\s*\(';                        kind = 'shell-open';        sev = 'HIGH';     inf = 'MEDIUM'; cwe = @('CWE-78','CWE-601') }
+            @{ rx = '\bfs\s*\.\s*(writeFile|writeFileSync|appendFile|appendFileSync|createWriteStream|unlink|unlinkSync|rename|renameSync|copyFile|copyFileSync)\s*\('; kind = 'filesystem-write'; sev = 'HIGH'; inf = 'MEDIUM'; cwe = @('CWE-22','CWE-73') }
+            @{ rx = '\bfs\s*\.\s*(readFile|readFileSync|createReadStream)\s*\(';          kind = 'filesystem-read';   sev = 'MEDIUM';   inf = 'LOW';    cwe = @('CWE-22') }
+            @{ rx = '\.loadURL\s*\(|\.loadFile\s*\(';                                     kind = 'navigation';        sev = 'MEDIUM';   inf = 'LOW';    cwe = @('CWE-601') }
+        )
+        foreach ($h in (Get-TcpkJsHandlerBodies -Code $code)) {
+            if (-not $h.Body) { continue }
+            foreach ($s in $ipcSinks) {
+                $sm = [regex]::Match($h.Body, $s.rx)
+                if (-not $sm.Success) { continue }
+                # is a renderer-supplied payload param inside the sink's argument region?
+                $tainted = $false
+                if ($h.Payload.Count) {
+                    $as = $sm.Index + $sm.Length
+                    $slice = $h.Body.Substring($as, [Math]::Min(240, $h.Body.Length - $as))
+                    foreach ($pp in $h.Payload) { if ($pp -and [regex]::IsMatch($slice, '\b' + [regex]::Escape($pp) + '\b')) { $tainted = $true; break } }
+                }
+                $sev  = if ($tainted) { $s.sev } else { $s.inf }
+                $conf = if ($tainted) { 'Confirmed' } else { 'Inferred' }
+                $chanTxt = if ($h.Channel) { "'$($h.Channel)'" } else { '(runtime-resolved channel)' }
+                $flow = if ($tainted) { 'the renderer-supplied argument reaches the sink directly' }
+                        else { 'the sink is reachable from this renderer-invokable handler (direct arg flow not proven)' }
+                New-TcpkFinding -Module 'static' -RuleId 'electron.ipc-handler-sink' `
+                    -Severity $sev -Confidence $conf `
+                    -Title "IPC handler $chanTxt reaches a $($s.kind) sink in $($t.Name)" `
+                    -File $t.FullName `
+                    -Evidence ("channel $chanTxt -> $($sm.Value)  [payload params: $(@($h.Payload) -join ', ')]") `
+                    -Cwe $s.cwe `
+                    -Description ("The main-process IPC handler for channel $chanTxt calls a $($s.kind) sink, and $flow. Any renderer can invoke this channel over IPC, and if untrusted / remote content is ever loaded into a renderer (or an injected sub-frame), an XSS invokes it too -- turning a renderer action into a main-process $($s.kind). This is the highest-impact Electron IPC bug class.") `
+                    -Fix 'Never pass renderer-supplied data into exec / shell / eval / fs / loadURL. Validate the payload against a strict allow-list, prefer execFile with a fixed binary + argument array (no shell string), and verify event.senderFrame before acting.'
+                break   # one finding per handler, most-severe sink first
             }
         }
 

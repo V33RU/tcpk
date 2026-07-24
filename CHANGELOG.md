@@ -2,9 +2,25 @@
 
 Release history for TCPK. Newest first.
 
-## v2.6.0-rc1
+## v2.6.0
 
-Detection uplift -- a recall + IL-proof pass on the detection engine (grounded in a code-level capability review). Cmdlet count unchanged (184; the new helpers are private).
+Finalises the 2.6.0 line: the detection uplift shipped in `v2.6.0-rc1` plus an accuracy pass, a UI pass, and an MCP pass. Cmdlet count unchanged (184; every new helper is private).
+
+**Accuracy (the false-positive pass).**
+
+- Severity-anchored **CVSS v4.0**: the computed score is now derived from a per-severity, per-attack-vector band (`$script:TcpkCvssBandVector`) instead of a generic archetype, so a LOW finding scores LOW and a HIGH scores HIGH -- the report's number matches its badge rather than inflating it. A purely local bug can only reach CRITICAL with genuine subsequent-system impact. CVE / dependency findings defer to the advisory score.
+- **Electron-aware provenance gate** (`Test-TcpkIsFirstParty`): the single largest false-positive source on Electron apps was a secret / import / endpoint matched *inside a bundled file* (the Electron main exe, a Chromium DLL, an NSIS uninstaller, a `LICENSES.*` blob) being attributed to first-party code. The gate classifies those as not-first-party -- by name, by size, and structurally (a loose PE beside `resources\app.asar`) -- and is wired into the noisy scanners (secrets, entropy, endpoints, callsites, native APIs, self-hosted server, update flow, ETW). Genuine app code (`app.asar` JS, the vendor's own DLLs) is still scanned.
+- Secret-scan guards for natural-language values (a `WRONG_PASSWORD: "Wrong Password"` UI string is a label, not a credential) and for the canonical `user:pass@host` doc placeholder. Loopback endpoints (`127.0.0.1` / `localhost`) are now INFO `endpoints.loopback` instead of a non-production HIGH.
+
+**Detection (beyond rc1).** Crypto-constant, `TypeNameHandling` and cross-assembly taint IL verdicts; token-privilege / integrity-level checks; CVE native-banner scan; intercept response-body mining + tamper differential; HKCR URI-activation scoping; Windows TLS hooks (schannel / winhttp / wininet); a gated launch-and-observe harness; credential-store decryption (DPAPI + BCrypt-GCM); and three new exploit chains.
+
+**UI.** The desktop GUI gains a **Dashboard** landing tab (severity tiles, max CVSS, an assurance donut of proven vs leads vs likely-FP, and a top-findings table) and a **DLL Decompiler** tab (Mono.Cecil type / method browser with IL, optional `ilspycmd` C#, wrap toggle and hover tooltips), on a refreshed teal palette. The agentic workbench gets the matching Dashboard. `Invoke-TcpkGuiUnlock` now also detects and unlocks read-only (`ES_READONLY`) fields alongside disabled controls and masked password fields.
+
+**MCP.** The server exposes the decompiler -- `tcpk_list_modules` and `tcpk_decompile` (a module's sink-bearing methods, and per-instruction IL with sink flags: the evidence behind `Confirmed (IL)`). `tcpk_get_findings` now returns findings enriched through the same intel model the reports use (computed CVSS, CWE, ATT&CK, TASVS, how-to-verify). Tools carry read-only / destructive / network annotations so a client can auto-approve the safe ones and still prompt on the gated PoC generator. First MCP test coverage (`McpServer.Tests.ps1`).
+
+---
+
+Detection uplift (as shipped in `v2.6.0-rc1`) -- a recall + IL-proof pass on the detection engine (grounded in a code-level capability review).
 
 - Secrets: +17 modern provider rules -- OpenAI, OpenAI-project, Anthropic, GitLab, Google OAuth, Slack webhook + app token, SendGrid, npm, PyPI, HashiCorp Vault, DigitalOcean, Databricks, Postman, Shopify, credentials-in-URL, and hardcoded HTTP Basic auth header. All loss-free (explicit prefilters), so recall rises across the static, live-memory, and env scans at once.
 - IL prover reach: added the base `System.Data.Common.DbCommand` / `IDbCommand` / `DbDataAdapter` types (Dapper / EF-raw / DbProviderFactory) and `System.Net.Http.HttpMessageInvoker` to the injection sink map, so SQL / SSRF through the abstraction layer is now invocation- and taint-checked instead of invisible. Routed `reflection.dynamic-load` through `Confirm-TcpkCallsiteUsage` (new `reflection-load` sink family) so a tainted `Assembly.LoadFrom(path)` reaches `Confirmed (IL)`.

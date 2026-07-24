@@ -45,6 +45,12 @@ def request(flow):
         new, changed = _apply(body, "req")
         if changed:
             flow.request.text = new
+            # remember this REQUEST was tampered, so response() can log the server's
+            # answer -- the differential signal (did the server accept the tampered value?).
+            try:
+                flow.metadata["tcpk_tamper_req"] = True
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -55,5 +61,13 @@ def response(flow):
         new, changed = _apply(body, "resp")
         if changed:
             flow.response.text = new
+        # Differential: for a flow whose REQUEST we tampered, record the server's status
+        # so TCPK can tell an ACCEPTED tampered value (2xx/3xx -> possible broken
+        # server-side validation) from a REJECTED one (4xx/5xx -> server re-validates).
+        try:
+            if flow.metadata.get("tcpk_tamper_req"):
+                _log("TCPKTAMPERRESP status=%d len=%d" % (flow.response.status_code, len(body)))
+        except Exception:
+            pass
     except Exception:
         pass

@@ -16,13 +16,14 @@ Describe 'CVSS is v4.0 only' {
 }
 
 Describe 'Get-TcpkCvssVector - per-finding, attack-archetype based' {
-    It 'scores a NETWORK rule (TLS bypass) as AV:N' {
+    It 'scores a MITM rule (TLS bypass) as adjacent / on-path (not remote AV:N)' {
         $v = & (Get-Module TCPK) {
             $f = New-TcpkFinding -Module 'static' -RuleId 'tls-bypass.cert-callback-accepts-all' -Severity 'CRITICAL' -Title 't'
             Get-TcpkCvssVector $f
         }
-        $v.Vector | Should -Match 'AV:N'
-        $v.Source | Should -Be 'archetype:net-mitm'
+        $v.Vector | Should -Match 'AV:A'          # an on-path/MITM position is required
+        $v.Source | Should -Be 'anchored:adjacent'
+        $v.Rating | Should -Be 'Critical'          # rating matches the CRITICAL badge
     }
     It 'scores a LOCAL rule (weak ACL) as AV:L, not AV:N' {
         $v = & (Get-Module TCPK) {
@@ -31,29 +32,28 @@ Describe 'Get-TcpkCvssVector - per-finding, attack-archetype based' {
         }
         $v.Vector | Should -Match 'AV:L'
         $v.Vector | Should -Not -Match 'AV:N'
-        $v.Source | Should -Be 'archetype:local-privesc'
+        $v.Source | Should -Be 'anchored:local'
     }
-    It 'scores a shipped credential with a severity-matched, consistent vector' {
-        # Credential/secret family is severity-tiered so the CVSS band always matches the
-        # badge: CRITICAL -> live-credential (network read+write). A MEDIUM secret would
-        # instead map to shipped-secret (local, confidentiality-only).
+    It 'scores a CRITICAL shipped credential in the Critical band (network-reachable)' {
+        # Severity-anchored: a CRITICAL secret is a live network credential (AV:N), lower
+        # secrets are read from the local artifact. Either way the rating tracks the badge.
         $v = & (Get-Module TCPK) {
             $f = New-TcpkFinding -Module 'static' -RuleId 'secrets.azure-storage-connection-string' -Severity 'CRITICAL' -Title 't'
             Get-TcpkCvssVector $f
         }
-        $v.Source | Should -Be 'archetype:live-credential'
+        $v.Source | Should -Be 'anchored:network'
         $v.Rating | Should -Be 'Critical'
         $v.Vector | Should -Match 'VC:H'
         $v.Vector | Should -Match 'VI:H'
     }
-    It 'maps a MEDIUM secret to the local confidentiality-only archetype' {
+    It 'maps a MEDIUM secret to a local, in-band vector' {
         $v = & (Get-Module TCPK) {
             $f = New-TcpkFinding -Module 'static' -RuleId 'secrets.some-low-value-token' -Severity 'MEDIUM' -Title 't'
             Get-TcpkCvssVector $f
         }
-        $v.Source | Should -Be 'archetype:shipped-secret'
+        $v.Source | Should -Be 'anchored:local'
         $v.Vector | Should -Match 'AV:L'
-        $v.Vector | Should -Match 'VI:N'
+        $v.Rating | Should -Be 'Medium'
     }
     It 'honours an explicit per-finding CVSS override' {
         $v = & (Get-Module TCPK) {
@@ -89,9 +89,11 @@ Describe 'Get-TcpkCvssVector - per-finding, attack-archetype based' {
         $check.Score  | Should -Be $check.Engine          # the shown score is the engine's, not invented
         $check.Display | Should -Match '^\d+\.\d \('       # "9.3 (Critical) CVSS:4.0/..."
     }
-    It 'a NVD/per-finding/INFO finding shows NO decimal score (honest)' {
+    It 'an advisory-deferred finding (CVE / outdated-runtime) shows NO fabricated decimal score' {
+        # These carry a REAL per-CVE advisory score, so TCPK must not invent an anchored one.
+        # (Other families ARE now scored, severity-anchored, for badge/score consistency.)
         $disps = & (Get-Module TCPK) {
-            'cve.CVE-2024-21907','callsites.command-exec' | ForEach-Object {
+            'cve.CVE-2024-21907','electron.outdated-runtime' | ForEach-Object {
                 $f = New-TcpkFinding -Module 'static' -RuleId $_ -Severity 'HIGH' -Title 't'
                 (Get-TcpkCvssVector $f).Display
             }

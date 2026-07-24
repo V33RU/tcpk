@@ -78,7 +78,21 @@ function Confirm-TcpkCallsiteUsage {
             # ---- deser.* : confirm an unsafe-formatter Deserialize()/ReadObject() call ----
             if ($isDeser) {
                 $token = ($rid -replace '^deser\.', '')
-                if ($deserTyped -notcontains $token) { $f; continue }   # e.g. typenamehandling: leave untouched
+                # TypeNameHandling is an enum flag, not a formatter type -- read the constant
+                # fed to set_TypeNameHandling. A proven non-None value is a polymorphic-
+                # deserialization RCE gadget (Confirmed IL); otherwise leave the lead as-is.
+                if ($token -eq 'typenamehandling') {
+                    $tnh = @()
+                    try { $tnh = @(Get-TcpkTypeNameHandlingVerdicts -DllPath $f.File) } catch { }
+                    if ($tnh.Count) {
+                        $worst = $tnh | Sort-Object { $rank["$($_.Severity)"] } -Descending | Select-Object -First 1
+                        $f.Confidence = 'Confirmed (IL)'
+                        if ($rank["$($f.Severity)"] -lt $rank["$($worst.Severity)"]) { $f.Severity = $worst.Severity }
+                        $f.Description = "$($f.Description) [TCPK IL: $($worst.Reason) In $leaf at $($worst.Type)::$($worst.Method) ($($worst.Token)). If attacker-controlled JSON reaches a JsonConvert.DeserializeObject / JsonSerializer.Deserialize call using these settings, the ""`$type"" property instantiates arbitrary types -- remote code execution. IL proof: $($worst.Il)]"
+                    }
+                    $f; continue
+                }
+                if ($deserTyped -notcontains $token) { $f; continue }   # unknown deser token: leave untouched
                 $dTotal = 0; $dReach = $false; $dTaint = $false
                 foreach ($mn in @('Deserialize','ReadObject')) {
                     $u = $null

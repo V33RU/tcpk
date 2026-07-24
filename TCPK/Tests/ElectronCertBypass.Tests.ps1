@@ -55,7 +55,7 @@ Describe 'Electron cert-validation bypass detection' {
 }
 
 Describe 'cert-validation-bypass standards mapping' {
-    It 'maps to net-mitm CVSS, OWASP DA7, and ATT&CK T1557' {
+    It 'maps to an on-path/MITM CVSS (adjacent), OWASP DA7, and ATT&CK T1557' {
         $r = & (Get-Module TCPK) {
             $a = New-TcpkFinding -Module static -RuleId 'electron.cert-validation-bypass' -Severity HIGH -Title 'x'
             [pscustomobject]@{
@@ -64,7 +64,7 @@ Describe 'cert-validation-bypass standards mapping' {
                 Att  = ((Get-TcpkAttackTechnique 'electron.cert-validation-bypass') -join ',')
             }
         }
-        $r.Cvss | Should -Match 'net-mitm'
+        $r.Cvss | Should -Match 'anchored:adjacent'
         $r.Da   | Should -Match '^DA7'
         $r.Att  | Should -Match 'T1557'
     }

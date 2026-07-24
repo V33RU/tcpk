@@ -44,3 +44,32 @@ Describe 'Severity badge vs computed CVSS rating' {
             Should -BeLessOrEqual 1 -Because "$Rule badged $Sev must not diverge more than 1 band from its computed CVSS '$band'"
     }
 }
+
+# Severity-anchored scoring guarantee: the computed rating must EXACTLY equal the badge
+# (a LOW never shows Medium, a HIGH never shows Medium), across every attack flavor.
+$script:AnchorCases = @(
+    @{ Rule = 'acl.world-writable';         Sev = 'CRITICAL'; Band = 'Critical' }   # local flavor
+    @{ Rule = 'acl.world-writable';         Sev = 'HIGH';     Band = 'High' }
+    @{ Rule = 'acl.world-writable';         Sev = 'MEDIUM';   Band = 'Medium' }
+    @{ Rule = 'acl.world-writable';         Sev = 'LOW';      Band = 'Low' }
+    @{ Rule = 'deser.binaryformatter';      Sev = 'CRITICAL'; Band = 'Critical' }   # network flavor
+    @{ Rule = 'deser.binaryformatter';      Sev = 'HIGH';     Band = 'High' }
+    @{ Rule = 'deser.binaryformatter';      Sev = 'MEDIUM';   Band = 'Medium' }
+    @{ Rule = 'deser.binaryformatter';      Sev = 'LOW';      Band = 'Low' }
+    @{ Rule = 'tls-bypass.cert-accept-all'; Sev = 'CRITICAL'; Band = 'Critical' }   # adjacent flavor
+    @{ Rule = 'tls-bypass.cert-accept-all'; Sev = 'HIGH';     Band = 'High' }
+    @{ Rule = 'tls-bypass.cert-accept-all'; Sev = 'MEDIUM';   Band = 'Medium' }
+    @{ Rule = 'tls-bypass.cert-accept-all'; Sev = 'LOW';      Band = 'Low' }
+    @{ Rule = 'process.impactful-privileges'; Sev = 'MEDIUM'; Band = 'Medium' }     # unmapped -> local default
+    @{ Rule = 'callsites.command-execution';  Sev = 'HIGH';   Band = 'High' }
+)
+
+Describe 'CVSS rating EXACTLY matches the severity badge (anchored)' {
+    It '<Rule> badged <Sev> computes to <Band>' -ForEach $script:AnchorCases {
+        $rating = & (Get-Module TCPK) {
+            param($rule, $sev)
+            (Get-TcpkCvssVector (New-TcpkFinding -Module 'static' -RuleId $rule -Severity $sev -Title 't')).Rating
+        } $Rule $Sev
+        $rating | Should -Be $Band -Because "$Rule badged $Sev must compute to the $Band band"
+    }
+}

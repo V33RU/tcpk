@@ -23,12 +23,11 @@ function Test-TcpkCallsites {
     $patterns = (Get-TcpkData).callsite_patterns
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
-        if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
-        # Skip bundled third-party NATIVE runtimes (Chromium/GPU/C-runtime libs:
-        # libGLESv2, d3dcompiler, ffmpeg, vulkan-1, ...). These are not first-party
-        # code, yet they import Win32 APIs (GetTempFileName, etc.) that match the
-        # callsite patterns -- scanning them is a false-positive factory.
-        if (Test-TcpkIsNativeNoise $pe.Name) { continue }
+        # Skip anything that is NOT the app's own code: framework / bundled native runtimes
+        # (Chromium/GPU/C-runtime libs), the huge statically-linked Electron main exe, the NSIS
+        # installer/uninstaller, license files. They import Win32 APIs that match the callsite
+        # patterns but are not first-party -- attributing them to the app is a top FP source.
+        if (-not (Test-TcpkIsFirstParty -Name $pe.Name -SizeBytes $pe.Length -Path $pe.FullName)) { continue }
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 

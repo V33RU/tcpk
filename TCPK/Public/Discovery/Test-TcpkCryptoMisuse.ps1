@@ -92,5 +92,34 @@ function Test-TcpkCryptoMisuse {
                     -Fix 'Decompile the method to confirm the construction, then migrate to a modern authenticated scheme (AES-GCM + PBKDF2/Argon2).'
             }
         }
+
+        # ---- 3) IL-PROVEN weak crypto (Confirmed): read the actual construction / constant ----
+        # A source-string regex rarely survives compilation (a hardcoded key becomes a
+        # newarr + InitializeArray; ECB becomes ldc.i4.2 + set_Mode). Reading the IL proves
+        # the construct deterministically, so these are Confirmed (IL), not Inferred.
+        foreach ($v in (Get-TcpkCryptoVerdicts -DllPath $pe.FullName)) {
+            $meta = switch -Regex ($v.Kind) {
+                'hardcoded-key' { @{ cwe = @('CWE-321','CWE-798'); fix = 'Derive keys per-user (DPAPI / a server secret); never bake a symmetric key into the binary. Rotate the exposed key.' } }
+                'hardcoded-iv'  { @{ cwe = @('CWE-329','CWE-1204'); fix = 'Generate a fresh random IV per encryption and store it with the ciphertext; never a static / all-zero IV.' } }
+                'ecb-mode'      { @{ cwe = @('CWE-327'); fix = 'Use an authenticated mode (AES-GCM), or CBC with a random IV plus an HMAC; never ECB.' } }
+                'weak-hash'     { @{ cwe = @('CWE-327','CWE-328'); fix = 'Use SHA-256+ for integrity and a real password hash (PBKDF2 / Argon2 / bcrypt) for passwords; never MD5 / SHA-1.' } }
+                default         { @{ cwe = @('CWE-327'); fix = 'Replace with AES-GCM (authenticated); do not use DES / 3DES / RC2 / RC4.' } }
+            }
+            $ev = New-Object 'System.Collections.Generic.List[string]'
+            $ev.Add($v.Reason); $ev.Add('')
+            $ev.Add('LOCATION (open THIS assembly in ILSpy/dnSpy):')
+            $ev.Add("  Assembly : $($v.Assembly)")
+            $ev.Add("  Namespace: $($v.Namespace)")
+            $ev.Add("  Type     : $($v.Type)")
+            $ev.Add("  Method   : $($v.Method)")
+            $ev.Add("  MD token : $($v.Token)")
+            $ev.Add(''); $ev.Add('IL PROOF:'); $ev.Add($v.Il)
+            New-TcpkFinding -Module 'static' -RuleId ('crypto.' + $v.Kind) `
+                -Severity $v.Severity -Confidence 'Confirmed (IL)' `
+                -Title "Weak crypto proven from IL: $($v.Type)::$($v.Method) in $($pe.Name)" `
+                -File $pe.FullName -Evidence ($ev -join "`n") -Cwe $meta.cwe `
+                -Description ("$($v.Reason) This is proven from the method IL (the construct and its constant argument are in the Evidence), not a string match.") `
+                -Fix $meta.fix
+        }
     }
 }

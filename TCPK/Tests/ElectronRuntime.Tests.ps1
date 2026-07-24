@@ -63,13 +63,14 @@ Describe 'Test-TcpkElectron: outdated-runtime finding' {
 }
 
 Describe 'CVSS: outdated-runtime is not mis-scored as net-rce' {
-    It 'electron.sandbox keeps the net-rce archetype; electron.outdated-runtime falls to per-finding' {
+    It 'electron.sandbox anchors to the network flavor; electron.outdated-runtime defers to its per-CVE advisory' {
         $r = & (Get-Module TCPK) {
             $a = New-TcpkFinding -Module static -RuleId 'electron.sandbox' -Severity MEDIUM -Title 's'
             $b = New-TcpkFinding -Module static -RuleId 'electron.outdated-runtime' -Severity MEDIUM -Title 'o'
             [pscustomobject]@{ Sandbox = (Get-TcpkCvssVector $a); Outdated = (Get-TcpkCvssVector $b) }
         }
-        $r.Sandbox.Source  | Should -Match 'archetype:net-rce'
-        $r.Outdated.Source | Should -Be 'per-finding'
+        $r.Sandbox.Source  | Should -Match 'anchored:network'   # renderer-config RCE class, network flavor
+        $r.Sandbox.Rating  | Should -Be 'Medium'                # rating matches the MEDIUM badge
+        $r.Outdated.Source | Should -Be 'nvd'                   # real risk = the specific Chromium/Node CVEs
     }
 }

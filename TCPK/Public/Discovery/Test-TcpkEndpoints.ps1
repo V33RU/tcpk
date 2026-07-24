@@ -17,7 +17,8 @@ function Test-TcpkEndpoints {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path)
 
-    $markers = (Get-TcpkData).non_prod_markers
+    $markers  = (Get-TcpkData).non_prod_markers
+    $loopback = (Get-TcpkData).loopback_markers
     $rx = [regex]::new('https?://[A-Za-z0-9./?_=&%:#@~+\-]+')
 
     $files = if ((Get-Item -LiteralPath $Path).PSIsContainer) {
@@ -41,13 +42,40 @@ function Test-TcpkEndpoints {
 
     foreach ($u in ($all.Keys | Sort-Object)) {
         $low = $u.ToLowerInvariant()
+        # Host portion only (scheme://HOST[:port]/...), so a loopback HOST is judged local
+        # even if the PATH happens to contain '/dev/' etc.
+        $urlHost = ''
+        $hm = [regex]::Match($low, '^https?://([^/?#]+)')
+        if ($hm.Success) { $urlHost = $hm.Groups[1].Value }
+
+        # Loopback / local-bind host (localhost, 127.0.0.1, 0.0.0.0, ::1) is NORMAL for a
+        # thick client -- local IPC, an embedded HTTP server, a bundled local service. It is
+        # NOT a leaked non-production endpoint, so it is INFO (recon context), not a HIGH
+        # finding. The real "is the local server exposed?" question is answered by
+        # Test-TcpkSelfHostedServer / electron.local-server (bind address + CORS).
+        $lb = $null
+        foreach ($m in @($loopback)) { if ($urlHost -and $urlHost.Contains($m)) { $lb = $m; break } }
+        if ($lb) {
+            New-TcpkFinding -Module 'static' -RuleId 'endpoints.loopback' `
+                -Severity 'INFO' -Confidence 'Confirmed' `
+                -Title "Local/loopback endpoint referenced ($urlHost)" `
+                -File $all[$u] -Evidence $u `
+                -Cwe @('CWE-489') `
+                -Description 'The app references a loopback / local-bind endpoint. This is normal for local IPC, an embedded HTTP server, or a bundled local service -- not a leaked non-production URL. Confirm it is an intended local service and not a debug-only endpoint left enabled; if it is a server, check its bind address (Test-TcpkSelfHostedServer / electron.local-server).' `
+                -Fix 'No action if it is an intended local service. Ensure any embedded server binds 127.0.0.1 (not 0.0.0.0) and requires auth if it proxies anything sensitive.'
+            continue
+        }
+
+        # A genuine EXTERNAL non-production endpoint (dev / qe / staging / test hostname) that
+        # was shipped -- an infrastructure-disclosure / attack-surface issue.
         $hit = $markers | Where-Object { $low.Contains($_) } | Select-Object -First 1
         if ($hit) {
             New-TcpkFinding -Module 'static' -RuleId 'endpoints.non-production' `
-                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Severity 'MEDIUM' -Confidence 'Confirmed' `
                 -Title "Non-production URL (marker='$hit')" `
                 -File $all[$u] -Evidence $u `
                 -Cwe @('CWE-1188','CWE-489') `
+                -Description 'A shipped URL points at a development / QA / staging host. This discloses internal infrastructure and the client may talk to a less-hardened backend. Not a direct compromise on its own -- hence Medium.' `
                 -Fix 'Repoint to prod; add a build-time guard that fails the release on dev/qe/staging URL substrings.'
         }
     }

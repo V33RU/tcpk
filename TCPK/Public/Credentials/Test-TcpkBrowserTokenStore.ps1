@@ -99,6 +99,23 @@ function Test-TcpkBrowserTokenStore {
                                 -Cwe @('CWE-311', 'CWE-312') `
                                 -Description 'The cookie/password key is protected only by user DPAPI, so any code running as the current user can decrypt every cookie and saved password offline. This is the exact primitive used by infostealer malware.' `
                                 -Fix 'Update the embedded Chromium to a build with App-Bound Encryption; minimise and expire stored tokens; clear the cookie jar on logout.'
+
+                            # Prove decryptability: DPAPI-unprotect the AES-256 master key as the
+                            # current user. Success means every v10/v11 cookie + saved password in
+                            # this profile is decryptable offline -- the infostealer primitive PROVEN
+                            # for this install, not just inferred from the key type. Read-only.
+                            $mk = $null
+                            try { $mk = Get-TcpkChromiumMasterKey -LocalStatePath $localState } catch { }
+                            if ($mk -and $mk.Length -eq 32) {
+                                $kh = (($mk[0..3] | ForEach-Object { $_.ToString('x2') }) -join ' ')
+                                New-TcpkFinding -Module 'creds' -RuleId 'browser.master-key-recovered' `
+                                    -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
+                                    -Title 'Chromium/WebView2 master key recovered via user DPAPI' `
+                                    -File $localState -Evidence "recovered a 32-byte AES-256 os_crypt key (first 4 bytes: $kh ...)" `
+                                    -Cwe @('CWE-312', 'CWE-522') `
+                                    -Description 'TCPK DPAPI-unprotected the profile master key while running as the current user. That key AES-256-GCM-decrypts every v10/v11 cookie and saved password in this profile, so any code running as the user can dump the entire credential store OFFLINE -- the exact infostealer primitive, now PROVEN for this install rather than inferred from the key type.' `
+                                    -Fix 'Move to App-Bound Encryption (a current Chromium build), do not persist long-lived tokens in the cookie jar, clear it on logout, and rotate anything already exposed.'
+                            }
                         }
                     }
                 }
