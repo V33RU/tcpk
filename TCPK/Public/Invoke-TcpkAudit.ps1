@@ -296,6 +296,8 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkCodeIntegrity'       { Test-TcpkCodeIntegrity       -Path $Target   }
     _RunCheck 'Test-TcpkReflectionLoading'   { Test-TcpkReflectionLoading   -Path $expanded }
     _RunCheck 'Test-TcpkPInvokeSurface'      { Test-TcpkPInvokeSurface      -Path $expanded }
+    _RunCheck 'Test-TcpkHollowingApis'     { Test-TcpkHollowingApis       -Path $expanded }
+    _RunCheck 'Test-TcpkAmsiSurface'       { Test-TcpkAmsiSurface         -Path $expanded }
     _RunCheck 'Test-TcpkNativeInterop'       { Test-TcpkNativeInterop       -Path $expanded }
     _RunCheck 'Test-TcpkJavaBundle'          { Test-TcpkJavaBundle          -Path $expanded }
     _RunCheck 'Test-TcpkDevArtifacts'        { Test-TcpkDevArtifacts        -Path $expanded }
@@ -307,6 +309,13 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkElectron'            { Test-TcpkElectron            -Path $expanded }
     _RunCheck 'Test-TcpkElectronJs'          { Test-TcpkElectronJs          -Path $expanded }
     _RunCheck 'Test-TcpkElectronFuses'       { Test-TcpkElectronFuses       -Path $expanded }
+    _RunCheck 'Test-TcpkAppDomainHijack'     { Test-TcpkAppDomainHijack     -Path $expanded }
+    _RunCheck 'Test-TcpkAotBinary'           { Test-TcpkAotBinary           -Path $expanded }
+    _RunCheck 'Test-TcpkClickOnce'           { Test-TcpkClickOnce           -Path $expanded }
+    _RunCheck 'Test-TcpkMsixPsf'             { Test-TcpkMsixPsf             -Path $expanded }
+    _RunCheck 'Test-TcpkPhantomDlls'         { Test-TcpkPhantomDlls         -Path $expanded }
+    _RunCheck 'Test-TcpkDllSideload'         { Test-TcpkDllSideload         -Path $expanded }
+    _RunCheck 'Test-TcpkDiagConfig'          { Test-TcpkDiagConfig          -Path $expanded }
     _RunCheck 'Test-TcpkUnsafeNativeApis'    { Test-TcpkUnsafeNativeApis    -Path $expanded }
     _RunCheck 'Test-TcpkRpcSurface'          { Test-TcpkRpcSurface          -Path $expanded }
     _RunCheck 'Test-TcpkEntropySecrets'      { Test-TcpkEntropySecrets      -Path $expanded }
@@ -357,6 +366,9 @@ function Invoke-TcpkAudit {
     # Path-targeted
     _RunCheck 'Test-TcpkInstallDirAcl'       { Test-TcpkInstallDirAcl       -Path $expanded }
     _RunCheck 'Test-TcpkFolderAcls'          { Test-TcpkFolderAcls          -Path $expanded }
+    _RunCheck 'Test-TcpkWritablePath'        { Test-TcpkWritablePath        -Path $expanded }
+    _RunCheck 'Test-TcpkWerExposure'         { Test-TcpkWerExposure         -Path $expanded }
+    _RunCheck 'Test-TcpkComHijack'           { Test-TcpkComHijack           -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkSxsManifests'        { Test-TcpkSxsManifests        -Path $expanded }
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $idTerms -Path $expanded }
@@ -439,7 +451,8 @@ function Invoke-TcpkAudit {
         'Test-TcpkProcessMitigations','Test-TcpkLoadedModuleSignatures','Test-TcpkListeningPorts',
         'Test-TcpkLoadedModulePaths','Test-TcpkHandleEnumeration','Test-TcpkWindowEnumeration',
         'Test-TcpkGuiInspector','Test-TcpkProcessToken','Test-TcpkChildProcesses',
-        'Test-TcpkProcessDacl','Test-TcpkProcessEnvSecrets'
+        'Test-TcpkProcessDacl','Test-TcpkProcessEnvSecrets',
+        'Test-TcpkWindowMessages','Test-TcpkSharedMemoryDacl'
     )
     $liveProcOn = [bool]($ProcessName -and (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue))
     if ($liveProcOn) {
@@ -454,6 +467,8 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkChildProcesses'          { Test-TcpkChildProcesses          -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkProcessDacl'             { Test-TcpkProcessDacl             -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkProcessEnvSecrets'       { Test-TcpkProcessEnvSecrets       -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkWindowMessages'          { Test-TcpkWindowMessages          -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkSharedMemoryDacl'        { Test-TcpkSharedMemoryDacl        -ProcessName $ProcessName }
     } else {
         # No live process resolved -> record the gated live-process checks so coverage.json
         # shows them as GatedNoProcess instead of silently omitting them.
@@ -489,6 +504,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkInsecureSchemes'   { Test-TcpkInsecureSchemes   -Path $expanded }
     _RunCheck 'Test-TcpkSelfHostedServer'  { Test-TcpkSelfHostedServer  -Path $expanded }
     _RunCheck 'Test-TcpkRpcChannels'       { Test-TcpkRpcChannels       -Path $expanded }
+    _RunCheck 'Test-TcpkGrpcSurface'      { Test-TcpkGrpcSurface       -Path $expanded }
 
     # ----- Bucket G (WebView2, 6 new cmdlets; G03 already in Discovery as WebViewNavTargets) -----
     _RunCheck 'Test-TcpkWv2HostObjects'    { Test-TcpkWv2HostObjects    -Path $expanded }
@@ -497,6 +513,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkWv2DevTools'       { Test-TcpkWv2DevTools       -Path $expanded }
     _RunCheck 'Test-TcpkWv2ScriptInjection'{ Test-TcpkWv2ScriptInjection -Path $expanded }
     _RunCheck 'Test-TcpkWv2ResourcePolicy' { Test-TcpkWv2ResourcePolicy -Path $expanded }
+    _RunCheck 'Test-TcpkWv2Sideload'     { Test-TcpkWv2Sideload      -Path $expanded }
 
     # ----- Bucket H (logging / telemetry, 3 cmdlets) -----
     _RunCheck 'Test-TcpkLogFiles'          { Test-TcpkLogFiles          -Path $expanded }

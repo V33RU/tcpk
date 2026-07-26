@@ -37,6 +37,109 @@ function Test-TcpkElectron {
     if ($asars.Count) { $isElectron = $true }
     if (-not $isElectron) { return }   # not an Electron-family app -> nothing to check
 
+    # --- WDAC / AppLocker bypass: signed host exe + writable resources ---
+    # Electron apps run a signed host exe that loads app code from resources/.
+    # WDAC/AppLocker trust the signed exe, but if resources/ is user-writable an
+    # attacker can replace the app code while the trusted binary still launches it.
+    if ($env:OS -eq 'Windows_NT') {
+        $wdacPrincipals = '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE|BUILTIN\\Users)\b'
+        $wdacRights     = 'Write|Modify|FullControl'
+        $exes = @(Get-ChildItem -LiteralPath $dir -File -Filter '*.exe' -ErrorAction SilentlyContinue |
+                  Where-Object { -not (Test-TcpkIsFrameworkFile $_.Name) })
+        foreach ($exe in $exes) {
+            $sig = $null
+            try { $sig = Get-AuthenticodeSignature -LiteralPath $exe.FullName -ErrorAction Stop } catch { }
+            if (-not $sig -or $sig.Status -ne 'Valid') { continue }
+            $resDir = Join-Path $dir 'resources'
+            $appDir = Join-Path $resDir 'app'
+            $writableTarget = $null; $wdacEvidence = ''
+            foreach ($checkDir in @($appDir, $resDir)) {
+                if (-not (Test-Path -LiteralPath $checkDir)) { continue }
+                try { $wAcl = Get-Acl -LiteralPath $checkDir -ErrorAction Stop } catch { continue }
+                $wBad = $wAcl.Access | Where-Object {
+                    $_.IdentityReference.Value -match $wdacPrincipals -and
+                    $_.FileSystemRights -match $wdacRights -and
+                    $_.AccessControlType -eq 'Allow'
+                }
+                if ($null -ne $wBad -and @($wBad).Count -gt 0) {
+                    $writableTarget = $checkDir
+                    $wdacEvidence = ($wBad | ForEach-Object { "$($_.IdentityReference) -> $($_.FileSystemRights)" }) -join '; '
+                    break
+                }
+            }
+            if ($writableTarget) {
+                New-TcpkFinding -Module 'static' -RuleId 'electron.wdac-bypass' `
+                    -Severity 'HIGH' -Confidence 'Confirmed' `
+                    -Title "WDAC/AppLocker bypass: signed Electron host + writable resources" `
+                    -File $exe.FullName `
+                    -Evidence "signed=$($sig.SignerCertificate.Subject); writable=$writableTarget; $wdacEvidence" `
+                    -Cwe @('CWE-427','CWE-732') `
+                    -Description ('The Electron host executable is Authenticode-signed, so WDAC and AppLocker ' +
+                        'policies that trust signed binaries allow it. But the resources directory where the ' +
+                        'actual application code lives is writable by non-admin users -- an attacker can ' +
+                        'replace the app code (resources/app/ or app.asar) while the signed exe still launches ' +
+                        'it. Full code-execution bypass under the trusted signed identity (T1218).') `
+                    -Fix 'Restrict write access to the resources directory to administrators/SYSTEM only. Consider WDAC path rules that validate resources content.'
+                break
+            }
+        }
+    }
+
+    # --- Squirrel.Windows auto-updater ---
+    $sqExe = Join-Path $dir 'Update.exe'
+    if (-not (Test-Path -LiteralPath $sqExe)) {
+        $sqExe = Join-Path (Split-Path -Parent $dir) 'Update.exe'
+    }
+    if (Test-Path -LiteralPath $sqExe) {
+        New-TcpkFinding -Module 'static' -RuleId 'electron.squirrel-updater' `
+            -Severity 'LOW' -Confidence 'Confirmed' `
+            -Title 'Squirrel.Windows auto-updater present' `
+            -File $sqExe `
+            -Evidence 'Update.exe found in or near the application directory' `
+            -Cwe @('CWE-494') `
+            -Description ('Squirrel.Windows (Update.exe) manages auto-updates for this Electron app. ' +
+                'Squirrel downloads and executes updates with the app''s identity. If the update channel ' +
+                'uses HTTP or an attacker can MITM the update server, arbitrary code execution follows. ' +
+                'Squirrel has historically lacked robust signature verification on downloaded packages.') `
+            -Fix 'Ensure the update feed URL uses HTTPS with certificate pinning. Consider migrating to electron-updater with differential + signature verification.'
+    }
+
+    # --- electron-updater version check (CVE-2024-39698) ---
+    $euPkgPaths = @(
+        (Join-Path $dir 'package.json'),
+        (Join-Path (Join-Path $dir 'resources') 'app\package.json'),
+        (Join-Path (Join-Path $dir 'resources') 'package.json')
+    )
+    foreach ($pjp in $euPkgPaths) {
+        if (-not (Test-Path -LiteralPath $pjp)) { continue }
+        try { $euPkg = Get-Content -LiteralPath $pjp -Raw -ErrorAction Stop | ConvertFrom-Json } catch { continue }
+        $euVer = $null
+        foreach ($dk in @('dependencies','devDependencies')) {
+            if ($euPkg.$dk -and $euPkg.$dk.'electron-updater') {
+                $euVer = $euPkg.$dk.'electron-updater'; break
+            }
+        }
+        if (-not $euVer) { continue }
+        $euNum = if ($euVer -match '(\d+\.\d+\.\d+)') { $matches[1] } else { $null }
+        if (-not $euNum) { continue }
+        $euParts = $euNum -split '\.'
+        $euMaj = [int]$euParts[0]; $euMin = [int]$euParts[1]
+        if ($euMaj -lt 6 -or ($euMaj -eq 6 -and $euMin -lt 3)) {
+            New-TcpkFinding -Module 'static' -RuleId 'electron.updater-sig-bypass' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title "electron-updater ${euNum}: differential update signature bypass (CVE-2024-39698)" `
+                -File $pjp `
+                -Evidence "electron-updater@$euVer" `
+                -Cwe @('CWE-347','CWE-494') `
+                -Description ('electron-updater before 6.3.0-alpha.6 does not verify the signature of ' +
+                    'differential (blockmap-based) updates. An attacker who can MITM or compromise the ' +
+                    'update server can serve a malicious differential update that is applied without ' +
+                    'signature verification -- full code execution with the app''s identity.') `
+                -Fix 'Upgrade electron-updater to >= 6.3.0 where differential updates are signature-verified.'
+        }
+        break
+    }
+
     # --- bundled runtime version: Electron / Chromium / Node (the biggest CVE surface) ---
     # The embedded Chromium version is NOT in any deps.json -- it is a string in the main exe.
     # Extract it and flag an outdated bundle (Chromium ships security fixes EVERY major, so a
@@ -430,6 +533,21 @@ function Test-TcpkElectron {
                     -File $t.FullName -Evidence 'http.createServer present; no explicit 127.0.0.1 bind found' -Cwe @('CWE-1327','CWE-200') `
                     -Description ('The app runs an HTTP server but no explicit loopback bind was found; Node listen(port) defaults to ALL interfaces, exposing it to the LAN.' + $cnote) `
                     -Fix 'Pass 127.0.0.1 explicitly as the listen host.'
+            }
+        }
+
+        # --- auto-updater HTTP feed URL (MITM-able update channel) ---
+        if ([regex]::IsMatch($code, '(?i)(autoUpdater\.setFeedURL|autoUpdater\.checkForUpdates|update-electron-app)')) {
+            $httpFeed = [regex]::Match($code, '(?i)(?:setFeedURL|feedUrl|url)\s*[:=(]\s*[''"]http://')
+            if ($httpFeed.Success) {
+                New-TcpkFinding -Module 'static' -RuleId 'electron.update-http' `
+                    -Severity 'HIGH' -Confidence 'Confirmed' `
+                    -Title "Auto-updater uses plaintext HTTP feed URL in $($t.Name)" `
+                    -File $t.FullName -Evidence $httpFeed.Value -Cwe @('CWE-494','CWE-319') `
+                    -Description ('The auto-updater feed URL uses plaintext HTTP, so an on-path attacker ' +
+                        'can serve a malicious update package -- arbitrary code execution with the app''s ' +
+                        'identity. This is the simplest Electron supply-chain attack.') `
+                    -Fix 'Use HTTPS for the update feed URL and verify the update signature.'
             }
         }
     }

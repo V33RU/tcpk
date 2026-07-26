@@ -27,6 +27,19 @@ function Initialize-TcpkCecil {
 
 function Test-TcpkCecilAvailable { Initialize-TcpkCecil }
 
+function Test-TcpkIsAotBinary {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+    $text = Read-TcpkAllText -Path $Path
+    if (-not $text) { return $false }
+    if ($text.Contains('BSJB')) { return $false }
+    $aotMarkers = @('System.Private.CoreLib', 'System.Runtime', '__managedcode',
+                     'S_P_CoreLib', 'System.Object', 'System.String')
+    $hits = 0
+    foreach ($m in $aotMarkers) { if ($text.Contains($m)) { $hits++ } }
+    return ($hits -ge 2)
+}
+
 # --- per-run assembly cache ---------------------------------------------------
 # Verification calls Get-TcpkCallsiteUsage once PER SINK, so a single DLL with a
 # multi-sink rule (e.g. command-execution: Process/ProcessStartInfo/CreateProcess/

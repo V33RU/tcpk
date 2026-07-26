@@ -39,7 +39,7 @@ function Test-TcpkUacManifest {
 
         if ($text -match 'autoElevate"?\s*[:=]\s*"?\s*true') {
             New-TcpkFinding -Module 'manifest' -RuleId 'uac.auto-elevate' `
-                -Severity 'CRITICAL' -Confidence 'Inferred' `
+                -Severity 'HIGH' -Confidence 'Inferred' `
                 -Title "$($pe.Name) manifest requests autoElevate=true" `
                 -File $pe.FullName -Evidence 'autoElevate=true' -Cwe @('CWE-250','CWE-269') `
                 -Description 'autoElevate silently elevates without a UAC prompt. Only specific Microsoft-signed binaries are honored by the OS; on a third-party binary this signals a UAC-bypass attempt or a packaging error. Any input-handling bug becomes a direct local privilege escalation.' `

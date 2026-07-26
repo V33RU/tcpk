@@ -167,6 +167,8 @@ $script:TcpkCvssRuleArchetype = @(
     # exact CVSS depends on which Chromium/Node CVEs apply (the OSV electron@ver list carries
     # per-CVE scores), so it deliberately falls through to the 'assign per finding' note rather
     # than inheriting a misleading net-rce 9.x next to its version-age severity.
+    @{ Rx = '^electron\.(wdac-bypass)';                                                                                                                             A = 'local-privesc' }
+    @{ Rx = '^electron\.(squirrel-updater)';                                                                                                                        A = 'hardening' }
     @{ Rx = '^electron\.(?!outdated-runtime)';                                                                                                                      A = 'net-rce' }
     @{ Rx = '^electronjs\.(exec-sink|open-external|nav-injection|webview-tag|execute-js)';                                                                           A = 'net-rce' }
     @{ Rx = '^electronjs\.resource-path-traversal';                                                                                                                 A = 'untrusted-parse' }
@@ -175,9 +177,9 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^fuses\.';                                                                                                                                             A = 'local-privesc' }
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
-    @{ Rx = '^(install-dir|acl|service|driver|ifeo|scheduled-task|app-paths|autostart|com|named-object|pipe-dacl|dll-search|shim|avexclusion|firewall|wmi|uac)\.'; A = 'local-privesc' }
+    @{ Rx = '^(install-dir|acl|service|driver|ifeo|scheduled-task|app-paths|autostart|com|named-object|pipe-dacl|dll-search|shim|avexclusion|firewall|wmi|uac|window|sharedmem)\.'; A = 'local-privesc' }
     @{ Rx = '^(entropy|jwt|config|app-config)\.';                                                                                                                   A = 'shipped-secret' }
-    @{ Rx = '^(dpapi|token-cache|credman|localdb|env|memory|memsecret|pii|log)\.';                                                                                  A = 'local-at-rest' }
+    @{ Rx = '^(dpapi|token-cache|credman|localdb|env|memory|memsecret|pii|log|clipboard)\.';                                                                         A = 'local-at-rest' }
     @{ Rx = '^(authflags|guiunlock|flagflip)\.';                                                                                                                    A = 'client-bypass' }
     @{ Rx = '^(crypto)\.';                                                                                                                                          A = 'weak-crypto' }
     # debugflags.security-off / .backdoor disable a security control or hide a backdoor --
@@ -186,6 +188,28 @@ $script:TcpkCvssRuleArchetype = @(
     # of showing HIGH next to a 2.0-Low 'hardening' score.
     @{ Rx = '^debugflags\.(security-off|backdoor)';                                                                                                                 A = 'client-bypass' }
     @{ Rx = '^(pe|pe-imports|pe-exports|strongname|authenticode|codeintegrity|packer|obfuscation|antidebug|antiinjection|timing|integrity|debugflags|devartifact|native|pinvoke|interop|reflection|sxs|mem|pagefile|wer)\.'; A = 'hardening' }
+    @{ Rx = '^appdomain\.';                                                                                                                                         A = 'local-privesc' }
+    @{ Rx = '^clickonce\.(http-deployment|manifest-http)';                                                                                                          A = 'net-rce' }
+    @{ Rx = '^clickonce\.';                                                                                                                                         A = 'local-privesc' }
+    @{ Rx = '^msix\.psf-(full-trust|script-dangerous|startScript|endScript)';                                                                                       A = 'local-privesc' }
+    @{ Rx = '^msix\.psf';                                                                                                                                           A = 'hardening' }
+    @{ Rx = '^dllsearch\.(phantom-dll|sideload-candidate)';                                                                                                          A = 'local-privesc' }
+    @{ Rx = '^comhijack\.server-writable';                                                                                                                           A = 'local-privesc' }
+    @{ Rx = '^comhijack\.';                                                                                                                                          A = 'hardening' }
+    @{ Rx = '^wer\.dump-folder-readable';                                                                                                                            A = 'local-at-rest' }
+    @{ Rx = '^wer\.';                                                                                                                                                A = 'hardening' }
+    @{ Rx = '^path\.writable';                                                                                                                                       A = 'local-privesc' }
+    @{ Rx = '^diag\.verbose-level';                                                                                                                                  A = 'local-at-rest' }
+    @{ Rx = '^diag\.insecure-log-path';                                                                                                                              A = 'local-at-rest' }
+    @{ Rx = '^diag\.';                                                                                                                                               A = 'hardening' }
+    @{ Rx = '^grpc\.reflection';                                                                                                                                    A = 'network-at-rest' }
+    @{ Rx = '^grpc\.';                                                                                                                                              A = 'hardening' }
+    @{ Rx = '^wv2\.(sideload-surface|fixed-version-writable)';                                                                                                      A = 'local-privesc' }
+    @{ Rx = '^wv2\.user-data-writable';                                                                                                                             A = 'local-at-rest' }
+    @{ Rx = '^amsi\.scan-buffer';                                                                                                                                   A = 'local-at-rest' }
+    @{ Rx = '^amsi\.';                                                                                                                                              A = 'hardening' }
+    @{ Rx = '^injection\.(hollowing|dll-inject|apc-inject)';                                                                                                        A = 'local-privesc' }
+    @{ Rx = '^injection\.';                                                                                                                                         A = 'hardening' }
 )
 
 # Resolve the CVSS v4.0 vector for a finding. Returns @{ Vector; Display; Source }.

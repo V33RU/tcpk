@@ -93,7 +93,7 @@ function Test-TcpkSignature {
         $sig = Get-AuthenticodeSignature -FilePath $Path
         if ($sig.Status -ne 'Valid') {
             New-TcpkFinding -Module 'static' -RuleId 'authenticode.msix-not-valid' `
-                -Severity 'CRITICAL' -Confidence 'Confirmed' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title "MSIX signature status = $($sig.Status)" `
                 -File $Path -Evidence $sig.StatusMessage -Cwe @('CWE-347') `
                 -Fix 'Sign with a trusted, non-revoked certificate; include a timestamp.'

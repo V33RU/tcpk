@@ -16,7 +16,10 @@ $script:TcpkTasvsMap = @(
     @{ rx='^(pe\.|pe-mitig|pe-imports|pe-exports|authenticode|codeintegrity|strongname|packer|obfusc)'; tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA6 Security Misconfiguration','DA8 Poor Code Quality') }
     @{ rx='^(antidebug|timing|selfintegrity|antiinjection)';                              tasvs=@('TASVS-RESILIENCE Resilience / Anti-tampering'); da=@('DA8 Poor Code Quality') }
     @{ rx='^(registry|autostart|scheduledtask|wmipersistence|ifeo|apppaths|shimcache|unquoted|service|servicebin|taskbin|acl\.|installdir|folderacls|programdata|kerneldrivers|driver|dllsearch|proxydll|sxs|firewall|avexclusion|uac)'; tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA6 Security Misconfiguration','DA5 Improper Authorization') }
-    @{ rx='^(namedpipe|pipe|rpc|mailslot|com\.|comobjects|comhijack|msixcom|namedobjects)'; tasvs=@('TASVS-PLATFORM Platform Interaction / IPC'); da=@('DA6 Security Misconfiguration') }
+    @{ rx='^(namedpipe|pipe|rpc|mailslot|com\.|comobjects|comhijack|msixcom|namedobjects|window)'; tasvs=@('TASVS-PLATFORM Platform Interaction / IPC'); da=@('DA6 Security Misconfiguration') }
+    @{ rx='^sharedmem';                                                                    tasvs=@('TASVS-PLATFORM Platform Interaction / IPC'); da=@('DA5 Improper Authorization') }
+    @{ rx='^clipboard';                                                                    tasvs=@('TASVS-STORAGE Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }
+    @{ rx='^exploit\.(ifeo-hijack|runkey-persist|appinit-inject)';                                      tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA6 Security Misconfiguration') }
     @{ rx='^(deps\.cve|pkgmanifest\.cve|cve\.)|outdated-runtime';                          tasvs=@('TASVS-CODE Dependencies'); da=@('DA9 Using Components with Known Vulnerabilities') }
     @{ rx='^(logfiles|log\.|piiinlogs|telemetry|etw)';                                    tasvs=@('TASVS-STORAGE Data Storage & Privacy'); da=@('DA10 Insufficient Logging & Monitoring','DA3 Sensitive Data Exposure') }
     @{ rx='^(updateflow|update|poisonedupdate)';                                          tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA7 Insecure Communication','DA9 Using Components with Known Vulnerabilities') }
@@ -30,6 +33,20 @@ $script:TcpkTasvsMap = @(
     @{ rx='^protocol-handler';                                                            tasvs=@('TASVS-PLATFORM Platform Interaction / IPC'); da=@('DA6 Security Misconfiguration') }
     @{ rx='^browser\.';                                                                   tasvs=@('TASVS-STORAGE Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }
     @{ rx='^electron\.ipc-handler-sink';                                                  tasvs=@('TASVS-PLATFORM Platform Interaction / IPC'); da=@('DA1 Injection') }
+    @{ rx='^appdomain\.';                                                                  tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    @{ rx='^electron\.(wdac-bypass)';                                                      tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA6 Security Misconfiguration') }
+    @{ rx='^electron\.(squirrel-updater|updater-sig-bypass|update-http)';                  tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA7 Insecure Communication','DA9 Using Components with Known Vulnerabilities') }
+    @{ rx='^clickonce\.';                                                                  tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA7 Insecure Communication','DA9 Using Components with Known Vulnerabilities') }
+    @{ rx='^msix\.psf';                                                                    tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA6 Security Misconfiguration') }
+    @{ rx='^dllsearch\.(phantom|sideload)';                                                 tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    @{ rx='^comhijack\.';                                                                   tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    @{ rx='^wer\.';                                                                         tasvs=@('TASVS-STORAGE Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }
+    @{ rx='^path\.writable';                                                                tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    @{ rx='^diag\.';                                                                        tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA3 Sensitive Data Exposure') }
+    @{ rx='^grpc\.';                                                                        tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA6 Security Misconfiguration') }
+    @{ rx='^wv2\.(sideload|fixed-version)';                                                 tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    @{ rx='^amsi\.';                                                                        tasvs=@('TASVS-RESILIENCE Resiliency Against Reverse Engineering'); da=@('DA8 Poor Code Quality') }
+    @{ rx='^injection\.';                                                                   tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA8 Poor Code Quality') }
 )
 
 function Get-TcpkTasvsControl {

@@ -95,7 +95,7 @@ if (Test-Path $icoPath) { try { $form.Icon = New-Object System.Drawing.Icon($ico
 $topPanel = New-Object System.Windows.Forms.Panel
 $topPanel.Dock = 'Top'
 $topPanel.Height = 206
-$topPanel.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$topPanel.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $form.Controls.Add($topPanel)
 
 # Accent separator delineating the control header from the tabbed work area.
@@ -123,7 +123,7 @@ if (Test-Path $badgePath) {
 }
 
 $lblTarget = New-Object System.Windows.Forms.Label
-$lblTarget.Text = "Target (MSIX file or install folder):"
+$lblTarget.Text = "Target (MSIX file or install folder):"; $lblTarget.ForeColor = [System.Drawing.Color]::White
 $lblTarget.Location = New-Object System.Drawing.Point(14, 12)
 $lblTarget.Size = New-Object System.Drawing.Size(220, 18)
 $topPanel.Controls.Add($lblTarget)
@@ -132,6 +132,7 @@ $txtTarget = New-Object System.Windows.Forms.TextBox
 $txtTarget.Location = New-Object System.Drawing.Point(14, 32)
 $txtTarget.Size = New-Object System.Drawing.Size(800, 24)
 $txtTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtTarget.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtTarget.ForeColor = [System.Drawing.Color]::White
 $txtTarget.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($txtTarget)
 
@@ -139,6 +140,7 @@ $btnBrowse = New-Object System.Windows.Forms.Button
 $btnBrowse.Text = "Browse..."
 $btnBrowse.Location = New-Object System.Drawing.Point(820, 30)
 $btnBrowse.Size = New-Object System.Drawing.Size(90, 28)
+$btnBrowse.FlatStyle = 'Flat'; $btnBrowse.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnBrowse.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $btnBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnBrowse)
 
@@ -146,6 +148,7 @@ $btnAutoDetect = New-Object System.Windows.Forms.Button
 $btnAutoDetect.Text = "Auto-Detect"
 $btnAutoDetect.Location = New-Object System.Drawing.Point(916, 30)
 $btnAutoDetect.Size = New-Object System.Drawing.Size(90, 28)
+$btnAutoDetect.FlatStyle = 'Flat'; $btnAutoDetect.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnAutoDetect.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $btnAutoDetect.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnAutoDetect)
 
@@ -162,7 +165,7 @@ $lblIdent.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Window
 $topPanel.Controls.Add($lblIdent)
 
 $lblProfile = New-Object System.Windows.Forms.Label
-$lblProfile.Text = "Profile:"
+$lblProfile.Text = "Profile:"; $lblProfile.ForeColor = [System.Drawing.Color]::White
 $lblProfile.Location = New-Object System.Drawing.Point(14, 70)
 $lblProfile.Size = New-Object System.Drawing.Size(60, 18)
 $topPanel.Controls.Add($lblProfile)
@@ -171,12 +174,13 @@ $cmbProfile = New-Object System.Windows.Forms.ComboBox
 $cmbProfile.Location = New-Object System.Drawing.Point(80, 67)
 $cmbProfile.Size = New-Object System.Drawing.Size(120, 24)
 $cmbProfile.DropDownStyle = 'DropDownList'
+$cmbProfile.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbProfile.ForeColor = [System.Drawing.Color]::White
 @('Quick','Standard','Full') | ForEach-Object { [void]$cmbProfile.Items.Add($_) }
 $cmbProfile.SelectedIndex = 2
 $topPanel.Controls.Add($cmbProfile)
 
 $lblPkg = New-Object System.Windows.Forms.Label
-$lblPkg.Text = "PackageName:"
+$lblPkg.Text = "PackageName:"; $lblPkg.ForeColor = [System.Drawing.Color]::White
 $lblPkg.Location = New-Object System.Drawing.Point(220, 70)
 $lblPkg.Size = New-Object System.Drawing.Size(90, 18)
 $topPanel.Controls.Add($lblPkg)
@@ -184,10 +188,11 @@ $topPanel.Controls.Add($lblPkg)
 $txtPkg = New-Object System.Windows.Forms.TextBox
 $txtPkg.Location = New-Object System.Drawing.Point(310, 67)
 $txtPkg.Size = New-Object System.Drawing.Size(140, 24)
+$txtPkg.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtPkg.ForeColor = [System.Drawing.Color]::White
 $topPanel.Controls.Add($txtPkg)
 
 $lblProc = New-Object System.Windows.Forms.Label
-$lblProc.Text = "ProcessName:"
+$lblProc.Text = "ProcessName:"; $lblProc.ForeColor = [System.Drawing.Color]::White
 $lblProc.Location = New-Object System.Drawing.Point(460, 70)
 $lblProc.Size = New-Object System.Drawing.Size(90, 18)
 $topPanel.Controls.Add($lblProc)
@@ -195,6 +200,7 @@ $topPanel.Controls.Add($lblProc)
 $txtProc = New-Object System.Windows.Forms.TextBox
 $txtProc.Location = New-Object System.Drawing.Point(550, 67)
 $txtProc.Size = New-Object System.Drawing.Size(140, 24)
+$txtProc.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtProc.ForeColor = [System.Drawing.Color]::White
 $topPanel.Controls.Add($txtProc)
 
 $btnRun = New-Object System.Windows.Forms.Button
@@ -215,7 +221,7 @@ $btnPause = New-Object System.Windows.Forms.Button
 $btnPause.Text = "Pause"
 $btnPause.Location = New-Object System.Drawing.Point(942, 65)
 $btnPause.Size = New-Object System.Drawing.Size(64, 32)
-$btnPause.Enabled = $false
+$btnPause.Enabled = $false; $btnPause.FlatStyle = 'Flat'; $btnPause.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPause.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $btnPause.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnPause)
 $btnPause.Add_Click({
@@ -234,7 +240,7 @@ $btnPause.Add_Click({
 # in the SBOM tab). Checked by default: live CVE via OSV (NuGet/Electron) + NVD/CPE (native libs).
 # Uncheck for an offline, air-gapped run (bundled catalog only).
 $chkOnlineCve = New-Object System.Windows.Forms.CheckBox
-$chkOnlineCve.Text = "Online CVE"
+$chkOnlineCve.Text = "Online CVE"; $chkOnlineCve.ForeColor = [System.Drawing.Color]::White
 $chkOnlineCve.Location = New-Object System.Drawing.Point(700, 69)
 $chkOnlineCve.Size = New-Object System.Drawing.Size(112, 22)
 $chkOnlineCve.Checked = $true
@@ -244,14 +250,14 @@ $ttOnlineCve.SetToolTip($chkOnlineCve, "Live CVE lookup: OSV (NuGet/Electron) + 
 
 # --- AI row (y=108) -----------------------------------------------------------
 $chkAi = New-Object System.Windows.Forms.CheckBox
-$chkAi.Text = "AI-verify findings"
+$chkAi.Text = "AI-verify findings"; $chkAi.ForeColor = [System.Drawing.Color]::White
 $chkAi.Location = New-Object System.Drawing.Point(14, 112)
 $chkAi.Size = New-Object System.Drawing.Size(130, 22)
 $chkAi.Checked = $false   # unchecked by default -- let the operator opt in
 $topPanel.Controls.Add($chkAi)
 
 $lblAi = New-Object System.Windows.Forms.Label
-$lblAi.Text = "Model:"
+$lblAi.Text = "Model:"; $lblAi.ForeColor = [System.Drawing.Color]::White
 $lblAi.Location = New-Object System.Drawing.Point(150, 114)
 $lblAi.Size = New-Object System.Drawing.Size(44, 18)
 $topPanel.Controls.Add($lblAi)
@@ -260,6 +266,7 @@ $cmbAi = New-Object System.Windows.Forms.ComboBox
 $cmbAi.Location = New-Object System.Drawing.Point(196, 110)
 $cmbAi.Size = New-Object System.Drawing.Size(120, 24)
 $cmbAi.DropDownStyle = 'DropDownList'
+$cmbAi.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbAi.ForeColor = [System.Drawing.Color]::White
 # Provider list. 'custom' = any other OpenAI-compatible endpoint (set its URL in llm-config.json).
 @('ollama (local)','claude','openai','gemini','grok','deepseek','custom') | ForEach-Object { [void]$cmbAi.Items.Add($_) }
 $cmbAi.SelectedIndex = 0
@@ -272,11 +279,12 @@ $txtAiModel = New-Object System.Windows.Forms.ComboBox
 $txtAiModel.Location = New-Object System.Drawing.Point(322, 110)
 $txtAiModel.Size = New-Object System.Drawing.Size(170, 24)
 $txtAiModel.DropDownStyle = 'DropDown'
+$txtAiModel.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiModel.ForeColor = [System.Drawing.Color]::White
 $txtAiModel.Text = 'qwen2.5-coder:7b'   # default for ollama (provider[0]); overtype with anything
 $topPanel.Controls.Add($txtAiModel)
 
 $lblKey = New-Object System.Windows.Forms.Label
-$lblKey.Text = "API key:"
+$lblKey.Text = "API key:"; $lblKey.ForeColor = [System.Drawing.Color]::White
 $lblKey.Location = New-Object System.Drawing.Point(500, 114)
 $lblKey.Size = New-Object System.Drawing.Size(52, 18)
 $topPanel.Controls.Add($lblKey)
@@ -285,6 +293,7 @@ $txtAiKey = New-Object System.Windows.Forms.TextBox
 $txtAiKey.Location = New-Object System.Drawing.Point(554, 110)
 $txtAiKey.Size = New-Object System.Drawing.Size(180, 24)
 $txtAiKey.UseSystemPasswordChar = $true
+$txtAiKey.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiKey.ForeColor = [System.Drawing.Color]::White
 $txtAiKey.Enabled = $false   # disabled for local ollama
 $topPanel.Controls.Add($txtAiKey)
 
@@ -292,6 +301,7 @@ $btnTestAi = New-Object System.Windows.Forms.Button
 $btnTestAi.Text = "Test AI"
 $btnTestAi.Location = New-Object System.Drawing.Point(744, 108)
 $btnTestAi.Size = New-Object System.Drawing.Size(70, 28)
+$btnTestAi.FlatStyle = 'Flat'; $btnTestAi.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnTestAi.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $topPanel.Controls.Add($btnTestAi)
 
 $lblAiStatus = New-Object System.Windows.Forms.Label
@@ -313,24 +323,26 @@ $codingFonts = @($wishFonts | Where-Object { $installedFonts -contains $_ })
 if (-not ($codingFonts -contains 'Consolas')) { $codingFonts += 'Consolas' }
 
 $lblFont = New-Object System.Windows.Forms.Label
-$lblFont.Text = "Font:"; $lblFont.Location = New-Object System.Drawing.Point(14, 150); $lblFont.Size = New-Object System.Drawing.Size(36, 18)
+$lblFont.Text = "Font:"; $lblFont.ForeColor = [System.Drawing.Color]::White; $lblFont.Location = New-Object System.Drawing.Point(14, 150); $lblFont.Size = New-Object System.Drawing.Size(36, 18)
 $topPanel.Controls.Add($lblFont)
 
 $cmbFont = New-Object System.Windows.Forms.ComboBox
 $cmbFont.Location = New-Object System.Drawing.Point(52, 147); $cmbFont.Size = New-Object System.Drawing.Size(160, 24)
 $cmbFont.DropDownStyle = 'DropDownList'
+$cmbFont.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbFont.ForeColor = [System.Drawing.Color]::White
 $codingFonts | ForEach-Object { [void]$cmbFont.Items.Add($_) }
 $cmbFont.SelectedItem = $(if ($codingFonts -contains 'Fira Code') { 'Fira Code' } elseif ($codingFonts -contains 'Cascadia Code') { 'Cascadia Code' } else { 'Consolas' })
 $cmbFont.Add_SelectedIndexChanged({ Apply-UiFont })
 $topPanel.Controls.Add($cmbFont)
 
 $lblSize = New-Object System.Windows.Forms.Label
-$lblSize.Text = "Size:"; $lblSize.Location = New-Object System.Drawing.Point(224, 150); $lblSize.Size = New-Object System.Drawing.Size(34, 18)
+$lblSize.Text = "Size:"; $lblSize.ForeColor = [System.Drawing.Color]::White; $lblSize.Location = New-Object System.Drawing.Point(224, 150); $lblSize.Size = New-Object System.Drawing.Size(34, 18)
 $topPanel.Controls.Add($lblSize)
 
 $cmbSize = New-Object System.Windows.Forms.ComboBox
 $cmbSize.Location = New-Object System.Drawing.Point(258, 147); $cmbSize.Size = New-Object System.Drawing.Size(56, 24)
 $cmbSize.DropDownStyle = 'DropDownList'
+$cmbSize.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbSize.ForeColor = [System.Drawing.Color]::White
 @(8, 9, 10, 11, 12, 14, 16) | ForEach-Object { [void]$cmbSize.Items.Add($_) }
 $cmbSize.SelectedItem = 10
 $cmbSize.Add_SelectedIndexChanged({ Apply-UiFont })
@@ -387,17 +399,17 @@ $tabs.Dock = 'Fill'
 $script:DashCountLbl   = @{}    # severity -> big count Label
 $script:DashCardPanels = @()    # card panels (re-themed on toggle)
 $tabDash = New-Object System.Windows.Forms.TabPage
-$tabDash.Text = '  Dashboard  '
+$tabDash.Text = ' Dashboard '
 $tabDash.BackColor = [System.Drawing.Color]::FromArgb(13, 16, 22)
 [void]$tabs.TabPages.Add($tabDash)
 
 $tabAudit = New-Object System.Windows.Forms.TabPage
-$tabAudit.Text = '  Audit  '
+$tabAudit.Text = ' Audit '
 $tabAudit.BackColor = [System.Drawing.Color]::FromArgb(250, 250, 250)
 [void]$tabs.TabPages.Add($tabAudit)
 
 $tabRecon = New-Object System.Windows.Forms.TabPage
-$tabRecon.Text = '  Recon / Target  '
+$tabRecon.Text = ' Recon '
 $tabRecon.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24)
 [void]$tabs.TabPages.Add($tabRecon)
 
@@ -707,8 +719,8 @@ $tabRecon.Controls.Add($txtRecon)
 
 # --- Exploit tab (CVE matches + exploitable findings; gated PoC generation) ---
 $tabExploit = New-Object System.Windows.Forms.TabPage
-$tabExploit.Text = '  Exploit / CVE  '
-$tabExploit.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabExploit.Text = ' Exploits '
+$tabExploit.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabExploit)
 
 # Fill: horizontal split (item list on top, detail/output below)
@@ -721,6 +733,7 @@ $tabExploit.Controls.Add($expSplit)
 $lvExp = New-Object System.Windows.Forms.ListView
 $lvExp.Dock = 'Fill'; $lvExp.View = 'Details'; $lvExp.FullRowSelect = $true; $lvExp.GridLines = $true; $lvExp.MultiSelect = $false
 $lvExp.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$lvExp.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $lvExp.ForeColor = [System.Drawing.Color]::White
 [void]$lvExp.Columns.Add('Kind', 60)
 [void]$lvExp.Columns.Add('Sev', 70)
 [void]$lvExp.Columns.Add('ID', 240)
@@ -756,7 +769,7 @@ $tabExploit.Controls.Add($expBanner)
 
 # Bottom: run button + status
 $expBottom = New-Object System.Windows.Forms.Panel
-$expBottom.Dock = 'Bottom'; $expBottom.Height = 44; $expBottom.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+$expBottom.Dock = 'Bottom'; $expBottom.Height = 44; $expBottom.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $btnExpRun = New-Object System.Windows.Forms.Button
 $btnExpRun.Text = "Generate PoC + Verify"; $btnExpRun.Dock = 'Right'; $btnExpRun.Width = 200; $btnExpRun.Enabled = $false
 $btnExpRun.BackColor = [System.Drawing.Color]::FromArgb(155, 0, 0); $btnExpRun.ForeColor = [System.Drawing.Color]::White
@@ -764,6 +777,7 @@ $btnExpRun.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.
 $expBottom.Controls.Add($btnExpRun)
 $lblExpStatus = New-Object System.Windows.Forms.Label
 $lblExpStatus.Dock = 'Fill'; $lblExpStatus.TextAlign = 'MiddleLeft'; $lblExpStatus.Padding = New-Object System.Windows.Forms.Padding(10, 0, 0, 0)
+$lblExpStatus.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $lblExpStatus.Text = "Exploit gate: OFF  --  tick the authorization box above to enable."
 $expBottom.Controls.Add($lblExpStatus)
 $tabExploit.Controls.Add($expBottom)
@@ -772,19 +786,20 @@ $tabExploit.Controls.Add($expBottom)
 # NB: add the Dock=Top hint FIRST, then the Dock=Fill ListView LAST -- otherwise the
 # ListView fills the whole tab and its column-header row is hidden behind the hint.
 $tabSbom = New-Object System.Windows.Forms.TabPage
-$tabSbom.Text = '  SBOM  '
-$tabSbom.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabSbom.Text = ' SBOM '
+$tabSbom.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabSbom)
 # header panel: hint + live filter (ONE Top panel) then the Fill ListView added last
 $sbomHeader = New-Object System.Windows.Forms.Panel
-$sbomHeader.Dock = 'Top'; $sbomHeader.Height = 50
+$sbomHeader.Dock = 'Top'; $sbomHeader.Height = 50; $sbomHeader.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $sbomHint = New-Object System.Windows.Forms.Label
-$sbomHint.AutoSize = $true; $sbomHint.Location = New-Object System.Drawing.Point(6, 6)
+$sbomHint.AutoSize = $true; $sbomHint.Location = New-Object System.Drawing.Point(6, 6); $sbomHint.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $sbomHint.Text = "Run an audit -- every shipped component (name, version, purl, SHA-256) + any matched CVEs (from sbom.cdx.json)."
 $sbomLblF = New-Object System.Windows.Forms.Label
-$sbomLblF.AutoSize = $true; $sbomLblF.Location = New-Object System.Drawing.Point(6, 28); $sbomLblF.Text = "Filter:"
+$sbomLblF.AutoSize = $true; $sbomLblF.Location = New-Object System.Drawing.Point(6, 28); $sbomLblF.Text = "Filter:"; $sbomLblF.ForeColor = [System.Drawing.Color]::White
 $txtSbomFilter = New-Object System.Windows.Forms.TextBox
 $txtSbomFilter.Location = New-Object System.Drawing.Point(52, 25); $txtSbomFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtSbomFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtSbomFilter.ForeColor = [System.Drawing.Color]::White
 $txtSbomFilter.Add_TextChanged({ Filter-Sbom })
 # Live-CVE (OSV) toggle. OFF by default = offline catalog only. Ticking it makes the NEXT
 # audit ALSO query the OSV API for the shipped NuGet components (sends only package
@@ -796,6 +811,7 @@ $lvSbom = New-Object System.Windows.Forms.ListView
 $lvSbom.Dock = 'Fill'; $lvSbom.View = 'Details'; $lvSbom.FullRowSelect = $true; $lvSbom.GridLines = $true
 $lvSbom.HeaderStyle = 'Nonclickable'
 $lvSbom.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$lvSbom.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $lvSbom.ForeColor = [System.Drawing.Color]::White
 [void]$lvSbom.Columns.Add('Component', 210)
 [void]$lvSbom.Columns.Add('Version', 110)
 [void]$lvSbom.Columns.Add('Type', 70)
@@ -808,18 +824,19 @@ $lvSbom.BringToFront()
 
 # --- DLL exploit-mitigation matrix tab ---
 $tabHard = New-Object System.Windows.Forms.TabPage
-$tabHard.Text = '  DLL Mitigation Matrix  '
-$tabHard.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabHard.Text = ' Mitigations '
+$tabHard.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabHard)
 $hardHeader = New-Object System.Windows.Forms.Panel
-$hardHeader.Dock = 'Top'; $hardHeader.Height = 50
+$hardHeader.Dock = 'Top'; $hardHeader.Height = 50; $hardHeader.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $hardHint = New-Object System.Windows.Forms.Label
-$hardHint.AutoSize = $true; $hardHint.Location = New-Object System.Drawing.Point(6, 6)
+$hardHint.AutoSize = $true; $hardHint.Location = New-Object System.Drawing.Point(6, 6); $hardHint.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hardHint.Text = "Run an audit -- per-DLL mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / GS stack cookie / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
 $hardLblF = New-Object System.Windows.Forms.Label
-$hardLblF.AutoSize = $true; $hardLblF.Location = New-Object System.Drawing.Point(6, 28); $hardLblF.Text = "Filter:"
+$hardLblF.AutoSize = $true; $hardLblF.Location = New-Object System.Drawing.Point(6, 28); $hardLblF.Text = "Filter:"; $hardLblF.ForeColor = [System.Drawing.Color]::White
 $txtHardFilter = New-Object System.Windows.Forms.TextBox
 $txtHardFilter.Location = New-Object System.Drawing.Point(52, 25); $txtHardFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtHardFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHardFilter.ForeColor = [System.Drawing.Color]::White
 $txtHardFilter.Add_TextChanged({ Filter-Hardening })
 $hardHeader.Controls.AddRange(@($hardHint, $hardLblF, $txtHardFilter))
 $tabHard.Controls.Add($hardHeader)
@@ -827,6 +844,7 @@ $lvHard = New-Object System.Windows.Forms.ListView
 $lvHard.Dock = 'Fill'; $lvHard.View = 'Details'; $lvHard.FullRowSelect = $true; $lvHard.GridLines = $true
 $lvHard.HeaderStyle = 'Nonclickable'
 $lvHard.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$lvHard.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $lvHard.ForeColor = [System.Drawing.Color]::White
 [void]$lvHard.Columns.Add('DLL', 230)
 [void]$lvHard.Columns.Add('Arch', 60)
 [void]$lvHard.Columns.Add('ASLR', 60)
@@ -843,18 +861,19 @@ $lvHard.BringToFront()
 
 # --- DLL Signing tab (signed / not signed -- information only) ---
 $tabSign = New-Object System.Windows.Forms.TabPage
-$tabSign.Text = '  DLL Signing  '
-$tabSign.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabSign.Text = ' Signing '
+$tabSign.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabSign)
 $signHeader = New-Object System.Windows.Forms.Panel
-$signHeader.Dock = 'Top'; $signHeader.Height = 50
+$signHeader.Dock = 'Top'; $signHeader.Height = 50; $signHeader.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $signHint = New-Object System.Windows.Forms.Label
-$signHint.AutoSize = $true; $signHint.Location = New-Object System.Drawing.Point(6, 6)
+$signHint.AutoSize = $true; $signHint.Location = New-Object System.Drawing.Point(6, 6); $signHint.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $signHint.Text = "Run an audit -- per-DLL code-signing status (information only). Red = UNSIGNED / TAMPERED / UNTRUSTED, green = SIGNED / CATALOG."
 $signLblF = New-Object System.Windows.Forms.Label
-$signLblF.AutoSize = $true; $signLblF.Location = New-Object System.Drawing.Point(6, 28); $signLblF.Text = "Filter:"
+$signLblF.AutoSize = $true; $signLblF.Location = New-Object System.Drawing.Point(6, 28); $signLblF.Text = "Filter:"; $signLblF.ForeColor = [System.Drawing.Color]::White
 $txtSignFilter = New-Object System.Windows.Forms.TextBox
 $txtSignFilter.Location = New-Object System.Drawing.Point(52, 25); $txtSignFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtSignFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtSignFilter.ForeColor = [System.Drawing.Color]::White
 $txtSignFilter.Add_TextChanged({ Filter-Signing })
 $signHeader.Controls.AddRange(@($signHint, $signLblF, $txtSignFilter))
 $tabSign.Controls.Add($signHeader)
@@ -862,6 +881,7 @@ $lvSign = New-Object System.Windows.Forms.ListView
 $lvSign.Dock = 'Fill'; $lvSign.View = 'Details'; $lvSign.FullRowSelect = $true; $lvSign.GridLines = $true
 $lvSign.HeaderStyle = 'Nonclickable'
 $lvSign.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$lvSign.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $lvSign.ForeColor = [System.Drawing.Color]::White
 [void]$lvSign.Columns.Add('DLL', 240)
 [void]$lvSign.Columns.Add('Signed', 70)
 [void]$lvSign.Columns.Add('Status', 95)
@@ -875,7 +895,7 @@ $lvSign.BringToFront()
 
 # --- Logs / Runtime tab (verbose timed trace + runtime analysis) ---
 $tabLogs = New-Object System.Windows.Forms.TabPage
-$tabLogs.Text = '  Logs / Runtime  '
+$tabLogs.Text = ' Logs '
 $tabLogs.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18)
 [void]$tabs.TabPages.Add($tabLogs)
 $txtLogs = New-Object System.Windows.Forms.RichTextBox
@@ -940,8 +960,8 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
 
 # ================= TAB A: Interception (traffic capture) =================
 $tabIcptA = New-Object System.Windows.Forms.TabPage
-$tabIcptA.Text = '  Interception  '
-$tabIcptA.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabIcptA.Text = ' Intercept '
+$tabIcptA.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabIcptA)
 
 # Authorization banner
@@ -961,19 +981,21 @@ $tabIcptA.Controls.Add($bannerA)
 
 # Controls panel
 $ctlA = New-Object System.Windows.Forms.Panel
-$ctlA.Dock = 'Top'; $ctlA.Height = 200; $ctlA.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+$ctlA.Dock = 'Top'; $ctlA.Height = 200; $ctlA.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 
 # App exe row
 $lblExeA = New-Object System.Windows.Forms.Label
-$lblExeA.Text = "App exe (.exe to launch through the proxy):"
+$lblExeA.Text = "App exe (.exe to launch through the proxy):"; $lblExeA.ForeColor = [System.Drawing.Color]::White
 $lblExeA.Location = New-Object System.Drawing.Point(12,8); $lblExeA.Size = New-Object System.Drawing.Size(320,18)
 $ctlA.Controls.Add($lblExeA)
 $txtExeA = New-Object System.Windows.Forms.TextBox
 $txtExeA.Location = New-Object System.Drawing.Point(336,5); $txtExeA.Size = New-Object System.Drawing.Size(660,24); $txtExeA.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtExeA.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtExeA.ForeColor = [System.Drawing.Color]::White
 $txtExeA.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlA.Controls.Add($txtExeA)
 $btnBrowseA = New-Object System.Windows.Forms.Button
 $btnBrowseA.Text = "Browse..."; $btnBrowseA.Location = New-Object System.Drawing.Point(1002,3); $btnBrowseA.Size = New-Object System.Drawing.Size(84,26)
+$btnBrowseA.FlatStyle = 'Flat'; $btnBrowseA.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnBrowseA.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $btnBrowseA.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlA.Controls.Add($btnBrowseA)
 $btnBrowseA.Add_Click({
@@ -984,19 +1006,23 @@ $btnBrowseA.Add_Click({
 
 # Traffic interception group
 $gbTraffic = New-Object System.Windows.Forms.GroupBox
-$gbTraffic.Text = "Traffic interception (mitmproxy)"
+$gbTraffic.Text = "Traffic interception (mitmproxy)"; $gbTraffic.ForeColor = [System.Drawing.Color]::White
 $gbTraffic.Location = New-Object System.Drawing.Point(10,36); $gbTraffic.Size = New-Object System.Drawing.Size(578,150)
 $ctlA.Controls.Add($gbTraffic)
-$lblMode = New-Object System.Windows.Forms.Label; $lblMode.Text = "Mode:"; $lblMode.Location = New-Object System.Drawing.Point(12,26); $lblMode.Size = New-Object System.Drawing.Size(44,18); $gbTraffic.Controls.Add($lblMode)
+$lblMode = New-Object System.Windows.Forms.Label; $lblMode.Text = "Mode:"; $lblMode.ForeColor = [System.Drawing.Color]::White; $lblMode.Location = New-Object System.Drawing.Point(12,26); $lblMode.Size = New-Object System.Drawing.Size(44,18); $gbTraffic.Controls.Add($lblMode)
 $cmbMode = New-Object System.Windows.Forms.ComboBox; $cmbMode.Location = New-Object System.Drawing.Point(58,23); $cmbMode.Size = New-Object System.Drawing.Size(96,24); $cmbMode.DropDownStyle = 'DropDownList'
+$cmbMode.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbMode.ForeColor = [System.Drawing.Color]::White
 @('Proxy','Tamper') | ForEach-Object { [void]$cmbMode.Items.Add($_) }; $cmbMode.SelectedIndex = 0; $gbTraffic.Controls.Add($cmbMode)
-$lblDur = New-Object System.Windows.Forms.Label; $lblDur.Text = "Duration(s):"; $lblDur.Location = New-Object System.Drawing.Point(170,26); $lblDur.Size = New-Object System.Drawing.Size(72,18); $gbTraffic.Controls.Add($lblDur)
-$numDur = New-Object System.Windows.Forms.NumericUpDown; $numDur.Location = New-Object System.Drawing.Point(244,23); $numDur.Size = New-Object System.Drawing.Size(60,24); $numDur.Minimum = 3; $numDur.Maximum = 600; $numDur.Value = 20; $gbTraffic.Controls.Add($numDur)
-$lblTam = New-Object System.Windows.Forms.Label; $lblTam.Text = "Tamper rules (find=>replace, one per line; Tamper mode):"; $lblTam.Location = New-Object System.Drawing.Point(12,52); $lblTam.Size = New-Object System.Drawing.Size(360,18); $gbTraffic.Controls.Add($lblTam)
-$txtTamper = New-Object System.Windows.Forms.TextBox; $txtTamper.Location = New-Object System.Drawing.Point(12,70); $txtTamper.Size = New-Object System.Drawing.Size(554,34); $txtTamper.Multiline = $true; $txtTamper.Font = New-Object System.Drawing.Font('Consolas', 9); $gbTraffic.Controls.Add($txtTamper)
+$lblDur = New-Object System.Windows.Forms.Label; $lblDur.Text = "Duration(s):"; $lblDur.ForeColor = [System.Drawing.Color]::White; $lblDur.Location = New-Object System.Drawing.Point(170,26); $lblDur.Size = New-Object System.Drawing.Size(72,18); $gbTraffic.Controls.Add($lblDur)
+$numDur = New-Object System.Windows.Forms.NumericUpDown; $numDur.Location = New-Object System.Drawing.Point(244,23); $numDur.Size = New-Object System.Drawing.Size(60,24); $numDur.Minimum = 3; $numDur.Maximum = 600; $numDur.Value = 20
+$numDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numDur.ForeColor = [System.Drawing.Color]::White; $gbTraffic.Controls.Add($numDur)
+$lblTam = New-Object System.Windows.Forms.Label; $lblTam.Text = "Tamper rules (find=>replace, one per line; Tamper mode):"; $lblTam.ForeColor = [System.Drawing.Color]::White; $lblTam.Location = New-Object System.Drawing.Point(12,52); $lblTam.Size = New-Object System.Drawing.Size(360,18); $gbTraffic.Controls.Add($lblTam)
+$txtTamper = New-Object System.Windows.Forms.TextBox; $txtTamper.Location = New-Object System.Drawing.Point(12,70); $txtTamper.Size = New-Object System.Drawing.Size(554,34); $txtTamper.Multiline = $true; $txtTamper.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtTamper.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTamper.ForeColor = [System.Drawing.Color]::White; $gbTraffic.Controls.Add($txtTamper)
 $btnCap = New-Object System.Windows.Forms.Button; $btnCap.Text = "Launch + capture"; $btnCap.Location = New-Object System.Drawing.Point(12,112); $btnCap.Size = New-Object System.Drawing.Size(150,28)
 $btnCap.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCap.ForeColor = [System.Drawing.Color]::White; $btnCap.FlatStyle = 'Flat'; $gbTraffic.Controls.Add($btnCap)
-$btnLoad = New-Object System.Windows.Forms.Button; $btnLoad.Text = "Load capture file..."; $btnLoad.Location = New-Object System.Drawing.Point(172,112); $btnLoad.Size = New-Object System.Drawing.Size(150,28); $btnLoad.FlatStyle = 'Flat'; $gbTraffic.Controls.Add($btnLoad)
+$btnLoad = New-Object System.Windows.Forms.Button; $btnLoad.Text = "Load capture file..."; $btnLoad.Location = New-Object System.Drawing.Point(172,112); $btnLoad.Size = New-Object System.Drawing.Size(150,28)
+$btnLoad.FlatStyle = 'Flat'; $btnLoad.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnLoad.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbTraffic.Controls.Add($btnLoad)
 $btnCap.Add_Click({
     if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
     $exe = $txtExeA.Text.Trim()
@@ -1030,8 +1056,8 @@ $txtOutA.BringToFront()
 
 # ================= TAB B: Live Exploit / Creds =================
 $tabIcptB = New-Object System.Windows.Forms.TabPage
-$tabIcptB.Text = '  Live Exploit / Creds  '
-$tabIcptB.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabIcptB.Text = ' Creds '
+$tabIcptB.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabIcptB)
 
 # Authorization banner
@@ -1051,19 +1077,21 @@ $tabIcptB.Controls.Add($bannerB)
 
 # Controls panel
 $ctlB = New-Object System.Windows.Forms.Panel
-$ctlB.Dock = 'Top'; $ctlB.Height = 322; $ctlB.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+$ctlB.Dock = 'Top'; $ctlB.Height = 322; $ctlB.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 
 # App exe row (for hook bypass)
 $lblExeB = New-Object System.Windows.Forms.Label
-$lblExeB.Text = "App exe (.exe to launch + hook):"
+$lblExeB.Text = "App exe (.exe to launch + hook):"; $lblExeB.ForeColor = [System.Drawing.Color]::White
 $lblExeB.Location = New-Object System.Drawing.Point(12,8); $lblExeB.Size = New-Object System.Drawing.Size(320,18)
 $ctlB.Controls.Add($lblExeB)
 $txtExeB = New-Object System.Windows.Forms.TextBox
 $txtExeB.Location = New-Object System.Drawing.Point(336,5); $txtExeB.Size = New-Object System.Drawing.Size(660,24); $txtExeB.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtExeB.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtExeB.ForeColor = [System.Drawing.Color]::White
 $txtExeB.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlB.Controls.Add($txtExeB)
 $btnBrowseB = New-Object System.Windows.Forms.Button
 $btnBrowseB.Text = "Browse..."; $btnBrowseB.Location = New-Object System.Drawing.Point(1002,3); $btnBrowseB.Size = New-Object System.Drawing.Size(84,26)
+$btnBrowseB.FlatStyle = 'Flat'; $btnBrowseB.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnBrowseB.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $btnBrowseB.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlB.Controls.Add($btnBrowseB)
 $btnBrowseB.Add_Click({
@@ -1074,16 +1102,21 @@ $btnBrowseB.Add_Click({
 
 # Native hook bypass group
 $gbHook = New-Object System.Windows.Forms.GroupBox
-$gbHook.Text = "Native hook bypass (frida)"
+$gbHook.Text = "Native hook bypass (frida)"; $gbHook.ForeColor = [System.Drawing.Color]::White
 $gbHook.Location = New-Object System.Drawing.Point(10,36); $gbHook.Size = New-Object System.Drawing.Size(578,150)
 $ctlB.Controls.Add($gbHook)
-$lblHFn = New-Object System.Windows.Forms.Label; $lblHFn.Text = "Function (native export):"; $lblHFn.Location = New-Object System.Drawing.Point(12,26); $lblHFn.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHFn)
-$txtHookFn = New-Object System.Windows.Forms.TextBox; $txtHookFn.Location = New-Object System.Drawing.Point(170,23); $txtHookFn.Size = New-Object System.Drawing.Size(200,24); $txtHookFn.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbHook.Controls.Add($txtHookFn)
-$lblHMod = New-Object System.Windows.Forms.Label; $lblHMod.Text = "Module (optional):"; $lblHMod.Location = New-Object System.Drawing.Point(12,54); $lblHMod.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHMod)
-$txtHookMod = New-Object System.Windows.Forms.TextBox; $txtHookMod.Location = New-Object System.Drawing.Point(170,51); $txtHookMod.Size = New-Object System.Drawing.Size(200,24); $txtHookMod.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbHook.Controls.Add($txtHookMod)
-$lblHRet = New-Object System.Windows.Forms.Label; $lblHRet.Text = "Return value:"; $lblHRet.Location = New-Object System.Drawing.Point(12,82); $lblHRet.Size = New-Object System.Drawing.Size(90,18); $gbHook.Controls.Add($lblHRet)
-$numHookRet = New-Object System.Windows.Forms.NumericUpDown; $numHookRet.Location = New-Object System.Drawing.Point(104,79); $numHookRet.Size = New-Object System.Drawing.Size(70,24); $numHookRet.Minimum = 0; $numHookRet.Maximum = 2147483647; $numHookRet.Value = 1; $gbHook.Controls.Add($numHookRet)
-$chkHookSkip = New-Object System.Windows.Forms.CheckBox; $chkHookSkip.Text = "Skip body"; $chkHookSkip.Location = New-Object System.Drawing.Point(190,81); $chkHookSkip.Size = New-Object System.Drawing.Size(90,20); $gbHook.Controls.Add($chkHookSkip)
+$lblHFn = New-Object System.Windows.Forms.Label; $lblHFn.Text = "Function (native export):"; $lblHFn.ForeColor = [System.Drawing.Color]::White; $lblHFn.Location = New-Object System.Drawing.Point(12,26); $lblHFn.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHFn)
+$txtHookFn = New-Object System.Windows.Forms.TextBox; $txtHookFn.Location = New-Object System.Drawing.Point(170,23); $txtHookFn.Size = New-Object System.Drawing.Size(200,24)
+$txtHookFn.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtHookFn.ForeColor = [System.Drawing.Color]::White
+$txtHookFn.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbHook.Controls.Add($txtHookFn)
+$lblHMod = New-Object System.Windows.Forms.Label; $lblHMod.Text = "Module (optional):"; $lblHMod.ForeColor = [System.Drawing.Color]::White; $lblHMod.Location = New-Object System.Drawing.Point(12,54); $lblHMod.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHMod)
+$txtHookMod = New-Object System.Windows.Forms.TextBox; $txtHookMod.Location = New-Object System.Drawing.Point(170,51); $txtHookMod.Size = New-Object System.Drawing.Size(200,24)
+$txtHookMod.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtHookMod.ForeColor = [System.Drawing.Color]::White
+$txtHookMod.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbHook.Controls.Add($txtHookMod)
+$lblHRet = New-Object System.Windows.Forms.Label; $lblHRet.Text = "Return value:"; $lblHRet.ForeColor = [System.Drawing.Color]::White; $lblHRet.Location = New-Object System.Drawing.Point(12,82); $lblHRet.Size = New-Object System.Drawing.Size(90,18); $gbHook.Controls.Add($lblHRet)
+$numHookRet = New-Object System.Windows.Forms.NumericUpDown; $numHookRet.Location = New-Object System.Drawing.Point(104,79); $numHookRet.Size = New-Object System.Drawing.Size(70,24); $numHookRet.Minimum = 0; $numHookRet.Maximum = 2147483647; $numHookRet.Value = 1
+$numHookRet.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numHookRet.ForeColor = [System.Drawing.Color]::White; $gbHook.Controls.Add($numHookRet)
+$chkHookSkip = New-Object System.Windows.Forms.CheckBox; $chkHookSkip.Text = "Skip body"; $chkHookSkip.ForeColor = [System.Drawing.Color]::White; $chkHookSkip.Location = New-Object System.Drawing.Point(190,81); $chkHookSkip.Size = New-Object System.Drawing.Size(90,20); $gbHook.Controls.Add($chkHookSkip)
 $btnHookRun = New-Object System.Windows.Forms.Button; $btnHookRun.Text = "Force return (bypass check)"; $btnHookRun.Location = New-Object System.Drawing.Point(12,112); $btnHookRun.Size = New-Object System.Drawing.Size(220,28)
 $btnHookRun.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnHookRun.ForeColor = [System.Drawing.Color]::White; $btnHookRun.FlatStyle = 'Flat'; $gbHook.Controls.Add($btnHookRun)
 $btnHookRun.Add_Click({
@@ -1105,12 +1138,14 @@ $btnHookRun.Add_Click({
 
 # Windows stored credentials group
 $gbCred = New-Object System.Windows.Forms.GroupBox
-$gbCred.Text = "Windows stored credentials (Credential Manager)"
+$gbCred.Text = "Windows stored credentials (Credential Manager)"; $gbCred.ForeColor = [System.Drawing.Color]::White
 $gbCred.Location = New-Object System.Drawing.Point(598,36); $gbCred.Size = New-Object System.Drawing.Size(578,150)
 $ctlB.Controls.Add($gbCred)
-$lblCFilt = New-Object System.Windows.Forms.Label; $lblCFilt.Text = "Filter (optional target substring):"; $lblCFilt.Location = New-Object System.Drawing.Point(12,28); $lblCFilt.Size = New-Object System.Drawing.Size(190,18); $gbCred.Controls.Add($lblCFilt)
-$txtCredFilter = New-Object System.Windows.Forms.TextBox; $txtCredFilter.Location = New-Object System.Drawing.Point(206,25); $txtCredFilter.Size = New-Object System.Drawing.Size(200,24); $txtCredFilter.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbCred.Controls.Add($txtCredFilter)
-$chkCredReveal = New-Object System.Windows.Forms.CheckBox; $chkCredReveal.Text = "Reveal secrets (default masks)"; $chkCredReveal.Location = New-Object System.Drawing.Point(12,54); $chkCredReveal.Size = New-Object System.Drawing.Size(260,20); $gbCred.Controls.Add($chkCredReveal)
+$lblCFilt = New-Object System.Windows.Forms.Label; $lblCFilt.Text = "Filter (optional target substring):"; $lblCFilt.ForeColor = [System.Drawing.Color]::White; $lblCFilt.Location = New-Object System.Drawing.Point(12,28); $lblCFilt.Size = New-Object System.Drawing.Size(190,18); $gbCred.Controls.Add($lblCFilt)
+$txtCredFilter = New-Object System.Windows.Forms.TextBox; $txtCredFilter.Location = New-Object System.Drawing.Point(206,25); $txtCredFilter.Size = New-Object System.Drawing.Size(200,24)
+$txtCredFilter.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtCredFilter.ForeColor = [System.Drawing.Color]::White
+$txtCredFilter.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbCred.Controls.Add($txtCredFilter)
+$chkCredReveal = New-Object System.Windows.Forms.CheckBox; $chkCredReveal.Text = "Reveal secrets (default masks)"; $chkCredReveal.ForeColor = [System.Drawing.Color]::White; $chkCredReveal.Location = New-Object System.Drawing.Point(12,54); $chkCredReveal.Size = New-Object System.Drawing.Size(260,20); $gbCred.Controls.Add($chkCredReveal)
 $btnCredDump = New-Object System.Windows.Forms.Button; $btnCredDump.Text = "Dump credential vault"; $btnCredDump.Location = New-Object System.Drawing.Point(12,82); $btnCredDump.Size = New-Object System.Drawing.Size(200,28)
 $btnCredDump.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCredDump.ForeColor = [System.Drawing.Color]::White; $btnCredDump.FlatStyle = 'Flat'; $gbCred.Controls.Add($btnCredDump)
 $btnCredDump.Add_Click({
@@ -1127,21 +1162,26 @@ $btnCredDump.Add_Click({
 
 # Credential liveness group (wide, full row)
 $gbLive = New-Object System.Windows.Forms.GroupBox
-$gbLive.Text = "Credential liveness (replay a recovered credential against a live service)"
+$gbLive.Text = "Credential liveness (replay a recovered credential against a live service)"; $gbLive.ForeColor = [System.Drawing.Color]::White
 $gbLive.Location = New-Object System.Drawing.Point(10,192); $gbLive.Size = New-Object System.Drawing.Size(1166,118)
 $ctlB.Controls.Add($gbLive)
-$lblLProto = New-Object System.Windows.Forms.Label; $lblLProto.Text = "Protocol:"; $lblLProto.Location = New-Object System.Drawing.Point(12,26); $lblLProto.Size = New-Object System.Drawing.Size(58,18); $gbLive.Controls.Add($lblLProto)
+$lblLProto = New-Object System.Windows.Forms.Label; $lblLProto.Text = "Protocol:"; $lblLProto.ForeColor = [System.Drawing.Color]::White; $lblLProto.Location = New-Object System.Drawing.Point(12,26); $lblLProto.Size = New-Object System.Drawing.Size(58,18); $gbLive.Controls.Add($lblLProto)
 $cmbLiveProto = New-Object System.Windows.Forms.ComboBox; $cmbLiveProto.Location = New-Object System.Drawing.Point(72,23); $cmbLiveProto.Size = New-Object System.Drawing.Size(72,24); $cmbLiveProto.DropDownStyle = 'DropDownList'
+$cmbLiveProto.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbLiveProto.ForeColor = [System.Drawing.Color]::White
 @('http','sql','ftp') | ForEach-Object { [void]$cmbLiveProto.Items.Add($_) }; $cmbLiveProto.SelectedIndex = 0; $gbLive.Controls.Add($cmbLiveProto)
-$lblLTgt = New-Object System.Windows.Forms.Label; $lblLTgt.Text = "Target (URL / host / ftp://):"; $lblLTgt.Location = New-Object System.Drawing.Point(160,26); $lblLTgt.Size = New-Object System.Drawing.Size(160,18); $gbLive.Controls.Add($lblLTgt)
+$lblLTgt = New-Object System.Windows.Forms.Label; $lblLTgt.Text = "Target (URL / host / ftp://):"; $lblLTgt.ForeColor = [System.Drawing.Color]::White; $lblLTgt.Location = New-Object System.Drawing.Point(160,26); $lblLTgt.Size = New-Object System.Drawing.Size(160,18); $gbLive.Controls.Add($lblLTgt)
 $txtLiveTarget = New-Object System.Windows.Forms.TextBox; $txtLiveTarget.Location = New-Object System.Drawing.Point(322,23); $txtLiveTarget.Size = New-Object System.Drawing.Size(820,24); $txtLiveTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtLiveTarget.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLiveTarget.ForeColor = [System.Drawing.Color]::White
 $txtLiveTarget.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbLive.Controls.Add($txtLiveTarget)
-$lblLUser = New-Object System.Windows.Forms.Label; $lblLUser.Text = "User:"; $lblLUser.Location = New-Object System.Drawing.Point(12,56); $lblLUser.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLUser)
-$txtLiveUser = New-Object System.Windows.Forms.TextBox; $txtLiveUser.Location = New-Object System.Drawing.Point(54,53); $txtLiveUser.Size = New-Object System.Drawing.Size(150,24); $gbLive.Controls.Add($txtLiveUser)
-$lblLPass = New-Object System.Windows.Forms.Label; $lblLPass.Text = "Pass:"; $lblLPass.Location = New-Object System.Drawing.Point(216,56); $lblLPass.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLPass)
-$txtLivePass = New-Object System.Windows.Forms.TextBox; $txtLivePass.Location = New-Object System.Drawing.Point(258,53); $txtLivePass.Size = New-Object System.Drawing.Size(150,24); $txtLivePass.UseSystemPasswordChar = $true; $gbLive.Controls.Add($txtLivePass)
-$lblLExtra = New-Object System.Windows.Forms.Label; $lblLExtra.Text = "Bearer / DB:"; $lblLExtra.Location = New-Object System.Drawing.Point(420,56); $lblLExtra.Size = New-Object System.Drawing.Size(78,18); $gbLive.Controls.Add($lblLExtra)
-$txtLiveExtra = New-Object System.Windows.Forms.TextBox; $txtLiveExtra.Location = New-Object System.Drawing.Point(500,53); $txtLiveExtra.Size = New-Object System.Drawing.Size(150,24); $gbLive.Controls.Add($txtLiveExtra)
+$lblLUser = New-Object System.Windows.Forms.Label; $lblLUser.Text = "User:"; $lblLUser.ForeColor = [System.Drawing.Color]::White; $lblLUser.Location = New-Object System.Drawing.Point(12,56); $lblLUser.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLUser)
+$txtLiveUser = New-Object System.Windows.Forms.TextBox; $txtLiveUser.Location = New-Object System.Drawing.Point(54,53); $txtLiveUser.Size = New-Object System.Drawing.Size(150,24)
+$txtLiveUser.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLiveUser.ForeColor = [System.Drawing.Color]::White; $gbLive.Controls.Add($txtLiveUser)
+$lblLPass = New-Object System.Windows.Forms.Label; $lblLPass.Text = "Pass:"; $lblLPass.ForeColor = [System.Drawing.Color]::White; $lblLPass.Location = New-Object System.Drawing.Point(216,56); $lblLPass.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLPass)
+$txtLivePass = New-Object System.Windows.Forms.TextBox; $txtLivePass.Location = New-Object System.Drawing.Point(258,53); $txtLivePass.Size = New-Object System.Drawing.Size(150,24); $txtLivePass.UseSystemPasswordChar = $true
+$txtLivePass.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLivePass.ForeColor = [System.Drawing.Color]::White; $gbLive.Controls.Add($txtLivePass)
+$lblLExtra = New-Object System.Windows.Forms.Label; $lblLExtra.Text = "Bearer / DB:"; $lblLExtra.ForeColor = [System.Drawing.Color]::White; $lblLExtra.Location = New-Object System.Drawing.Point(420,56); $lblLExtra.Size = New-Object System.Drawing.Size(78,18); $gbLive.Controls.Add($lblLExtra)
+$txtLiveExtra = New-Object System.Windows.Forms.TextBox; $txtLiveExtra.Location = New-Object System.Drawing.Point(500,53); $txtLiveExtra.Size = New-Object System.Drawing.Size(150,24)
+$txtLiveExtra.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLiveExtra.ForeColor = [System.Drawing.Color]::White; $gbLive.Controls.Add($txtLiveExtra)
 $btnLiveRun = New-Object System.Windows.Forms.Button; $btnLiveRun.Text = "Test auth (replay)"; $btnLiveRun.Location = New-Object System.Drawing.Point(672,51); $btnLiveRun.Size = New-Object System.Drawing.Size(180,28)
 $btnLiveRun.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnLiveRun.ForeColor = [System.Drawing.Color]::White; $btnLiveRun.FlatStyle = 'Flat'; $gbLive.Controls.Add($btnLiveRun)
 $btnLiveRun.Add_Click({
@@ -1184,6 +1224,7 @@ $txtOutB.Text = "Live exploit + credentials console.`r`n`r`nTick the authorizati
 # output. Panel1 auto-scrolls, so the controls stay reachable even when dragged small.
 $splitB = New-Object System.Windows.Forms.SplitContainer
 $splitB.Dock = 'Fill'; $splitB.Orientation = 'Horizontal'; $splitB.SplitterWidth = 6
+$splitB.BackColor = [System.Drawing.Color]::FromArgb(50,50,50)
 $splitB.Panel1MinSize = 48; $splitB.Panel2MinSize = 80; $splitB.Panel1.AutoScroll = $true
 $splitB.Panel1.Controls.Add($ctlB)
 $splitB.Panel2.Controls.Add($txtOutB)
@@ -1237,6 +1278,13 @@ function Invoke-RtCheck([string]$fn, [string]$kind) {
             $pe = $p -replace "'", "''"
             Invoke-IcptTool $txtRt "Mem Secrets: $p" ([scriptblock]::Create("Test-TcpkMemorySecrets -ProcessName '$pe' -MaxScanMB 48"))
         }
+        'clipboard' {
+            $sec = [int]$numRtSec.Value
+            $p = $txtRtProc.Text.Trim()
+            $pe = if ($p) { " -ProcessName '$($p -replace "'", "''")'" } else { '' }
+            Write-IcptLine $txtRt "`r`n(monitoring clipboard for ${sec}s -- exercise the app now)`r`n" ([System.Drawing.Color]::FromArgb(0,188,212))
+            Invoke-IcptTool $txtRt "Clipboard monitor ${sec}s$pe" ([scriptblock]::Create("Test-TcpkClipboardSecrets -DurationSec $sec$pe"))
+        }
         # --- gated ACTIVE tools (need the authorization tick + Enable-TcpkExploit) ---
         'gui-unlock' {
             if (-not (Test-IcptGate $chkRtGate $txtRt)) { return }
@@ -1265,25 +1313,35 @@ function Invoke-RtCheck([string]$fn, [string]$kind) {
             Write-IcptLine $txtRt "`r`n== Input fuzz (intrusive -- run from a console; it launches the target repeatedly) ==`r`n" ([System.Drawing.Color]::FromArgb(102,217,239))
             Write-IcptLine $txtRt "Enable-TcpkExploit -Acknowledge`r`nInvoke-TcpkInputFuzz -TargetExe '<app.exe>' -SeedFile '<sample.ext>' -ArgTemplate '{FUZZ}' -Iterations 25`r`n" ([System.Drawing.Color]::White)
         }
+        'run-all' {
+            foreach ($rs in $script:RtSpecs) {
+                if ($rs.K -in @('gui-unlock','pipe-probe','flag-flip','input-fuzz','clipboard')) { continue }
+                Invoke-RtCheck $rs.Fn $rs.K
+                [System.Windows.Forms.Application]::DoEvents()
+            }
+        }
     }
 }
 
 $tabRt = New-Object System.Windows.Forms.TabPage
-$tabRt.Text = '  Runtime / Live  '
-$tabRt.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabRt.Text = ' Runtime '
+$tabRt.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabRt)
 
-# Process-selector row (Dock=Top)
+# Process-selector row (Dock=Top) -- dark themed
 $rtTop = New-Object System.Windows.Forms.Panel
-$rtTop.Dock = 'Top'; $rtTop.Height = 66; $rtTop.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
+$rtTop.Dock = 'Top'; $rtTop.Height = 182; $rtTop.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 $lblRtProc = New-Object System.Windows.Forms.Label
-$lblRtProc.Text = "Process:"; $lblRtProc.Location = New-Object System.Drawing.Point(12,10); $lblRtProc.Size = New-Object System.Drawing.Size(56,18)
+$lblRtProc.Text = "Process:"; $lblRtProc.ForeColor = [System.Drawing.Color]::White
+$lblRtProc.Location = New-Object System.Drawing.Point(12,10); $lblRtProc.Size = New-Object System.Drawing.Size(56,18)
 $rtTop.Controls.Add($lblRtProc)
 $txtRtProc = New-Object System.Windows.Forms.ComboBox
 $txtRtProc.Location = New-Object System.Drawing.Point(70,7); $txtRtProc.Size = New-Object System.Drawing.Size(220,24); $txtRtProc.DropDownStyle = 'DropDown'
+$txtRtProc.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtRtProc.ForeColor = [System.Drawing.Color]::White
 $rtTop.Controls.Add($txtRtProc)
 $btnRtRefresh = New-Object System.Windows.Forms.Button
 $btnRtRefresh.Text = "Refresh"; $btnRtRefresh.Location = New-Object System.Drawing.Point(296,6); $btnRtRefresh.Size = New-Object System.Drawing.Size(74,26)
+$btnRtRefresh.FlatStyle = 'Flat'; $btnRtRefresh.BackColor = [System.Drawing.Color]::FromArgb(40,116,166); $btnRtRefresh.ForeColor = [System.Drawing.Color]::White
 $rtTop.Controls.Add($btnRtRefresh)
 $btnRtRefresh.Add_Click({
     $sel = $txtRtProc.Text
@@ -1292,36 +1350,56 @@ $btnRtRefresh.Add_Click({
     if ($sel) { $txtRtProc.Text = $sel }
 })
 $lblRtSec = New-Object System.Windows.Forms.Label
-$lblRtSec.Text = "Trace capture (s):"; $lblRtSec.Location = New-Object System.Drawing.Point(384,10); $lblRtSec.Size = New-Object System.Drawing.Size(108,18)
+$lblRtSec.Text = "Trace (s):"; $lblRtSec.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
+$lblRtSec.Location = New-Object System.Drawing.Point(384,10); $lblRtSec.Size = New-Object System.Drawing.Size(64,18)
 $rtTop.Controls.Add($lblRtSec)
 $numRtSec = New-Object System.Windows.Forms.NumericUpDown
-$numRtSec.Location = New-Object System.Drawing.Point(494,7); $numRtSec.Size = New-Object System.Drawing.Size(60,24); $numRtSec.Minimum = 5; $numRtSec.Maximum = 300; $numRtSec.Value = 30
+$numRtSec.Location = New-Object System.Drawing.Point(450,7); $numRtSec.Size = New-Object System.Drawing.Size(54,24); $numRtSec.Minimum = 5; $numRtSec.Maximum = 300; $numRtSec.Value = 30
+$numRtSec.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numRtSec.ForeColor = [System.Drawing.Color]::White
 $rtTop.Controls.Add($numRtSec)
 $lblRtHint = New-Object System.Windows.Forms.Label
-$lblRtHint.Text = "read-only. Process checks use the process above; System-wide ignore it; Target-path use the Target box up top."
-$lblRtHint.Location = New-Object System.Drawing.Point(566,10); $lblRtHint.Size = New-Object System.Drawing.Size(600,18)
-$lblRtHint.ForeColor = [System.Drawing.Color]::FromArgb(86,101,115)
+$lblRtHint.Text = "Grey=process  Amber=trace  Blue=system  Green=target-path  Teal=clipboard  Red=gated"
+$lblRtHint.Location = New-Object System.Drawing.Point(516,10); $lblRtHint.Size = New-Object System.Drawing.Size(560,18)
+$lblRtHint.ForeColor = [System.Drawing.Color]::FromArgb(120,130,140)
 $lblRtHint.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $rtTop.Controls.Add($lblRtHint)
-# Authorization gate for the ACTIVE (gated) tools -- the red buttons below. Read-only checks
-# do not need it. Ticking it also calls Enable-TcpkExploit before the gated tool runs.
 $chkRtGate = New-Object System.Windows.Forms.CheckBox
-$chkRtGate.Text = "I am authorized to test this target -- enable the active (gated) tools (red buttons)"
-$chkRtGate.Location = New-Object System.Drawing.Point(12,40); $chkRtGate.Size = New-Object System.Drawing.Size(620,20)
+$chkRtGate.Text = "I am authorized -- enable gated tools (red buttons)"
+$chkRtGate.ForeColor = [System.Drawing.Color]::FromArgb(255,180,180)
+$chkRtGate.Location = New-Object System.Drawing.Point(12,40); $chkRtGate.Size = New-Object System.Drawing.Size(400,20)
 $rtTop.Controls.Add($chkRtGate)
-# Clear the output console (findings accumulate as you run checks).
+$btnRtRunAll = New-Object System.Windows.Forms.Button
+$btnRtRunAll.Text = "Run All"; $btnRtRunAll.Location = New-Object System.Drawing.Point(424,37); $btnRtRunAll.Size = New-Object System.Drawing.Size(80,26)
+$btnRtRunAll.FlatStyle = 'Flat'; $btnRtRunAll.BackColor = [System.Drawing.Color]::FromArgb(40,116,166); $btnRtRunAll.ForeColor = [System.Drawing.Color]::White
+$btnRtRunAll.Add_Click({ Invoke-RtCheck '' 'run-all' })
+$rtTop.Controls.Add($btnRtRunAll)
+$btnRtCopy = New-Object System.Windows.Forms.Button
+$btnRtCopy.Text = "Copy"; $btnRtCopy.Location = New-Object System.Drawing.Point(510,37); $btnRtCopy.Size = New-Object System.Drawing.Size(64,26)
+$btnRtCopy.FlatStyle = 'Flat'; $btnRtCopy.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRtCopy.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
+$btnRtCopy.Add_Click({
+    if ($txtRt.Text.Length -gt 0) { [System.Windows.Forms.Clipboard]::SetText($txtRt.Text); Update-Status "Output copied to clipboard." }
+    else { Update-Status "Nothing to copy." }
+})
+$rtTop.Controls.Add($btnRtCopy)
 $btnRtClear = New-Object System.Windows.Forms.Button
-$btnRtClear.Text = "Clear output"; $btnRtClear.Location = New-Object System.Drawing.Point(660,37); $btnRtClear.Size = New-Object System.Drawing.Size(110,26); $btnRtClear.FlatStyle = 'Flat'
+$btnRtClear.Text = "Clear"; $btnRtClear.Location = New-Object System.Drawing.Point(580,37); $btnRtClear.Size = New-Object System.Drawing.Size(64,26)
+$btnRtClear.FlatStyle = 'Flat'; $btnRtClear.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRtClear.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $rtTop.Controls.Add($btnRtClear)
-$tabRt.Controls.Add($rtTop)
 
-# Button grid (Dock=Top). kind: proc / trace / sys / path -- colour-coded.
-$rtBtnPanel = New-Object System.Windows.Forms.Panel
-$rtBtnPanel.Dock = 'Top'; $rtBtnPanel.Height = 120; $rtBtnPanel.BackColor = [System.Drawing.Color]::FromArgb(245,245,245)
-$rtRed = [System.Drawing.Color]::FromArgb(240,208,208)
-$rtGrey = [System.Drawing.Color]::FromArgb(230,230,230)
-$rtColour = @{ proc = $rtGrey; mem = $rtGrey; trace = [System.Drawing.Color]::FromArgb(255,235,205); sys = [System.Drawing.Color]::FromArgb(220,235,245); path = [System.Drawing.Color]::FromArgb(225,245,225); 'gui-unlock' = $rtRed; 'pipe-probe' = $rtRed; 'flag-flip' = $rtRed; 'input-fuzz' = $rtRed }
-$rtSpecs = @(
+# Button grid -- category-coloured, placed directly in the rtTop panel below the process row.
+$rtColour = @{
+    proc         = [System.Drawing.Color]::FromArgb(55,55,60)
+    mem          = [System.Drawing.Color]::FromArgb(55,55,60)
+    trace        = [System.Drawing.Color]::FromArgb(70,55,25)
+    sys          = [System.Drawing.Color]::FromArgb(35,55,70)
+    path         = [System.Drawing.Color]::FromArgb(35,60,40)
+    'gui-unlock' = [System.Drawing.Color]::FromArgb(70,30,30)
+    'pipe-probe' = [System.Drawing.Color]::FromArgb(70,30,30)
+    'flag-flip'  = [System.Drawing.Color]::FromArgb(70,30,30)
+    'input-fuzz' = [System.Drawing.Color]::FromArgb(70,30,30)
+    clipboard    = [System.Drawing.Color]::FromArgb(25,65,65)
+}
+$script:RtSpecs = @(
     @{ T='Loaded Modules';    Fn='Test-TcpkLoadedModulePaths';      K='proc' }
     @{ T='Module Signatures'; Fn='Test-TcpkLoadedModuleSignatures'; K='proc' }
     @{ T='Listening Ports';   Fn='Test-TcpkListeningPorts';         K='proc' }
@@ -1342,35 +1420,39 @@ $rtSpecs = @(
     @{ T='COM Objects';       Fn='Test-TcpkComObjects';             K='path' }
     @{ T='Named Objects';     Fn='Test-TcpkNamedObjects';           K='path' }
     @{ T='RPC Surface';       Fn='Test-TcpkRpcSurface';             K='path' }
+    @{ T='Win Messages';     Fn='Test-TcpkWindowMessages';         K='proc' }
+    @{ T='Shared Mem';       Fn='Test-TcpkSharedMemoryDacl';       K='proc' }
+    @{ T='Clipboard';        Fn='';                                K='clipboard' }
     @{ T='GUI Unlock';        Fn='';                                K='gui-unlock' }
     @{ T='Pipe Probe';        Fn='';                                K='pipe-probe' }
     @{ T='Flag-Flip';         Fn='';                                K='flag-flip' }
     @{ T='Input Fuzz...';     Fn='';                                K='input-fuzz' }
 )
-$rx = 10; $ry = 10; $rcol = 0
-foreach ($s in $rtSpecs) {
+$rx = 10; $ry = 72; $rcol = 0
+foreach ($s in $script:RtSpecs) {
     $b = New-Object System.Windows.Forms.Button
-    $b.Text = $s.T; $b.Size = New-Object System.Drawing.Size(180,30)
+    $b.Text = $s.T; $b.Size = New-Object System.Drawing.Size(140,30)
     $b.Location = New-Object System.Drawing.Point($rx,$ry)
-    $b.BackColor = $rtColour[$s.K]; $b.FlatStyle = 'Flat'
+    $b.BackColor = $rtColour[$s.K]; $b.ForeColor = [System.Drawing.Color]::White; $b.FlatStyle = 'Flat'
+    $b.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(80,80,85)
     $b.Add_Click([scriptblock]::Create("Invoke-RtCheck '$($s.Fn)' '$($s.K)'"))
-    $rtBtnPanel.Controls.Add($b)
+    $rtTop.Controls.Add($b)
     $rcol++
-    if ($rcol -ge 8) { $rcol = 0; $rx = 10; $ry += 36 } else { $rx += 186 }
+    if ($rcol -ge 9) { $rcol = 0; $rx = 10; $ry += 36 } else { $rx += 146 }
 }
-$tabRt.Controls.Add($rtBtnPanel)
+$tabRt.Controls.Add($rtTop)
 
 $txtRt = New-Object System.Windows.Forms.RichTextBox
 $txtRt.Dock = 'Fill'; $txtRt.Font = New-Object System.Drawing.Font('Consolas', 9.5)
 $txtRt.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtRt.ForeColor = [System.Drawing.Color]::White
 $txtRt.ReadOnly = $true; $txtRt.WordWrap = $false
-$txtRt.Text = "Runtime / live-process analysis.`r`n`r`nPick the target process (Refresh lists what's running), then click a check:`r`n  grey  = read-only process checks (modules, ports, token, mitigations, DACL, env, mem secrets, handles, windows, memory)`r`n  amber = DLL Hijack Trace -- ETW capture for N seconds; exercise the app during the window (needs admin)`r`n  blue  = system-wide (named pipes, ALPC/mailslots)`r`n  green = target-path checks (COM / named objects / RPC) -- use the Target box at the top`r`n  red   = ACTIVE / gated tools (GUI unlock, pipe probe, flag-flip, input fuzz) -- tick the authorization box first`r`n`r`nFindings stream here, severity-coloured."
+$txtRt.Text = "Runtime checks -- pick a process (Refresh), click a button.`r`nGrey = process  Amber = trace (ETW, needs admin)  Blue = system  Green = target-path  Teal = clipboard  Red = gated`r`nRun All = all non-gated/non-timed checks in sequence.  Findings stream here, severity-coloured.`r`n"
 $tabRt.Controls.Add($txtRt)
 $txtRt.BringToFront()
 $btnRtClear.Add_Click({
     $txtRt.Clear()
     $txtRt.SelectionColor = [System.Drawing.Color]::FromArgb(150, 150, 150)
-    $txtRt.AppendText("(output cleared -- click a check to run again)`r`n")
+    $txtRt.AppendText("(output cleared)`r`n")
 })
 
 # ================= TAB: Asar (unpack + browse an Electron app.asar) =================
@@ -1437,18 +1519,18 @@ function Fill-AsarList {
 }
 
 $tabAsar = New-Object System.Windows.Forms.TabPage
-$tabAsar.Text = '  Asar  '
-$tabAsar.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabAsar.Text = ' Asar '
+$tabAsar.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabAsar)
 
 # Top bar built from TableLayoutPanel rows so the path box stretches and the buttons stay
 # right-aligned at ANY window width (absolute positions left a dead gap when maximized).
 $asarTop = New-Object System.Windows.Forms.Panel
-$asarTop.Dock = 'Top'; $asarTop.Height = 70; $asarTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$asarTop.Dock = 'Top'; $asarTop.Height = 70; $asarTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $asarAnchLR = [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
 
 $asarRow1 = New-Object System.Windows.Forms.TableLayoutPanel
-$asarRow1.Dock = 'Top'; $asarRow1.Height = 40; $asarRow1.ColumnCount = 6; $asarRow1.RowCount = 1
+$asarRow1.Dock = 'Top'; $asarRow1.Height = 40; $asarRow1.ColumnCount = 6; $asarRow1.RowCount = 1; $asarRow1.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 164)))
 [void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
 [void]$asarRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 96)))
@@ -1458,16 +1540,19 @@ $asarRow1.Dock = 'Top'; $asarRow1.Height = 40; $asarRow1.ColumnCount = 6; $asarR
 
 $lblAsarT = New-Object System.Windows.Forms.Label
 $lblAsarT.Text = "app.asar / install folder:"; $lblAsarT.Dock = 'Fill'; $lblAsarT.TextAlign = 'MiddleLeft'
+$lblAsarT.ForeColor = [System.Drawing.Color]::White
 $lblAsarT.Margin = New-Object System.Windows.Forms.Padding(10, 0, 0, 0)
 $asarRow1.Controls.Add($lblAsarT, 0, 0)
 
 $txtAsarTarget = New-Object System.Windows.Forms.TextBox
 $txtAsarTarget.Anchor = $asarAnchLR; $txtAsarTarget.Margin = New-Object System.Windows.Forms.Padding(2, 8, 6, 0)
 $txtAsarTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtAsarTarget.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAsarTarget.ForeColor = [System.Drawing.Color]::White
 $asarRow1.Controls.Add($txtAsarTarget, 1, 0)
 
 $btnAsarBrowse = New-Object System.Windows.Forms.Button
 $btnAsarBrowse.Text = "Browse..."; $btnAsarBrowse.Dock = 'Fill'; $btnAsarBrowse.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$btnAsarBrowse.FlatStyle = 'Flat'; $btnAsarBrowse.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnAsarBrowse.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $asarRow1.Controls.Add($btnAsarBrowse, 2, 0)
 
 $btnAsarExtract = New-Object System.Windows.Forms.Button
@@ -1478,6 +1563,7 @@ $asarRow1.Controls.Add($btnAsarExtract, 3, 0)
 
 $btnAsarHex = New-Object System.Windows.Forms.Button
 $btnAsarHex.Text = "Hex view"; $btnAsarHex.Dock = 'Fill'; $btnAsarHex.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$btnAsarHex.FlatStyle = 'Flat'; $btnAsarHex.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnAsarHex.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $asarRow1.Controls.Add($btnAsarHex, 4, 0)
 
 # npm supply-chain audit of the bundled Electron packages (OSV CVEs + deprecated flags).
@@ -1487,7 +1573,7 @@ $btnAsarNpm.BackColor = [System.Drawing.Color]::FromArgb(23, 111, 130); $btnAsar
 $asarRow1.Controls.Add($btnAsarNpm, 5, 0)
 
 $asarRow2 = New-Object System.Windows.Forms.Panel
-$asarRow2.Dock = 'Top'; $asarRow2.Height = 26
+$asarRow2.Dock = 'Top'; $asarRow2.Height = 26; $asarRow2.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $lblAsar = New-Object System.Windows.Forms.Label
 $lblAsar.Dock = 'Fill'; $lblAsar.TextAlign = 'MiddleLeft'
 $lblAsar.Padding = New-Object System.Windows.Forms.Padding(10, 0, 10, 0)
@@ -1596,30 +1682,8 @@ $lstAsar.Add_SelectedIndexChanged({
 
 # ================= TAB: Hex View (byte view of any file) =================
 $script:HexPath = ''; $script:HexOffset = [int64]0; $script:HexSize = [int64]0; $script:HexPageSize = 4096; $script:HexHl = [int64]-1
-function Get-GuiHexText([string]$path, [int64]$offset, [int]$length) {
-    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return @{ error = 'file not found' } }
-    if ($length -le 0 -or $length -gt 16384) { $length = 4096 }
-    if ($offset -lt 0) { $offset = 0 }
-    $fi = Get-Item -LiteralPath $path; $total = [int64]$fi.Length
-    if ($offset -ge $total) { return @{ text = ''; size = $total; offset = $offset } }
-    $count = [int][Math]::Min([int64]$length, $total - $offset)
-    $buf = New-Object 'byte[]' $count
-    $fsr = [System.IO.File]::OpenRead($path)
-    try { [void]$fsr.Seek($offset, 'Begin'); [void]$fsr.Read($buf, 0, $count) } finally { $fsr.Dispose() }
-    $sb = New-Object System.Text.StringBuilder
-    for ($i = 0; $i -lt $count; $i += 16) {
-        $n = [Math]::Min(16, $count - $i)
-        [void]$sb.Append(('{0:x8}  ' -f ($offset + $i)))
-        $asc = New-Object System.Text.StringBuilder
-        for ($j = 0; $j -lt 16; $j++) {
-            if ($j -lt $n) { $bv = $buf[$i + $j]; [void]$sb.Append(('{0:x2} ' -f $bv)); $ch = if ($bv -ge 32 -and $bv -lt 127) { [char]$bv } else { '.' }; [void]$asc.Append($ch) }
-            else { [void]$sb.Append('   ') }
-            if ($j -eq 7) { [void]$sb.Append(' ') }
-        }
-        [void]$sb.Append(' |').Append($asc.ToString()).Append("|`r`n")
-    }
-    return @{ text = $sb.ToString(); size = $total; offset = $offset; count = $count }
-}
+$script:HexPeMap = $null; $script:HexPeOverlay = $false; $script:HexEntropy = $null; $script:HexDiffPath = ''
+$script:HexHashes = $null; $script:HexBookmarks = New-Object System.Collections.Generic.List[object]
 # ImHex-style byte colouring: precompute a byte -> colour-category index (built once).
 #   1 null (dim)  2 whitespace (blue)  3 printable ASCII (green)  4 control (orange)  5 high/extended (purple)
 $script:HexCatIdx = New-Object 'int[]' 256
@@ -1760,7 +1824,7 @@ function Do-GuiHexStrings {
     $r = Get-GuiHexStrings $p $min $txtHexSFilter.Text $k 2000
     $form.Cursor = [System.Windows.Forms.Cursors]::Default
     if ($r.error) { $lblHexSInfo.Text = $r.error; return }
-    $lvHexStr.Visible = $true; $lvHexStr.BeginUpdate(); $lvHexStr.Items.Clear()
+    $pnlStrWrap.Visible = $true; $lvHexStr.BeginUpdate(); $lvHexStr.Items.Clear()
     foreach ($x in $r.items) {
         $it = New-Object System.Windows.Forms.ListViewItem("0x$([Convert]::ToString([int64]$x.offset,16))")
         [void]$it.SubItems.Add($x.kind); [void]$it.SubItems.Add($x.text); $it.Tag = [int64]$x.offset
@@ -1772,12 +1836,26 @@ function Do-GuiHexStrings {
 function Load-GuiHex([int64]$off) {
     $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHex.Text = 'enter a file path'; return }
     if ($off -lt 0) { $off = 0 }
-    $r = Get-GuiHexRtf $p $off $script:HexPageSize
+    $peArg = if ($script:HexPeOverlay -and $script:HexPeMap) { $script:HexPeMap } else { $null }
+    $dBuf = $null
+    if ($script:HexDiffPath -and (Test-Path -LiteralPath $script:HexDiffPath -PathType Leaf)) {
+        $dTotal = [int64](Get-Item -LiteralPath $script:HexDiffPath).Length
+        $dLen = [int][Math]::Min([int64]$script:HexPageSize, [Math]::Max(0, $dTotal - $off))
+        if ($dLen -gt 0) {
+            $dBuf = New-Object 'byte[]' $dLen
+            $dfsr = [IO.File]::OpenRead($script:HexDiffPath)
+            try { [void]$dfsr.Seek($off, 'Begin'); [void]$dfsr.Read($dBuf, 0, $dLen) } finally { $dfsr.Dispose() }
+        }
+    }
+    if ($peArg -or $dBuf) { $r = Get-GuiHexRtfEx $p $off $script:HexPageSize $peArg $dBuf }
+    else { $r = Get-GuiHexRtf $p $off $script:HexPageSize }
     if ($r.error) { $lblHex.Text = "Error: $($r.error)"; $txtHex.Text = ''; return }
     $script:HexPath = $p; $script:HexOffset = $off; $script:HexSize = $r.size
     if ($r.rtf) { $txtHex.Rtf = $r.rtf } else { $txtHex.Text = '' }
-    $lblHex.Text = "$(Split-Path $p -Leaf) -- $($r.size) bytes, offset 0x$([Convert]::ToString($off,16)) ($($r.count) shown)"
-    # highlight the row holding $script:HexHl (if it falls in this page)
+    $info = "$(Split-Path $p -Leaf) -- $($r.size) bytes, offset 0x$([Convert]::ToString($off,16)) ($($r.count) shown)"
+    if ($r.diffCount) { $info += " | diff: $($r.diffCount) bytes" }
+    $lblHex.Text = $info
+    try { $pnlEntropy.Invalidate() } catch { }
     if ($script:HexHl -ge $off -and $script:HexHl -lt ($off + $r.count)) {
         $rowIdx = [int](($script:HexHl - $off) / 16)
         try {
@@ -1801,140 +1879,539 @@ function Do-GuiHexInspect([int64]$off) {
     foreach ($row in (Get-GuiHexInspect $script:HexPath $off)) { $it = New-Object System.Windows.Forms.ListViewItem($row.n); [void]$it.SubItems.Add($row.v); [void]$lvHexIns.Items.Add($it) }
     $lvHexIns.EndUpdate()
 }
+# PE section map for hex overlay. Standalone parser (module privates are not accessible).
+function Get-GuiPeMap([string]$path) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    $fs = $null; $br = $null
+    try {
+        $fs = [IO.File]::OpenRead($path); $br = [IO.BinaryReader]::new($fs)
+        $total = [int64]$fs.Length; if ($total -lt 0x80) { return $null }
+        $fs.Position = 0; if ($br.ReadUInt16() -ne 0x5A4D) { return $null }
+        $fs.Position = 0x3C; $peOff = $br.ReadInt32()
+        if ($peOff -le 0 -or $peOff -gt ($total - 24)) { return $null }
+        $fs.Position = $peOff; if ($br.ReadUInt32() -ne 0x00004550) { return $null }
+        $machine = $br.ReadUInt16(); $numSec = $br.ReadUInt16()
+        $ts = $br.ReadUInt32()
+        $fs.Position = $peOff + 4 + 16; $optSz = $br.ReadUInt16(); $chars = $br.ReadUInt16()
+        $fs.Position = $peOff + 24; $magic = $br.ReadUInt16(); $plus = ($magic -eq 0x20B)
+        $fs.Position = $peOff + 24 + 70; $dllChar = $br.ReadUInt16()
+        $secOff = $peOff + 4 + 20 + $optSz
+        $sc = @(
+            @(78,201,176), @(86,156,214), @(152,195,121), @(209,154,102),
+            @(198,120,221), @(229,192,123), @(224,108,117), @(190,140,195),
+            @(86,182,194), @(181,189,104)
+        )
+        $secs = New-Object System.Collections.Generic.List[object]
+        for ($i = 0; $i -lt $numSec; $i++) {
+            $b = $secOff + ($i * 40); if (($b + 40) -gt $total) { break }
+            $fs.Position = $b; $nb = $br.ReadBytes(8)
+            $nm = ([Text.Encoding]::ASCII.GetString($nb)).Trim([char]0).Trim()
+            $vs = $br.ReadUInt32(); $va = $br.ReadUInt32()
+            $rs = $br.ReadUInt32(); $rp = $br.ReadUInt32()
+            $ci = [Math]::Min($i, $sc.Count - 1)
+            $secs.Add([pscustomobject]@{
+                Name=$nm; VA=$va; VSize=$vs; RawOff=[int64]$rp; RawSize=[int64]$rs
+                Ci=$ci; R=$sc[$ci][0]; G=$sc[$ci][1]; B=$sc[$ci][2]
+            })
+        }
+        $ddBase = if ($plus) { $peOff + 24 + 112 } else { $peOff + 24 + 96 }
+        $imports = New-Object System.Collections.Generic.List[string]
+        $rvaToFile = { param($rva) foreach ($s in $secs) { if ($rva -ge $s.VA -and $rva -lt ($s.VA + $s.VSize)) { return $s.RawOff + ($rva - $s.VA) } }; -1 }
+        if (($ddBase + 12) -le $total) {
+            $fs.Position = $ddBase + 8; $impRva = $br.ReadUInt32()
+            if ($impRva -ne 0) {
+                $iOff = & $rvaToFile $impRva
+                if ($iOff -ge 0) {
+                    for ($ei = 0; $ei -lt 500; $ei++) {
+                        $ds = $iOff + ($ei * 20); if (($ds + 20) -gt $total) { break }
+                        $fs.Position = $ds + 12; $nRva = $br.ReadUInt32()
+                        if ($nRva -eq 0) { break }
+                        $nf = & $rvaToFile $nRva
+                        if ($nf -lt 0 -or $nf -ge $total) { continue }
+                        $fs.Position = $nf
+                        $bs = New-Object System.Collections.Generic.List[byte]
+                        while ($fs.Position -lt $total) { $bv = $br.ReadByte(); if ($bv -eq 0) { break }; $bs.Add($bv); if ($bs.Count -gt 200) { break } }
+                        $n = [Text.Encoding]::ASCII.GetString($bs.ToArray())
+                        if ($n) { $imports.Add($n) }
+                    }
+                }
+            }
+        }
+        $machN = @{ 0x14C='x86'; 0x8664='x64'; 0xAA64='ARM64' }
+        $mn = if ($machN.ContainsKey([int]$machine)) { $machN[[int]$machine] } else { "0x$($machine.ToString('X4'))" }
+        $hdEnd = if ($secs.Count) { [int64]$secs[0].RawOff } else { [int64]$secOff + ($numSec * 40) }
+        $isDll = ($chars -band 0x2000) -ne 0
+        $ts2 = if ($plus) { "PE32+" } else { "PE32" }
+        $ts2 += if ($isDll) { ' DLL' } else { ' EXE' }
+        return [pscustomobject]@{
+            IsPe=$true; Machine=$mn; TypeStr=$ts2; DllChar=$dllChar
+            Timestamp=$ts; HeaderEnd=$hdEnd; PeOff=[int64]$peOff
+            Sections=$secs.ToArray(); Imports=$imports.ToArray(); FileSize=$total
+        }
+    } catch { return $null }
+    finally { if ($br) { $br.Dispose() }; if ($fs) { $fs.Dispose() } }
+}
+# Shannon entropy per block (0.0-8.0). Capped at 10 MB, block size auto-scaled.
+function Get-GuiBlockEntropy([string]$path, [int]$blockSize) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return ,@() }
+    $total = [int64](Get-Item -LiteralPath $path).Length
+    if ($total -eq 0) { return ,@() }
+    if ($blockSize -lt 64) { $blockSize = 256 }
+    $readLen = [int][Math]::Min($total, [int64]10485760)
+    $buf = New-Object 'byte[]' $readLen
+    $fsr = [IO.File]::OpenRead($path)
+    try { [void]$fsr.Read($buf, 0, $readLen) } finally { $fsr.Dispose() }
+    $blocks = [int][Math]::Ceiling($readLen / $blockSize)
+    $result = New-Object 'double[]' $blocks
+    $log2 = [Math]::Log(2)
+    for ($bi = 0; $bi -lt $blocks; $bi++) {
+        $bs2 = $bi * $blockSize; $bl = [Math]::Min($blockSize, $readLen - $bs2)
+        $freq = New-Object 'int[]' 256
+        for ($i = 0; $i -lt $bl; $i++) { $freq[$buf[$bs2 + $i]]++ }
+        $ent = [double]0
+        for ($v = 0; $v -lt 256; $v++) {
+            if ($freq[$v] -gt 0) { $p = [double]$freq[$v] / $bl; $ent -= $p * [Math]::Log($p) / $log2 }
+        }
+        $result[$bi] = $ent
+    }
+    return ,$result
+}
+# XOR single-byte brute-force: try 0x01-0xFF, report printable ASCII runs >= $minStr.
+function Do-GuiXorScan([string]$path, [int64]$offset, [int]$length, [int]$minStr) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return ,@() }
+    $total = [int64](Get-Item -LiteralPath $path).Length
+    if ($length -le 0) { $length = [int][Math]::Min(65536, $total) }
+    if ($minStr -lt 4) { $minStr = 6 }
+    if ($offset -ge $total) { return ,@() }
+    $readLen = [int][Math]::Min([int64]$length, $total - $offset)
+    $buf = New-Object 'byte[]' $readLen
+    $fsr = [IO.File]::OpenRead($path)
+    try { [void]$fsr.Seek($offset, 'Begin'); [void]$fsr.Read($buf, 0, $readLen) } finally { $fsr.Dispose() }
+    $hits = New-Object System.Collections.Generic.List[object]
+    for ($key = 1; $key -lt 256; $key++) {
+        $run = 0; $runStart = 0
+        for ($i = 0; $i -le $readLen; $i++) {
+            $ch = if ($i -lt $readLen) { $buf[$i] -bxor $key } else { 0 }
+            if ($ch -ge 32 -and $ch -le 126) { if ($run -eq 0) { $runStart = $i }; $run++ }
+            else {
+                if ($run -ge $minStr) {
+                    $xsb = New-Object System.Text.StringBuilder $run
+                    for ($j = $runStart; $j -lt ($runStart + $run); $j++) { [void]$xsb.Append([char]($buf[$j] -bxor $key)) }
+                    $hits.Add([pscustomobject]@{ Key=$key; KeyHex='0x'+$key.ToString('x2'); Offset=$offset+$runStart; Length=$run; Text=$xsb.ToString() })
+                    if ($hits.Count -ge 100) { return ,$hits.ToArray() }
+                }
+                $run = 0
+            }
+        }
+    }
+    return ,$hits.ToArray()
+}
+function Get-GuiFileHashes([string]$path) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    $fs = [IO.File]::OpenRead($path)
+    try {
+        $md5 = [Security.Cryptography.MD5]::Create(); $h1 = [BitConverter]::ToString($md5.ComputeHash($fs)).Replace('-','').ToLower(); $md5.Dispose(); $fs.Position = 0
+        $sha1 = [Security.Cryptography.SHA1]::Create(); $h2 = [BitConverter]::ToString($sha1.ComputeHash($fs)).Replace('-','').ToLower(); $sha1.Dispose(); $fs.Position = 0
+        $sha256 = [Security.Cryptography.SHA256]::Create(); $h3 = [BitConverter]::ToString($sha256.ComputeHash($fs)).Replace('-','').ToLower(); $sha256.Dispose()
+    } finally { $fs.Dispose() }
+    [pscustomobject]@{ MD5 = $h1; SHA1 = $h2; SHA256 = $h3 }
+}
+function Get-GuiByteFrequency([string]$path) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+    $counts = New-Object 'int[]' 256; $buf = New-Object 'byte[]' 65536; $total = [int64]0
+    $fs = [IO.File]::OpenRead($path)
+    try { while (($n = $fs.Read($buf, 0, $buf.Length)) -gt 0) { for ($i = 0; $i -lt $n; $i++) { $counts[$buf[$i]]++ }; $total += $n } } finally { $fs.Dispose() }
+    [pscustomobject]@{ Counts = $counts; Total = $total }
+}
+# Extended RTF renderer with optional PE section colouring and binary diff highlights.
+function Get-GuiHexRtfEx([string]$path, [int64]$offset, [int]$length, $peMap, [byte[]]$diffBuf) {
+    if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return @{ error = 'file not found' } }
+    if ($length -le 0 -or $length -gt 16384) { $length = 4096 }
+    if ($offset -lt 0) { $offset = 0 }
+    $total = [int64](Get-Item -LiteralPath $path).Length
+    if ($offset -ge $total) { return @{ rtf = ''; size = $total; offset = $offset; count = 0 } }
+    $count = [int][Math]::Min([int64]$length, $total - $offset)
+    $buf = New-Object 'byte[]' $count
+    $fsr = [IO.File]::OpenRead($path)
+    try { [void]$fsr.Seek($offset, 'Begin'); [void]$fsr.Read($buf, 0, $count) } finally { $fsr.Dispose() }
+    $cat = $script:HexCatIdx; $usePe = ($null -ne $peMap); $useDiff = ($null -ne $diffBuf)
+    $esb = New-Object System.Text.StringBuilder (($count * 24) + 1024)
+    [void]$esb.Append('{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}{\colortbl;')
+    if ($usePe) {
+        [void]$esb.Append('\red100\green180\blue180;')
+        $secs = $peMap.Sections
+        foreach ($s in $secs) { [void]$esb.Append("\red$($s.R)\green$($s.G)\blue$($s.B);") }
+        $sepCi = $secs.Count + 2; $gutCi = $secs.Count + 3; $unmCi = $secs.Count + 4
+        [void]$esb.Append('\red160\green160\blue160;\red78\green201\blue176;\red90\green90\blue90;')
+        $diffCi = $secs.Count + 5
+    } else {
+        [void]$esb.Append('\red90\green90\blue90;\red97\green175\blue239;\red152\green195\blue121;\red209\green154\blue102;\red198\green120\blue221;\red160\green160\blue160;\red78\green201\blue176;')
+        $sepCi = 6; $gutCi = 7; $diffCi = 8
+    }
+    if ($useDiff) { [void]$esb.Append('\red255\green60\blue60;') }
+    [void]$esb.Append('}\f0\fs19 ')
+    $hdEnd = if ($usePe) { $peMap.HeaderEnd } else { 0 }
+    for ($i = 0; $i -lt $count; $i += 16) {
+        $n = [Math]::Min(16, $count - $i)
+        [void]$esb.Append("\cf$gutCi ").AppendFormat('{0:x8}  ', ($offset + $i))
+        $asc = New-Object System.Text.StringBuilder 128
+        for ($j = 0; $j -lt 16; $j++) {
+            if ($j -lt $n) {
+                $bv = $buf[$i + $j]
+                $isDiff = $useDiff -and (($i + $j) -lt $diffBuf.Length) -and ($bv -ne $diffBuf[$i + $j])
+                if ($usePe) {
+                    $fo = $offset + $i + $j; $ci = $unmCi
+                    if ($fo -lt $hdEnd) { $ci = 1 }
+                    else { foreach ($s in $secs) { if ($fo -ge $s.RawOff -and $fo -lt ($s.RawOff + $s.RawSize)) { $ci = $s.Ci + 2; break } } }
+                } else { $ci = $cat[$bv] }
+                if ($isDiff) { $ci = $diffCi }
+                [void]$esb.Append("\cf$ci ").AppendFormat('{0:x2} ', $bv)
+                if ($bv -ge 32 -and $bv -le 126) {
+                    $ch = [char]$bv; [void]$asc.Append("\cf$ci ")
+                    if ($ch -eq '\' -or $ch -eq '{' -or $ch -eq '}') { [void]$asc.Append('\') }
+                    [void]$asc.Append($ch)
+                } else {
+                    $ci2 = if ($usePe) { $unmCi } else { 1 }; if ($isDiff) { $ci2 = $diffCi }
+                    [void]$asc.Append("\cf$ci2 .")
+                }
+            } else { [void]$esb.Append('   ') }
+            if ($j -eq 7) { [void]$esb.Append(' ') }
+        }
+        [void]$esb.Append("\cf$sepCi  |").Append($asc.ToString()).Append("\cf$sepCi |\par ")
+    }
+    [void]$esb.Append('}')
+    $dc = 0
+    if ($useDiff) { $mc = [Math]::Min($count, $diffBuf.Length); for ($i = 0; $i -lt $mc; $i++) { if ($buf[$i] -ne $diffBuf[$i]) { $dc++ } }; if ($count -gt $diffBuf.Length) { $dc += ($count - $diffBuf.Length) } }
+    return @{ rtf = $esb.ToString(); size = $total; offset = $offset; count = $count; diffCount = $dc }
+}
 
 $tabHex = New-Object System.Windows.Forms.TabPage
-$tabHex.Text = '  Hex View  '
-$tabHex.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabHex.Text = ' Hex '
+$tabHex.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabHex)
 $hexTop = New-Object System.Windows.Forms.Panel
-$hexTop.Dock = 'Top'; $hexTop.Height = 96; $hexTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$hexTop.Dock = 'Top'; $hexTop.Height = 90; $hexTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $lblHexT = New-Object System.Windows.Forms.Label
-$lblHexT.Text = "File:"; $lblHexT.Location = New-Object System.Drawing.Point(12, 14); $lblHexT.Size = New-Object System.Drawing.Size(40, 18)
+$lblHexT.Text = "File:"; $lblHexT.ForeColor = [System.Drawing.Color]::White; $lblHexT.Location = New-Object System.Drawing.Point(12, 14); $lblHexT.Size = New-Object System.Drawing.Size(40, 18)
 $hexTop.Controls.Add($lblHexT)
 $txtHexPath = New-Object System.Windows.Forms.TextBox
 $txtHexPath.Location = New-Object System.Drawing.Point(54, 11); $txtHexPath.Size = New-Object System.Drawing.Size(600, 24); $txtHexPath.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexPath.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexPath.ForeColor = [System.Drawing.Color]::White
 $hexTop.Controls.Add($txtHexPath)
 $btnHexBrowse = New-Object System.Windows.Forms.Button
 $btnHexBrowse.Text = "Browse..."; $btnHexBrowse.Location = New-Object System.Drawing.Point(662, 10); $btnHexBrowse.Size = New-Object System.Drawing.Size(80, 26)
+$btnHexBrowse.FlatStyle = 'Flat'; $btnHexBrowse.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexBrowse.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexBrowse)
 $btnHexLoad = New-Object System.Windows.Forms.Button
 $btnHexLoad.Text = "Load"; $btnHexLoad.Location = New-Object System.Drawing.Point(748, 10); $btnHexLoad.Size = New-Object System.Drawing.Size(64, 26)
 $btnHexLoad.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnHexLoad.ForeColor = [System.Drawing.Color]::White; $btnHexLoad.FlatStyle = 'Flat'
 $hexTop.Controls.Add($btnHexLoad)
+$btnHexPe = New-Object System.Windows.Forms.Button
+$btnHexPe.Text = "PE"; $btnHexPe.Location = New-Object System.Drawing.Point(820, 10); $btnHexPe.Size = New-Object System.Drawing.Size(46, 26)
+$btnHexPe.FlatStyle = 'Flat'; $btnHexPe.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexPe.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$btnHexPe.Font = New-Object System.Drawing.Font('Segoe UI', 8, [System.Drawing.FontStyle]::Bold)
+$hexTop.Controls.Add($btnHexPe)
+$btnHexDiff = New-Object System.Windows.Forms.Button
+$btnHexDiff.Text = "Diff..."; $btnHexDiff.Location = New-Object System.Drawing.Point(872, 10); $btnHexDiff.Size = New-Object System.Drawing.Size(64, 26)
+$btnHexDiff.FlatStyle = 'Flat'; $btnHexDiff.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexDiff.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexTop.Controls.Add($btnHexDiff)
+$btnHexStrTog = New-Object System.Windows.Forms.Button
+$btnHexStrTog.Text = "Strings"; $btnHexStrTog.Location = New-Object System.Drawing.Point(944, 10); $btnHexStrTog.Size = New-Object System.Drawing.Size(64, 26)
+$btnHexStrTog.FlatStyle = 'Flat'; $btnHexStrTog.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexStrTog.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexTop.Controls.Add($btnHexStrTog)
+$btnHexHash = New-Object System.Windows.Forms.Button
+$btnHexHash.Text = "Hash"; $btnHexHash.Location = New-Object System.Drawing.Point(1014, 10); $btnHexHash.Size = New-Object System.Drawing.Size(52, 26)
+$btnHexHash.FlatStyle = 'Flat'; $btnHexHash.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexHash.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexTop.Controls.Add($btnHexHash)
 # Row 2 (y=42): paging + go-to + find
 $btnHexPrev = New-Object System.Windows.Forms.Button
 $btnHexPrev.Text = "< Prev"; $btnHexPrev.Location = New-Object System.Drawing.Point(12, 42); $btnHexPrev.Size = New-Object System.Drawing.Size(64, 26)
+$btnHexPrev.FlatStyle = 'Flat'; $btnHexPrev.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexPrev.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexPrev)
 $btnHexNext = New-Object System.Windows.Forms.Button
 $btnHexNext.Text = "Next >"; $btnHexNext.Location = New-Object System.Drawing.Point(80, 42); $btnHexNext.Size = New-Object System.Drawing.Size(64, 26)
+$btnHexNext.FlatStyle = 'Flat'; $btnHexNext.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexNext.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexNext)
 $lblHexGoto = New-Object System.Windows.Forms.Label
-$lblHexGoto.Text = "go to (hex):"; $lblHexGoto.Location = New-Object System.Drawing.Point(158, 47); $lblHexGoto.Size = New-Object System.Drawing.Size(74, 18)
+$lblHexGoto.Text = "go to (hex):"; $lblHexGoto.ForeColor = [System.Drawing.Color]::White; $lblHexGoto.Location = New-Object System.Drawing.Point(158, 47); $lblHexGoto.Size = New-Object System.Drawing.Size(74, 18)
 $hexTop.Controls.Add($lblHexGoto)
 $txtHexGoto = New-Object System.Windows.Forms.TextBox
 $txtHexGoto.Location = New-Object System.Drawing.Point(232, 44); $txtHexGoto.Size = New-Object System.Drawing.Size(90, 22); $txtHexGoto.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexGoto.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexGoto.ForeColor = [System.Drawing.Color]::White
 $hexTop.Controls.Add($txtHexGoto)
 $btnHexGo = New-Object System.Windows.Forms.Button
 $btnHexGo.Text = "Go"; $btnHexGo.Location = New-Object System.Drawing.Point(326, 42); $btnHexGo.Size = New-Object System.Drawing.Size(50, 26)
+$btnHexGo.FlatStyle = 'Flat'; $btnHexGo.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexGo.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexGo)
 $lblHexFind = New-Object System.Windows.Forms.Label
-$lblHexFind.Text = "find:"; $lblHexFind.Location = New-Object System.Drawing.Point(392, 47); $lblHexFind.Size = New-Object System.Drawing.Size(34, 18)
+$lblHexFind.Text = "find:"; $lblHexFind.ForeColor = [System.Drawing.Color]::White; $lblHexFind.Location = New-Object System.Drawing.Point(392, 47); $lblHexFind.Size = New-Object System.Drawing.Size(34, 18)
 $hexTop.Controls.Add($lblHexFind)
 $txtHexFind = New-Object System.Windows.Forms.TextBox
 $txtHexFind.Location = New-Object System.Drawing.Point(426, 44); $txtHexFind.Size = New-Object System.Drawing.Size(160, 22); $txtHexFind.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexFind.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexFind.ForeColor = [System.Drawing.Color]::White
 $hexTop.Controls.Add($txtHexFind)
 $cmbHexKind = New-Object System.Windows.Forms.ComboBox
 $cmbHexKind.Location = New-Object System.Drawing.Point(592, 44); $cmbHexKind.Size = New-Object System.Drawing.Size(70, 24); $cmbHexKind.DropDownStyle = 'DropDownList'
+$cmbHexKind.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbHexKind.ForeColor = [System.Drawing.Color]::White
 @('ascii', 'hex') | ForEach-Object { [void]$cmbHexKind.Items.Add($_) }; $cmbHexKind.SelectedIndex = 0
 $hexTop.Controls.Add($cmbHexKind)
 $btnHexFind = New-Object System.Windows.Forms.Button
 $btnHexFind.Text = "Find next"; $btnHexFind.Location = New-Object System.Drawing.Point(668, 42); $btnHexFind.Size = New-Object System.Drawing.Size(84, 26)
+$btnHexFind.FlatStyle = 'Flat'; $btnHexFind.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexFind.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexFind)
-# Strings controls -- placed on row 2 (y=42), in the empty space to the RIGHT of "Find next".
-# List printable ASCII/wide strings (names, URLs, paths), filterable.
-$hexSep = New-Object System.Windows.Forms.Label
-$hexSep.Text = ''; $hexSep.Location = New-Object System.Drawing.Point(766, 44); $hexSep.Size = New-Object System.Drawing.Size(2, 26); $hexSep.BackColor = [System.Drawing.Color]::FromArgb(205, 205, 205)
-$hexTop.Controls.Add($hexSep)
-$lblHexSMinL = New-Object System.Windows.Forms.Label
-$lblHexSMinL.Text = "strings min:"; $lblHexSMinL.Location = New-Object System.Drawing.Point(782, 47); $lblHexSMinL.Size = New-Object System.Drawing.Size(72, 18)
-$hexTop.Controls.Add($lblHexSMinL)
-$txtHexSMin = New-Object System.Windows.Forms.TextBox
-$txtHexSMin.Text = "4"; $txtHexSMin.Location = New-Object System.Drawing.Point(856, 44); $txtHexSMin.Size = New-Object System.Drawing.Size(40, 22); $txtHexSMin.Font = New-Object System.Drawing.Font('Consolas', 9)
-$hexTop.Controls.Add($txtHexSMin)
-$lblHexSFilterL = New-Object System.Windows.Forms.Label
-$lblHexSFilterL.Text = "filter:"; $lblHexSFilterL.Location = New-Object System.Drawing.Point(902, 47); $lblHexSFilterL.Size = New-Object System.Drawing.Size(40, 18)
-$hexTop.Controls.Add($lblHexSFilterL)
-$txtHexSFilter = New-Object System.Windows.Forms.TextBox
-$txtHexSFilter.Location = New-Object System.Drawing.Point(942, 44); $txtHexSFilter.Size = New-Object System.Drawing.Size(150, 22); $txtHexSFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
-$hexTop.Controls.Add($txtHexSFilter)
-$cmbHexSKind = New-Object System.Windows.Forms.ComboBox
-$cmbHexSKind.Location = New-Object System.Drawing.Point(1098, 44); $cmbHexSKind.Size = New-Object System.Drawing.Size(100, 24); $cmbHexSKind.DropDownStyle = 'DropDownList'
-@('ascii+wide', 'ascii', 'wide') | ForEach-Object { [void]$cmbHexSKind.Items.Add($_) }; $cmbHexSKind.SelectedIndex = 0
-$hexTop.Controls.Add($cmbHexSKind)
-$btnHexStrings = New-Object System.Windows.Forms.Button
-$btnHexStrings.Text = "List strings"; $btnHexStrings.Location = New-Object System.Drawing.Point(1204, 42); $btnHexStrings.Size = New-Object System.Drawing.Size(96, 26)
-$hexTop.Controls.Add($btnHexStrings)
-$lblHexSInfo = New-Object System.Windows.Forms.Label
-$lblHexSInfo.Location = New-Object System.Drawing.Point(1306, 47); $lblHexSInfo.Size = New-Object System.Drawing.Size(260, 18); $lblHexSInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
-$hexTop.Controls.Add($lblHexSInfo)
 $lblHex = New-Object System.Windows.Forms.Label
-$lblHex.Location = New-Object System.Drawing.Point(12, 74); $lblHex.Size = New-Object System.Drawing.Size(1030, 18)
-$lblHex.Text = "Enter a file path (a native DLL, or a file from an extracted asar), then Load. Go to an offset, find a hex/ASCII pattern, list strings, or click a row to inspect."
+$lblHex.Location = New-Object System.Drawing.Point(12, 70); $lblHex.Size = New-Object System.Drawing.Size(1060, 18)
+$lblHex.Text = "Load a binary, then browse hex, overlay PE sections, diff, list strings, or inspect bytes."
 $lblHex.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
 $hexTop.Controls.Add($lblHex)
 $tabHex.Controls.Add($hexTop)
 
-# Body: hex view (Fill) on the left + Data Inspector (Dock=Right) -- nested in a Fill container
-# so the top strip spans the full width.
+# Body: hex view + entropy strip + mode-switchable right panel (Inspector / PE Map / XOR Decode).
 $hexBody = New-Object System.Windows.Forms.Panel
 $hexBody.Dock = 'Fill'
+# --- Right panel: mode-switchable analysis pane ---
 $hexInsPanel = New-Object System.Windows.Forms.Panel
 $hexInsPanel.Dock = 'Right'; $hexInsPanel.Width = 300; $hexInsPanel.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-$hexInsTop = New-Object System.Windows.Forms.Panel
-$hexInsTop.Dock = 'Top'; $hexInsTop.Height = 84; $hexInsTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-$lblHexInsHdr = New-Object System.Windows.Forms.Label
-$lblHexInsHdr.Text = "DATA INSPECTOR"; $lblHexInsHdr.Location = New-Object System.Drawing.Point(8, 6); $lblHexInsHdr.Size = New-Object System.Drawing.Size(200, 16); $lblHexInsHdr.ForeColor = [System.Drawing.Color]::FromArgb(200, 205, 210); $lblHexInsHdr.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
-$hexInsTop.Controls.Add($lblHexInsHdr)
+$hexInsHdr = New-Object System.Windows.Forms.Panel
+$hexInsHdr.Dock = 'Top'; $hexInsHdr.Height = 30; $hexInsHdr.BackColor = [System.Drawing.Color]::FromArgb(25, 25, 25)
+$cmbHexMode = New-Object System.Windows.Forms.ComboBox
+$cmbHexMode.Location = New-Object System.Drawing.Point(8, 4); $cmbHexMode.Size = New-Object System.Drawing.Size(140, 22)
+$cmbHexMode.DropDownStyle = 'DropDownList'; $cmbHexMode.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48)
+$cmbHexMode.ForeColor = [System.Drawing.Color]::FromArgb(200, 205, 210); $cmbHexMode.FlatStyle = 'Flat'
+@('Data Inspector', 'PE Map', 'XOR Decode', 'Byte Freq', 'Bookmarks') | ForEach-Object { [void]$cmbHexMode.Items.Add($_) }; $cmbHexMode.SelectedIndex = 0
+$hexInsHdr.Controls.Add($cmbHexMode)
+$hexInsPanel.Controls.Add($hexInsHdr)
+# Mode A: Data Inspector (default)
+$pnlInsMode = New-Object System.Windows.Forms.Panel
+$pnlInsMode.Dock = 'Fill'; $pnlInsMode.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$hexInsTop2 = New-Object System.Windows.Forms.Panel
+$hexInsTop2.Dock = 'Top'; $hexInsTop2.Height = 54; $hexInsTop2.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $lblHexInsOff = New-Object System.Windows.Forms.Label
-$lblHexInsOff.Text = "offset 0x0"; $lblHexInsOff.Location = New-Object System.Drawing.Point(8, 26); $lblHexInsOff.Size = New-Object System.Drawing.Size(200, 16); $lblHexInsOff.ForeColor = [System.Drawing.Color]::FromArgb(78, 201, 176)
-$hexInsTop.Controls.Add($lblHexInsOff)
+$lblHexInsOff.Text = "offset 0x0"; $lblHexInsOff.Location = New-Object System.Drawing.Point(8, 6); $lblHexInsOff.Size = New-Object System.Drawing.Size(260, 16); $lblHexInsOff.ForeColor = [System.Drawing.Color]::FromArgb(78, 201, 176)
+$hexInsTop2.Controls.Add($lblHexInsOff)
 $lblHexInsIn2 = New-Object System.Windows.Forms.Label
-$lblHexInsIn2.Text = "offset (hex):"; $lblHexInsIn2.Location = New-Object System.Drawing.Point(8, 54); $lblHexInsIn2.Size = New-Object System.Drawing.Size(80, 16); $lblHexInsIn2.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
-$hexInsTop.Controls.Add($lblHexInsIn2)
+$lblHexInsIn2.Text = "offset (hex):"; $lblHexInsIn2.Location = New-Object System.Drawing.Point(8, 30); $lblHexInsIn2.Size = New-Object System.Drawing.Size(80, 16); $lblHexInsIn2.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexInsTop2.Controls.Add($lblHexInsIn2)
 $txtHexInsIn = New-Object System.Windows.Forms.TextBox
-$txtHexInsIn.Location = New-Object System.Drawing.Point(90, 51); $txtHexInsIn.Size = New-Object System.Drawing.Size(90, 22); $txtHexInsIn.Font = New-Object System.Drawing.Font('Consolas', 9); $txtHexInsIn.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexInsIn.ForeColor = [System.Drawing.Color]::White; $txtHexInsIn.BorderStyle = 'FixedSingle'
-$hexInsTop.Controls.Add($txtHexInsIn)
+$txtHexInsIn.Location = New-Object System.Drawing.Point(90, 27); $txtHexInsIn.Size = New-Object System.Drawing.Size(90, 22); $txtHexInsIn.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexInsIn.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexInsIn.ForeColor = [System.Drawing.Color]::White; $txtHexInsIn.BorderStyle = 'FixedSingle'
+$hexInsTop2.Controls.Add($txtHexInsIn)
 $btnHexInspect = New-Object System.Windows.Forms.Button
-$btnHexInspect.Text = "Inspect"; $btnHexInspect.Location = New-Object System.Drawing.Point(188, 50); $btnHexInspect.Size = New-Object System.Drawing.Size(84, 24); $btnHexInspect.FlatStyle = 'Flat'; $btnHexInspect.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230)
-$hexInsTop.Controls.Add($btnHexInspect)
-$hexInsPanel.Controls.Add($hexInsTop)
+$btnHexInspect.Text = "Inspect"; $btnHexInspect.Location = New-Object System.Drawing.Point(188, 26); $btnHexInspect.Size = New-Object System.Drawing.Size(84, 24)
+$btnHexInspect.FlatStyle = 'Flat'; $btnHexInspect.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230)
+$hexInsTop2.Controls.Add($btnHexInspect)
+$pnlInsMode.Controls.Add($hexInsTop2)
 $lvHexIns = New-Object System.Windows.Forms.ListView
 $lvHexIns.Dock = 'Fill'; $lvHexIns.View = 'Details'; $lvHexIns.FullRowSelect = $true; $lvHexIns.GridLines = $false; $lvHexIns.HeaderStyle = 'Nonclickable'
 $lvHexIns.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexIns.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexIns.Font = New-Object System.Drawing.Font('Consolas', 9)
 [void]$lvHexIns.Columns.Add('Field', 110); [void]$lvHexIns.Columns.Add('Value', 168)
-$hexInsPanel.Controls.Add($lvHexIns); $lvHexIns.BringToFront()
+$pnlInsMode.Controls.Add($lvHexIns); $lvHexIns.BringToFront()
+$hexInsPanel.Controls.Add($pnlInsMode); $pnlInsMode.BringToFront()
+# Mode B: PE Map (sections + imports, hidden until PE toggle)
+$pnlPeMode = New-Object System.Windows.Forms.Panel
+$pnlPeMode.Dock = 'Fill'; $pnlPeMode.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $pnlPeMode.Visible = $false
+$lblPeInfo = New-Object System.Windows.Forms.Label
+$lblPeInfo.Dock = 'Top'; $lblPeInfo.Height = 22; $lblPeInfo.Text = ''
+$lblPeInfo.ForeColor = [System.Drawing.Color]::FromArgb(78, 201, 176); $lblPeInfo.Padding = New-Object System.Windows.Forms.Padding(8, 4, 0, 0)
+$pnlPeMode.Controls.Add($lblPeInfo)
+$lvHexPeImp = New-Object System.Windows.Forms.ListView
+$lvHexPeImp.Dock = 'Bottom'; $lvHexPeImp.Height = 140; $lvHexPeImp.View = 'Details'; $lvHexPeImp.FullRowSelect = $true
+$lvHexPeImp.GridLines = $false; $lvHexPeImp.HeaderStyle = 'Nonclickable'
+$lvHexPeImp.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexPeImp.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexPeImp.Font = New-Object System.Drawing.Font('Consolas', 9)
+[void]$lvHexPeImp.Columns.Add('Imports', 268)
+$pnlPeMode.Controls.Add($lvHexPeImp)
+$lvHexPe = New-Object System.Windows.Forms.ListView
+$lvHexPe.Dock = 'Fill'; $lvHexPe.View = 'Details'; $lvHexPe.FullRowSelect = $true; $lvHexPe.GridLines = $false; $lvHexPe.HeaderStyle = 'Nonclickable'
+$lvHexPe.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexPe.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexPe.Font = New-Object System.Drawing.Font('Consolas', 9)
+[void]$lvHexPe.Columns.Add('Section', 70); [void]$lvHexPe.Columns.Add('Offset', 78); [void]$lvHexPe.Columns.Add('Size', 68); [void]$lvHexPe.Columns.Add('RVA', 68)
+$pnlPeMode.Controls.Add($lvHexPe); $lvHexPe.BringToFront()
+$hexInsPanel.Controls.Add($pnlPeMode)
+# Mode C: XOR Decode (brute-force single-byte XOR)
+$pnlXorMode = New-Object System.Windows.Forms.Panel
+$pnlXorMode.Dock = 'Fill'; $pnlXorMode.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $pnlXorMode.Visible = $false
+$hexXorTop = New-Object System.Windows.Forms.Panel
+$hexXorTop.Dock = 'Top'; $hexXorTop.Height = 54; $hexXorTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$lblXorRange = New-Object System.Windows.Forms.Label
+$lblXorRange.Text = "Scans 64 KB from current offset"; $lblXorRange.Location = New-Object System.Drawing.Point(8, 6)
+$lblXorRange.Size = New-Object System.Drawing.Size(260, 16); $lblXorRange.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexXorTop.Controls.Add($lblXorRange)
+$btnXorScan = New-Object System.Windows.Forms.Button
+$btnXorScan.Text = "Brute-force"; $btnXorScan.Location = New-Object System.Drawing.Point(8, 26); $btnXorScan.Size = New-Object System.Drawing.Size(100, 24)
+$btnXorScan.FlatStyle = 'Flat'; $btnXorScan.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnXorScan.ForeColor = [System.Drawing.Color]::White
+$hexXorTop.Controls.Add($btnXorScan)
+$lblXorInfo = New-Object System.Windows.Forms.Label
+$lblXorInfo.Text = ''; $lblXorInfo.Location = New-Object System.Drawing.Point(116, 30)
+$lblXorInfo.Size = New-Object System.Drawing.Size(160, 16); $lblXorInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$hexXorTop.Controls.Add($lblXorInfo)
+$pnlXorMode.Controls.Add($hexXorTop)
+$lvHexXor = New-Object System.Windows.Forms.ListView
+$lvHexXor.Dock = 'Fill'; $lvHexXor.View = 'Details'; $lvHexXor.FullRowSelect = $true; $lvHexXor.GridLines = $false; $lvHexXor.HeaderStyle = 'Nonclickable'
+$lvHexXor.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexXor.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexXor.Font = New-Object System.Drawing.Font('Consolas', 9)
+[void]$lvHexXor.Columns.Add('Key', 48); [void]$lvHexXor.Columns.Add('Offset', 78); [void]$lvHexXor.Columns.Add('Decoded text', 148)
+$pnlXorMode.Controls.Add($lvHexXor); $lvHexXor.BringToFront()
+$hexInsPanel.Controls.Add($pnlXorMode)
+# Mode D: Byte Frequency (byte distribution histogram)
+$pnlFreqMode = New-Object System.Windows.Forms.Panel
+$pnlFreqMode.Dock = 'Fill'; $pnlFreqMode.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $pnlFreqMode.Visible = $false
+$hexFreqTop = New-Object System.Windows.Forms.Panel
+$hexFreqTop.Dock = 'Top'; $hexFreqTop.Height = 34; $hexFreqTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$btnFreqScan = New-Object System.Windows.Forms.Button
+$btnFreqScan.Text = "Analyze"; $btnFreqScan.Location = New-Object System.Drawing.Point(8, 5); $btnFreqScan.Size = New-Object System.Drawing.Size(80, 24)
+$btnFreqScan.FlatStyle = 'Flat'; $btnFreqScan.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnFreqScan.ForeColor = [System.Drawing.Color]::White
+$hexFreqTop.Controls.Add($btnFreqScan)
+$lblFreqInfo = New-Object System.Windows.Forms.Label
+$lblFreqInfo.Text = ''; $lblFreqInfo.Location = New-Object System.Drawing.Point(96, 9)
+$lblFreqInfo.Size = New-Object System.Drawing.Size(190, 16); $lblFreqInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$hexFreqTop.Controls.Add($lblFreqInfo)
+$pnlFreqMode.Controls.Add($hexFreqTop)
+$lvHexFreq = New-Object System.Windows.Forms.ListView
+$lvHexFreq.Dock = 'Fill'; $lvHexFreq.View = 'Details'; $lvHexFreq.FullRowSelect = $true; $lvHexFreq.GridLines = $false; $lvHexFreq.HeaderStyle = 'Nonclickable'
+$lvHexFreq.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexFreq.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexFreq.Font = New-Object System.Drawing.Font('Consolas', 9)
+[void]$lvHexFreq.Columns.Add('Byte', 52); [void]$lvHexFreq.Columns.Add('Count', 68); [void]$lvHexFreq.Columns.Add('%', 50); [void]$lvHexFreq.Columns.Add('Bar', 110)
+$pnlFreqMode.Controls.Add($lvHexFreq); $lvHexFreq.BringToFront()
+$hexInsPanel.Controls.Add($pnlFreqMode)
+# Mode E: Bookmarks (saved offsets for quick navigation)
+$pnlBmkMode = New-Object System.Windows.Forms.Panel
+$pnlBmkMode.Dock = 'Fill'; $pnlBmkMode.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $pnlBmkMode.Visible = $false
+$hexBmkTop = New-Object System.Windows.Forms.Panel
+$hexBmkTop.Dock = 'Top'; $hexBmkTop.Height = 60; $hexBmkTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$lblBmkNote = New-Object System.Windows.Forms.Label
+$lblBmkNote.Text = "note:"; $lblBmkNote.Location = New-Object System.Drawing.Point(8, 7); $lblBmkNote.Size = New-Object System.Drawing.Size(36, 16)
+$lblBmkNote.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexBmkTop.Controls.Add($lblBmkNote)
+$txtBmkNote = New-Object System.Windows.Forms.TextBox
+$txtBmkNote.Location = New-Object System.Drawing.Point(46, 4); $txtBmkNote.Size = New-Object System.Drawing.Size(128, 22); $txtBmkNote.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtBmkNote.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtBmkNote.ForeColor = [System.Drawing.Color]::White; $txtBmkNote.BorderStyle = 'FixedSingle'
+$hexBmkTop.Controls.Add($txtBmkNote)
+$btnBmkAdd = New-Object System.Windows.Forms.Button
+$btnBmkAdd.Text = "Add"; $btnBmkAdd.Location = New-Object System.Drawing.Point(180, 3); $btnBmkAdd.Size = New-Object System.Drawing.Size(52, 24)
+$btnBmkAdd.FlatStyle = 'Flat'; $btnBmkAdd.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnBmkAdd.ForeColor = [System.Drawing.Color]::White
+$hexBmkTop.Controls.Add($btnBmkAdd)
+$btnBmkClear = New-Object System.Windows.Forms.Button
+$btnBmkClear.Text = "Clear"; $btnBmkClear.Location = New-Object System.Drawing.Point(238, 3); $btnBmkClear.Size = New-Object System.Drawing.Size(52, 24)
+$btnBmkClear.FlatStyle = 'Flat'; $btnBmkClear.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230)
+$hexBmkTop.Controls.Add($btnBmkClear)
+$lblBmkInfo = New-Object System.Windows.Forms.Label
+$lblBmkInfo.Text = "Bookmark the current offset"; $lblBmkInfo.Location = New-Object System.Drawing.Point(8, 34)
+$lblBmkInfo.Size = New-Object System.Drawing.Size(280, 16); $lblBmkInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$hexBmkTop.Controls.Add($lblBmkInfo)
+$pnlBmkMode.Controls.Add($hexBmkTop)
+$lvHexBmk = New-Object System.Windows.Forms.ListView
+$lvHexBmk.Dock = 'Fill'; $lvHexBmk.View = 'Details'; $lvHexBmk.FullRowSelect = $true; $lvHexBmk.GridLines = $false; $lvHexBmk.HeaderStyle = 'Nonclickable'
+$lvHexBmk.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexBmk.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexBmk.Font = New-Object System.Drawing.Font('Consolas', 9)
+[void]$lvHexBmk.Columns.Add('Offset', 90); [void]$lvHexBmk.Columns.Add('Note', 190)
+$pnlBmkMode.Controls.Add($lvHexBmk); $lvHexBmk.BringToFront()
+$hexInsPanel.Controls.Add($pnlBmkMode)
 $hexBody.Controls.Add($hexInsPanel)
-# Center column: hex view (Fill) + strings results (Bottom, hidden until "List strings").
+# --- Center column: entropy strip + hex view + strings panel ---
 $hexCenter = New-Object System.Windows.Forms.Panel
 $hexCenter.Dock = 'Fill'
+# Strings wrapper: toggle-able bottom panel with its own toolbar + results list
+$pnlStrWrap = New-Object System.Windows.Forms.Panel
+$pnlStrWrap.Dock = 'Bottom'; $pnlStrWrap.Height = 220; $pnlStrWrap.Visible = $false
+$strBar = New-Object System.Windows.Forms.Panel
+$strBar.Dock = 'Top'; $strBar.Height = 32; $strBar.BackColor = [System.Drawing.Color]::FromArgb(38, 38, 38)
+$lblHexSMinL = New-Object System.Windows.Forms.Label
+$lblHexSMinL.Text = "min:"; $lblHexSMinL.Location = New-Object System.Drawing.Point(8, 8); $lblHexSMinL.Size = New-Object System.Drawing.Size(32, 16)
+$lblHexSMinL.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$strBar.Controls.Add($lblHexSMinL)
+$txtHexSMin = New-Object System.Windows.Forms.TextBox
+$txtHexSMin.Text = "4"; $txtHexSMin.Location = New-Object System.Drawing.Point(42, 5); $txtHexSMin.Size = New-Object System.Drawing.Size(36, 22); $txtHexSMin.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexSMin.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexSMin.ForeColor = [System.Drawing.Color]::White; $txtHexSMin.BorderStyle = 'FixedSingle'
+$strBar.Controls.Add($txtHexSMin)
+$lblHexSFilterL = New-Object System.Windows.Forms.Label
+$lblHexSFilterL.Text = "filter:"; $lblHexSFilterL.Location = New-Object System.Drawing.Point(86, 8); $lblHexSFilterL.Size = New-Object System.Drawing.Size(36, 16)
+$lblHexSFilterL.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$strBar.Controls.Add($lblHexSFilterL)
+$txtHexSFilter = New-Object System.Windows.Forms.TextBox
+$txtHexSFilter.Location = New-Object System.Drawing.Point(124, 5); $txtHexSFilter.Size = New-Object System.Drawing.Size(140, 22); $txtHexSFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexSFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexSFilter.ForeColor = [System.Drawing.Color]::White; $txtHexSFilter.BorderStyle = 'FixedSingle'
+$strBar.Controls.Add($txtHexSFilter)
+$cmbHexSKind = New-Object System.Windows.Forms.ComboBox
+$cmbHexSKind.Location = New-Object System.Drawing.Point(272, 5); $cmbHexSKind.Size = New-Object System.Drawing.Size(96, 22); $cmbHexSKind.DropDownStyle = 'DropDownList'
+$cmbHexSKind.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbHexSKind.ForeColor = [System.Drawing.Color]::FromArgb(200, 205, 210); $cmbHexSKind.FlatStyle = 'Flat'
+@('ascii+wide', 'ascii', 'wide') | ForEach-Object { [void]$cmbHexSKind.Items.Add($_) }; $cmbHexSKind.SelectedIndex = 0
+$strBar.Controls.Add($cmbHexSKind)
+$btnHexStrings = New-Object System.Windows.Forms.Button
+$btnHexStrings.Text = "Search"; $btnHexStrings.Location = New-Object System.Drawing.Point(376, 4); $btnHexStrings.Size = New-Object System.Drawing.Size(68, 24)
+$btnHexStrings.FlatStyle = 'Flat'; $btnHexStrings.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnHexStrings.ForeColor = [System.Drawing.Color]::White
+$strBar.Controls.Add($btnHexStrings)
+$lblHexSInfo = New-Object System.Windows.Forms.Label
+$lblHexSInfo.Location = New-Object System.Drawing.Point(452, 8); $lblHexSInfo.Size = New-Object System.Drawing.Size(300, 16); $lblHexSInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$strBar.Controls.Add($lblHexSInfo)
+$pnlStrWrap.Controls.Add($strBar)
 $lvHexStr = New-Object System.Windows.Forms.ListView
-$lvHexStr.Dock = 'Bottom'; $lvHexStr.Height = 180; $lvHexStr.Visible = $false
+$lvHexStr.Dock = 'Fill'
 $lvHexStr.View = 'Details'; $lvHexStr.FullRowSelect = $true; $lvHexStr.GridLines = $false; $lvHexStr.HeaderStyle = 'Nonclickable'; $lvHexStr.MultiSelect = $false
 $lvHexStr.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexStr.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexStr.Font = New-Object System.Drawing.Font('Consolas', 9)
 [void]$lvHexStr.Columns.Add('Offset', 90); [void]$lvHexStr.Columns.Add('K', 34); [void]$lvHexStr.Columns.Add('String (click to jump)', 1200)
-$hexCenter.Controls.Add($lvHexStr)
+$pnlStrWrap.Controls.Add($lvHexStr); $lvHexStr.BringToFront()
+$hexCenter.Controls.Add($pnlStrWrap)
+# Entropy heatmap strip (whole-file minimap, click to jump)
+$pnlEntropy = New-Object System.Windows.Forms.Panel
+$pnlEntropy.Dock = 'Left'; $pnlEntropy.Width = 20; $pnlEntropy.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18)
+$pnlEntropy.Add_Paint({
+    $ent = $script:HexEntropy; if (-not $ent -or $ent.Count -eq 0) { return }
+    $gr = $_.Graphics; $w = $pnlEntropy.Width; $h = $pnlEntropy.Height; if ($h -le 0) { return }
+    $nc = $ent.Count
+    for ($py = 0; $py -lt $h; $py++) {
+        $bi = [int]([Math]::Floor($py * $nc / $h)); if ($bi -ge $nc) { $bi = $nc - 1 }
+        $e = $ent[$bi]
+        if ($e -lt 2) { $cr = 30; $cg = 40; $cb = [int](60 + $e * 60) }
+        elseif ($e -lt 5) { $t2 = ($e - 2) / 3; $cr = [int](30 + $t2 * 80); $cg = [int](120 + $t2 * 60); $cb = [int](120 - $t2 * 80) }
+        elseif ($e -lt 7) { $t2 = ($e - 5) / 2; $cr = [int](180 + $t2 * 75); $cg = [int](180 - $t2 * 100); $cb = 30 }
+        else { $cr = 255; $cg = [int]([Math]::Max(0, 80 - ($e - 7) * 80)); $cb = 30 }
+        $ebr = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb([Math]::Min(255,$cr), [Math]::Min(255,$cg), [Math]::Min(255,$cb)))
+        $gr.FillRectangle($ebr, 0, $py, $w, 1); $ebr.Dispose()
+    }
+    if ($script:HexSize -gt 0) {
+        $my = [int]([Math]::Floor($script:HexOffset * $h / $script:HexSize))
+        $mh = [int][Math]::Max(2, [Math]::Ceiling($script:HexPageSize * $h / $script:HexSize))
+        $epen = New-Object System.Drawing.Pen([System.Drawing.Color]::White, 1)
+        $gr.DrawRectangle($epen, 0, [Math]::Min($my, $h - 1), $w - 1, [Math]::Min($mh, $h - $my - 1)); $epen.Dispose()
+    }
+})
+$pnlEntropy.Add_MouseClick({
+    if (-not $script:HexSize -or $script:HexSize -le 0 -or $pnlEntropy.Height -le 0) { return }
+    $joff = [int64]([Math]::Floor($_.Y * $script:HexSize / $pnlEntropy.Height))
+    $joff = [int64]([Math]::Floor($joff / 16) * 16)
+    Load-GuiHex $joff
+})
+$hexCenter.Controls.Add($pnlEntropy)
 $txtHex = New-Object System.Windows.Forms.RichTextBox
 $txtHex.Dock = 'Fill'; $txtHex.Font = New-Object System.Drawing.Font('Consolas', 9.5)
 $txtHex.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18); $txtHex.ForeColor = [System.Drawing.Color]::FromArgb(210, 210, 210)
 $txtHex.ReadOnly = $true; $txtHex.WordWrap = $false; $txtHex.BorderStyle = 'None'; $txtHex.HideSelection = $false
+$hexCtxMenu = New-Object System.Windows.Forms.ContextMenuStrip
+$hexCtxCopyHex = $hexCtxMenu.Items.Add('Copy page as hex string')
+$hexCtxCopyC = $hexCtxMenu.Items.Add('Copy page as C array')
+$hexCtxCopyPy = $hexCtxMenu.Items.Add('Copy page as Python bytes')
+$hexCtxCopyPs = $hexCtxMenu.Items.Add('Copy page as PS byte[]')
+$hexCtxMenu.Items.Add('-')
+$hexCtxBmk = $hexCtxMenu.Items.Add('Bookmark this offset')
+$txtHex.ContextMenuStrip = $hexCtxMenu
 $hexCenter.Controls.Add($txtHex); $txtHex.BringToFront()
 $hexBody.Controls.Add($hexCenter); $hexCenter.BringToFront()
 $tabHex.Controls.Add($hexBody); $hexBody.BringToFront()
+# --- Event handlers ---
 $btnHexBrowse.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog; $dlg.Filter = "All files (*.*)|*.*"
     if ($dlg.ShowDialog() -eq 'OK') { $txtHexPath.Text = $dlg.FileName }
 })
-$btnHexLoad.Add_Click({ $script:HexHl = [int64]-1; Load-GuiHex 0 })
+$btnHexLoad.Add_Click({
+    $script:HexHl = [int64]-1; $script:HexPeMap = $null; $script:HexPeOverlay = $false; $script:HexHashes = $null
+    $script:HexDiffPath = ''; $btnHexDiff.Text = 'Diff...'; $btnHexDiff.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+    $btnHexPe.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexHash.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+    $btnHexStrTog.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $pnlStrWrap.Visible = $false
+    Load-GuiHex 0
+    $lp = $txtHexPath.Text.Trim()
+    if ($lp -and (Test-Path -LiteralPath $lp -PathType Leaf)) {
+        $ebs = [int][Math]::Max(256, [int][Math]::Ceiling([int64](Get-Item -LiteralPath $lp).Length / 2000))
+        $script:HexEntropy = Get-GuiBlockEntropy $lp $ebs
+        $pnlEntropy.Invalidate()
+        $script:HexHashes = Get-GuiFileHashes $lp
+    }
+})
 $btnHexPrev.Add_Click({ Load-GuiHex ($script:HexOffset - $script:HexPageSize) })
 $btnHexNext.Add_Click({ if (-not $script:HexSize -or ($script:HexOffset + $script:HexPageSize) -lt $script:HexSize) { Load-GuiHex ($script:HexOffset + $script:HexPageSize) } })
 $btnHexInspect.Add_Click({ Do-GuiHexInspect ([int64]-1) })
@@ -1953,10 +2430,210 @@ $btnHexFind.Add_Click({
 })
 $txtHex.Add_MouseUp({
     if (-not $script:HexPath) { return }
-    try { $ci = $txtHex.GetCharIndexFromPosition($_.Location); $line = $txtHex.GetLineFromCharIndex($ci); $off = $script:HexOffset + ($line * 16); Do-GuiHexInspect $off } catch { }
+    try { $ci2 = $txtHex.GetCharIndexFromPosition($_.Location); $line = $txtHex.GetLineFromCharIndex($ci2); $off = $script:HexOffset + ($line * 16); Do-GuiHexInspect $off } catch { }
 })
 $btnHexStrings.Add_Click({ Do-GuiHexStrings })
 $lvHexStr.Add_Click({ if ($lvHexStr.SelectedItems.Count -and $null -ne $lvHexStr.SelectedItems[0].Tag) { Do-GuiHexInspect ([int64]$lvHexStr.SelectedItems[0].Tag) } })
+# Right-panel mode switching
+$cmbHexMode.Add_SelectedIndexChanged({
+    $mi = $cmbHexMode.SelectedIndex
+    $pnlInsMode.Visible = ($mi -eq 0); $pnlPeMode.Visible = ($mi -eq 1); $pnlXorMode.Visible = ($mi -eq 2)
+    $pnlFreqMode.Visible = ($mi -eq 3); $pnlBmkMode.Visible = ($mi -eq 4)
+    $modePnls = @($pnlInsMode, $pnlPeMode, $pnlXorMode, $pnlFreqMode, $pnlBmkMode)
+    if ($mi -ge 0 -and $mi -lt $modePnls.Count) { $modePnls[$mi].BringToFront() }
+})
+# PE overlay toggle
+$btnHexPe.Add_Click({
+    $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHex.Text = 'load a file first'; return }
+    if ($script:HexPeOverlay) {
+        $script:HexPeOverlay = $false; $script:HexPeMap = $null
+        $btnHexPe.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+        $cmbHexMode.SelectedIndex = 0; Load-GuiHex $script:HexOffset; return
+    }
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
+    $pm = Get-GuiPeMap $p
+    $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    if (-not $pm) { $lblHex.Text = 'not a valid PE file'; return }
+    $script:HexPeMap = $pm; $script:HexPeOverlay = $true
+    $btnHexPe.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+    $lvHexPe.BeginUpdate(); $lvHexPe.Items.Clear()
+    $hit = New-Object System.Windows.Forms.ListViewItem('Headers')
+    [void]$hit.SubItems.Add('0x0'); [void]$hit.SubItems.Add("0x$($pm.HeaderEnd.ToString('x'))"); [void]$hit.SubItems.Add('0x0')
+    $hit.ForeColor = [System.Drawing.Color]::FromArgb(100, 180, 180); $hit.Tag = [int64]0; [void]$lvHexPe.Items.Add($hit)
+    foreach ($s in $pm.Sections) {
+        $sit = New-Object System.Windows.Forms.ListViewItem($s.Name)
+        [void]$sit.SubItems.Add("0x$($s.RawOff.ToString('x'))"); [void]$sit.SubItems.Add("0x$($s.RawSize.ToString('x'))"); [void]$sit.SubItems.Add("0x$($s.VA.ToString('x'))")
+        $sit.ForeColor = [System.Drawing.Color]::FromArgb($s.R, $s.G, $s.B); $sit.Tag = $s.RawOff; [void]$lvHexPe.Items.Add($sit)
+    }
+    $lvHexPe.EndUpdate()
+    $lblPeInfo.Text = "$($pm.TypeStr) | $($pm.Machine)"
+    $lvHexPeImp.BeginUpdate(); $lvHexPeImp.Items.Clear()
+    foreach ($imp in $pm.Imports) { [void]$lvHexPeImp.Items.Add($imp) }
+    $lvHexPeImp.EndUpdate()
+    $cmbHexMode.SelectedIndex = 1; Load-GuiHex $script:HexOffset
+})
+# PE section click -> jump to that file offset
+$lvHexPe.Add_Click({
+    if ($lvHexPe.SelectedItems.Count -and $null -ne $lvHexPe.SelectedItems[0].Tag) {
+        Do-GuiHexInspect ([int64]$lvHexPe.SelectedItems[0].Tag)
+    }
+})
+# Binary diff toggle
+$btnHexDiff.Add_Click({
+    if ($script:HexDiffPath) {
+        $script:HexDiffPath = ''; $btnHexDiff.Text = 'Diff...'
+        $btnHexDiff.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+        Load-GuiHex $script:HexOffset; return
+    }
+    $ddlg = New-Object System.Windows.Forms.OpenFileDialog; $ddlg.Filter = "All files (*.*)|*.*"; $ddlg.Title = "Select comparison file"
+    if ($ddlg.ShowDialog() -ne 'OK') { return }
+    $script:HexDiffPath = $ddlg.FileName
+    $btnHexDiff.Text = 'X Diff'; $btnHexDiff.BackColor = [System.Drawing.Color]::FromArgb(192, 57, 43)
+    Load-GuiHex $script:HexOffset
+})
+# XOR brute-force scan
+$btnXorScan.Add_Click({
+    $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblXorInfo.Text = 'load a file first'; return }
+    $lblXorInfo.Text = 'scanning...'; $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
+    $xhits = Do-GuiXorScan $p $script:HexOffset 65536 6
+    $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    $lvHexXor.BeginUpdate(); $lvHexXor.Items.Clear()
+    foreach ($xh in $xhits) {
+        $xit = New-Object System.Windows.Forms.ListViewItem($xh.KeyHex)
+        [void]$xit.SubItems.Add("0x$($xh.Offset.ToString('x'))"); [void]$xit.SubItems.Add($xh.Text)
+        $xit.Tag = [int64]$xh.Offset; [void]$lvHexXor.Items.Add($xit)
+    }
+    $lvHexXor.EndUpdate()
+    $lblXorInfo.Text = "$($xhits.Count) hit$(if($xhits.Count -ne 1){'s'})"
+})
+# XOR result click -> jump to offset
+$lvHexXor.Add_Click({
+    if ($lvHexXor.SelectedItems.Count -and $null -ne $lvHexXor.SelectedItems[0].Tag) {
+        Do-GuiHexInspect ([int64]$lvHexXor.SelectedItems[0].Tag)
+    }
+})
+# Strings panel toggle
+$btnHexStrTog.Add_Click({
+    if ($pnlStrWrap.Visible) {
+        $pnlStrWrap.Visible = $false; $btnHexStrTog.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+    } else {
+        $pnlStrWrap.Visible = $true; $btnHexStrTog.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+    }
+})
+# Hash button: compute + copy to clipboard
+$btnHexHash.Add_Click({
+    $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHex.Text = 'load a file first'; return }
+    if (-not (Test-Path -LiteralPath $p -PathType Leaf)) { $lblHex.Text = 'file not found'; return }
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
+    $script:HexHashes = Get-GuiFileHashes $p
+    $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    if (-not $script:HexHashes) { $lblHex.Text = 'hash failed'; return }
+    $h = $script:HexHashes
+    $clip = "MD5:    $($h.MD5)`r`nSHA1:   $($h.SHA1)`r`nSHA256: $($h.SHA256)"
+    [System.Windows.Forms.Clipboard]::SetText($clip)
+    $lblHex.Text = "MD5: $($h.MD5.Substring(0,16))... SHA256: $($h.SHA256.Substring(0,16))... (copied)"
+    $btnHexHash.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+})
+# Byte frequency analysis
+$btnFreqScan.Add_Click({
+    $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblFreqInfo.Text = 'load a file first'; return }
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
+    $bf = Get-GuiByteFrequency $p
+    $form.Cursor = [System.Windows.Forms.Cursors]::Default
+    if (-not $bf -or $bf.Total -eq 0) { $lblFreqInfo.Text = 'empty file'; return }
+    $mx = 0; for ($v = 0; $v -lt 256; $v++) { if ($bf.Counts[$v] -gt $mx) { $mx = $bf.Counts[$v] } }
+    $sorted = 0..255 | Sort-Object { -$bf.Counts[$_] }
+    $nonzero = 0; for ($v = 0; $v -lt 256; $v++) { if ($bf.Counts[$v] -gt 0) { $nonzero++ } }
+    $lvHexFreq.BeginUpdate(); $lvHexFreq.Items.Clear()
+    foreach ($v in $sorted) {
+        $c = $bf.Counts[$v]; if ($c -eq 0) { continue }
+        $pct = [Math]::Round($c * 100.0 / $bf.Total, 2)
+        $barLen = if ($mx -gt 0) { [int][Math]::Round($c * 16.0 / $mx) } else { 0 }
+        $bar = New-Object string '#', $barLen
+        $it = New-Object System.Windows.Forms.ListViewItem("0x$($v.ToString('x2'))")
+        [void]$it.SubItems.Add($c.ToString('N0')); [void]$it.SubItems.Add("$pct"); [void]$it.SubItems.Add($bar)
+        if ($c -eq $mx) { $it.ForeColor = [System.Drawing.Color]::FromArgb(78, 201, 176) }
+        [void]$lvHexFreq.Items.Add($it)
+    }
+    $lvHexFreq.EndUpdate()
+    $lblFreqInfo.Text = "$nonzero/256 distinct bytes"
+})
+# Bookmark add
+$btnBmkAdd.Add_Click({
+    $off = $script:HexHl; if ($off -lt 0) { $off = $script:HexOffset }
+    $note = $txtBmkNote.Text.Trim(); if (-not $note) { $note = "offset 0x$([Convert]::ToString($off, 16))" }
+    $script:HexBookmarks.Add([pscustomobject]@{ Offset = $off; Note = $note })
+    $it = New-Object System.Windows.Forms.ListViewItem("0x$([Convert]::ToString($off, 16))")
+    [void]$it.SubItems.Add($note); $it.Tag = $off; [void]$lvHexBmk.Items.Add($it)
+    $txtBmkNote.Text = ''
+    $lblBmkInfo.Text = "$($script:HexBookmarks.Count) bookmark$(if($script:HexBookmarks.Count -ne 1){'s'})"
+})
+# Bookmark clear
+$btnBmkClear.Add_Click({
+    $script:HexBookmarks.Clear(); $lvHexBmk.Items.Clear()
+    $lblBmkInfo.Text = 'Bookmark the current offset'
+})
+# Bookmark click -> jump
+$lvHexBmk.Add_Click({
+    if ($lvHexBmk.SelectedItems.Count -and $null -ne $lvHexBmk.SelectedItems[0].Tag) {
+        Do-GuiHexInspect ([int64]$lvHexBmk.SelectedItems[0].Tag)
+    }
+})
+# Context menu: copy as hex string
+$hexCtxCopyHex.Add_Click({
+    $p = $script:HexPath; if (-not $p) { return }
+    $buf = New-Object 'byte[]' $script:HexPageSize
+    $fs = [IO.File]::OpenRead($p); try { [void]$fs.Seek($script:HexOffset, 'Begin'); $n = $fs.Read($buf, 0, $buf.Length) } finally { $fs.Dispose() }
+    $sb = New-Object System.Text.StringBuilder ($n * 2)
+    for ($i = 0; $i -lt $n; $i++) { [void]$sb.AppendFormat('{0:x2}', $buf[$i]) }
+    [System.Windows.Forms.Clipboard]::SetText($sb.ToString()); $lblHex.Text = "$n bytes copied as hex string"
+})
+# Context menu: copy as C array
+$hexCtxCopyC.Add_Click({
+    $p = $script:HexPath; if (-not $p) { return }
+    $buf = New-Object 'byte[]' $script:HexPageSize
+    $fs = [IO.File]::OpenRead($p); try { [void]$fs.Seek($script:HexOffset, 'Begin'); $n = $fs.Read($buf, 0, $buf.Length) } finally { $fs.Dispose() }
+    $sb = New-Object System.Text.StringBuilder; [void]$sb.Append("unsigned char buf[$n] = {`r`n    ")
+    for ($i = 0; $i -lt $n; $i++) {
+        [void]$sb.AppendFormat('0x{0:x2}', $buf[$i])
+        if ($i -lt $n - 1) { [void]$sb.Append(', ') }
+        if (($i + 1) % 16 -eq 0 -and $i -lt $n - 1) { [void]$sb.Append("`r`n    ") }
+    }
+    [void]$sb.Append("`r`n};")
+    [System.Windows.Forms.Clipboard]::SetText($sb.ToString()); $lblHex.Text = "$n bytes copied as C array"
+})
+# Context menu: copy as Python bytes
+$hexCtxCopyPy.Add_Click({
+    $p = $script:HexPath; if (-not $p) { return }
+    $buf = New-Object 'byte[]' $script:HexPageSize
+    $fs = [IO.File]::OpenRead($p); try { [void]$fs.Seek($script:HexOffset, 'Begin'); $n = $fs.Read($buf, 0, $buf.Length) } finally { $fs.Dispose() }
+    $sb = New-Object System.Text.StringBuilder; [void]$sb.Append("buf = b'")
+    for ($i = 0; $i -lt $n; $i++) { [void]$sb.AppendFormat('\x{0:x2}', $buf[$i]) }
+    [void]$sb.Append("'")
+    [System.Windows.Forms.Clipboard]::SetText($sb.ToString()); $lblHex.Text = "$n bytes copied as Python bytes"
+})
+# Context menu: copy as PS byte[]
+$hexCtxCopyPs.Add_Click({
+    $p = $script:HexPath; if (-not $p) { return }
+    $buf = New-Object 'byte[]' $script:HexPageSize
+    $fs = [IO.File]::OpenRead($p); try { [void]$fs.Seek($script:HexOffset, 'Begin'); $n = $fs.Read($buf, 0, $buf.Length) } finally { $fs.Dispose() }
+    $sb = New-Object System.Text.StringBuilder; [void]$sb.Append('[byte[]]@(')
+    for ($i = 0; $i -lt $n; $i++) {
+        [void]$sb.AppendFormat('0x{0:x2}', $buf[$i])
+        if ($i -lt $n - 1) { [void]$sb.Append(',') }
+        if (($i + 1) % 20 -eq 0 -and $i -lt $n - 1) { [void]$sb.Append("`r`n") }
+    }
+    [void]$sb.Append(')')
+    [System.Windows.Forms.Clipboard]::SetText($sb.ToString()); $lblHex.Text = "$n bytes copied as PS byte[]"
+})
+# Context menu: bookmark current offset
+$hexCtxBmk.Add_Click({
+    $off = $script:HexHl; if ($off -lt 0) { $off = $script:HexOffset }
+    $script:HexBookmarks.Add([pscustomobject]@{ Offset = $off; Note = "0x$([Convert]::ToString($off, 16))" })
+    $it = New-Object System.Windows.Forms.ListViewItem("0x$([Convert]::ToString($off, 16))")
+    [void]$it.SubItems.Add("0x$([Convert]::ToString($off, 16))"); $it.Tag = $off; [void]$lvHexBmk.Items.Add($it)
+    $lblHex.Text = "Bookmarked offset 0x$([Convert]::ToString($off, 16))"
+})
 
 # Wire the Asar "Hex view" button (created in the Asar top row) now that the Hex tab exists.
 $btnAsarHex.Add_Click({
@@ -1970,7 +2647,7 @@ $btnAsarHex.Add_Click({
 # The GUI reads the assembly InMemory (no file lock) so it never collides with an
 # in-flight audit that also parses the same DLL.
 $tabDec = New-Object System.Windows.Forms.TabPage
-$tabDec.Text = '  DLL Decompiler  '
+$tabDec.Text = ' Decompiler '
 $tabDec.BackColor = [System.Drawing.Color]::FromArgb(13, 16, 22)
 [void]$tabs.TabPages.Add($tabDec)
 
@@ -2216,8 +2893,8 @@ $btnDecCs.Add_Click({
 #                       new TCP connections, and new child processes with timestamps. Poll-based
 #                       and driver-free (not a kernel Procmon), but shows what the app does live.
 $tabPmon = New-Object System.Windows.Forms.TabPage
-$tabPmon.Text = '  Process Monitor  '
-$tabPmon.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$tabPmon.Text = ' ProcMon '
+$tabPmon.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabPmon)
 
 $script:PmonMode = 'live'
@@ -2234,35 +2911,41 @@ $pmYellow = [System.Drawing.Color]::FromArgb(214, 137, 16)
 $pmGrey  = [System.Drawing.Color]::FromArgb(150, 150, 150)
 
 $pmonTop = New-Object System.Windows.Forms.Panel
-$pmonTop.Dock = 'Top'; $pmonTop.Height = 84; $pmonTop.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$pmonTop.Dock = 'Top'; $pmonTop.Height = 84; $pmonTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 # Row 1: mode buttons + process picker
 $btnPmLive = New-Object System.Windows.Forms.Button
 $btnPmLive.Text = "Live watch"; $btnPmLive.Location = New-Object System.Drawing.Point(12, 10); $btnPmLive.Size = New-Object System.Drawing.Size(110, 28); $btnPmLive.FlatStyle = 'Flat'
+$btnPmLive.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmLive.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmLive)
 $btnPmCap = New-Object System.Windows.Forms.Button
 $btnPmCap.Text = "Activity capture"; $btnPmCap.Location = New-Object System.Drawing.Point(126, 10); $btnPmCap.Size = New-Object System.Drawing.Size(130, 28); $btnPmCap.FlatStyle = 'Flat'
+$btnPmCap.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmCap.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmCap)
 $lblPmProc = New-Object System.Windows.Forms.Label
-$lblPmProc.Text = "Process:"; $lblPmProc.Location = New-Object System.Drawing.Point(284, 16); $lblPmProc.Size = New-Object System.Drawing.Size(56, 18)
+$lblPmProc.Text = "Process:"; $lblPmProc.ForeColor = [System.Drawing.Color]::White; $lblPmProc.Location = New-Object System.Drawing.Point(284, 16); $lblPmProc.Size = New-Object System.Drawing.Size(56, 18)
 $pmonTop.Controls.Add($lblPmProc)
 $cmbPmProc = New-Object System.Windows.Forms.ComboBox
 $cmbPmProc.Location = New-Object System.Drawing.Point(340, 12); $cmbPmProc.Size = New-Object System.Drawing.Size(260, 24); $cmbPmProc.DropDownStyle = 'DropDown'
+$cmbPmProc.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbPmProc.ForeColor = [System.Drawing.Color]::White
 $pmonTop.Controls.Add($cmbPmProc)
 $btnPmRefresh = New-Object System.Windows.Forms.Button
 $btnPmRefresh.Text = "Refresh"; $btnPmRefresh.Location = New-Object System.Drawing.Point(606, 11); $btnPmRefresh.Size = New-Object System.Drawing.Size(74, 26)
+$btnPmRefresh.FlatStyle = 'Flat'; $btnPmRefresh.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnPmRefresh.ForeColor = [System.Drawing.Color]::White
 $pmonTop.Controls.Add($btnPmRefresh)
 $lblPmFilter = New-Object System.Windows.Forms.Label
-$lblPmFilter.Text = "Module filter:"; $lblPmFilter.Location = New-Object System.Drawing.Point(694, 16); $lblPmFilter.Size = New-Object System.Drawing.Size(82, 18)
+$lblPmFilter.Text = "Module filter:"; $lblPmFilter.ForeColor = [System.Drawing.Color]::White; $lblPmFilter.Location = New-Object System.Drawing.Point(694, 16); $lblPmFilter.Size = New-Object System.Drawing.Size(82, 18)
 $pmonTop.Controls.Add($lblPmFilter)
 $txtPmonFilter = New-Object System.Windows.Forms.TextBox
 $txtPmonFilter.Location = New-Object System.Drawing.Point(778, 12); $txtPmonFilter.Size = New-Object System.Drawing.Size(180, 24); $txtPmonFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtPmonFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtPmonFilter.ForeColor = [System.Drawing.Color]::White
 $pmonTop.Controls.Add($txtPmonFilter)
 # Row 2: interval / duration + start + stop + status
 $lblPmNum = New-Object System.Windows.Forms.Label
-$lblPmNum.Text = "Refresh interval (s):"; $lblPmNum.Location = New-Object System.Drawing.Point(12, 51); $lblPmNum.Size = New-Object System.Drawing.Size(210, 18)
+$lblPmNum.Text = "Refresh interval (s):"; $lblPmNum.ForeColor = [System.Drawing.Color]::White; $lblPmNum.Location = New-Object System.Drawing.Point(12, 51); $lblPmNum.Size = New-Object System.Drawing.Size(210, 18)
 $pmonTop.Controls.Add($lblPmNum)
 $numPmNum = New-Object System.Windows.Forms.NumericUpDown
 $numPmNum.Location = New-Object System.Drawing.Point(226, 48); $numPmNum.Size = New-Object System.Drawing.Size(60, 24); $numPmNum.Minimum = 0; $numPmNum.Maximum = 3600; $numPmNum.Value = 2
+$numPmNum.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $numPmNum.ForeColor = [System.Drawing.Color]::White
 $pmonTop.Controls.Add($numPmNum)
 $btnPmStart = New-Object System.Windows.Forms.Button
 $btnPmStart.Text = "Start"; $btnPmStart.Location = New-Object System.Drawing.Point(296, 47); $btnPmStart.Size = New-Object System.Drawing.Size(80, 28)
@@ -2270,9 +2953,11 @@ $btnPmStart.BackColor = [System.Drawing.Color]::FromArgb(39, 121, 78); $btnPmSta
 $pmonTop.Controls.Add($btnPmStart)
 $btnPmStop = New-Object System.Windows.Forms.Button
 $btnPmStop.Text = "Stop"; $btnPmStop.Location = New-Object System.Drawing.Point(382, 47); $btnPmStop.Size = New-Object System.Drawing.Size(80, 28); $btnPmStop.Enabled = $false; $btnPmStop.FlatStyle = 'Flat'
+$btnPmStop.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmStop.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmStop)
 $btnPmSave = New-Object System.Windows.Forms.Button
 $btnPmSave.Text = "Save output..."; $btnPmSave.Location = New-Object System.Drawing.Point(470, 47); $btnPmSave.Size = New-Object System.Drawing.Size(104, 28); $btnPmSave.FlatStyle = 'Flat'
+$btnPmSave.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmSave.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmSave)
 $lblPmStatus = New-Object System.Windows.Forms.Label
 $lblPmStatus.Location = New-Object System.Drawing.Point(584, 52); $lblPmStatus.Size = New-Object System.Drawing.Size(540, 18); $lblPmStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
@@ -2480,7 +3165,7 @@ $logLabel = New-Object System.Windows.Forms.Label
 $logLabel.Text = "Live progress (each check fires as it runs)"
 $logLabel.Dock = 'Top'
 $logLabel.Height = 22
-$logLabel.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+$logLabel.BackColor = [System.Drawing.Color]::FromArgb(40, 40, 40); $logLabel.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $logLabel.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
 $split.Panel1.Controls.Add($logLabel)
 
@@ -2499,7 +3184,7 @@ $findLabel = New-Object System.Windows.Forms.Label
 $findLabel.Text = "Findings (live)"
 $findLabel.Dock = 'Top'
 $findLabel.Height = 22
-$findLabel.BackColor = [System.Drawing.Color]::FromArgb(240, 240, 240)
+$findLabel.BackColor = [System.Drawing.Color]::FromArgb(40, 40, 40); $findLabel.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $findLabel.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
 $split.Panel2.Controls.Add($findLabel)
 
@@ -2541,11 +3226,11 @@ $topPanel.Controls.Add($lblStatus)
 $bottomPanel = New-Object System.Windows.Forms.Panel
 $bottomPanel.Dock = 'Bottom'
 $bottomPanel.Height = 34
-$bottomPanel.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
+$bottomPanel.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $form.Controls.Add($bottomPanel)
 
 $lblReports = New-Object System.Windows.Forms.Label
-$lblReports.Text = "Generated reports:"
+$lblReports.Text = "Generated reports:"; $lblReports.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $lblReports.Dock = 'Left'
 $lblReports.Width = 150
 $lblReports.TextAlign = 'MiddleLeft'
@@ -2557,6 +3242,7 @@ $btnOpenHtml.Text = "Open HTML report"
 $btnOpenHtml.Dock = 'Right'
 $btnOpenHtml.Width = 140
 $btnOpenHtml.Enabled = $false
+$btnOpenHtml.FlatStyle = 'Flat'; $btnOpenHtml.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnOpenHtml.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $bottomPanel.Controls.Add($btnOpenHtml)
 
 $btnOpenExcel = New-Object System.Windows.Forms.Button
@@ -2564,6 +3250,7 @@ $btnOpenExcel.Text = "Open Excel report"
 $btnOpenExcel.Dock = 'Right'
 $btnOpenExcel.Width = 140
 $btnOpenExcel.Enabled = $false
+$btnOpenExcel.FlatStyle = 'Flat'; $btnOpenExcel.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnOpenExcel.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $bottomPanel.Controls.Add($btnOpenExcel)
 
 $btnOpenMarkdown = New-Object System.Windows.Forms.Button
@@ -2571,6 +3258,7 @@ $btnOpenMarkdown.Text = "Open Markdown"
 $btnOpenMarkdown.Dock = 'Right'
 $btnOpenMarkdown.Width = 130
 $btnOpenMarkdown.Enabled = $false
+$btnOpenMarkdown.FlatStyle = 'Flat'; $btnOpenMarkdown.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnOpenMarkdown.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $bottomPanel.Controls.Add($btnOpenMarkdown)
 
 $btnOpenFolder = New-Object System.Windows.Forms.Button
@@ -2578,6 +3266,7 @@ $btnOpenFolder.Text = "Open output folder"
 $btnOpenFolder.Dock = 'Right'
 $btnOpenFolder.Width = 140
 $btnOpenFolder.Enabled = $false
+$btnOpenFolder.FlatStyle = 'Flat'; $btnOpenFolder.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnOpenFolder.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $bottomPanel.Controls.Add($btnOpenFolder)
 
 # --- Helper functions ---
@@ -3131,6 +3820,52 @@ $btnExpRun.Add_Click({
             'Invoke-TcpkDpapiCrossUser' {
                 $res = Invoke-TcpkDpapiCrossUser -Path $it.Component
                 Write-Exp "DPAPI decrypt attempt finished. Result: $($res.Title)`r`n" $script:ReconCyan
+            }
+            'New-TcpkIlPatch' {
+                Write-Exp "IL binary patching (requires target DLL path + method). Ready command:`r`n" $script:ReconOrange
+                Write-Exp "  New-TcpkIlPatch -DllPath '<assembly.dll>' -TypeName '<Namespace.Class>' -MethodName '<Check>' -Mode ReturnTrue -OutDir '$pocDir'`r`n"
+                Write-Exp "Modes: ReturnTrue, ReturnFalse, ReturnNull, Nop, FlipBranch, StripSn`r`n"
+                Write-Exp "Produces a patched copy; swap it in to verify the client-side gate is bypassable.`r`n"
+            }
+            'Invoke-TcpkMemoryFlagFlip' {
+                Write-Exp "Memory flag flip (interactive -- must target a running process). Ready command:`r`n" $script:ReconOrange
+                Write-Exp "  Invoke-TcpkMemoryFlagFlip -ProcessName '$prod' -Pattern '<hex-bytes>' -NewBytesHex '01'`r`n"
+                Write-Exp "Dry-run first (no -Apply), then -Apply to patch live memory.`r`n"
+            }
+            'Invoke-TcpkGuiUnlock' {
+                Write-Exp "GUI unlock (interactive -- must target a running process). Ready command:`r`n" $script:ReconOrange
+                Write-Exp "  Invoke-TcpkGuiUnlock -ProcessName '$prod'`r`n"
+                Write-Exp "Dry-run first (no -Apply), then -Apply to enable disabled/hidden controls.`r`n"
+            }
+            'Get-TcpkStoredCredentials' {
+                $res = Get-TcpkStoredCredentials -Confirm -Filter $prod
+                $count = @($res).Count
+                Write-Exp "Credential Manager extraction finished. $count finding(s) returned.`r`n" $script:ReconCyan
+                if ($count -gt 0) { Write-Exp "Check the Findings tab for recovered credentials.`r`n" }
+            }
+            'Test-TcpkCredentialLiveness' {
+                Write-Exp "Credential liveness test (connects to a live service). Ready command:`r`n" $script:ReconOrange
+                Write-Exp "  Test-TcpkCredentialLiveness -Target '<host:port>' -Protocol http -ConfirmActive -Username '<user>' -Password '<pass>'`r`n"
+                Write-Exp "Protocols: http, sql, ftp. Use -BearerToken for token-based auth.`r`n"
+            }
+            'Invoke-TcpkHookBypass' {
+                Write-Exp "Frida hook bypass (launches target with a hook). Ready command:`r`n" $script:ReconOrange
+                Write-Exp "  Invoke-TcpkHookBypass -Target '<app.exe>' -Function '<FuncName>' -ConfirmDynamic`r`n"
+                Write-Exp "Optional: -ReturnValue 1, -Module '<dll>', -DurationSec 20`r`n"
+            }
+            'Invoke-TcpkInputFuzz' {
+                Write-Exp "Input fuzzing (launches target repeatedly). Ready command:`r`n" $script:ReconOrange
+                Write-Exp "  Invoke-TcpkInputFuzz -TargetExe '<app.exe>' -SeedFile '<sample.ext>' -OutDir '$pocDir'`r`n"
+                Write-Exp "Optional: -ArgTemplate '{FUZZ}' -Iterations 25 -TimeoutSec 10`r`n"
+            }
+            'New-TcpkRegistryHijackTemplate' {
+                $exeName = if ("$($it.Component)" -match '[^\\/:]+\.exe') { $matches[0] }
+                           elseif ("$($it.Title)" -match ':\s*(\S+\.exe)') { $matches[1] }
+                           elseif ("$($it.Title)" -match '(\S+)') { $matches[1] } else { 'target.exe' }
+                $mode = if ("$($it.Id)" -match 'ifeo') { 'Ifeo' } else { 'RunKey' }
+                New-TcpkRegistryHijackTemplate -Mode $mode -TargetExe $exeName -OutDir $pocDir | Out-Null
+                Write-Exp "Registry hijack template ($mode) written to: $pocDir`r`n" $script:ReconCyan
+                Write-Exp "Import the .reg on the authorized target to verify the persistence vector.`r`n"
             }
             default {
                 # CVE / version-presence verification (no auto-execution)

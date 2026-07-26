@@ -65,7 +65,7 @@ function Test-TcpkKernelDrivers {
             # Type 1 = kernel driver, Type 2 = file-system driver
             if ($props.Type -in 1,2) {
                 New-TcpkFinding -Module 'os' -RuleId 'driver.installed-service' `
-                    -Severity 'HIGH' -Confidence 'Confirmed' `
+                    -Severity 'MEDIUM' -Confidence 'Confirmed' `
                     -Title "Kernel driver service installed: $($k.PSChildName)" `
                     -File ($k.PSPath -replace 'Microsoft\.PowerShell\.Core\\Registry::','') `
                     -Evidence "ImagePath=$($props.ImagePath); Start=$($props.Start)" -Cwe @('CWE-1188') `

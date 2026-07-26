@@ -38,7 +38,7 @@ function Test-TcpkMsixFrameworkDeps {
             }
             if ($vcImports) {
                 New-TcpkFinding -Module 'manifest' -RuleId 'msix.missing-vclibs-dep' `
-                    -Severity 'HIGH' -Confidence 'Confirmed' `
+                    -Severity 'MEDIUM' -Confidence 'Confirmed' `
                     -Title "$($pe.Name) needs VC runtime but VCLibs is not declared in manifest" `
                     -File $pe.FullName -Evidence "imports: $($vcImports -join ', ')" `
                     -Cwe @('CWE-427') `

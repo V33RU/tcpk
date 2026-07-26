@@ -70,7 +70,7 @@ function Test-TcpkMsixExtensions {
                 $bare  = [IO.Path]::GetFileNameWithoutExtension($alias).ToLowerInvariant()
                 if ($commonTools -notcontains $bare) { continue }
                 New-TcpkFinding -Module 'manifest' -RuleId 'msix.alias-shadowing' `
-                    -Severity 'HIGH' -Confidence 'Inferred' `
+                    -Severity 'MEDIUM' -Confidence 'Inferred' `
                     -Title "Execution alias '$alias' shadows a common command on PATH" `
                     -File $Path -Evidence $alias `
                     -Cwe @('CWE-426','CWE-427') `

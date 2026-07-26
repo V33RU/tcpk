@@ -27,10 +27,21 @@ $script:TcpkAttackMap = @(
     @{ rx = '^uac';                                                                     tech = @('T1548.002 Bypass User Account Control') }
     @{ rx = '^callsites';                                                               tech = @('T1059 Command and Scripting Interpreter') }
     @{ rx = '^(updateflow|poisonedupdate|cve\.)';                                       tech = @('T1195.002 Compromise Software Supply Chain') }
+    @{ rx = '^appdomain\.';                                                              tech = @('T1574.014 AppDomainManager') }
+    @{ rx = '^pe\.(native-aot|il-stripped)';                                             tech = @('T1027 Obfuscated Files or Information') }
+    @{ rx = '^electron\.(wdac-bypass)';                                                  tech = @('T1218 System Binary Proxy Execution','T1574 Hijack Execution Flow') }
+    @{ rx = '^electron\.(squirrel-updater|updater-sig-bypass|update-http)';              tech = @('T1195.002 Compromise Software Supply Chain') }
+    @{ rx = '^clickonce\.';                                                              tech = @('T1195.002 Compromise Software Supply Chain','T1204.001 Malicious Link') }
+    @{ rx = '^msix\.psf';                                                                tech = @('T1059.001 PowerShell','T1546 Event Triggered Execution') }
+    @{ rx = '^dllsearch\.(phantom-dll|sideload)';                                        tech = @('T1574.001 DLL Search Order Hijacking','T1574.002 DLL Side-Loading') }
+    @{ rx = '^comhijack\.';                                                              tech = @('T1546.015 Component Object Model Hijacking') }
+    @{ rx = '^wer\.';                                                                    tech = @('T1005 Data from Local System') }
+    @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
+    @{ rx = '^diag\.';                                                                   tech = @('T1005 Data from Local System','T1530 Data from Cloud Storage') }
     @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
     @{ rx = '^kerneldrivers';                                                           tech = @('T1068 Exploitation for Privilege Escalation') }
     @{ rx = '^(comobjects|comhijack|msixcom)';                                          tech = @('T1559.001 Component Object Model','T1546.015 COM Hijacking') }
-    @{ rx = '^(namedpipe|rpcsurface|mailslot|namedobjects)';                            tech = @('T1559 Inter-Process Communication') }
+    @{ rx = '^(namedpipe|rpcsurface|mailslot|namedobjects|window|sharedmem)';            tech = @('T1559 Inter-Process Communication') }
     @{ rx = '^(authenticode|strongname|codeintegrity)';                                tech = @('T1553.002 Code Signing') }
     @{ rx = '^authflags';                                                               tech = @('T1078 Valid Accounts','T1211 Exploitation for Defense Evasion') }
     @{ rx = '^(wv2|webview)';                                                           tech = @('T1185 Browser Session Hijacking') }
@@ -49,6 +60,15 @@ $script:TcpkAttackMap = @(
     @{ rx = '^intercept\.pii';                                                                           tech = @('T1005 Data from Local System') }
     @{ rx = '^protocol-handler';                                                                         tech = @('T1204.001 Malicious Link','T1559 Inter-Process Communication') }
     @{ rx = '^browser\.(master-key|cookie-key|token)';                                                   tech = @('T1555.003 Credentials from Web Browsers','T1539 Steal Web Session Cookie') }
+    @{ rx = '^clipboard\.';                                                                            tech = @('T1115 Clipboard Data') }
+    @{ rx = '^exploit\.il-patch';                                                                      tech = @('T1554 Compromise Host Software Binary') }
+    @{ rx = '^exploit\.(ifeo-hijack|runkey-persist|appinit-inject)';                                     tech = @('T1546 Event Triggered Execution','T1547 Boot or Logon Autostart Execution') }
+    @{ rx = '^grpc\.(proto-shipped|service-exposed)';                                                    tech = @('T1046 Network Service Discovery') }
+    @{ rx = '^grpc\.reflection';                                                                         tech = @('T1046 Network Service Discovery','T1592 Gather Victim Host Information') }
+    @{ rx = '^wv2\.(sideload|fixed-version-writable)';                                                   tech = @('T1574.002 DLL Side-Loading') }
+    @{ rx = '^amsi\.';                                                                                   tech = @('T1562.001 Disable or Modify Tools') }
+    @{ rx = '^injection\.hollowing';                                                                     tech = @('T1055.012 Process Hollowing') }
+    @{ rx = '^injection\.(dll-inject|apc-inject|suspicious-pinvoke)';                                    tech = @('T1055 Process Injection') }
 )
 
 function Get-TcpkAttackTechnique {
@@ -90,9 +110,20 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^(deser|xxe|csv)\.|callsites\.(command-execution|ldap-query|ssrf|format-string|sql|xpath)|injection';    da = 'DA1 Injections' }
     @{ rx = '^electronjs\.(missing-nav|csp|cmdline|permission)';                                                      da = 'DA6 Security Misconfiguration' }
     @{ rx = '^electronjs\.';                                                                                          da = 'DA1 Injections' }
-    @{ rx = '^(secrets|entropy|appconfigsecrets|dpapiblobs|tokencaches|webviewcreds|processenvsecrets|piiinlogs|memsecret|pii)|^browser\.|^strings\.|devartifact|internal-docs|mem\.hygiene|^pagefile|^memory|wer\.'; da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^(secrets|entropy|appconfigsecrets|dpapiblobs|tokencaches|webviewcreds|processenvsecrets|piiinlogs|memsecret|pii|clipboard)|^browser\.|^strings\.|devartifact|internal-docs|mem\.hygiene|^pagefile|^memory|wer\.'; da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^(authenticode|strongname|codeintegrity|pe-|pe\.|peimports|peexports|native|antidebug|antiinjection|timing|selfintegrity|packer|obfusc|debugflags|procmit|integrity)|loaded\.(unsigned|non-system)|signing'; da = 'DA8 Poor Code Quality' }
-    @{ rx = '^(installdir|folderacl|registry|servicepermissions|servicebin|unquoted|processtoken|process\.dacl|uac|programdata|scheduledtaskacl|kerneldrivers)';            da = 'DA5 Improper Authorization' }
+    @{ rx = '^(installdir|folderacl|registry|servicepermissions|servicebin|unquoted|processtoken|process\.dacl|uac|programdata|scheduledtaskacl|kerneldrivers|sharedmem)';    da = 'DA5 Improper Authorization' }
+    @{ rx = '^appdomain\.';                                                                                         da = 'DA5 Improper Authorization' }
+    @{ rx = '^clickonce\.';                                                                                          da = 'DA7 Insecure Communication' }
+    @{ rx = '^msix\.psf';                                                                                            da = 'DA6 Security Misconfiguration' }
+    @{ rx = '^dllsearch\.';                                                                                           da = 'DA5 Improper Authorization' }
+    @{ rx = '^comhijack\.';                                                                                           da = 'DA5 Improper Authorization' }
+    @{ rx = '^wer\.';                                                                                                 da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^path\.writable';                                                                                        da = 'DA5 Improper Authorization' }
+    @{ rx = '^diag\.';                                                                                                da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^grpc\.';                                                                                                 da = 'DA6 Security Misconfiguration' }
+    @{ rx = '^amsi\.';                                                                                                 da = 'DA8 Poor Code Quality' }
+    @{ rx = '^injection\.';                                                                                            da = 'DA8 Poor Code Quality' }
     @{ rx = '^(firewall|namedpipe|named-object|com|comobjects|electron|avexclusion|autostart|scheduledtask|wmi|protocolhandlers|shimcache|apppaths|ifeo|selfhost|ports|sxs|rpcsurface|mailslot|wv2|webview|window)'; da = 'DA6 Security Misconfiguration' }
     @{ rx = '^(log|logfiles|etw)|telemetry';                                                                          da = 'DA10 Insufficient Logging and Monitoring' }
     @{ rx = '^fuses\.cookie';                                                                                          da = 'DA3 Sensitive Data Exposure' }

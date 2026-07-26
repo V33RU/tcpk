@@ -49,7 +49,7 @@ function Test-TcpkLogFiles {
             }
             if ($hits.Count -gt 0) {
                 New-TcpkFinding -Module 'logging' -RuleId 'log.sensitive-keywords' `
-                    -Severity 'HIGH' -Confidence 'Inferred' `
+                    -Severity 'MEDIUM' -Confidence 'Inferred' `
                     -Title "Sensitive keywords in $($f.Name): $($hits -join ', ')" `
                     -File $f.FullName -Evidence "first 500 lines contain: $($hits -join ', ')" `
                     -Cwe @('CWE-532') `

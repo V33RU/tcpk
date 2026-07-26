@@ -44,13 +44,13 @@ function Test-TcpkDebugFlags {
         @{ s='DisableCSRF';                     t='security-off'; sev='HIGH' }
         @{ s='AllowInsecure';                   t='security-off'; sev='MEDIUM' }
         # --- backdoor-ish ---
-        @{ s='backdoor';                        t='backdoor';     sev='HIGH' }
-        @{ s='godmode';                         t='backdoor';     sev='HIGH' }
-        @{ s='god_mode';                        t='backdoor';     sev='HIGH' }
-        @{ s='masterpassword';                  t='backdoor';     sev='HIGH' }
-        @{ s='master_password';                 t='backdoor';     sev='HIGH' }
-        @{ s='superpassword';                   t='backdoor';     sev='HIGH' }
-        @{ s='magicword';                       t='backdoor';     sev='HIGH' }
+        @{ s='backdoor';                        t='backdoor';     sev='MEDIUM' }
+        @{ s='godmode';                         t='backdoor';     sev='MEDIUM' }
+        @{ s='god_mode';                        t='backdoor';     sev='MEDIUM' }
+        @{ s='masterpassword';                  t='backdoor';     sev='MEDIUM' }
+        @{ s='master_password';                 t='backdoor';     sev='MEDIUM' }
+        @{ s='superpassword';                   t='backdoor';     sev='MEDIUM' }
+        @{ s='magicword';                       t='backdoor';     sev='MEDIUM' }
         # --- debug surface ---
         @{ s='--remote-debugging-port';         t='debug-surface'; sev='LOW' }
         @{ s='--inspect-brk';                   t='debug-surface'; sev='LOW' }

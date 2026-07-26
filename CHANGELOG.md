@@ -2,6 +2,60 @@
 
 Release history for TCPK. Newest first.
 
+## v2.7.0
+
+The biggest detection release yet: 19 new public cmdlets (184 -> 203) covering attack surfaces, DLL hijack paths, IPC channels, and exploit tooling. Full agentic workbench documentation with screenshots of all 13 tabs.
+
+**New static analysis scanners.**
+
+- **Test-TcpkGrpcSurface** -- detects shipped `.proto` files, gRPC service definitions, and reflection-enabled configs. Maps to T1046 Network Service Discovery. (jsmon.sh 2025)
+- **Test-TcpkWv2Sideload** -- flags WebView2 apps vulnerable to `WebView2Loader.dll` sideloading via missing fixed-version runtime. Maps to T1574.002 DLL Side-Loading. (Black Hills InfoSec 2025)
+- **Test-TcpkAmsiSurface** -- identifies AMSI integration points (AmsiInitialize/AmsiScanBuffer) in first-party PEs, flagging the evasion surface. Maps to T1562.001 Disable or Modify Tools. (CrowdStrike VEH2 2025)
+- **Test-TcpkHollowingApis** -- detects process hollowing, DLL injection, and APC injection API sequences (NtUnmapViewOfSection + WriteProcessMemory + SetThreadContext, VirtualAllocEx + CreateRemoteThread, QueueUserAPC). Sequence correlation elevates from MEDIUM (individual API) to HIGH (complete injection chain). Maps to T1055.012 Process Hollowing. (Google Cloud / hasherezade 2025)
+- **Test-TcpkAppDomainHijack** -- scans for AppDomainManager injection surface via `.config` files or registry keys that redirect the CLR's domain manager. Maps to T1574.
+- **Test-TcpkAotBinary** -- detects .NET AOT/NativeAOT/ReadyToRun binaries and gates the IL pipeline (Mono.Cecil cannot decompile AOT-compiled code). Prevents false negatives from silent IL parse failures.
+- **Test-TcpkClickOnce** -- scans ClickOnce deployment manifests (`.application`, `.manifest`) for full-trust permission sets, unsafe file associations, and update-URL hijack surface.
+- **Test-TcpkMsixPsf** -- extracts and analyses MSIX Package Support Framework (PSF) `config.json` scripts. Flags script injection, DLL fixups, and writable VFS redirections.
+- **Test-TcpkPhantomDlls** -- identifies phantom DLL planting opportunities: known DLL names that the target imports but does not ship, which an attacker can plant in the application directory.
+- **Test-TcpkDiagConfig** -- scans for diagnostic configuration exposure: `.diagcfg`, ETW trace configs, WCF diagnostics, and Application Insights keys that leak telemetry endpoints or enable verbose logging.
+- **Test-TcpkDllSideload** -- identifies DLL sideloading candidates by cross-referencing the target's imports against its shipped DLLs, flagging any first-party EXE that loads a DLL it does not bundle.
+
+**New OS / runtime scanners.**
+
+- **Test-TcpkComHijack** -- scans for COM per-user CLSID hijack opportunities: CLSIDs registered under HKLM that an unprivileged user can shadow by writing to HKCU, redirecting COM activation to attacker-controlled code.
+- **Test-TcpkWerExposure** -- checks Windows Error Reporting (WER) crash dump settings for the target process. Flags LocalDumps configurations that write full memory dumps to world-readable directories.
+- **Test-TcpkWritablePath** -- scans the system PATH for directories writable by the current user. Any writable PATH directory is a DLL planting / binary hijack vector.
+- **Test-TcpkSharedMemoryDacl** -- audits shared memory (memory-mapped file) DACLs for open sections that allow cross-process read/write, an IPC tampering vector.
+- **Test-TcpkWindowMessages** -- detects the window message attack surface: registered window classes, message-only windows, clipboard listeners, and WM_COPYDATA handlers.
+- **Test-TcpkClipboardSecrets** -- monitors the clipboard for secrets (API keys, tokens, passwords) placed by the target application. Point-in-time capture; read-only.
+
+**New exploit / PoC tooling.**
+
+- **New-TcpkIlPatch** -- deterministic IL binary patching via Mono.Cecil. Patches a method body in a .NET assembly (NOP a branch, force a return value) and writes the modified binary. Gated behind Enable-TcpkExploit.
+- **New-TcpkRegistryHijackTemplate** -- generates IFEO (Image File Execution Options) and AppInit_DLLs registry persistence PoC `.reg` files for a target executable. Gated behind Enable-TcpkExploit.
+
+**Enhanced existing scanners.**
+
+- **Test-TcpkElectron** -- added electron-updater signature bypass detection and Squirrel.Windows update hijack scanning.
+- **Test-TcpkDebugFlags** -- WDAC bypass detection via signed Electron resource directories.
+- **Test-TcpkSignature** -- NuGet package vulnerability scanning wired into the CVE matching pipeline.
+- Severity re-baseline: downgraded 10 over-rated rules to accurate severity levels.
+- exploit-map.json linkage fixed for 7 existing exploit tools.
+
+**Hex workbench enhancements.**
+
+- PE structure overlay with section-colored hex regions.
+- Entropy heatmap strip alongside the hex view.
+- XOR/decode toolkit in the toolbar.
+- Binary diff (side-by-side compare two files).
+
+**Agentic workbench.**
+
+- Hash-based tab routing (`#tab=N` URL fragment) for direct tab navigation.
+- Full documentation with screenshots of all 13 tabs (`docs/AGENTIC-WORKBENCH.md`).
+
+**Testing.** 5 new test files: AttackSurface2.Tests.ps1, AttackSurface3.Tests.ps1, AdvancedDetection.Tests.ps1, ExploitMapAndRegistry.Tests.ps1, NewSecurityFeatures.Tests.ps1. All ATT&CK, TASVS, and CVSS mappings covered.
+
 ## v2.6.1
 
 An Asar-tab supply-chain audit plus a GUI alignment fix. Cmdlet count unchanged (184; the new helpers are private).

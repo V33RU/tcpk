@@ -1279,6 +1279,7 @@ $('stop').addEventListener('click',async function(){try{await api('/api/shutdown
 refreshAgentChip();
 (function(){var qt=P.get('target');if(qt){$('target').value=qt;$('toAudit').disabled=false;onTargetSet(qt);detect();var mp=P.get('method');if(mp){window._dcDll=qt;window._dcMethod=mp;}var ph=P.get('phase');if(ph){go(+ph);}else{go(3);if(P.get('autorun')==='1'){setTimeout(run,1200);}}if(mp&&ph==='5'){setTimeout(function(){prepReview();runReview();},700);}if(ph==='7'&&P.get('auto')==='1'){setTimeout(runAuto,600);}}})();
 renderDash();
+(function(){var h=window.location.hash.match(/^#tab=(\d+)$/);if(h)go(+h[1]);})();
 function onTargetInput(){var t=val('target').trim();$('toAudit').disabled=!t;window._target=t;window._dcLoaded=false;}
 function onTargetSet(t){window._target=t;$('targetChip').style.display='flex';$('targetChipTxt').textContent=t;}
 function pick(path){$('target').value=path;$('toAudit').disabled=false;onTargetSet(path);detect();}

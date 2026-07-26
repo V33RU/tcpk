@@ -95,7 +95,7 @@ function Test-TcpkEntropySecrets {
                 $seen[$key] = $true
 
                 $red = $tok.Substring(0,6) + '...' + $tok.Substring($tok.Length-4) + " (len=$($tok.Length), H=$ent)"
-                $sev = if ($hasKeyCtx) { 'HIGH' } else { 'MEDIUM' }
+                $sev = 'MEDIUM'
                 New-TcpkFinding -Module 'static' -RuleId 'entropy.high-entropy-token' `
                     -Severity $sev -Confidence 'Inferred' `
                     -Title "High-entropy $($spec.Kind) token in $($f.Name)" `

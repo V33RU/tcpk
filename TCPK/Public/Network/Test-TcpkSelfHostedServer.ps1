@@ -54,7 +54,7 @@ function Test-TcpkSelfHostedServer {
 
         if ($anyBind.Success) {
             New-TcpkFinding -Module 'network' -RuleId 'selfhost.bind-all-interfaces' `
-                -Severity 'HIGH' -Confidence 'Inferred' `
+                -Severity 'MEDIUM' -Confidence 'Inferred' `
                 -Title "Self-hosted server bound to all interfaces in $($pe.Name)" `
                 -File $pe.FullName -Evidence ("markers: " + (($hit | Select-Object -First 4) -join ', ') + " | bind: $($anyBind.Value)") `
                 -Cwe @('CWE-1327','CWE-352') `

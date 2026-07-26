@@ -83,7 +83,7 @@ function Test-TcpkInsecureSchemes {
         }
         foreach ($h in ($wsHosts.Keys | Sort-Object)) {
             New-TcpkFinding -Module 'network' -RuleId 'scheme.cleartext-websocket' `
-                -Severity 'HIGH' -Confidence 'Inferred' `
+                -Severity 'MEDIUM' -Confidence 'Inferred' `
                 -Title "Cleartext ws:// WebSocket: $h" `
                 -File $pe.FullName -Evidence $wsHosts[$h] -Cwe @('CWE-319') `
                 -Description 'Unencrypted WebSocket (ws://). WebSocket URLs in binaries are almost always live connections; cleartext means full message interception and injection. Confirm and migrate to wss://.' `
