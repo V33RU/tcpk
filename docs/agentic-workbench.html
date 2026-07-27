@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCPK - Agentic Workbench</title>
+<meta name="description" content="TCPK Agentic Workbench documentation: screenshots and usage guide for all 13 tabs.">
+<style>
+:root{
+  --bg:#0b0e14; --bg2:#11151f; --panel:#141a26; --line:#222b3a;
+  --fg:#c9d4e3; --muted:#7c8aa0; --accent:#36c2a8; --accent2:#5aa9ff;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent2);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.86em;background:#1b2230;color:#e6edf6;padding:.1em .4em;border-radius:4px}
+pre{margin:0}
+pre code{font-family:var(--mono);font-size:13px;line-height:1.6;border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#0d1117!important;display:block;overflow-x:auto}
+.wrap{display:flex;max-width:1280px;margin:0 auto}
+nav.toc{position:sticky;top:0;align-self:flex-start;width:262px;height:100vh;overflow-y:auto;padding:26px 14px 60px 20px;border-right:1px solid var(--line);background:var(--bg);flex-shrink:0}
+nav.toc .brand{font-family:var(--mono);font-weight:700;font-size:18px;color:#fff;letter-spacing:.5px}
+nav.toc .brand span{color:var(--accent)}
+nav.toc .ver{color:var(--muted);font-size:12px;font-family:var(--mono);margin:2px 0 18px}
+nav.toc a{display:block;color:var(--muted);font-size:13px;padding:4px 8px;border-radius:6px;border-left:2px solid transparent}
+nav.toc a:hover{color:var(--fg);background:var(--bg2);text-decoration:none}
+nav.toc .grp{color:#56627a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 4px 8px}
+nav.toc .back{color:var(--accent);font-size:13px;margin-bottom:14px;display:inline-block}
+main{flex:1;min-width:0;padding:0 40px 120px;max-width:1000px}
+header.hero{padding:48px 0 32px;border-bottom:1px solid var(--line)}
+header.hero h1{font-size:34px;margin:0 0 6px;color:#fff;letter-spacing:-.5px}
+header.hero .tag{font-size:16px;color:var(--accent);font-weight:600;margin:0 0 12px}
+header.hero p{color:var(--fg);max-width:760px}
+h2{font-size:24px;color:#fff;margin:48px 0 6px;padding-top:14px;letter-spacing:-.3px}
+h3{font-size:18px;color:#e6edf6;margin:30px 0 8px}
+h4{font-size:15px;color:var(--accent2);margin:20px 0 6px;font-family:var(--mono)}
+hr{border:0;border-top:1px solid var(--line);margin:36px 0}
+figure{margin:24px 0}
+figure img{width:100%;border:1px solid var(--line);border-radius:10px;display:block}
+figcaption{color:var(--muted);font-size:13px;margin-top:8px;text-align:center}
+.how{background:var(--bg2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+.how b{color:#fff}
+ul{padding-left:22px}
+li{margin:4px 0}
+footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var(--muted);font-size:13px}
+.kicker{font-family:var(--mono);color:var(--accent);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+.security{background:var(--bg2);border:1px solid var(--line);border-left:3px solid var(--accent2);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+.security b{color:#fff}
+@media(max-width:900px){nav.toc{display:none}main{padding:0 20px 80px}header.hero h1{font-size:26px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand">TC<span>PK</span></div>
+  <div class="ver">Agentic Workbench</div>
+  <a href="index.html" class="back">&larr; Back to main docs</a>
+  <div class="grp">Overview</div>
+  <a href="#dashboard">Dashboard</a>
+  <div class="grp">Guided scan</div>
+  <a href="#connect">1 -- Connect</a>
+  <a href="#target">2 -- Target</a>
+  <a href="#audit">3 -- Audit</a>
+  <a href="#decompile">4 -- Decompile</a>
+  <a href="#ai-review">5 -- AI review</a>
+  <a href="#report">6 -- Report</a>
+  <div class="grp">Autonomous</div>
+  <a href="#agent">7 -- Agent</a>
+  <div class="grp">Active testing</div>
+  <a href="#intercept">8 -- Intercept</a>
+  <a href="#runtime">9 -- Runtime</a>
+  <a href="#process">12 -- Process</a>
+  <div class="grp">Files</div>
+  <a href="#asar">10 -- Asar</a>
+  <a href="#hex">11 -- Hex</a>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="kicker">Agentic workbench documentation</div>
+  <h1>TCPK Agentic Workbench</h1>
+  <p class="tag">13 tabs -- screenshots and usage guide</p>
+  <p>The agentic workbench is a browser-based UI for TCPK that runs on a secure loopback-only HTTP server. It provides a guided pentest workflow, an autonomous AI agent, and specialised file/process inspection tools -- all from your browser.</p>
+  <pre><code>Import-Module .\TCPK\TCPK.psd1
+Start-TcpkAgentic            # opens your browser automatically</code></pre>
+</header>
+
+<div class="security">
+<b>Security model:</b>
+<ul>
+<li>Binds to 127.0.0.1 only (not reachable from the network).</li>
+<li>Every API request must carry the per-session token (in the URL).</li>
+<li>Host header validated (anti DNS-rebind).</li>
+<li>Discovery only -- the exploit bucket (K01--K06) is never reachable.</li>
+</ul>
+</div>
+
+<hr>
+
+<section id="dashboard">
+<h2>Dashboard (Overview)</h2>
+<figure><img src="screenshots/dashboard.png" alt="TCPK Agentic Dashboard"></figure>
+<p>The landing page. After you run an audit (step 3) the dashboard populates with:</p>
+<ul>
+<li><b>Severity KPI cards</b> -- counts of Critical, High, Medium, Low, Info findings plus the maximum CVSS v4.0 score.</li>
+<li><b>Findings by severity</b> -- a horizontal bar chart breaking down finding counts.</li>
+<li><b>Assurance donut</b> -- shows how many findings are <em>Proven</em> (Confirmed IL / dynamic), <em>Leads</em> (Inferred, need triage), and <em>Likely-FP</em> (IL-demoted).</li>
+<li><b>CVSS band</b> -- a colour-coded strip showing the distribution of CVSS scores across Critical / High / Medium / Low.</li>
+<li><b>Top findings table</b> -- the most important findings sorted by severity and confidence. Act on proven findings first.</li>
+</ul>
+<div class="how"><b>How to use:</b> Run an audit first (step 3). Return here at any time to see the overall posture.</div>
+</section>
+
+<hr>
+
+<section id="connect">
+<h2>1 -- Connect (session + agent)</h2>
+<figure><img src="screenshots/connect.png" alt="TCPK Agentic Connect tab"></figure>
+<p>Configure the AI agent that verifies findings and reviews decompiled code.</p>
+<ul>
+<li><b>Provider</b> -- choose between ollama (local, default), Claude, OpenAI, Gemini, Grok, DeepSeek, or a custom endpoint.</li>
+<li><b>Model</b> -- the model name (e.g. <code>qwen2.5-coder:7b</code> for ollama).</li>
+<li><b>API key</b> -- needed for cloud providers; leave blank for local ollama.</li>
+<li><b>Custom base URL</b> -- for a local server like LM Studio (<code>http://127.0.0.1:1234/v1</code>).</li>
+<li><b>Allow cloud egress</b> -- uncheck to keep everything on your machine.</li>
+<li><b>Test agent</b> -- verifies the agent connection.</li>
+</ul>
+<div class="how"><b>How to use:</b> Pick ollama (local) for a zero-egress setup, or a cloud agent if you prefer. Click "Test agent" to confirm, then "Continue to Target".</div>
+</section>
+
+<hr>
+
+<section id="target">
+<h2>2 -- Target (pick the app)</h2>
+<figure><img src="screenshots/target.png" alt="TCPK Agentic Target tab"></figure>
+<p>Point TCPK at the application you want to audit.</p>
+<ul>
+<li><b>Target path</b> -- paste a path to an install directory, EXE, DLL, or an MSIX/MSI/ZIP file (auto-unwrapped).</li>
+<li><b>Search installed apps</b> -- type a partial name and click Search to find installed applications, or click "List all" to see every installed app.</li>
+<li><b>Auto-Detect</b> -- auto-identifies the app framework, runtime, and signer.</li>
+</ul>
+<div class="how"><b>How to use:</b> Paste a path like <code>C:\Program Files\Acme\Desktop</code> or search for an installed app by name. Click "Continue to Audit".</div>
+</section>
+
+<hr>
+
+<section id="audit">
+<h2>3 -- Audit (discovery scan)</h2>
+<figure><img src="screenshots/audit.png" alt="TCPK Agentic Audit tab"></figure>
+<p>Run the discovery scan. Findings stream in live with the evidence ladder (Inferred / Confirmed / Confirmed (IL)).</p>
+<ul>
+<li><b>Profile</b> -- Full (all checks), Standard, or Quick (skip slow OS scans).</li>
+<li><b>Deep runtime</b> -- enable deep runtime checks (process memory, handles).</li>
+<li><b>Online CVE</b> -- query OSV (NuGet/Electron) and NVD/CPE (native libs) for live CVE data.</li>
+<li><b>AI-verify findings</b> -- the selected agent reviews each Inferred finding.</li>
+<li><b>Run audit / Pause / Resume / Cancel</b> -- control the scan.</li>
+<li><b>Severity counters</b> -- live KPI tiles and severity filter chips.</li>
+<li><b>Findings table</b> -- sortable by severity, confidence, rule, and title.</li>
+</ul>
+<div class="how"><b>How to use:</b> Set profile and options, click "Run audit". Findings stream into the triage table. Filter by severity chip. Click a finding to expand its evidence.</div>
+</section>
+
+<hr>
+
+<section id="decompile">
+<h2>4 -- Decompile (code to source)</h2>
+<figure><img src="screenshots/decompile.png" alt="TCPK Agentic Decompile tab"></figure>
+<p>Disassemble .NET modules to IL with Mono.Cecil. Sink-bearing methods are flagged; native modules show PE metadata instead.</p>
+<ul>
+<li><b>Load modules from target</b> -- enumerates all DLLs and EXEs in the target folder.</li>
+<li><b>Modules panel</b> -- pick a module to see its types and methods.</li>
+<li><b>Methods (sink-bearing)</b> -- methods that call known dangerous sinks are listed here.</li>
+<li><b>Decompiled IL</b> -- the raw IL body with sink calls highlighted in red.</li>
+<li><b>Sinks in method</b> -- a summary of which sinks the method calls.</li>
+<li><b>select all / Audit selected</b> -- tick modules and run a focused TCPK audit on just those binaries.</li>
+<li><b>Send to AI review</b> -- sends the selected method to the AI review tab.</li>
+</ul>
+<div class="how"><b>How to use:</b> Click "Load modules from target", pick a module, pick a sink-bearing method, review the IL. Use "Audit selected" for a focused scan, or "Send to AI review" for an AI opinion.</div>
+</section>
+
+<hr>
+
+<section id="ai-review">
+<h2>5 -- AI review (line-by-line)</h2>
+<figure><img src="screenshots/ai-review.png" alt="TCPK Agentic AI review tab"></figure>
+<p>The selected agent reads the method's decompiled IL and judges exploitability. The IL prover's reachability verdict is shown alongside, so you get deterministic facts next to the model's opinion (advisory only -- the prover never overrides).</p>
+<ul>
+<li><b>Decompiled IL</b> -- the method's IL body.</li>
+<li><b>Agent verdict + IL cross-check</b> -- the AI's assessment with the prover's ground truth.</li>
+<li><b>Run AI review</b> -- starts the agent review.</li>
+</ul>
+<div class="how"><b>How to use:</b> In the Decompile tab (step 4), pick a method and click "Send to AI review". Then come here and click "Run AI review". The agent reads the IL, the prover cross-checks, and you get a grounded assessment.</div>
+</section>
+
+<hr>
+
+<section id="report">
+<h2>6 -- Report (export)</h2>
+<figure><img src="screenshots/report.png" alt="TCPK Agentic Report tab"></figure>
+<p>Download the generated reports after an audit completes.</p>
+<p>Available report formats:</p>
+<ul>
+<li><b>Markdown</b> -- human-readable summary with findings, evidence, and remediation.</li>
+<li><b>SARIF</b> -- machine-readable format for IDE integration.</li>
+<li><b>Intel HTML</b> -- self-contained HTML report with interactive filtering.</li>
+<li><b>Checklist XLSX</b> -- maps findings to the OWASP TASVS checklist.</li>
+<li><b>findings.json</b> -- raw JSON for scripting and CI pipelines.</li>
+</ul>
+<div class="how"><b>How to use:</b> Run an audit first (step 3). The download links appear here when it finishes.</div>
+</section>
+
+<hr>
+
+<section id="agent">
+<h2>7 -- Agent (autonomous / full auto)</h2>
+<figure><img src="screenshots/agent.png" alt="TCPK Agentic Agent tab"></figure>
+<p>The autonomous mode. You give a goal in plain English; a local model then investigates on its own -- it reads the code, picks which methods to inspect, walks the call graph, and submits what it believes are bugs. The deterministic IL prover re-checks every submission and marks it: <b>CONFIRMED</b> (proven path to the sink), <b>NEEDS REVIEW</b>, or <b>REFUTED</b>.</p>
+<ul>
+<li><b>Goal</b> -- describe what you want the agent to find (e.g. "Find the most serious vulnerabilities in this .NET target").</li>
+<li><b>Agent transcript</b> -- a live feed of the agent's reason/act/observe loop.</li>
+<li><b>Findings (IL-grounded)</b> -- the agent's submitted findings with prover verdicts.</li>
+</ul>
+<div class="how"><b>How to use:</b> Set a target (step 2), type a goal, click "Run autonomous agent". Watch the transcript as the agent investigates. Findings are verdict-tagged by the IL prover. Local ollama only.</div>
+</section>
+
+<hr>
+
+<section id="intercept">
+<h2>8 -- Intercept (review capture)</h2>
+<figure><img src="screenshots/intercept.png" alt="TCPK Agentic Intercept tab"></figure>
+<p>Review a captured traffic session as findings. Capture with the CLI (<code>Invoke-TcpkIntercept</code>, gated) using mitmproxy (proxy mode) or Frida (hook mode), then load the capture file here.</p>
+<ul>
+<li><b>Capture file</b> -- path to a mitmproxy <code>flows.jsonl</code> or Frida <code>hook.log</code>.</li>
+<li><b>Kind</b> -- proxy (mitmproxy) or hook (Frida).</li>
+<li><b>Load capture</b> -- parses the file and produces findings (credentials, tokens, cleartext transport, endpoints).</li>
+</ul>
+<div class="how"><b>How to use:</b> After running <code>Invoke-TcpkIntercept</code> from the CLI, point this tab at the output file and click "Load capture". Findings from the wire appear in the triage table.</div>
+</section>
+
+<hr>
+
+<section id="runtime">
+<h2>9 -- Runtime / Live (live process)</h2>
+<figure><img src="screenshots/runtime.png" alt="TCPK Agentic Runtime tab"></figure>
+<p>Read-only live checks on a running process. Type the process name (or reuse your target), then click a check button.</p>
+<h4>Process checks</h4>
+<ul>
+<li>Loaded Modules, Module Signatures, Listening Ports, Process Token, Mitigations, Process DACL, Env Secrets, Child Procs, Handles, Windows, GUI Inspector</li>
+</ul>
+<h4>System-wide checks</h4>
+<ul>
+<li>Named Pipes, Pipe DACLs, ALPC / Mailslots</li>
+</ul>
+<h4>Target path checks</h4>
+<ul>
+<li>COM Objects, Named Objects, RPC Surface</li>
+</ul>
+<div class="how"><b>How to use:</b> Type a process name (e.g. <code>notepad</code>), click any check button. Results stream into the output pane. Colour-coded by category: grey = process, amber = trace (ETW, needs admin), blue = system, green = target-path, teal = clipboard, red = gated.</div>
+</section>
+
+<hr>
+
+<section id="asar">
+<h2>10 -- Asar (unpack + browse)</h2>
+<figure><img src="screenshots/asar.png" alt="TCPK Agentic Asar tab"></figure>
+<p>Electron apps ship their real code as JavaScript inside <code>resources\app.asar</code>. Unpack it here to browse and read the source -- this is the code that matters for security review.</p>
+<ul>
+<li><b>Extract app.asar</b> -- unpacks the archive from the target.</li>
+<li><b>Filter files</b> -- narrow the file list (e.g. <code>.js</code>, <code>index</code>, <code>config</code>, <code>token</code>).</li>
+<li><b>Files panel</b> -- the extracted file tree.</li>
+<li><b>Source panel</b> -- click a file to view its source code.</li>
+<li><b>Analyze folder in Audit</b> -- run a focused TCPK audit on the extracted source.</li>
+<li><b>npm audit</b> -- run a supply-chain audit on bundled node_modules.</li>
+</ul>
+<div class="how"><b>How to use:</b> Set a target (step 2) that is an Electron app, click "Extract app.asar". Browse the source, filter by keyword, and review the JavaScript. Use "npm audit" for supply-chain checks.</div>
+</section>
+
+<hr>
+
+<section id="hex">
+<h2>11 -- Hex (byte view)</h2>
+<figure><img src="screenshots/hex.png" alt="TCPK Agentic Hex tab"></figure>
+<p>Raw hex + ASCII view of any in-scope file -- a native DLL, or a file from an unpacked asar.</p>
+<ul>
+<li><b>File path</b> -- enter a path and click "Load".</li>
+<li><b>Navigation</b> -- prev/next page, go to hex offset.</li>
+<li><b>Find</b> -- search for an ASCII or hex pattern.</li>
+<li><b>Strings</b> -- extract strings with a minimum length, filter by substring, in ascii, wide (UTF-16), or both.</li>
+<li><b>Data Inspector</b> -- click a hex row to inspect the bytes at that offset as typed values (int8/16/32/64, float, double, UTF-8/16).</li>
+</ul>
+<div class="how"><b>How to use:</b> Enter a file path and click "Load". Browse the hex view, use "Go" to jump to an offset, "Find next" to search for patterns, or "List strings" to extract readable strings from the binary.</div>
+</section>
+
+<hr>
+
+<section id="process">
+<h2>12 -- Process (live watch)</h2>
+<figure><img src="screenshots/process.png" alt="TCPK Agentic Process tab"></figure>
+<p>Continuously re-reads ONE running process -- identity, memory, loaded modules, TCP connections, child processes -- refreshing on an interval. Read-only: it observes live state, never launches, injects, or dumps.</p>
+<ul>
+<li><b>Process</b> -- name or PID to watch.</li>
+<li><b>Refresh list</b> -- dropdown of currently running processes.</li>
+<li><b>every (s)</b> -- refresh interval (default 2 seconds).</li>
+<li><b>Module filter</b> -- filter loaded modules by substring.</li>
+<li><b>Start / Stop</b> -- begin or end the live watch.</li>
+</ul>
+<div class="how"><b>How to use:</b> Pick a process by name or PID, set the interval, click "Start". The display auto-refreshes with the latest state. Use the module filter to narrow the module list.</div>
+</section>
+
+<footer>
+<p>TCPK &middot; Agentic Workbench documentation &middot; <a href="index.html">Back to main docs</a> &middot; <a href="gui-workbench.html">GUI workbench docs</a></p>
+</footer>
+</main>
+</div>
+
+<script>
+var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a[href^="#"]'));
+var sections = links.map(function(a){return document.querySelector(a.getAttribute('href'))}).filter(Boolean);
+window.addEventListener('scroll',function(){
+  var y = window.scrollY + 120;
+  var cur = null;
+  sections.forEach(function(s,i){if(s.offsetTop <= y) cur = i});
+  links.forEach(function(a,i){a.style.color = i===cur ? '#fff' : ''; a.style.borderLeftColor = i===cur ? 'var(--accent)' : 'transparent'});
+});
+</script>
+</body>
+</html>

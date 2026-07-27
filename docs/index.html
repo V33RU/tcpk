@@ -102,8 +102,8 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <div class="grp">Operate</div>
   <a href="#reports">Reporting outputs</a>
   <a href="#usage">Usage (CLI / GUI / MCP)</a>
-  <a href="https://github.com/V33RU/tcpk/blob/main/docs/GUI-WORKBENCH.md" class="h2">GUI docs (15 tabs)</a>
-  <a href="https://github.com/V33RU/tcpk/blob/main/docs/AGENTIC-WORKBENCH.md" class="h2">Agentic docs (13 tabs)</a>
+  <a href="gui-workbench.html" class="h2">GUI docs (15 tabs)</a>
+  <a href="agentic-workbench.html" class="h2">Agentic docs (13 tabs)</a>
   <a href="#install">Install</a>
   <a href="#auth">Authorization</a>
 </nav>
@@ -513,7 +513,7 @@ Invoke-TcpkAudit -Target 'C:\App' -Acknowledge -EnableLlm -AllowCloudLlm</code><
 Start-TcpkAgentic
 # or run the autonomous agent headless:
 Invoke-TcpkAgentAudit -Target 'C:\App' -Goal 'Find deserialization bugs' -Model 'qwen2.5-coder:7b'</code></pre>
-<p><a href="https://github.com/V33RU/tcpk/blob/main/docs/AGENTIC-WORKBENCH.md">Full agentic workbench documentation with screenshots of all 13 tabs</a>.</p>
+<p><a href="agentic-workbench.html">Full agentic workbench documentation with screenshots of all 13 tabs</a>.</p>
 </section>
 
 <section id="mapping">
@@ -572,7 +572,7 @@ Get-TcpkCvssVector $finding                # the computed v4.0 vector</code></pr
 .\TCPK.bat
 # or directly
 powershell -STA -ExecutionPolicy Bypass -File .\Start-TCPKGui.ps1</code></pre>
-<p>Pick a target, click <b>Run Audit</b>, watch the progress bar and findings stream in. 15 tabs: Dashboard, Audit, Recon, Exploits, SBOM, Mitigations, Signing, Logs, Intercept, Creds, Runtime, Asar, Hex, Decompiler, and ProcMon. The AI provider, model (free-text), and key are configured inline. <a href="https://github.com/V33RU/tcpk/blob/main/docs/GUI-WORKBENCH.md">Full GUI documentation with screenshots of all 15 tabs</a>.</p>
+<p>Pick a target, click <b>Run Audit</b>, watch the progress bar and findings stream in. 15 tabs: Dashboard, Audit, Recon, Exploits, SBOM, Mitigations, Signing, Logs, Intercept, Creds, Runtime, Asar, Hex, Decompiler, and ProcMon. The AI provider, model (free-text), and key are configured inline. <a href="gui-workbench.html">Full GUI documentation with screenshots of all 15 tabs</a>.</p>
 <h4>Web control panel</h4>
 <pre><code class="language-powershell"># loopback-only (127.0.0.1), token-gated, discovery-only -- prints a URL+token, opens your browser
 .\TCPK-WebUI.bat</code></pre>

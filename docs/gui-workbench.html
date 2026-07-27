@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCPK - Desktop GUI Workbench</title>
+<meta name="description" content="TCPK Desktop GUI documentation: screenshots and usage guide for all 15 tabs.">
+<style>
+:root{
+  --bg:#0b0e14; --bg2:#11151f; --panel:#141a26; --line:#222b3a;
+  --fg:#c9d4e3; --muted:#7c8aa0; --accent:#36c2a8; --accent2:#5aa9ff;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:var(--accent2);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--mono);font-size:.86em;background:#1b2230;color:#e6edf6;padding:.1em .4em;border-radius:4px}
+pre{margin:0}
+pre code{font-family:var(--mono);font-size:13px;line-height:1.6;border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#0d1117!important;display:block;overflow-x:auto}
+.wrap{display:flex;max-width:1280px;margin:0 auto}
+nav.toc{position:sticky;top:0;align-self:flex-start;width:262px;height:100vh;overflow-y:auto;padding:26px 14px 60px 20px;border-right:1px solid var(--line);background:var(--bg);flex-shrink:0}
+nav.toc .brand{font-family:var(--mono);font-weight:700;font-size:18px;color:#fff;letter-spacing:.5px}
+nav.toc .brand span{color:var(--accent)}
+nav.toc .ver{color:var(--muted);font-size:12px;font-family:var(--mono);margin:2px 0 18px}
+nav.toc a{display:block;color:var(--muted);font-size:13px;padding:4px 8px;border-radius:6px;border-left:2px solid transparent}
+nav.toc a:hover{color:var(--fg);background:var(--bg2);text-decoration:none}
+nav.toc .grp{color:#56627a;font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:16px 0 4px 8px}
+nav.toc .back{color:var(--accent);font-size:13px;margin-bottom:14px;display:inline-block}
+main{flex:1;min-width:0;padding:0 40px 120px;max-width:1000px}
+header.hero{padding:48px 0 32px;border-bottom:1px solid var(--line)}
+header.hero h1{font-size:34px;margin:0 0 6px;color:#fff;letter-spacing:-.5px}
+header.hero .tag{font-size:16px;color:var(--accent);font-weight:600;margin:0 0 12px}
+header.hero p{color:var(--fg);max-width:760px}
+h2{font-size:24px;color:#fff;margin:48px 0 6px;padding-top:14px;letter-spacing:-.3px}
+h3{font-size:18px;color:#e6edf6;margin:30px 0 8px}
+h4{font-size:15px;color:var(--accent2);margin:20px 0 6px;font-family:var(--mono)}
+hr{border:0;border-top:1px solid var(--line);margin:36px 0}
+figure{margin:24px 0}
+figure img{width:100%;border:1px solid var(--line);border-radius:10px;display:block}
+figcaption{color:var(--muted);font-size:13px;margin-top:8px;text-align:center}
+.how{background:var(--bg2);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+.how b{color:#fff}
+ul{padding-left:22px}
+li{margin:4px 0}
+footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var(--muted);font-size:13px}
+.kicker{font-family:var(--mono);color:var(--accent);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+@media(max-width:900px){nav.toc{display:none}main{padding:0 20px 80px}header.hero h1{font-size:26px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc">
+  <div class="brand">TC<span>PK</span></div>
+  <div class="ver">Desktop GUI</div>
+  <a href="index.html" class="back">&larr; Back to main docs</a>
+  <div class="grp">Overview</div>
+  <a href="#common">Common controls</a>
+  <a href="#dashboard">Dashboard</a>
+  <div class="grp">Scan</div>
+  <a href="#audit">Audit</a>
+  <a href="#recon">Recon</a>
+  <a href="#exploits">Exploits</a>
+  <a href="#sbom">SBOM</a>
+  <a href="#mitigations">Mitigations</a>
+  <a href="#signing">Signing</a>
+  <a href="#logs">Logs</a>
+  <div class="grp">Active testing</div>
+  <a href="#intercept">Intercept</a>
+  <a href="#creds">Creds</a>
+  <div class="grp">Runtime</div>
+  <a href="#runtime">Runtime</a>
+  <a href="#procmon">ProcMon</a>
+  <div class="grp">Files</div>
+  <a href="#asar">Asar</a>
+  <a href="#hex">Hex</a>
+  <a href="#decompiler">Decompiler</a>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="kicker">Desktop GUI documentation</div>
+  <h1>TCPK Desktop GUI</h1>
+  <p class="tag">15 tabs -- screenshots and usage guide</p>
+  <p>The desktop GUI is a native WinForms application that runs directly on Windows -- no browser required. It provides the same discovery scan, plus exploit PoC generation, credential extraction, traffic interception, live runtime inspection, and binary analysis tools.</p>
+  <pre><code>Import-Module .\TCPK\TCPK.psd1
+Start-TCPKGui</code></pre>
+</header>
+
+<section id="common">
+<h2>Common controls (top bar)</h2>
+<p>Every tab shares the same top bar:</p>
+<ul>
+<li><b>Target</b> -- paste or browse to an MSIX file, install folder, EXE, or DLL.</li>
+<li><b>Browse / Auto-Detect</b> -- file picker and automatic framework/runtime identification.</li>
+<li><b>Profile</b> -- Full (all checks), Standard, or Quick.</li>
+<li><b>PackageName / ProcessName</b> -- optional filters for MSIX package or running process name.</li>
+<li><b>Online CVE</b> -- query OSV and NVD for live CVE data during the scan.</li>
+<li><b>AI-verify findings</b> -- enable AI agent verification (configure provider/model/API key on the same row).</li>
+<li><b>Font / Size / Theme</b> -- adjust the GUI appearance.</li>
+<li><b>Run Audit / Pause</b> -- start or pause the discovery scan.</li>
+</ul>
+<p>The bottom bar shows report links (HTML, Excel, Markdown) and the authorization disclaimer.</p>
+</section>
+
+<hr>
+
+<section id="dashboard">
+<h2>Dashboard</h2>
+<figure><img src="screenshots/gui-dashboard.png" alt="TCPK GUI Dashboard tab"></figure>
+<p>The landing page. After an audit completes, the dashboard populates with:</p>
+<ul>
+<li><b>Severity KPI cards</b> -- counts of Critical, High, Medium, Low, Info findings plus the maximum CVSS v4.0 score.</li>
+<li><b>Findings by severity</b> -- horizontal bar chart showing the distribution of findings.</li>
+<li><b>Assurance donut</b> -- shows the ratio of Proven (Confirmed IL / dynamic) vs Leads (Inferred, need triage) vs Likely-FP (IL-demoted).</li>
+<li><b>Top findings table</b> -- the most important findings sorted by severity and confidence, with columns: SEV, RULE, FINDING, CONFIDENCE, CVSS, LOCATION.</li>
+</ul>
+<div class="how"><b>How to use:</b> Set a target in the top bar, click "Run Audit", then return to Dashboard to see the overall security posture at a glance.</div>
+</section>
+
+<hr>
+
+<section id="audit">
+<h2>Audit</h2>
+<figure><img src="screenshots/gui-audit.png" alt="TCPK GUI Audit tab"></figure>
+<p>The main scan tab. Findings stream in live as each check runs.</p>
+<ul>
+<li><b>Left panel</b> -- live audit log showing each check as it executes, with timing information and severity-coloured output.</li>
+<li><b>Right panel</b> -- findings list with sortable columns.</li>
+<li><b>Splitter</b> -- drag to resize the log vs findings panels.</li>
+</ul>
+<div class="how"><b>How to use:</b> Click "Run Audit" in the top bar. Watch the log on the left as checks execute. Findings appear on the right as they are discovered. Click a finding to see its full evidence and remediation detail.</div>
+</section>
+
+<hr>
+
+<section id="recon">
+<h2>Recon</h2>
+<figure><img src="screenshots/gui-recon.png" alt="TCPK GUI Recon tab"></figure>
+<p>Target reconnaissance profile -- a comprehensive summary of the application's identity and attack surface.</p>
+<ul>
+<li><b>Profile output</b> -- read-only console showing the full recon report: app framework, runtime version, signer, architecture, file counts, network endpoints, registry footprint, and more.</li>
+</ul>
+<div class="how"><b>How to use:</b> Set a target and click "Run Audit" (or "Auto-Detect"). The recon profile populates automatically. Use it to understand what kind of application you are testing (Electron, .NET WPF, native C++, MSIX-packaged, etc.) before diving into findings.</div>
+</section>
+
+<hr>
+
+<section id="exploits">
+<h2>Exploits</h2>
+<figure><img src="screenshots/gui-exploits.png" alt="TCPK GUI Exploits tab"></figure>
+<p>Exploit plan and PoC generation. Every exploit module is gated behind an authorization checkbox.</p>
+<ul>
+<li><b>Authorization banner</b> -- "EXPLOIT modules generate PoC artifacts (Frida scripts, proxy DLLs, manifests) for AUTHORIZED testing only."</li>
+<li><b>Authorization checkbox</b> -- tick "I am authorized to test this target" to enable the exploit modules.</li>
+<li><b>Exploit list</b> -- ListView with columns: Kind, Sev, ID, Module/Area, Status. Populated after an audit discovers exploitable findings.</li>
+<li><b>Detail panel</b> -- select a row to see the exploit/verification detail and the generated PoC code.</li>
+<li><b>Generate PoC + Verify</b> -- button (bottom-right) to generate the PoC artifact and run verification. Disabled until the authorization checkbox is ticked.</li>
+</ul>
+<div class="how"><b>How to use:</b> Run an audit first. The exploit list shows which findings have PoC generators. Tick the authorization checkbox, select an exploit, and click "Generate PoC + Verify". The PoC script or artifact is written to the output folder.</div>
+</section>
+
+<hr>
+
+<section id="sbom">
+<h2>SBOM</h2>
+<figure><img src="screenshots/gui-sbom.png" alt="TCPK GUI SBOM tab"></figure>
+<p>Software Bill of Materials -- every component bundled with the target application.</p>
+<ul>
+<li><b>Filter</b> -- type to narrow the component list by name, version, or type.</li>
+<li><b>Component table</b> -- ListView with columns: Component, Version, Type, Publisher, purl, SHA-256, CVEs.</li>
+</ul>
+<div class="how"><b>How to use:</b> Run an audit. The SBOM table populates with every identifiable component (DLLs, NuGet packages, Electron modules, native libraries). Filter by name to find specific dependencies. The CVEs column shows known vulnerabilities when Online CVE is enabled.</div>
+</section>
+
+<hr>
+
+<section id="mitigations">
+<h2>Mitigations</h2>
+<figure><img src="screenshots/gui-mitigations.png" alt="TCPK GUI Mitigations tab"></figure>
+<p>Binary hardening status for every DLL and EXE in the target.</p>
+<ul>
+<li><b>Colour key</b> -- Red = WEAK (missing critical mitigations), Orange = PARTIAL, Green = HARDENED.</li>
+<li><b>Filter</b> -- narrow by DLL name or status.</li>
+<li><b>Mitigations table</b> -- ListView with columns: DLL, Arch, ASLR, DEP, CFG, HighEntropyVA, SafeSEH, GS (stack cookies), ForceIntegrity, Status, Missing.</li>
+</ul>
+<div class="how"><b>How to use:</b> Run an audit. The table shows the hardening posture of every binary. Sort by "Status" to find WEAK modules first. The "Missing" column lists exactly which mitigations are absent. Focus remediation on binaries that handle untrusted input.</div>
+</section>
+
+<hr>
+
+<section id="signing">
+<h2>Signing</h2>
+<figure><img src="screenshots/gui-signing.png" alt="TCPK GUI Signing tab"></figure>
+<p>Code signing verification for every binary in the target.</p>
+<ul>
+<li><b>Colour key</b> -- Red = UNSIGNED / TAMPERED / UNTRUSTED, Green = SIGNED / CATALOG.</li>
+<li><b>Filter</b> -- narrow by DLL name or signing status.</li>
+<li><b>Signing table</b> -- ListView with columns: DLL, Signed, Status, Signer, Algorithm, Valid From, Expires, Type.</li>
+</ul>
+<div class="how"><b>How to use:</b> Run an audit. The table shows signing status for every binary. Sort by "Signed" to find unsigned modules. Unsigned or self-signed DLLs in the application directory are DLL sideloading candidates. Check "Algorithm" for weak signing (SHA-1).</div>
+</section>
+
+<hr>
+
+<section id="logs">
+<h2>Logs</h2>
+<figure><img src="screenshots/gui-logs.png" alt="TCPK GUI Logs tab"></figure>
+<p>Verbose runtime trace and timing log.</p>
+<ul>
+<li><b>Log console</b> -- read-only Consolas text showing every check that ran, how long it took, and any warnings or errors. Severity-coloured output.</li>
+</ul>
+<div class="how"><b>How to use:</b> Use this tab to review the audit timeline. Each line shows the check name, duration, and result count. Useful for debugging slow scans or understanding which checks produced which findings.</div>
+</section>
+
+<hr>
+
+<section id="intercept">
+<h2>Intercept</h2>
+<figure><img src="screenshots/gui-intercept.png" alt="TCPK GUI Intercept tab"></figure>
+<p>Traffic interception and analysis using mitmproxy (proxy mode) or Frida (hook mode). Gated behind an authorization checkbox.</p>
+<ul>
+<li><b>Authorization banner</b> -- warns that this performs active traffic interception.</li>
+<li><b>Authorization checkbox</b> -- tick to enable interception controls.</li>
+<li><b>App exe path</b> -- path to the application executable to intercept.</li>
+<li><b>Traffic interception (mitmproxy)</b> group:
+  <ul>
+  <li><b>Mode</b> -- Proxy (passive capture) or Tamper (modify in-flight).</li>
+  <li><b>Duration (s)</b> -- how long to capture traffic.</li>
+  <li><b>Tamper rules</b> -- multiline text for tamper-mode response modification rules.</li>
+  <li><b>Launch + capture</b> -- starts mitmproxy, launches the app through the proxy, and captures traffic.</li>
+  <li><b>Load capture file</b> -- load a previously saved capture file for analysis.</li>
+  </ul>
+</li>
+<li><b>Output console</b> -- findings from the captured traffic (credentials, tokens, cleartext, endpoints).</li>
+</ul>
+<div class="how"><b>How to use:</b> Enter the app's EXE path, set the mode and duration, tick the authorization checkbox, and click "Launch + capture". Findings (hardcoded credentials, cleartext transport, auth tokens) appear in the console. Alternatively, load a saved capture file for offline analysis.</div>
+</section>
+
+<hr>
+
+<section id="creds">
+<h2>Creds</h2>
+<figure><img src="screenshots/gui-creds.png" alt="TCPK GUI Creds tab"></figure>
+<p>Active credential extraction and replay. Every tool on this tab is gated behind an authorization checkbox.</p>
+<ul>
+<li><b>Native hook bypass (Frida)</b> -- hook a native export and force a return value (e.g. bypass a license check).</li>
+<li><b>Windows stored credentials (Credential Manager)</b> -- dump all entries, optionally unmasking passwords.</li>
+<li><b>Credential liveness</b> -- replay a recovered credential against a live http/sql/ftp service to prove it works.</li>
+<li><b>Output console</b> -- results from all credential operations.</li>
+</ul>
+<div class="how"><b>How to use:</b> Tick the authorization checkbox. Use "Dump credential vault" to read stored credentials. Use "Force return" to bypass a client-side check via Frida. Use "Test auth" to prove a recovered credential is live.</div>
+</section>
+
+<hr>
+
+<section id="runtime">
+<h2>Runtime</h2>
+<figure><img src="screenshots/gui-runtime.png" alt="TCPK GUI Runtime tab"></figure>
+<p>Read-only live checks on a running process. 27 tool buttons organised by colour-coded category.</p>
+<ul>
+<li><b>Process selector</b> -- pick a running process from the dropdown or type a name.</li>
+<li><b>Trace (s)</b> -- duration for timed trace tools (default 30).</li>
+<li><b>Colour legend</b> -- Grey = process, Amber = trace (ETW, needs admin), Blue = system, Green = target-path, Teal = clipboard, Red = gated.</li>
+<li><b>Tool buttons</b> (27 total):
+  <ul>
+  <li><b>Process</b> (grey): Loaded Modules, Module Signatures, Listening Ports, Process Token, Mitigations, Process DACL, Env Secrets, Mem Secrets, Child Procs, Handles, Windows, GUI Inspector, Memory Dump.</li>
+  <li><b>Trace</b> (amber): DLL Hijack Trace.</li>
+  <li><b>System</b> (blue): Named Pipes, Pipe DACLs, ALPC / Mailslots.</li>
+  <li><b>Target-path</b> (green): COM Objects, Named Objects, RPC Surface.</li>
+  <li><b>Clipboard</b> (teal): Clipboard.</li>
+  <li><b>Gated</b> (red): GUI Unlock, Pipe Probe, Flag-Flip, Input Fuzz.</li>
+  </ul>
+</li>
+</ul>
+<div class="how"><b>How to use:</b> Type a process name (e.g. <code>notepad</code>), click "Refresh", then click any tool button. Results stream into the output console. Click "Run All" to run every non-gated check in sequence.</div>
+</section>
+
+<hr>
+
+<section id="procmon">
+<h2>ProcMon</h2>
+<figure><img src="screenshots/gui-procmon.png" alt="TCPK GUI ProcMon tab"></figure>
+<p>Live process monitor -- continuously observes a running process. Two modes: live watch (continuous refresh) and activity capture (baseline then detect changes).</p>
+<ul>
+<li><b>Mode buttons</b> -- "Live watch" or "Activity capture".</li>
+<li><b>Process selector</b> -- pick from running processes or type a name.</li>
+<li><b>Module filter</b> -- filter loaded modules by substring.</li>
+<li><b>Interval / Duration</b> -- refresh interval (live watch) or capture duration (activity capture) in seconds.</li>
+<li><b>Start / Stop</b> -- begin or end monitoring.</li>
+<li><b>Output console</b> -- displays process identity, memory usage, loaded modules, TCP connections, child processes.</li>
+</ul>
+<div class="how"><b>How to use:</b> <em>Live watch:</em> Pick a process, set the refresh interval (default 2s), click "Start". The display auto-refreshes with the latest state. <em>Activity capture:</em> Pick a process, set the capture duration, click "Start". TCPK takes a baseline, then monitors for new module loads, TCP connections, and child processes. Only changes are reported.</div>
+</section>
+
+<hr>
+
+<section id="asar">
+<h2>Asar</h2>
+<figure><img src="screenshots/gui-asar.png" alt="TCPK GUI Asar tab"></figure>
+<p>Electron asar archive extraction and source browser.</p>
+<ul>
+<li><b>Target path</b> -- path to the Electron app's install folder or app.asar file.</li>
+<li><b>Browse / Extract</b> -- file picker and extraction trigger.</li>
+<li><b>Hex view</b> -- switch to the Hex tab for binary inspection of a selected file.</li>
+<li><b>npm audit</b> -- run a supply-chain vulnerability scan on the bundled node_modules.</li>
+<li><b>Filter</b> -- narrow the file list by name, extension, or keyword.</li>
+<li><b>File list</b> (left panel) -- all extracted files from the asar archive.</li>
+<li><b>Source viewer</b> (right panel) -- click a file to view its source code.</li>
+</ul>
+<div class="how"><b>How to use:</b> Set a target pointing at an Electron app, click "Extract". The asar archive is unpacked and the file list populates. Use the filter (e.g. <code>.js</code>, <code>config</code>, <code>token</code>) to find interesting files. Click a file to view its source. Click "npm audit" for supply-chain checks.</div>
+</section>
+
+<hr>
+
+<section id="hex">
+<h2>Hex</h2>
+<figure><img src="screenshots/gui-hex.png" alt="TCPK GUI Hex tab"></figure>
+<p>Raw hex + ASCII viewer with PE analysis, string extraction, binary diff, XOR decode, and data inspection.</p>
+<ul>
+<li><b>Toolbar row 1</b>: Browse, Load, PE (PE structure overlay), Diff (binary comparison), Strings (extract readable strings), Hash (file hashes).</li>
+<li><b>Toolbar row 2</b>: Prev/Next page navigation, "go to (hex)" offset jump, find (ASCII or hex pattern search).</li>
+<li><b>Hex view</b> (main area) -- colour-coded hex display: Dim = null bytes, Blue = whitespace, Green = printable ASCII, Orange = control chars, Purple = high/extended bytes. Entropy heatmap strip alongside.</li>
+<li><b>Right panel</b> -- mode-switchable: Data Inspector, PE Map, XOR Decode, Byte Freq, Bookmarks.</li>
+</ul>
+<div class="how"><b>How to use:</b> Enter a file path and click "Load". Browse with Prev/Next or jump to an offset with "Go". Click "PE" to overlay PE section boundaries. Click "Strings" to extract all readable strings. Click "Diff" to compare two binaries side-by-side. Use the Data Inspector to decode bytes at the cursor position.</div>
+</section>
+
+<hr>
+
+<section id="decompiler">
+<h2>Decompiler</h2>
+<figure><img src="screenshots/gui-decompiler.png" alt="TCPK GUI Decompiler tab"></figure>
+<p>.NET assembly decompiler powered by Mono.Cecil. View IL disassembly or decompiled C# for any method in any .NET module.</p>
+<ul>
+<li><b>Assembly selector</b> -- ComboBox listing DLLs from the target. Click "Scan target" to enumerate all .NET assemblies, or "Browse" for a specific DLL.</li>
+<li><b>Load</b> -- load the selected assembly into the decompiler.</li>
+<li><b>Filter types</b> -- narrow the type list by name.</li>
+<li><b>Types list</b> (left column) -- all .NET types in the assembly.</li>
+<li><b>Methods list</b> (centre column) -- methods of the selected type.</li>
+<li><b>Code viewer</b> (right column) -- IL disassembly or decompiled C#. Sink-bearing methods are highlighted.</li>
+</ul>
+<div class="how"><b>How to use:</b> Click "Scan target" to find .NET assemblies, pick one from the dropdown, click "Load". Browse types on the left, methods in the centre. Click a method to see its IL. Click "Decompile C#" for readable source. Use "Filter types" to find a specific class.</div>
+</section>
+
+<footer>
+<p>TCPK &middot; Desktop GUI documentation &middot; <a href="index.html">Back to main docs</a> &middot; <a href="agentic-workbench.html">Agentic workbench docs</a></p>
+</footer>
+</main>
+</div>
+
+<script>
+var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a[href^="#"]'));
+var sections = links.map(function(a){return document.querySelector(a.getAttribute('href'))}).filter(Boolean);
+window.addEventListener('scroll',function(){
+  var y = window.scrollY + 120;
+  var cur = null;
+  sections.forEach(function(s,i){if(s.offsetTop <= y) cur = i});
+  links.forEach(function(a,i){a.style.color = i===cur ? '#fff' : ''; a.style.borderLeftColor = i===cur ? 'var(--accent)' : 'transparent'});
+});
+</script>
+</body>
+</html>
