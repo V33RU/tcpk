@@ -63,12 +63,6 @@ function Test-TcpkAvExclusions {
                     -File 'Get-MpPreference' -Evidence "Exclusion$($s.Name): $item" -Cwe @($s.Cwe) `
                     -Description 'The app excludes its own path/process/extension from Defender scanning. Anything an attacker can write into that location (or name to that process/extension) executes without AV inspection -- a persistence and bypass primitive.' `
                     -Fix 'Remove the exclusion. If a real-time-scan performance issue drove it, fix the root cause instead of excluding the path.'
-            } else {
-                New-TcpkFinding -Module 'os' -RuleId "avexclusion.other-$($s.Name)" `
-                    -Severity 'INFO' -Confidence 'Confirmed' `
-                    -Title "Defender $($s.Name) exclusion present: $item" `
-                    -File 'Get-MpPreference' -Evidence $item `
-                    -Description 'A Defender exclusion exists (not clearly attributable to this app). Listed for awareness.'
             }
         }
     }

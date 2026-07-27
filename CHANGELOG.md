@@ -2,6 +2,24 @@
 
 Release history for TCPK. Newest first.
 
+## v2.7.1
+
+Scoping and GUI quality-of-life patch.
+
+**Target-scoping fixes** -- five scanners that reported machine-wide state unrelated to the audit target now correctly scope findings to the target directory:
+
+- **Test-TcpkWritablePath** -- only reports PATH directories that are parents, children, or equal to the target install directory (was: every writable PATH entry system-wide).
+- **Test-TcpkAvExclusions** -- no longer reports every non-matching Defender exclusion as INFO.
+- **Test-TcpkWerExposure** -- removed default WER path scan and global WER policy finding; only per-app WER settings for the target remain.
+- **Test-TcpkTokenCaches** -- removed hardcoded well-known Azure/MSAL path scan; only the target directory is scanned.
+- **Test-TcpkWerPolicy** -- removed global WER default/global policy findings; only per-app WER policy for the target exe remains.
+
+**GUI live findings feed** -- findings now stream into the Findings table in real-time during the audit, not just after completion:
+
+- Job pipeline detects TCPKFND information records and emits them as FND lines (was: wrapped as LOG lines, so they appeared in the log pane but never reached the findings table).
+- Drain loop after job completion now also parses FND lines so no findings are lost in the final batch.
+- ListView is cleared before the JSON reload phase to prevent doubling streamed findings with CVSS-enriched ones.
+
 ## v2.7.0
 
 The biggest detection release yet: 19 new public cmdlets (184 -> 203) covering attack surfaces, DLL hijack paths, IPC channels, and exploit tooling. Full agentic workbench documentation with screenshots of all 13 tabs.

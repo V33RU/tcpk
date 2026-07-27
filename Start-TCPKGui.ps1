@@ -4570,7 +4570,11 @@ $btnRun.Add_Click({
                     if ($_ -notmatch '^LOGX\t') { "LOG`t$_" }     # LOGX = verbose trace -> Logs/Runtime tab only
                 }
                 elseif ($_ -is [System.Management.Automation.InformationRecord]) {
-                    $t = "$_"; if ($t -notmatch '^LOGX\t') { "LOG`t$t" }
+                    $t = "$_"
+                    if ($t -match '^TCPKFND\t(.+)$') {
+                        "LOG`t$t"
+                        "FND`t$($matches[1])"
+                    } elseif ($t -notmatch '^LOGX\t') { "LOG`t$t" }
                 }
                 elseif ($_.GetType().Name -eq 'TcpkFinding') {
                     "FND`t$($_.Severity)`t$($_.Confidence)`t$($_.RuleId)`t$($_.Title)"
@@ -4606,13 +4610,22 @@ $btnRun.Add_Click({
         Start-Sleep -Milliseconds 150
         [System.Windows.Forms.Application]::DoEvents()
     }
-    # Drain remaining LOG messages from the job
+    # Drain remaining output from the job (LOG + FND)
     $remaining = Receive-Job -Job $job -Wait -AutoRemoveJob
     foreach ($line in $remaining) {
         if ($line -match '^LOG\t(.+)$') {
             $dmsg = $matches[1]
             Write-LogLine $dmsg
             Step-ProgressFromLog $dmsg
+        }
+        elseif ($line -match '^FND\t(.+?)\t(.+?)\t(.+?)\t(.+)$') {
+            $f = [pscustomobject]@{
+                Severity   = $matches[1]
+                Confidence = $matches[2]
+                RuleId     = $matches[3]
+                Title      = $matches[4]
+            }
+            Add-Finding $f
         }
     }
     # Audit job finished -> the run (including report writing) is complete.
@@ -4660,6 +4673,7 @@ $btnRun.Add_Click({
 
             # Bulk-load with BeginUpdate/EndUpdate so the table paints once (smooth),
             # instead of redrawing per finding.
+            $lvFindings.Items.Clear()
             $lvFindings.BeginUpdate()
             try { foreach ($f in $sorted) { Add-Finding $f } } finally { $lvFindings.EndUpdate() }
             try { Update-Dashboard } catch { }

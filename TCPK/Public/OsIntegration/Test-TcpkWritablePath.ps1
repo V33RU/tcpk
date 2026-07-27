@@ -28,6 +28,12 @@ function Test-TcpkWritablePath {
 
     if (-not (Assert-TcpkWindows 'Test-TcpkWritablePath')) { return }
 
+    # Resolve the target install directory for relevance filtering
+    $tgtItem = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+    if (-not $tgtItem) { return }
+    $targetDir = if ($tgtItem.PSIsContainer) { $tgtItem.FullName } else { $tgtItem.DirectoryName }
+    $targetDir = $targetDir.TrimEnd('\')
+
     $userPrincipals = '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE|BUILTIN\\Users)\b'
     $writeRights    = 'Write|Modify|FullControl'
 
@@ -47,6 +53,15 @@ function Test-TcpkWritablePath {
         if (-not (Test-Path -LiteralPath $d -PathType Container)) { continue }
 
         if ($d -match '(?i)^C:\\Windows') { continue }
+
+        # Only report PATH dirs related to the target: dir is a parent of
+        # the target, dir is inside the target, or dir equals the target.
+        $dNorm = $d.ToLower()
+        $tNorm = $targetDir.ToLower()
+        $isParent = $tNorm.StartsWith($dNorm + '\')
+        $isChild  = $dNorm.StartsWith($tNorm + '\')
+        $isEqual  = $dNorm -eq $tNorm
+        if (-not ($isParent -or $isChild -or $isEqual)) { continue }
 
         try { $acl = Get-Acl -LiteralPath $d -ErrorAction Stop } catch { continue }
         $bad = @($acl.Access | Where-Object {

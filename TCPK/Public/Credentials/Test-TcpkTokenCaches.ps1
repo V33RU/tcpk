@@ -21,24 +21,6 @@ function Test-TcpkTokenCaches {
 
     if (-not (Assert-TcpkWindows 'Test-TcpkTokenCaches')) { return }
 
-    $wellKnown = @(
-        "$env:LOCALAPPDATA\.IdentityService\msal.cache",
-        "$env:LOCALAPPDATA\.IdentityService\AzureAuth.json",
-        "$env:USERPROFILE\.azure\msal_token_cache.json",
-        "$env:USERPROFILE\.azure\msal_token_cache.bin",
-        "$env:USERPROFILE\.azure\AzureRmContext.json"
-    )
-    foreach ($p in $wellKnown) {
-        if (Test-Path -LiteralPath $p) {
-            $info = Get-Item -LiteralPath $p
-            New-TcpkFinding -Module 'creds' -RuleId 'token-cache.well-known' `
-                -Severity 'INFO' -Confidence 'Confirmed' `
-                -Title "Auth token cache present: $($info.Name)" `
-                -File $info.FullName -Evidence "size=$($info.Length) modified=$($info.LastWriteTime)" `
-                -Cwe @('CWE-522','CWE-256')
-        }
-    }
-
     if ($Path -and (Test-Path -LiteralPath $Path -PathType Container)) {
         $patterns = @('msal*.cache','*token*cache*','msal*.bin','AzureRmContext*','adal*.cache')
         foreach ($pat in $patterns) {

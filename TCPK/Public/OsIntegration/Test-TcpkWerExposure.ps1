@@ -91,19 +91,6 @@ function Test-TcpkWerExposure {
         $globalFolder = if ($globalProps -and $globalProps.DumpFolder) { $globalProps.DumpFolder } else { '' }
         $globalType   = if ($globalProps -and $null -ne $globalProps.DumpType)  { $globalProps.DumpType }  else { 1 }
 
-        if ($globalFolder) {
-            New-TcpkFinding -Module 'os' -RuleId 'wer.local-dumps-enabled' `
-                -Severity 'LOW' -Confidence 'Confirmed' `
-                -Title 'WER local crash dumps enabled (global)' `
-                -File $werBase `
-                -Evidence "DumpFolder=$globalFolder; DumpType=$globalType" `
-                -Cwe @('CWE-532') `
-                -Description ('Windows Error Reporting is configured to keep local crash dumps. ' +
-                    'Crash dumps contain the full process memory at crash time and may include secrets.') `
-                -Fix 'Disable local dumps or set DumpType=0 (custom with minimal data) unless needed for debugging.'
-            _CheckDumpFolder $globalFolder 'global' $globalType
-        }
-
         foreach ($exeName in $exeNames) {
             $exeKey = "$werBase\$exeName"
             if (-not (Test-Path -LiteralPath $exeKey)) { continue }
@@ -125,13 +112,4 @@ function Test-TcpkWerExposure {
         }
     }
 
-    $defaultWerPaths = @(
-        "$env:LOCALAPPDATA\CrashDumps"
-        "$env:ProgramData\Microsoft\Windows\WER\ReportQueue"
-    )
-    foreach ($dp in $defaultWerPaths) {
-        if (Test-Path -LiteralPath $dp) {
-            _CheckDumpFolder $dp 'default WER path' 1
-        }
-    }
 }
