@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCPK v2.7.1 Architecture Flowchart</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --border: #30363d;
+    --border-accent: #2ea77a;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --text-bright: #f0f6fc;
+    --accent: #2ea77a;
+    --accent-dim: rgba(46,167,122,0.15);
+    --accent2: #58a6ff;
+    --accent2-dim: rgba(88,166,255,0.12);
+    --critical: #f85149;
+    --high: #f0883e;
+    --medium: #d29922;
+    --low: #58a6ff;
+    --info: #8b949e;
+    --cecil: #bc8cff;
+    --cecil-dim: rgba(188,140,255,0.12);
+    --gui: #f0883e;
+    --gui-dim: rgba(240,136,62,0.12);
+    --mcp: #3fb950;
+    --mcp-dim: rgba(63,185,80,0.12);
+    --agent: #f778ba;
+    --agent-dim: rgba(247,120,186,0.12);
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f6f8fa;
+      --surface: #ffffff;
+      --surface2: #f0f2f5;
+      --border: #d0d7de;
+      --border-accent: #1a7f5a;
+      --text: #1f2328;
+      --text-muted: #656d76;
+      --text-bright: #0d1117;
+      --accent: #1a7f5a;
+      --accent-dim: rgba(26,127,90,0.08);
+      --accent2: #0969da;
+      --accent2-dim: rgba(9,105,218,0.08);
+      --critical: #cf222e;
+      --high: #bc4c00;
+      --medium: #9a6700;
+      --low: #0969da;
+      --info: #656d76;
+      --cecil: #8250df;
+      --cecil-dim: rgba(130,80,223,0.08);
+      --gui: #bc4c00;
+      --gui-dim: rgba(188,76,0,0.06);
+      --mcp: #1a7f5a;
+      --mcp-dim: rgba(26,127,90,0.06);
+      --agent: #bf3989;
+      --agent-dim: rgba(191,57,137,0.06);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2128;
+    --border: #30363d;
+    --border-accent: #2ea77a;
+    --text: #c9d1d9;
+    --text-muted: #8b949e;
+    --text-bright: #f0f6fc;
+    --accent: #2ea77a;
+    --accent-dim: rgba(46,167,122,0.15);
+    --accent2: #58a6ff;
+    --accent2-dim: rgba(88,166,255,0.12);
+    --critical: #f85149;
+    --high: #f0883e;
+    --medium: #d29922;
+    --low: #58a6ff;
+    --info: #8b949e;
+    --cecil: #bc8cff;
+    --cecil-dim: rgba(188,140,255,0.12);
+    --gui: #f0883e;
+    --gui-dim: rgba(240,136,62,0.12);
+    --mcp: #3fb950;
+    --mcp-dim: rgba(63,185,80,0.12);
+    --agent: #f778ba;
+    --agent-dim: rgba(247,120,186,0.12);
+  }
+  :root[data-theme="light"] {
+    --bg: #f6f8fa;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: #d0d7de;
+    --border-accent: #1a7f5a;
+    --text: #1f2328;
+    --text-muted: #656d76;
+    --text-bright: #0d1117;
+    --accent: #1a7f5a;
+    --accent-dim: rgba(26,127,90,0.08);
+    --accent2: #0969da;
+    --accent2-dim: rgba(9,105,218,0.08);
+    --critical: #cf222e;
+    --high: #bc4c00;
+    --medium: #9a6700;
+    --low: #0969da;
+    --info: #656d76;
+    --cecil: #8250df;
+    --cecil-dim: rgba(130,80,223,0.08);
+    --gui: #bc4c00;
+    --gui-dim: rgba(188,76,0,0.06);
+    --mcp: #1a7f5a;
+    --mcp-dim: rgba(26,127,90,0.06);
+    --agent: #bf3989;
+    --agent-dim: rgba(191,57,137,0.06);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); margin: 0; }
+
+  .page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    font-family: var(--font-body);
+    color: var(--text);
+  }
+
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+  }
+  .subtitle span { color: var(--accent); font-weight: 600; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 28px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 12px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Section headers */
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 36px 0 16px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-bright);
+  }
+  .section-header .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* Flow containers */
+  .flow {
+    position: relative;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  /* Nodes */
+  .node {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: var(--font-mono);
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .node.entry {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .node.cecil {
+    border-color: var(--cecil);
+    background: var(--cecil-dim);
+    color: var(--cecil);
+  }
+  .node.gui-node {
+    border-color: var(--gui);
+    background: var(--gui-dim);
+    color: var(--gui);
+  }
+  .node.mcp-node {
+    border-color: var(--mcp);
+    background: var(--mcp-dim);
+    color: var(--mcp);
+  }
+  .node.agent-node {
+    border-color: var(--agent);
+    background: var(--agent-dim);
+    color: var(--agent);
+  }
+  .node.process {
+    border-color: var(--accent2);
+    background: var(--accent2-dim);
+    color: var(--accent2);
+  }
+
+  /* Arrows */
+  .arrow {
+    display: inline-flex;
+    align-items: center;
+    color: var(--text-muted);
+    font-size: 18px;
+    padding: 0 4px;
+    flex-shrink: 0;
+  }
+  .arrow-down {
+    display: flex;
+    justify-content: center;
+    color: var(--text-muted);
+    font-size: 18px;
+    padding: 4px 0;
+  }
+
+  /* Horizontal flow row */
+  .hflow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  /* Vertical flow */
+  .vflow {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  /* Grid layouts */
+  .bucket-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .bucket {
+    padding: 12px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .bucket-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .bucket-title .count {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .bucket ul {
+    list-style: none;
+    font-size: 11.5px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+  .bucket li::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    margin-right: 6px;
+    vertical-align: middle;
+    opacity: 0.5;
+  }
+
+  /* Phase pipeline */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 16px 0;
+    overflow-x: auto;
+  }
+  .phase {
+    flex: 1;
+    min-width: 140px;
+    padding: 14px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .phase:first-child { border-radius: 8px 0 0 8px; }
+  .phase:last-child { border-radius: 0 8px 8px 0; }
+  .phase + .phase { border-left: none; }
+  .phase-num {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+  .phase-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+  }
+  .phase-detail {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    font-family: var(--font-mono);
+  }
+  .phase-arrow {
+    position: absolute;
+    right: -8px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+    color: var(--accent);
+    font-size: 16px;
+    width: 16px;
+    text-align: center;
+  }
+
+  /* Report outputs */
+  .report-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .report-item {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-muted);
+  }
+
+  /* Private helpers grid */
+  .helpers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .helper {
+    font-size: 11.5px;
+    font-family: var(--font-mono);
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .helper .name {
+    color: var(--accent2);
+    font-weight: 600;
+  }
+  .helper .desc {
+    color: var(--text-muted);
+    font-weight: 400;
+    display: block;
+    margin-top: 2px;
+  }
+
+  /* Cecil detail */
+  .cecil-flow {
+    border-color: var(--cecil);
+    border-left: 3px solid var(--cecil);
+  }
+
+  .note {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 8px;
+    padding: 6px 10px;
+    border-left: 2px solid var(--border);
+  }
+
+  /* Tabs grid for GUI */
+  .tabs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .tab-item {
+    font-size: 11.5px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+  .tab-item b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <h1>TCPK v2.7.1 -- Architecture Flowchart</h1>
+  <p class="subtitle"><span>203 cmdlets</span> | 51 private helpers | 12 audit buckets | 4 UI surfaces</p>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Entry point / core</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div> Audit pipeline</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--cecil)"></div> Mono.Cecil IL engine</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--gui)"></div> WinForms GUI</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--agent)"></div> Agentic workbench</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--mcp)"></div> MCP server</div>
+  </div>
+
+  <!-- ===== SECTION 1: ENTRY POINTS ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--accent-dim);color:var(--accent)">1</div>
+    Entry Points -- How TCPK Launches
+  </div>
+
+  <div class="flow">
+    <div class="hflow">
+      <div class="node gui-node">TCPK.bat</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node gui-node">powershell -STA -File Start-TCPKGui.ps1</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node entry">Import-Module TCPK</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">WinForms GUI (15 tabs)</div>
+    </div>
+    <div class="hflow">
+      <div class="node agent-node">Start-TcpkAgentic</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node entry">Import-Module TCPK</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node agent-node">TcpListener :random-port</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">Loopback SPA (13 tabs)</div>
+    </div>
+    <div class="hflow">
+      <div class="node mcp-node">Start-TcpkMcpServer.ps1</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node entry">Import-Module TCPK</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node mcp-node">stdin/stdout JSON-RPC 2.0</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">11 tools</div>
+    </div>
+    <div class="hflow">
+      <div class="node entry">CLI: Import-Module .\TCPK</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node process">Invoke-TcpkAudit -Target ...</div>
+    </div>
+    <div class="note">All 4 surfaces share the same module -- TCPK.psm1 loads Classes/ then Private/ then Public/ (sorted by path). 203 public functions are exported.</div>
+  </div>
+
+  <!-- ===== SECTION 2: MODULE LOADING ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--accent-dim);color:var(--accent)">2</div>
+    Module Loading -- TCPK.psm1
+  </div>
+
+  <div class="flow">
+    <div class="pipeline">
+      <div class="phase">
+        <div class="phase-num">Step 1</div>
+        <div class="phase-title">Classes/</div>
+        <div class="phase-detail">TcpkFinding.ps1<br>defines [TcpkFinding] type<br>(Severity, Confidence,<br>RuleId, Title, File, etc.)</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Step 2</div>
+        <div class="phase-title">Private/ (51 files)</div>
+        <div class="phase-detail">_Decompile.ps1 (Cecil)<br>_Finding.ps1 (factory)<br>_Cvss40.ps1 (FIRST.org)<br>_Attack.ps1 (ATT&CK)<br>_Identity.ps1 (terms)<br>_Expand.ps1 (unwrap)<br>... 45 more helpers</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Step 3</div>
+        <div class="phase-title">Public/ (203 cmdlets)</div>
+        <div class="phase-detail">Invoke-TcpkAudit<br>Test-Tcpk* (scanners)<br>Get-Tcpk* (queries)<br>Export-Tcpk* (reports)<br>Confirm-Tcpk* (verify)<br>Invoke-Tcpk* (exploit)<br>Start-TcpkAgentic</div>
+      </div>
+    </div>
+    <div class="note">Loading order: sorted by FullName within each folder. All Private/ functions are module-scoped (not exported). Exploit cmdlets ARE exported but gated by Assert-TcpkExploitEnabled at entry.</div>
+  </div>
+
+  <!-- ===== SECTION 3: AUDIT PIPELINE ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--accent2-dim);color:var(--accent2)">3</div>
+    Audit Pipeline -- Invoke-TcpkAudit
+  </div>
+
+  <div class="flow">
+    <div class="pipeline">
+      <div class="phase">
+        <div class="phase-num">Phase 1</div>
+        <div class="phase-title">Unwrap Target</div>
+        <div class="phase-detail">Expand-TcpkTarget<br>routes by extension:<br>.msix -> Expand-TcpkMsix<br>.msi -> msiexec /a<br>.zip -> zip-slip guard<br>dir/exe -> as-is</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Phase 2</div>
+        <div class="phase-title">Identity Terms</div>
+        <div class="phase-detail">Get-TcpkIdentityTerms<br>MSIX manifest names,<br>exe ProductName,<br>folder leaf, deduped<br>-> $idTerms[]</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Phase 3</div>
+        <div class="phase-title">Run Checks</div>
+        <div class="phase-detail">_RunCheck x 121<br>across 12 buckets<br>(A-L). Each check<br>emits [TcpkFinding]<br>+ TCPKFND stream</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Phase 4</div>
+        <div class="phase-title">Triage + IL + LLM</div>
+        <div class="phase-detail">Resolve-TcpkFindings<br>Confirm-TcpkCallsiteUsage<br>Invoke-TcpkLlmCodeJudgment<br>Resolve-TcpkFindings<br>-AggregateOnly</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Phase 5</div>
+        <div class="phase-title">Reports</div>
+        <div class="phase-detail">findings.json<br>index.html<br>report.md / .xlsx<br>report.sarif<br>intel.html / sbom.cdx</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 3b: _RunCheck detail ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--accent2-dim);color:var(--accent2)">3b</div>
+    _RunCheck -- Per-Check Execution
+  </div>
+
+  <div class="flow">
+    <div class="hflow">
+      <div class="node process">_RunCheck $Name $Block</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">Quick-profile skip?</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">Pause check?</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node process">$r = & $Block</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node">foreach $f in $r</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node process">$all.Add($f)</div>
+      <div class="arrow">+</div>
+      <div class="node entry">Write-Information "TCPKFND\t..."</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node">Log: count + duration</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">Add-TcpkCoverage</div>
+    </div>
+    <div class="note">Each check's output is captured ($r = & $Block), accumulated into $all, AND live-streamed via Write-Information on stream 6. The GUI's job captures stream 6 via 6>&1 redirect.</div>
+  </div>
+
+  <!-- ===== SECTION 3c: BUCKETS ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--accent2-dim);color:var(--accent2)">3c</div>
+    Audit Buckets (A-L) -- 121 Checks
+  </div>
+
+  <div class="flow">
+    <div class="bucket-grid">
+      <div class="bucket">
+        <div class="bucket-title">A: Static Binary Analysis <span class="count">~42 checks</span></div>
+        <ul>
+          <li>Test-TcpkSignature</li>
+          <li>Test-TcpkSecrets, EntropySecrets</li>
+          <li>Test-TcpkCallsites, Deserialization</li>
+          <li>Test-TcpkTlsBypass, Xxe</li>
+          <li>Test-TcpkElectron, ElectronJs, Fuses</li>
+          <li>Test-TcpkAppDomainHijack, AotBinary</li>
+          <li>Test-TcpkPhantomDlls, DllSideload</li>
+          <li>Test-TcpkCryptoMisuse, Jwt, ZipSlip</li>
+          <li>... + 24 more scanners</li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">B: MSIX Manifest <span class="count">9 checks</span></div>
+        <ul>
+          <li>Test-TcpkMsixCapabilities</li>
+          <li>Test-TcpkMsixProtocols</li>
+          <li>Test-TcpkMsixFileAssocs</li>
+          <li>Test-TcpkMsixComServers</li>
+          <li>Test-TcpkMsixExtensions</li>
+          <li>Test-TcpkMsixDeclaredVsUsed</li>
+          <li>Test-TcpkMsixFrameworkDeps</li>
+          <li>Test-TcpkMsixAppInstaller</li>
+          <li>Test-TcpkUacManifest</li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">C: OS Integration <span class="count">~25 checks</span></div>
+        <ul>
+          <li>Test-TcpkInstallDirAcl, FolderAcls</li>
+          <li>Test-TcpkWritablePath</li>
+          <li>Test-TcpkWerExposure, ComHijack</li>
+          <li>Test-TcpkRegistryFootprint/Acl/Values</li>
+          <li>Test-TcpkServiceBinaryAcl/Perms</li>
+          <li>Test-TcpkAutoStart, WmiPersistence</li>
+          <li>Test-TcpkFirewallRules, AvExclusions</li>
+          <li>Test-TcpkProtocolHandlers, IfeoHijack</li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">D: Credential Storage <span class="count">~8 checks</span></div>
+        <ul>
+          <li>Test-TcpkDpapiBlobs</li>
+          <li>Test-TcpkPlaintextConfigs</li>
+          <li>Test-TcpkTokenCaches, KeyMaterial</li>
+          <li>Test-TcpkLocalDb</li>
+          <li>Test-TcpkCredentialManager</li>
+          <li>Test-TcpkBrowserTokenStore</li>
+          <li>Test-TcpkAppConfigSecrets</li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">E: Runtime / Live Process <span class="count">~18 checks</span></div>
+        <ul>
+          <li>Test-TcpkProcessMitigations</li>
+          <li>Test-TcpkListeningPorts</li>
+          <li>Test-TcpkLoadedModuleSignatures</li>
+          <li>Test-TcpkWindowMessages</li>
+          <li>Test-TcpkSharedMemoryDacl</li>
+          <li>Test-TcpkNamedPipes/Dacl</li>
+          <li>Test-TcpkComObjects, MailslotsAlpc</li>
+          <li>Test-TcpkMemorySecrets/Dump</li>
+          <li><i>Gated: requires -ProcessName</i></li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">F: Network <span class="count">10 checks</span></div>
+        <ul>
+          <li>Test-TcpkTlsPinning, TlsProtocols</li>
+          <li>Test-TcpkUpdateFlow</li>
+          <li>Test-TcpkBackendEndpoints</li>
+          <li>Test-TcpkDnsLeakage, CrlOcsp</li>
+          <li>Test-TcpkInsecureSchemes</li>
+          <li>Test-TcpkSelfHostedServer</li>
+          <li>Test-TcpkRpcChannels, GrpcSurface</li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">G: WebView2 <span class="count">7 checks</span></div>
+        <ul>
+          <li>Test-TcpkWv2HostObjects</li>
+          <li>Test-TcpkWv2WebMessage</li>
+          <li>Test-TcpkWv2VirtualHost</li>
+          <li>Test-TcpkWv2DevTools</li>
+          <li>Test-TcpkWv2ScriptInjection</li>
+          <li>Test-TcpkWv2ResourcePolicy</li>
+          <li>Test-TcpkWv2Sideload</li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">H: Logging <span class="count">4 checks</span></div>
+        <ul>
+          <li>Test-TcpkLogFiles</li>
+          <li>Test-TcpkTelemetrySdks</li>
+          <li>Test-TcpkPiiInLogs</li>
+          <li>Test-TcpkEtwProviders</li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">I: Memory Hygiene <span class="count">3 checks</span></div>
+        <ul>
+          <li>Test-TcpkWerPolicy</li>
+          <li>Test-TcpkPageFile</li>
+          <li>Test-TcpkSecureStringUsage</li>
+        </ul>
+      </div>
+      <div class="bucket">
+        <div class="bucket-title">J: Anti-Debug <span class="count">4 checks</span></div>
+        <ul>
+          <li>Test-TcpkAntiDebugRefs</li>
+          <li>Test-TcpkSelfIntegrityCheck</li>
+          <li>Test-TcpkAntiInjection</li>
+          <li>Test-TcpkTimingAntiDebug</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 4: TRIAGE + VERIFY PIPELINE ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--accent2-dim);color:var(--accent2)">4</div>
+    Post-Check Pipeline -- Triage, IL Verify, LLM, Aggregate
+  </div>
+
+  <div class="flow">
+    <div class="pipeline">
+      <div class="phase">
+        <div class="phase-num">Step 1</div>
+        <div class="phase-title">Resolve-TcpkFindings</div>
+        <div class="phase-detail">Dedupe + triage<br>-NoAggregate<br>(keep per-file)<br>e.g. 18 -> 15</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase" style="border-color:var(--cecil);border-left:1px solid var(--cecil)">
+        <div class="phase-num" style="color:var(--cecil)">Step 2 (Cecil)</div>
+        <div class="phase-title">Confirm-TcpkCallsiteUsage</div>
+        <div class="phase-detail">Deterministic IL verify<br>Reachable + tainted?<br>-> Confirmed (IL)<br>String-only, no call?<br>-> Likely-FP (IL)</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Step 3 (opt-in)</div>
+        <div class="phase-title">LLM Code Judgment</div>
+        <div class="phase-detail">Invoke-TcpkLlmCodeJudgment<br>Advisory Confidence:<br>Confirmed (LLM)<br>Likely-FP (LLM)<br>Never changes Severity</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Step 4</div>
+        <div class="phase-title">Aggregate</div>
+        <div class="phase-detail">Resolve-TcpkFindings<br>-AggregateOnly<br>Same RuleId+Sev+Conf<br>-> single finding<br>with Affected list</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Step 5</div>
+        <div class="phase-title">Enrich + Report</div>
+        <div class="phase-detail">Online CVE (OSV)<br>Exploit chains<br>CVSS v4.0 scoring<br>ATT&CK + TASVS<br>6 report formats</div>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="bucket-title">Report Outputs</div>
+      <div class="report-row">
+        <div class="report-item">findings.json</div>
+        <div class="report-item">index.html</div>
+        <div class="report-item">report.md</div>
+        <div class="report-item">report.xlsx</div>
+        <div class="report-item">report.sarif</div>
+        <div class="report-item">intel.html</div>
+        <div class="report-item">sbom.cdx.json</div>
+        <div class="report-item">profile.json</div>
+        <div class="report-item">attack-surface.json</div>
+        <div class="report-item">exploits.json</div>
+        <div class="report-item">strings.json</div>
+        <div class="report-item">coverage.json</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 5: MONO.CECIL ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--cecil-dim);color:var(--cecil)">5</div>
+    Mono.Cecil IL Engine -- _Decompile.ps1
+  </div>
+
+  <div class="flow cecil-flow">
+    <div class="hflow">
+      <div class="node cecil">Initialize-TcpkCecil</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">tools\ILSpy\Mono.Cecil.dll</div>
+      <div class="arrow">or</div>
+      <div class="node">%LOCALAPPDATA%\Programs\ILSpy\</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="bucket-grid">
+      <div class="bucket" style="border-color:var(--cecil)">
+        <div class="bucket-title" style="color:var(--cecil)">Assembly Reading</div>
+        <ul>
+          <li>Get-TcpkCecilAssembly (cache)</li>
+          <li>Test-TcpkIsAotBinary (AOT gate)</li>
+          <li>Get-TcpkMethodIl (disassemble)</li>
+          <li>Get-TcpkCallSites (find callers)</li>
+          <li>Clear-TcpkCecilCache</li>
+        </ul>
+      </div>
+      <div class="bucket" style="border-color:var(--cecil)">
+        <div class="bucket-title" style="color:var(--cecil)">Verdict Provers</div>
+        <ul>
+          <li>Get-TcpkTlsCallbackVerdicts</li>
+          <li>Get-TcpkXxeVerdicts</li>
+          <li>Get-TcpkCryptoVerdicts</li>
+          <li>Get-TcpkTypeNameHandlingVerdicts</li>
+          <li>Get-TcpkCertCallbackIl</li>
+          <li>Test-TcpkIlReturnsTrueUnconditionally</li>
+        </ul>
+      </div>
+      <div class="bucket" style="border-color:var(--cecil)">
+        <div class="bucket-title" style="color:var(--cecil)">Taint Analysis</div>
+        <ul>
+          <li>Get-TcpkCallsiteUsage (main engine)</li>
+          <li>Get-TcpkCallsiteSinkMap (sink defs)</li>
+          <li>Get-TcpkCallsiteSinkApiRegex</li>
+          <li>Get-TcpkTaintedReturningMethods</li>
+          <li>Get-TcpkCrossAsmTaintedReturning</li>
+          <li>Get-TcpkMethodTaintedLocals</li>
+          <li>Get-TcpkTaintedFields</li>
+        </ul>
+      </div>
+      <div class="bucket" style="border-color:var(--cecil)">
+        <div class="bucket-title" style="color:var(--cecil)">Used By (callers)</div>
+        <ul>
+          <li>Confirm-TcpkCallsiteUsage (public)</li>
+          <li>Confirm-TcpkTlsBypass</li>
+          <li>Confirm-TcpkDeserialization</li>
+          <li>Confirm-TcpkCallsites</li>
+          <li>Test-TcpkDebugFlags (DebuggableAttr)</li>
+          <li>GUI: DLL Decompilation tab</li>
+          <li>MCP: tcpk_decompile tool</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note">Cecil is LAZY-LOADED: only initialized when a check or the GUI DLL tab first needs it. AOT binaries are gated (Cecil cannot parse them). Assembly cache ($script:CecilAssemblyCache) avoids re-reads.</div>
+  </div>
+
+  <!-- ===== SECTION 6: GUI FLOW ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--gui-dim);color:var(--gui)">6</div>
+    WinForms GUI -- Start-TCPKGui.ps1
+  </div>
+
+  <div class="flow" style="border-left:3px solid var(--gui)">
+    <div class="hflow">
+      <div class="node gui-node">TCPK.bat / TCPK.exe</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node gui-node">powershell -STA</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node entry">Import-Module TCPK</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node gui-node">Build WinForms UI</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node gui-node">[Run Audit] clicked</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node process">Start-Job { Invoke-TcpkAudit @params 6>&1 | ForEach-Object {...} }</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node">Job ForEach-Object</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">InformationRecord TCPKFND\t...</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node process">"LOG\t..." + "FND\t..."</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node gui-node">Poll every 150ms (Receive-Job)</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">^LOG\t -> Write-LogLine (log pane)</div>
+    </div>
+    <div class="hflow" style="margin-left:254px">
+      <div class="arrow">&#x2192;</div>
+      <div class="node process">^FND\t -> Add-Finding (live table)</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node gui-node">Job completes</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">$lvFindings.Items.Clear()</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node process">Load findings.json + CVSS enrich</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node gui-node">Final sorted table</div>
+    </div>
+
+    <div style="margin-top:16px">
+      <div class="bucket-title" style="color:var(--gui)">GUI Tabs (15)</div>
+      <div class="tabs-grid">
+        <div class="tab-item"><b>Dashboard</b> KPI cards</div>
+        <div class="tab-item"><b>Findings</b> live table</div>
+        <div class="tab-item"><b>Recon / Target</b> profile</div>
+        <div class="tab-item"><b>DLL Mitigation</b> matrix</div>
+        <div class="tab-item"><b>DLL Signing</b> certs</div>
+        <div class="tab-item"><b>DLL Decompile</b> <span style="color:var(--cecil)">Cecil</span></div>
+        <div class="tab-item"><b>Exploit / CVE</b> plan</div>
+        <div class="tab-item"><b>SBOM</b> components</div>
+        <div class="tab-item"><b>Hex</b> PE overlay</div>
+        <div class="tab-item"><b>Strings</b> extraction</div>
+        <div class="tab-item"><b>Intercept</b> proxy</div>
+        <div class="tab-item"><b>Process Mon</b> live</div>
+        <div class="tab-item"><b>Asar</b> Electron</div>
+        <div class="tab-item"><b>Logs / Runtime</b></div>
+        <div class="tab-item"><b>Report</b> preview</div>
+      </div>
+    </div>
+    <div class="note">DLL Decompilation tab triggers Mono.Cecil: Get-TcpkCecilAssembly -> type/method browser -> Get-TcpkMethodIl for IL disassembly + C# decompilation view.</div>
+  </div>
+
+  <!-- ===== SECTION 7: AGENTIC WORKBENCH ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--agent-dim);color:var(--agent)">7</div>
+    Agentic Workbench -- Start-TcpkAgentic
+  </div>
+
+  <div class="flow" style="border-left:3px solid var(--agent)">
+    <div class="hflow">
+      <div class="node agent-node">Start-TcpkAgentic</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">TcpListener :0 (random port)</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node agent-node">_Agentic.ps1 serves SPA</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node">Browser: http://localhost:PORT/?token=...</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node agent-node">Inline HTML/JS SPA (13 tabs)</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node agent-node">POST /api/audit</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node process">Invoke-TcpkAudit (in-process)</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">JSON response -> SPA</div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="bucket-title" style="color:var(--agent)">SPA Tabs (13)</div>
+      <div class="tabs-grid">
+        <div class="tab-item"><b>Dashboard</b></div>
+        <div class="tab-item"><b>Audit Runner</b></div>
+        <div class="tab-item"><b>Findings</b></div>
+        <div class="tab-item"><b>Recon</b></div>
+        <div class="tab-item"><b>Exploit / CVE</b></div>
+        <div class="tab-item"><b>Strings</b></div>
+        <div class="tab-item"><b>Decompiler</b> <span style="color:var(--cecil)">Cecil</span></div>
+        <div class="tab-item"><b>SBOM</b></div>
+        <div class="tab-item"><b>DLL Matrix</b></div>
+        <div class="tab-item"><b>Hex</b></div>
+        <div class="tab-item"><b>Intercept</b></div>
+        <div class="tab-item"><b>Coverage</b></div>
+        <div class="tab-item"><b>Settings</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 8: MCP SERVER ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--mcp-dim);color:var(--mcp)">8</div>
+    MCP Server -- Start-TcpkMcpServer.ps1
+  </div>
+
+  <div class="flow" style="border-left:3px solid var(--mcp)">
+    <div class="hflow">
+      <div class="node mcp-node">Start-TcpkMcpServer.ps1</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node entry">Import-Module TCPK</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node mcp-node">stdin/stdout loop</div>
+    </div>
+    <div class="arrow-down">&#x2193;</div>
+    <div class="hflow">
+      <div class="node mcp-node">JSON-RPC 2.0</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node">$handlers[$method].Invoke($params)</div>
+      <div class="arrow">&#x2192;</div>
+      <div class="node mcp-node">Send-Result</div>
+    </div>
+    <div style="margin-top:12px">
+      <div class="bucket-title" style="color:var(--mcp)">MCP Tools (11)</div>
+      <div class="tabs-grid">
+        <div class="tab-item"><b>tcpk_info</b></div>
+        <div class="tab-item"><b>tcpk_audit</b></div>
+        <div class="tab-item"><b>tcpk_get_findings</b></div>
+        <div class="tab-item"><b>tcpk_recon_profile</b></div>
+        <div class="tab-item"><b>tcpk_strings</b></div>
+        <div class="tab-item"><b>tcpk_cve_match</b></div>
+        <div class="tab-item"><b>tcpk_list_modules</b></div>
+        <div class="tab-item"><b>tcpk_decompile</b> <span style="color:var(--cecil)">Cecil</span></div>
+        <div class="tab-item"><b>tcpk_exploit_plan</b></div>
+        <div class="tab-item"><b>tcpk_generate_poc</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SECTION 9: PRIVATE HELPERS ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--accent-dim);color:var(--accent)">9</div>
+    Key Private Helpers (51 files in Private/)
+  </div>
+
+  <div class="flow">
+    <div class="helpers-grid">
+      <div class="helper"><span class="name">_Decompile.ps1</span><span class="desc">Mono.Cecil bridge (21 functions)</span></div>
+      <div class="helper"><span class="name">_Finding.ps1</span><span class="desc">New-TcpkFinding factory + CVSS vector</span></div>
+      <div class="helper"><span class="name">_Cvss40.ps1</span><span class="desc">FIRST.org CVSS v4.0 score engine</span></div>
+      <div class="helper"><span class="name">_Attack.ps1</span><span class="desc">MITRE ATT&CK technique mapping</span></div>
+      <div class="helper"><span class="name">_Tasvs.ps1</span><span class="desc">OWASP TASVS v1.8 control mapping</span></div>
+      <div class="helper"><span class="name">_Identity.ps1</span><span class="desc">App identity terms + name matching</span></div>
+      <div class="helper"><span class="name">_Expand.ps1</span><span class="desc">Target unwrap (MSI/ZIP/MSIX)</span></div>
+      <div class="helper"><span class="name">_Intel.ps1</span><span class="desc">Intel report generation</span></div>
+      <div class="helper"><span class="name">_ExploitGate.ps1</span><span class="desc">Enable/Assert exploit bucket</span></div>
+      <div class="helper"><span class="name">_PeReader.ps1</span><span class="desc">PE header parser + hardening</span></div>
+      <div class="helper"><span class="name">_Llm.ps1</span><span class="desc">LLM backend (Ollama/cloud)</span></div>
+      <div class="helper"><span class="name">_Agentic.ps1</span><span class="desc">Loopback SPA server + API</span></div>
+      <div class="helper"><span class="name">_WebUi.ps1</span><span class="desc">Web panel HTML builder</span></div>
+      <div class="helper"><span class="name">_Recon.ps1</span><span class="desc">Endpoint classification + profile</span></div>
+      <div class="helper"><span class="name">_Js.ps1</span><span class="desc">JS comment stripper</span></div>
+      <div class="helper"><span class="name">_Xlsx.ps1</span><span class="desc">New-TcpkXlsx Excel builder</span></div>
+      <div class="helper"><span class="name">_VerifyHint.ps1</span><span class="desc">How-to-verify per RuleId</span></div>
+      <div class="helper"><span class="name">_SecretRecovery.ps1</span><span class="desc">DPAPI / credential decrypt</span></div>
+      <div class="helper"><span class="name">_Intercept.ps1</span><span class="desc">HTTP proxy interception</span></div>
+      <div class="helper"><span class="name">_Entropy.ps1</span><span class="desc">Shannon entropy calculator</span></div>
+      <div class="helper"><span class="name">_Log.ps1</span><span class="desc">Write-TcpkLog structured logger</span></div>
+      <div class="helper"><span class="name">_Sweep.ps1</span><span class="desc">Multi-target audit orchestration</span></div>
+      <div class="helper"><span class="name">_Coverage.ps1</span><span class="desc">Check coverage tracking</span></div>
+      <div class="helper"><span class="name">_Msix.ps1</span><span class="desc">MSIX manifest parser</span></div>
+    </div>
+    <div class="note">+ 27 more: _Agent, _Bypass, _Checklist, _CredVault, _Data, _EcosystemCve, _EnsureDir, _Eol, _HtmlEsc, _Kev, _Launch, _Liveness, _Logger, _ManagedCve, _MemRead, _Nvd, _Osv, _Platform, _Process, _Progress, _Sbom, _SingleFile, _Strings, _TokenInfo, _UriSink, _Version, _WinCrypto</div>
+  </div>
+
+  <!-- ===== SECTION 10: CONFIDENCE LADDER ===== -->
+  <div class="section-header">
+    <div class="num" style="background:var(--cecil-dim);color:var(--cecil)">10</div>
+    Confidence Ladder -- How Findings Get Proven
+  </div>
+
+  <div class="flow">
+    <div class="pipeline">
+      <div class="phase">
+        <div class="phase-num">Tier 1</div>
+        <div class="phase-title">Inferred</div>
+        <div class="phase-detail">Regex/string match<br>presence != invoked<br>"We found the text"</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Tier 2</div>
+        <div class="phase-title">Confirmed</div>
+        <div class="phase-detail">Factual observation<br>signing/PE-bit/ACL/file<br>"We observed the state"</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase" style="border-color:var(--cecil)">
+        <div class="phase-num" style="color:var(--cecil)">Tier 3 (Cecil)</div>
+        <div class="phase-title">Confirmed (IL)</div>
+        <div class="phase-detail">Mono.Cecil bytecode<br>reachable + tainted<br>"IL proves the call<br>is live + fed by input"</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase">
+        <div class="phase-num">Tier 4</div>
+        <div class="phase-title">Confirmed (dynamic)</div>
+        <div class="phase-detail">Invoke-TcpkDynamic<br>Confirm observed<br>real behavior at<br>runtime (gated)</div>
+        <div class="phase-arrow">&#x25B6;</div>
+      </div>
+      <div class="phase" style="opacity:0.6">
+        <div class="phase-num">Downgrade</div>
+        <div class="phase-title">Likely-FP (IL)</div>
+        <div class="phase-detail">String match only,<br>no real call site,<br>or all args constant<br>-> demoted to INFO</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
