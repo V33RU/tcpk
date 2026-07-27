@@ -11,33 +11,44 @@ For thin-client apps it audits the **client-side binaries** only -- the remote s
 is out of scope (separate web/API engagement), as is the thin-client terminal OS/appliance
 (run TCPK where the Windows PE binaries live, e.g. a Citrix/RDP published-app host).
 
-## A - Static binary analysis  (32)
+## A - Static binary analysis  (50)
 
 - **Get-TcpkPeHardening** - Per-DLL binary-hardening matrix (ASLR / DEP / CFG / HighEntropyVA / ...).
 - **Get-TcpkSigningMatrix** - Per-DLL code-signing matrix (signed / not signed -- information only; SIGNED / CATALOG / UNSIGNED / TAMPERED / UNTRUSTED + signer). Drives the GUI 'DLL Signing' tab, HTML signing table and Excel 'DLL Signing' sheet.
+- **Test-TcpkAmsiSurface** - A26. AMSI integration and evasion surface detection.
+- **Test-TcpkAotBinary** - A27. .NET Native AOT binary detection (evades IL-based analysis).
+- **Test-TcpkAppDomainHijack** - A28. AppDomainManager injection surface in .NET executables (T1574.014).
+- **Test-TcpkAppStack** - A40. Application technology-stack fingerprint with analysis-coverage note.
 - **Test-TcpkAuthFlags** - A23. Client-side authentication / licensing boolean flags.
 - **Test-TcpkCallsites** - A11. Static reference scan for dangerous .NET API patterns.
 - **Test-TcpkCodeIntegrity** - A15. AppxMetadata\CodeIntegrity.cat signature status.
+- **Test-TcpkClickOnce** - A29. ClickOnce deployment hijack surface detection.
 - **Test-TcpkCryptoMisuse** - A13. Crypto-misuse hunter -- hardcoded key material + weak KDF / padding.
 - **Test-TcpkCsvInjection** - A39. CSV / spreadsheet formula injection on export (CWE-1236): export sink with no formula-character neutralization.
 - **Test-TcpkDebugFlags** - A16. Debug switches, security-disabling flags, and backdoor markers.
 - **Test-TcpkDeserialization** - A10. Static heuristic for unsafe .NET deserialization patterns.
 - **Test-TcpkDevArtifacts** - A36. Leftover dev/build artifacts shipped in the release (TASVS-CONF-1.4): debug symbols, source, backups, dev-config, API specs, .git/IDE dirs.
+- **Test-TcpkDiagConfig** - A30. Shipped diagnostic/logging framework configs with exposure risk.
+- **Test-TcpkDllSideload** - A31. DLL side-loading opportunities via known target DLL names (T1574.002).
 - **Test-TcpkElectron** - A24. Electron / Chromium-embedded insecure configuration (renderer flags incl. nodeIntegration / contextIsolation / sandbox / webSecurity / nodeIntegrationInSubFrames / experimentalFeatures / enableBlinkFeatures / nodeIntegrationInWorkers / webviewTag / webSQL / experimentalCanvasFeatures). Also flags TLS certificate-validation bypass in the bundled JS (electron.cert-validation-bypass, electron.cert-error-accept-all): a setCertificateVerifyProc with no callback(-2) reject path, rejectUnauthorized:false, NODE_TLS_REJECT_UNAUTHORIZED=0, or an accept-all certificate-error handler.
 - **Test-TcpkElectronFuses** - A42. Electron Fuses audit: parses the @electron/fuses wire from the app binary and flags insecure fuse states as Confirmed facts (EnableCookieEncryption off = plaintext cookies; RunAsNode / EnableNodeCliInspectArguments on = node-exec / --inspect LOLBins; EnableEmbeddedAsarIntegrityValidation off = tamperable app.asar) plus a full fuse-posture summary.
 - **Test-TcpkElectronJs** - A41. Electron/JS vulnerable-code-pattern scan: dangerous sinks in the bundled JS (child_process/eval/Function/string-setTimeout exec, shell.openExternal file://, innerHTML/document.write/v-html DOM XSS, unsanitized markdown, resource-protocol path traversal, missing navigation guard, prototype pollution, script-initiated navigation (location.href/window.open/javascript:), CSS-injection/scriptless, weak CSP unsafe-inline/eval/hardcoded-nonce, unsafe <webview> tag, wildcard postMessage, dangerous command-line switches, dynamic executeJavaScript, insertCSS, always-allow permission handler) emitted as Inferred leads. Rules in Data/electron-js-sinks.json.
 - **Test-TcpkEmbeddedScripts** - A20. Embedded script files shipped in the package.
 - **Test-TcpkEndpoints** - A09 -- URL extraction + dev / qe / staging classifier.
 - **Test-TcpkEntropySecrets** - A12. Entropy-based secret detection in text / config / source files.
+- **Test-TcpkHollowingApis** - A32. Process hollowing / DLL injection / APC injection P/Invoke patterns in .NET PEs.
 - **Test-TcpkJavaBundle** - A35. Crack shipped Java archives (jar/war/ear) and scan entries for secrets + insecure-TLS markers.
 - **Test-TcpkJwt** - A14. Embedded JSON Web Token (JWT) discovery + weakness analysis.
+- **Test-TcpkMsixPsf** - A33. Package Support Framework (PSF) script injection in MSIX packages.
 - **Test-TcpkNativeInterop** - A18. Native interop -- unsafe Marshal / pointer patterns.
 - **Test-TcpkPacker** - A22. Packer / obfuscator detection -- and the inverse: source-recoverable
 - **Test-TcpkPeExports** - A04. PE export surface enumeration (for proxy-DLL planning).
 - **Test-TcpkPeImports** - A03 -- Phantom DLL imports (DLL hijack candidates).
 - **Test-TcpkPeMitigations** - A02 -- PE compile-time mitigations (ASLR, DEP, CFG, HighEntropyVA). NOT in the default audit (opt-in / compliance use): the audit reports hardening as posture in the DLL Mitigation Matrix (Get-TcpkPeHardening), not as findings.
+- **Test-TcpkPhantomDlls** - A34. Phantom DLL planting opportunities in PE import tables.
 - **Test-TcpkPInvokeSurface** - A17. P/Invoke surface -- bare-name DllImport declarations.
 - **Test-TcpkReflectionLoading** - A16. Dynamic code loading via reflection.
+- **Test-TcpkRegistryCredentialStore** - A35b. First-party code writing credentials to registry (insecure local-data-storage anti-pattern).
 - **Test-TcpkResources** - A07. Embedded resource audit.
 - **Test-TcpkSecrets** - A08 -- Hardcoded-secret scan (regex rules over UTF-8 + UTF-16LE views).
 - **Test-TcpkSessionHandling** - A33. Session-handling hygiene (cookie HttpOnly/Secure/SameSite, token in URL, weak token generation, expiry) over shipped config / scripts / PE strings.
@@ -65,7 +76,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkMsixProtocols** - B03. URI scheme handlers declared in AppxManifest.xml. Adds a sink-reachability pass: emits `protocol.sink-reachable` (HIGH) when a binary both handles activation args and references a dangerous sink.
 - **Test-TcpkUacManifest** - B09. UAC execution level in embedded RT_MANIFEST (and sidecar .manifest).
 
-## C - OS integration  (23)
+## C - OS integration  (30)
 
 - **Expand-TcpkAsar** - Parse an Electron app.asar file-table, extract each module to disk, and scan the extracted JS/config for secrets + insecure Electron flags.
 - **Get-TcpkTasvsMap** - Map findings / rule IDs to OWASP TASVS controls and the OWASP Desktop App Security Top 10 (report-time lookup; pipe findings, pass -RuleId, or dump the table).
@@ -74,6 +85,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Save-TcpkFileSnapshot** - C19a. Regshot-style file-system snapshot (path/size/mtime/SHA-256) for before/after diffing.
 - **Save-TcpkRegistrySnapshot** - C18a. Regshot-style registry snapshot (before/after the app runs).
 - **Test-TcpkAppPaths** - C10. App Paths registry entries.
+- **Test-TcpkComHijack** - C20. Per-user COM CLSID hijack opportunities (T1546.015).
 - **Test-TcpkAutoStart** - C04. Autostart entries (Run / RunOnce keys + scheduled tasks).
 - **Test-TcpkAvExclusions** - C17. Microsoft Defender exclusions attributable to the app.
 - **Test-TcpkFirewallRules** - C16. Windows Firewall rules created by the app (overly-broad inbound).
@@ -93,6 +105,8 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkSxsManifests** - C09. Side-by-side activation context manifests + .local files.
 - **Test-TcpkTrustStore** - C15. Certificate trust-store pollution by the app/installer.
 - **Test-TcpkUnquotedServicePath** - C03. Classic unquoted-service-path LPE primitive.
+- **Test-TcpkWritablePath** - C22. Writable directories in the system PATH (binary planting surface, T1574.007).
+- **Test-TcpkWerExposure** - C21. Windows Error Reporting (WER) crash dump data exposure (T1005).
 - **Test-TcpkWmiPersistence** - C16. WMI permanent event subscriptions (persistence mechanism).
 
 ## D - Credential storage  (9)
@@ -107,7 +121,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkTokenCaches** - D05. MSAL / ADAL / custom OAuth token cache files.
 - **Test-TcpkWebViewCreds** - D06. WebView2 Edge user profile -- saved login state.
 
-## E - Runtime / live process  (19)
+## E - Runtime / live process  (21)
 
 - **Test-TcpkChildProcesses** - E14. Direct child processes spawned by the target.
 - **Test-TcpkComObjects** - E06. COM objects registered in HKCR\CLSID pointing at the target.
@@ -127,13 +141,16 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkProcessMitigations** - E01. Runtime process mitigations (DEP, ASLR, CFG, SEHOP, etc.).
 - **Test-TcpkProcessToken** - E13. Process token owner / integrity level / impactful privileges.
 - **Test-TcpkRpcSurface** - E16. MS-RPC server interface surface (static).
+- **Test-TcpkSharedMemoryDacl** - E13. Shared-memory / memory-mapped file DACL inspection.
 - **Test-TcpkWindowEnumeration** - E12. Top-level windows owned by the process (Shatter / UIA surface).
+- **Test-TcpkWindowMessages** - E12b. Window-message attack surface (WM_COPYDATA injection + drop-files).
 
-## F - Network  (9)
+## F - Network  (11)
 
 - **Test-TcpkBackendEndpoints** - F03. Inventory backend API endpoints + inferred auth model.
 - **Test-TcpkCrlOcsp** - F06. CRL / OCSP revocation-checking behavior.
 - **Test-TcpkDnsLeakage** - F05. DNS pre-resolution / hostname leakage indicators.
+- **Test-TcpkGrpcSurface** - F11. gRPC / Protobuf service surface enumeration (proto files, services, reflection).
 - **Test-TcpkInsecureSchemes** - F07. Cleartext network scheme references (http:// and ws://).
 - **Test-TcpkRpcChannels** - F10. gRPC / SignalR channel security: insecure (no-TLS) credentials in first-party code + cleartext ws:// / http:// hubs and gRPC targets in shipped config / JS.
 - **Test-TcpkSelfHostedServer** - F07. Self-hosted HTTP/web-server surface detection.
@@ -142,13 +159,14 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkTlsProtocols** - F04. TLS protocol version markers (1.0 / 1.1 fallback?).
 - **Test-TcpkUpdateFlow** - F02. Update mechanism: signed manifest? signed payload? downgrade defense?
 
-## G - WebView2  (6)
+## G - WebView2  (7)
 
 - **Test-TcpkWv2DevTools** - G05. WebView2 DevTools enabled in shipped build.
 - **Test-TcpkWv2HostObjects** - G01. AddHostObjectToScript -- .NET object exposure to JS.
 - **Test-TcpkWv2ResourcePolicy** - G07. WebResourceRequested / external-resource fetch policy.
 - **Test-TcpkWv2ScriptInjection** - G06. AddScriptToExecuteOnDocumentCreated -- script auto-injection.
 - **Test-TcpkWv2VirtualHost** - G04. SetVirtualHostNameToFolderMapping (local content as a web origin).
+- **Test-TcpkWv2Sideload** - G08. WebView2 DLL sideloading opportunities (T1574.002).
 - **Test-TcpkWv2WebMessage** - G02. WebMessageReceived handler presence (one-way JS-to-host bridge).
 
 ## H - Logging / telemetry  (4)
@@ -158,8 +176,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkPiiInLogs** - H03. PII patterns in shipped logs / templates / data files.
 - **Test-TcpkTelemetrySdks** - H02. Third-party telemetry SDK enumeration.
 
-## I - Memory hygiene  (4)
+## I - Memory hygiene  (5)
 
+- **Test-TcpkClipboardSecrets** - I05. Clipboard secret monitoring during a test session (polls for passwords, API keys, tokens).
 - **Test-TcpkMemorySecrets** - I04. Live-memory secret scan (read-only) of a running process.
 - **Test-TcpkPageFile** - I02. Page file / hibernation file secrecy hygiene.
 - **Test-TcpkSecureStringUsage** - I03. SecureString / ProtectedData usage in first-party code.
@@ -172,7 +191,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkSelfIntegrityCheck** - J02. Self-integrity verification markers.
 - **Test-TcpkTimingAntiDebug** - J04. Timing-based anti-debug markers (RDTSC, QueryPerformanceCounter).
 
-## K - Exploitation (GATED, off by default)  (12)
+## K - Exploitation (GATED, off by default)  (14)
 
 - **Get-TcpkCveMatches** - Match the target's shipped components against live CVE data (ONLINE-ONLY): OSV (NuGet/npm/Maven) + NVD (native libs by CPE); no offline catalog is bundled
 - **Get-TcpkExploitPlan** - Build a unified, actionable exploit plan from CVE matches + exploitable findings.
@@ -182,7 +201,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Invoke-TcpkMemoryFlagFlip** - K07. (GATED) Locate and optionally patch an in-memory flag to prove
 - **Invoke-TcpkPipeProbe** - K08. (GATED) Connect to a named pipe and send a benign probe.
 - **New-TcpkComHijackTemplate** - K05. Generate a proxy-COM scaffold for a flagged COM-server CLSID.
-- **New-TcpkFridaTlsBypass** - K02. Generate a Frida JS script template that bypasses a flagged
+- **New-TcpkFridaTlsBypass** - K02.
+- **New-TcpkIlPatch** - K11. (GATED) IL binary patching via Mono.Cecil: ReturnTrue, ReturnFalse, ReturnNull, Nop, FlipBranch, StripSn.
+- **New-TcpkRegistryHijackTemplate** - K12. (GATED) Registry-based persistence / hijack PoC artifacts (IFEO, RunKey, AppInitDlls). Generate a Frida JS script template that bypasses a flagged
 - **New-TcpkPoisonedUpdateManifest** - K03. Generate a TEMPLATE update-manifest that demonstrates an
 - **New-TcpkProxyDll** - K01. Generate a proxy-DLL source scaffold for a flagged phantom-import.
 - **Start-TcpkPipeMitm** - K06. Local-loopback named-pipe MITM listener.
@@ -224,4 +245,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**Total: 154 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (v2.7.1).
+**Total: 188 bucketed checks** documented here. Run `Get-TcpkInfo` for the authoritative live count (v2.7.1).
