@@ -27,3 +27,11 @@ function Convert-TcpkFromB64Url {
         return [Convert]::FromBase64String($s)
     } catch { return $null }
 }
+
+# bytes -> base64url (JWT segments): padding stripped, +/ -> -_. Round-trips with
+# Convert-TcpkFromB64Url. Used to forge JWT header/payload/signature segments.
+function Convert-TcpkToB64Url {
+    [CmdletBinding()] param([Parameter(Mandatory)][AllowEmptyCollection()][byte[]]$Bytes)
+    if ($null -eq $Bytes -or $Bytes.Length -eq 0) { return '' }
+    return [Convert]::ToBase64String($Bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
