@@ -176,3 +176,64 @@ function New-TcpkJwkFromRsa {
         e   = Convert-TcpkToB64Url -Bytes $pp.Exponent
     }
 }
+
+# Turn a parsed JWT payload (PSCustomObject from ConvertFrom-Json) back into an
+# [ordered] dictionary so attack classes can clone + mutate claims before re-signing.
+function ConvertTo-TcpkOrderedDict {
+    [CmdletBinding()] param($Obj)
+    $d = [ordered]@{}
+    if ($null -eq $Obj) { return $d }
+    if ($Obj -is [System.Collections.IDictionary]) {
+        foreach ($k in $Obj.Keys) { $d[[string]$k] = $Obj[$k] }
+    } elseif ($Obj -is [psobject]) {
+        foreach ($p in $Obj.PSObject.Properties) { $d[$p.Name] = $p.Value }
+    }
+    return $d
+}
+
+# Flip one byte of a token's signature segment so a signature-verifying server rejects
+# it. If the segment is empty (alg=none token), append a junk byte so it is non-empty.
+function Get-TcpkBadSigToken {
+    [CmdletBinding()] param([Parameter(Mandatory)][string]$Token)
+    $p = $Token.Split('.')
+    if ($p.Count -ne 3) { return $Token }
+    $sig = $p[2]
+    if ([string]::IsNullOrEmpty($sig)) { $sig = 'AAAA' }
+    else {
+        $c = $sig[0]
+        $nc = if ($c -eq 'A') { 'B' } else { 'A' }
+        $sig = "$nc" + $sig.Substring(1)
+    }
+    return "$($p[0]).$($p[1]).$sig"
+}
+
+# ------------------------------------------------------------------- probe ----
+
+# Send ONE read-only request carrying $Token at $Location and return the shared response
+# snapshot (Status/Len/Hash/BodyHead/Redirect from _Replay.ps1). An empty $Token sends no
+# credential (the anon baseline). Location: 'header' (Authorization: Bearer), 'cookie:<n>',
+# or 'rawheader:<n>'. Read-only methods only.
+function Invoke-TcpkJwtProbe {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Url,
+        [AllowEmptyString()][string]$Token,
+        [string]$Location = 'header',
+        [ValidateSet('GET', 'HEAD', 'OPTIONS')][string]$Method = 'GET',
+        [string[]]$VolatileFieldRegex,
+        [int]$TimeoutSec = 15
+    )
+    $headers = @{}
+    if (-not [string]::IsNullOrEmpty($Token)) {
+        if ($Location -ieq 'header') {
+            $headers['Authorization'] = "Bearer $Token"
+        } elseif ($Location -imatch '^cookie:(.+)$') {
+            $headers['Cookie'] = "$($Matches[1])=$Token"
+        } elseif ($Location -imatch '^rawheader:(.+)$') {
+            $headers[$Matches[1]] = $Token
+        } else {
+            $headers['Authorization'] = "Bearer $Token"    # default
+        }
+    }
+    return New-TcpkHttpSnapshot -Method $Method -Url $Url -Headers $headers -VolatileFieldRegex $VolatileFieldRegex -TimeoutSec $TimeoutSec
+}
