@@ -40,14 +40,17 @@ function Invoke-TcpkTsharkQuery {
         [Parameter(Mandatory)][string[]]$Fields,
         [int]$Max = 0,
         [string]$KeylogFile,  # TLS session-key log (SSLKEYLOGFILE) -> decrypt TLS so HTTPS dissects
-        [string]$RsaKeyFile   # server RSA private key -> decrypt RSA-key-exchange TLS (not ECDHE / 1.3)
+        [string]$RsaKeyFile,  # server RSA private key -> decrypt RSA-key-exchange TLS (not ECDHE / 1.3)
+        [string]$Occurrence = 'f',  # tshark -E occurrence: f=first (default, back-compat), a=all, l=last
+        [string]$Aggregator         # tshark -E aggregator: joins multi-occurrence values in one field
     )
     $sep = "`t"
     $a = @('-r', $Pcap, '-n')
     if ($KeylogFile -and (Test-Path -LiteralPath $KeylogFile)) { $a += @('-o', "tls.keylog_file:$KeylogFile") }
     if ($RsaKeyFile -and (Test-Path -LiteralPath $RsaKeyFile)) { $a += @('-o', ('uat:rsa_keys:"' + $RsaKeyFile + '",""')) }
     if ($Filter) { $a += @('-Y', $Filter) }
-    $a += @('-T', 'fields', '-E', "separator=$sep", '-E', 'occurrence=f')
+    $a += @('-T', 'fields', '-E', "separator=$sep", '-E', "occurrence=$Occurrence")
+    if ($Aggregator) { $a += @('-E', "aggregator=$Aggregator") }
     foreach ($f in $Fields) { $a += @('-e', $f) }
     $lines = @()
     try { $lines = & $Tshark @a 2>$null } catch { return @() }
@@ -64,6 +67,82 @@ function Invoke-TcpkTsharkQuery {
         if ($Max -gt 0 -and $rows.Count -ge $Max) { break }
     }
     return $rows.ToArray()
+}
+
+# --------------------------------------------------- pcap -> replay-request bridge ----
+# Decode a tshark hex string (http.file_data etc., contiguous or colon-separated) to bytes.
+# Odd-length or empty input -> empty array (never throws).
+function ConvertFrom-TcpkHexString {
+    [CmdletBinding()] param([AllowEmptyString()][string]$Hex)
+    if ([string]::IsNullOrEmpty($Hex)) { return , ([byte[]]@()) }
+    $clean = ($Hex -replace '[^0-9a-fA-F]', '')
+    if ($clean.Length -eq 0 -or ($clean.Length % 2) -ne 0) { return , ([byte[]]@()) }
+    $bytes = New-Object byte[] ($clean.Length / 2)
+    for ($i = 0; $i -lt $bytes.Length; $i++) { $bytes[$i] = [Convert]::ToByte($clean.Substring($i * 2, 2), 16) }
+    return , $bytes
+}
+
+# Reconstruct HTTP requests from a capture as replay-request specs. TLS keys decrypt first.
+# tshark gives method/host/uri/all-header-lines (aggregated)/body-hex/dstport per request.
+function Get-TcpkHttpRequestsFromPcap {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap, [string]$KeylogFile, [string]$RsaKeyFile, [int]$Max = 0)
+    $us = [char]0x1F
+    $rows = Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap -Filter 'http.request' `
+        -Fields @('http.request.method', 'http.host', 'http.request.uri', 'http.request.line', 'http.file_data', 'tcp.dstport') `
+        -Occurrence 'a' -Aggregator "$us" -KeylogFile $KeylogFile -RsaKeyFile $RsaKeyFile -Max $Max
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($r in @($rows)) {
+        $method = "$($r.'http.request.method')"; if (-not $method) { continue }
+        # multi-request TCP streams can aggregate; take the first value of single-valued fields
+        $method = ($method -split $us)[0]
+        $hostH = (("$($r.'http.host')") -split $us)[0]
+        $uri = (("$($r.'http.request.uri')") -split $us)[0]
+        if (-not $uri) { $uri = '/' }
+        $port = (("$($r.'tcp.dstport')") -split $us)[0]
+        $scheme = if ($port -eq '443' -or $KeylogFile -or $RsaKeyFile) { 'https' } else { 'http' }
+        if (-not $hostH) { $hostH = 'unknown.host' }
+        $url = "${scheme}://${hostH}${uri}"
+        $headerLines = @()
+        foreach ($hl in ("$($r.'http.request.line')" -split $us)) { $t = "$hl".TrimEnd("`r", "`n"); if ($t) { $headerLines += $t } }
+        $spec = New-TcpkRequestSpec -Method $method -Url $url -Header $headerLines
+        $bodyHex = (("$($r.'http.file_data')") -split $us)[0]
+        if ($bodyHex) { $spec.Body = ConvertFrom-TcpkHexString $bodyHex; $spec.ContentType = if ($spec.Headers.Contains('Content-Type')) { "$($spec.Headers['Content-Type'])" } else { $spec.ContentType } }
+        $out.Add($spec)
+    }
+    return $out.ToArray()
+}
+
+# One request spec from a capture (by index) for the replay/IDOR engines.
+function ConvertFrom-TcpkPcapRequest {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap, [string]$KeylogFile, [string]$RsaKeyFile, [int]$Index = 0)
+    $reqs = @(Get-TcpkHttpRequestsFromPcap -Tshark $Tshark -Pcap $Pcap -KeylogFile $KeylogFile -RsaKeyFile $RsaKeyFile)
+    if ($reqs.Count -eq 0) { throw "no HTTP requests found in $Pcap (need cleartext HTTP, or TLS keys to decrypt HTTPS)." }
+    if ($Index -lt 0 -or $Index -ge $reqs.Count) { throw "request index $Index out of range (capture has $($reqs.Count) request(s))." }
+    return $reqs[$Index]
+}
+
+# Pull the first Bearer JWT (and where it rode) from a capture for the JWT toolkit.
+function Get-TcpkJwtFromPcap {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Pcap, [Parameter(Mandatory)][string]$Tshark, [string]$KeylogFile, [string]$RsaKeyFile)
+    $rxJwt = 'eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]*'
+    foreach ($r in @(Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap -Filter 'http.authorization' -Fields @('http.authorization') -KeylogFile $KeylogFile -RsaKeyFile $RsaKeyFile)) {
+        if ("$($r.'http.authorization')" -match "Bearer\s+($rxJwt)") { return [pscustomobject]@{ Token = $Matches[1]; Location = 'header' } }
+    }
+    $us = [char]0x1F
+    foreach ($r in @(Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap -Filter 'http.request' -Fields @('http.request.line') -Occurrence 'a' -Aggregator "$us" -KeylogFile $KeylogFile -RsaKeyFile $RsaKeyFile)) {
+        foreach ($line in ("$($r.'http.request.line')" -split $us)) {
+            if ($line -match "([A-Za-z0-9_\-]+)=($rxJwt)" -and $line -imatch '^\s*Cookie\s*:') { return [pscustomobject]@{ Token = $Matches[2]; Location = 'cookie:' + $Matches[1] } }
+            if ($line -match "($rxJwt)") {
+                $tok = $Matches[1]
+                if ($line -imatch '^\s*([A-Za-z0-9\-]+)\s*:' -and $Matches[1] -inotmatch '^Authorization$') { return [pscustomobject]@{ Token = $tok; Location = 'rawheader:' + $Matches[1] } }
+                return [pscustomobject]@{ Token = $tok; Location = 'header' }
+            }
+        }
+    }
+    return $null
 }
 
 # Map a tls.handshake.version value (as tshark prints it) to a friendly name + weak flag.

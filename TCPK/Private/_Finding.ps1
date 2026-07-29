@@ -178,6 +178,11 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
     @{ Rx = '^(install-dir|acl|service|driver|ifeo|scheduled-task|app-paths|autostart|com|named-object|pipe-dacl|dll-search|shim|avexclusion|firewall|wmi|uac|window|sharedmem)\.'; A = 'local-privesc' }
+    # active traffic-to-attack findings score as network credential/authz bypass (more specific,
+    # so they sit ABOVE the generic jwt line below). Offline jwt.weak-secret / jwt.embedded-token
+    # / jwt.alg-none-issued keep the shipped-secret (local) mapping.
+    @{ Rx = '^jwt\.[a-z0-9-]*-accepted';                                                                                                                            A = 'live-credential' }
+    @{ Rx = '^(replay|idor)\.';                                                                                                                                     A = 'live-credential' }
     @{ Rx = '^(entropy|jwt|config|app-config)\.';                                                                                                                   A = 'shipped-secret' }
     @{ Rx = '^(dpapi|token-cache|credman|localdb|env|memory|memsecret|pii|log|clipboard)\.';                                                                         A = 'local-at-rest' }
     @{ Rx = '^(authflags|guiunlock|flagflip)\.';                                                                                                                    A = 'client-bypass' }
