@@ -1064,7 +1064,7 @@ $tabPcap.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabPcap)
 
 $ctlP = New-Object System.Windows.Forms.Panel
-$ctlP.Dock = 'Top'; $ctlP.Height = 96; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$ctlP.Dock = 'Top'; $ctlP.Height = 168; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 $lblPcap = New-Object System.Windows.Forms.Label
 $lblPcap.Text = "Packet capture (.pcap / .pcapng) -- analyse it via your installed Wireshark (tshark). Read-only, needs no admin."
 $lblPcap.ForeColor = [System.Drawing.Color]::White
@@ -1096,7 +1096,40 @@ $ctlP.Controls.Add($btnPcapGo)
 $btnPcapGo.Add_Click({
     $file = $txtPcap.Text.Trim()
     if (-not $file) { Write-IcptLine $txtOutP "`r`n[!] Pick a .pcap / .pcapng file first.`r`n" $icptWarn; return }
-    Invoke-IcptTool $txtOutP "Analyse pcap: $file" { Invoke-TcpkPcapReview -Path $file }
+    $p = @{ Path = $file }
+    if ($txtKeylog.Text.Trim()) { $p.KeylogFile = $txtKeylog.Text.Trim() }
+    if ($txtRsa.Text.Trim())    { $p.RsaKeyFile = $txtRsa.Text.Trim() }
+    Invoke-IcptTool $txtOutP "Analyse pcap: $file" { Invoke-TcpkPcapReview @p }
+})
+
+# Decrypt fields (optional): TLS keylog (all TLS incl 1.3) and/or server RSA private key (RSA kx only)
+$lblKeylog = New-Object System.Windows.Forms.Label; $lblKeylog.Text = "TLS keylog:"; $lblKeylog.ForeColor = [System.Drawing.Color]::White; $lblKeylog.Location = New-Object System.Drawing.Point(12,100); $lblKeylog.Size = New-Object System.Drawing.Size(84,18); $ctlP.Controls.Add($lblKeylog)
+$txtKeylog = New-Object System.Windows.Forms.TextBox; $txtKeylog.Location = New-Object System.Drawing.Point(100,97); $txtKeylog.Size = New-Object System.Drawing.Size(340,24); $txtKeylog.Font = New-Object System.Drawing.Font('Consolas', 9); $txtKeylog.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtKeylog.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtKeylog)
+$btnKeylog = New-Object System.Windows.Forms.Button; $btnKeylog.Text = "..."; $btnKeylog.Location = New-Object System.Drawing.Point(444,95); $btnKeylog.Size = New-Object System.Drawing.Size(32,26); $btnKeylog.FlatStyle = 'Flat'; $btnKeylog.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnKeylog.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnKeylog)
+$btnKeylog.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtKeylog.Text = $dlg.FileName } })
+$lblRsa = New-Object System.Windows.Forms.Label; $lblRsa.Text = "RSA key:"; $lblRsa.ForeColor = [System.Drawing.Color]::White; $lblRsa.Location = New-Object System.Drawing.Point(492,100); $lblRsa.Size = New-Object System.Drawing.Size(64,18); $ctlP.Controls.Add($lblRsa)
+$txtRsa = New-Object System.Windows.Forms.TextBox; $txtRsa.Location = New-Object System.Drawing.Point(560,97); $txtRsa.Size = New-Object System.Drawing.Size(300,24); $txtRsa.Font = New-Object System.Drawing.Font('Consolas', 9); $txtRsa.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtRsa.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtRsa)
+$btnRsa = New-Object System.Windows.Forms.Button; $btnRsa.Text = "..."; $btnRsa.Location = New-Object System.Drawing.Point(864,95); $btnRsa.Size = New-Object System.Drawing.Size(32,26); $btnRsa.FlatStyle = 'Flat'; $btnRsa.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRsa.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnRsa)
+$btnRsa.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtRsa.Text = $dlg.FileName } })
+$lblDecHint = New-Object System.Windows.Forms.Label; $lblDecHint.Text = "keylog decrypts all TLS (incl 1.3); RSA key only RSA-kx TLS"; $lblDecHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblDecHint.Location = New-Object System.Drawing.Point(902,100); $lblDecHint.Size = New-Object System.Drawing.Size(250,32); $ctlP.Controls.Add($lblDecHint)
+
+# Live capture (drives the operator's dumpcap; needs a capture driver + admin)
+$lblIface = New-Object System.Windows.Forms.Label; $lblIface.Text = "Live capture:"; $lblIface.ForeColor = [System.Drawing.Color]::White; $lblIface.Location = New-Object System.Drawing.Point(12,136); $lblIface.Size = New-Object System.Drawing.Size(84,18); $ctlP.Controls.Add($lblIface)
+$cmbIface = New-Object System.Windows.Forms.ComboBox; $cmbIface.Location = New-Object System.Drawing.Point(100,133); $cmbIface.Size = New-Object System.Drawing.Size(200,24); $cmbIface.DropDownStyle = 'DropDownList'; $cmbIface.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbIface.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($cmbIface)
+$btnIface = New-Object System.Windows.Forms.Button; $btnIface.Text = "Refresh"; $btnIface.Location = New-Object System.Drawing.Point(306,131); $btnIface.Size = New-Object System.Drawing.Size(70,26); $btnIface.FlatStyle = 'Flat'; $btnIface.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnIface.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnIface)
+$btnIface.Add_Click({ $cmbIface.Items.Clear(); try { foreach ($i in (Get-TcpkCaptureInterface)) { [void]$cmbIface.Items.Add($i.Name) } } catch {}; if ($cmbIface.Items.Count) { $cmbIface.SelectedIndex = 0 } })
+$lblSecs = New-Object System.Windows.Forms.Label; $lblSecs.Text = "Secs:"; $lblSecs.ForeColor = [System.Drawing.Color]::White; $lblSecs.Location = New-Object System.Drawing.Point(390,136); $lblSecs.Size = New-Object System.Drawing.Size(40,18); $ctlP.Controls.Add($lblSecs)
+$numCapDur = New-Object System.Windows.Forms.NumericUpDown; $numCapDur.Location = New-Object System.Drawing.Point(432,133); $numCapDur.Size = New-Object System.Drawing.Size(56,24); $numCapDur.Minimum = 1; $numCapDur.Maximum = 120; $numCapDur.Value = 15; $numCapDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numCapDur.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($numCapDur)
+$btnCapGo = New-Object System.Windows.Forms.Button; $btnCapGo.Text = "Capture + analyse"; $btnCapGo.Location = New-Object System.Drawing.Point(500,131); $btnCapGo.Size = New-Object System.Drawing.Size(150,26); $btnCapGo.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCapGo.ForeColor = [System.Drawing.Color]::White; $btnCapGo.FlatStyle = 'Flat'; $ctlP.Controls.Add($btnCapGo)
+$lblCapHint = New-Object System.Windows.Forms.Label; $lblCapHint.Text = "needs Wireshark + npcap + admin (drives dumpcap)"; $lblCapHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblCapHint.Location = New-Object System.Drawing.Point(660,136); $lblCapHint.Size = New-Object System.Drawing.Size(300,18); $ctlP.Controls.Add($lblCapHint)
+$btnCapGo.Add_Click({
+    $iface = [string]$cmbIface.SelectedItem
+    if (-not $iface) { Write-IcptLine $txtOutP "`r`n[!] Pick a capture interface (Refresh first).`r`n" $icptWarn; return }
+    $sec = [int]$numCapDur.Value
+    $p = @{ Interface = $iface; Seconds = $sec }
+    if ($txtKeylog.Text.Trim()) { $p.KeylogFile = $txtKeylog.Text.Trim() }
+    if ($txtRsa.Text.Trim())    { $p.RsaKeyFile = $txtRsa.Text.Trim() }
+    Invoke-IcptTool $txtOutP "Live capture on $iface (${sec}s)" { Invoke-TcpkPcapCapture @p }
 })
 $tabPcap.Controls.Add($ctlP)
 

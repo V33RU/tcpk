@@ -47,7 +47,9 @@ function Invoke-TcpkAgenticApi {
             'POST /api/agent/auto'      { return (Start-TcpkAgentAutoJob -Request $Request -State $State) }
             'GET /api/agent/auto-status'{ return (Get-TcpkAgentAutoStatus -State $State -JobId "$($Request.Query['job'])") }
             'POST /api/agent/intercept' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentInterceptReview -File "$(if($b){$b.file})" -Kind "$(if($b){$b.kind})")) }
-            'POST /api/agent/pcap'      { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentPcapReview -File "$(if($b){$b.file})")) }
+            'POST /api/agent/pcap'         { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentPcapReview -File "$(if($b){$b.file})" -Keylog "$(if($b){$b.keylog})" -RsaKey "$(if($b){$b.rsakey})")) }
+            'GET /api/agent/pcap-ifaces'   { return (New-TcpkWebJson 200 (Get-TcpkAgentCaptureIfaces)) }
+            'POST /api/agent/pcap-capture' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentPcapCapture -Iface "$(if($b){$b.iface})" -Seconds ([int]("0" + "$(if($b){$b.seconds})")) -Filter "$(if($b){$b.filter})" -Keylog "$(if($b){$b.keylog})" -RsaKey "$(if($b){$b.rsakey})")) }
             'POST /api/agent/runtime'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentRuntime -Check "$(if($b){$b.check})" -Process "$(if($b){$b.process})" -Path "$(if($b){$b.path})")) }
             'GET /api/agent/proclist'   { return (New-TcpkWebJson 200 (Get-TcpkAgentProcList)) }
             'POST /api/agent/procmon'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentProcmon -Proc "$(if($b){$b.proc})")) }
@@ -690,20 +692,47 @@ function Get-TcpkAgentInterceptReview {
 # POST /api/agent/pcap {file} -- analyse a packet capture (.pcap/.pcapng) via the operator's
 # installed tshark (Wireshark) into pcap.* findings + a bounded packet list for the workbench.
 # READ-ONLY: it dissects a capture FILE; it never captures live and needs no admin or driver.
+function Get-TcpkAgentPcapPayload {
+    param([object[]]$Findings, [object[]]$Packets)
+    $rows = @(@($Findings) | ForEach-Object { [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = "$($_.Title)"; evidence = "$($_.Evidence)" } })
+    $counts = [ordered]@{ crit = 0; high = 0; med = 0; low = 0; info = 0 }
+    foreach ($r in $rows) { switch ("$($r.sev)".ToUpper()) { 'CRITICAL' { $counts.crit++ } 'HIGH' { $counts.high++ } 'MEDIUM' { $counts.med++ } 'LOW' { $counts.low++ } default { $counts.info++ } } }
+    return @{ count = $rows.Count; counts = $counts; findings = $rows; packets = @($Packets); packetCount = @($Packets).Count }
+}
+
+# POST /api/agent/pcap {file, keylog, rsakey} -- analyse a capture, optionally decrypting TLS with
+# a keylog (SSLKEYLOGFILE) and/or a server RSA private key. READ-ONLY, no admin.
 function Get-TcpkAgentPcapReview {
-    [CmdletBinding()] param([AllowEmptyString()][string]$File)
+    [CmdletBinding()] param([AllowEmptyString()][string]$File, [AllowEmptyString()][string]$Keylog, [AllowEmptyString()][string]$RsaKey)
     if (-not "$File" -or -not (Test-Path -LiteralPath "$File" -PathType Leaf)) { return @{ error = 'capture file not found' } }
     $p = (Resolve-Path -LiteralPath "$File").Path
     $tshark = Get-TcpkTshark
     if (-not $tshark) { return @{ error = 'tshark not found -- install Wireshark (it includes tshark) to analyse captures' } }
-    $findings = @()
-    try { $findings = @(Get-TcpkPcapFindings -Tshark $tshark -Pcap $p) } catch { return @{ error = "analysis failed: $($_.Exception.Message)" } }
-    $packets = @()
-    try { $packets = @(Get-TcpkPcapPackets -Tshark $tshark -Pcap $p -Max 500) } catch {}
-    $rows = @(@($findings) | ForEach-Object { [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = "$($_.Title)"; evidence = "$($_.Evidence)" } })
-    $counts = [ordered]@{ crit = 0; high = 0; med = 0; low = 0; info = 0 }
-    foreach ($r in $rows) { switch ("$($r.sev)".ToUpper()) { 'CRITICAL' { $counts.crit++ } 'HIGH' { $counts.high++ } 'MEDIUM' { $counts.med++ } 'LOW' { $counts.low++ } default { $counts.info++ } } }
-    return @{ count = $rows.Count; counts = $counts; findings = $rows; packets = $packets; packetCount = $packets.Count }
+    $kl = ''; if ("$Keylog" -and (Test-Path -LiteralPath "$Keylog" -PathType Leaf)) { $kl = (Resolve-Path -LiteralPath "$Keylog").Path }
+    $rk = ''; if ("$RsaKey" -and (Test-Path -LiteralPath "$RsaKey" -PathType Leaf)) { $rk = (Resolve-Path -LiteralPath "$RsaKey").Path }
+    $findings = @(); $packets = @()
+    try { $findings = @(Get-TcpkPcapFindings -Tshark $tshark -Pcap $p -KeylogFile $kl -RsaKeyFile $rk) } catch { return @{ error = "analysis failed: $($_.Exception.Message)" } }
+    try { $packets = @(Get-TcpkPcapPackets -Tshark $tshark -Pcap $p -Max 500 -KeylogFile $kl -RsaKeyFile $rk) } catch {}
+    return (Get-TcpkAgentPcapPayload -Findings $findings -Packets $packets)
+}
+
+# GET /api/agent/pcap-ifaces -- capture interfaces for the dropdown.
+function Get-TcpkAgentCaptureIfaces {
+    [CmdletBinding()] param()
+    $out = @(); try { $out = @(Get-TcpkCaptureInterface | ForEach-Object { [ordered]@{ name = "$($_.Name)"; desc = "$($_.Desc)" } }) } catch {}
+    return @{ interfaces = $out; count = $out.Count }
+}
+
+# POST /api/agent/pcap-capture {iface, seconds, filter, keylog, rsakey} -- LIVE capture via the
+# operator's dumpcap (needs a capture driver + elevation), then analyse. Blocks for the duration.
+function Get-TcpkAgentPcapCapture {
+    [CmdletBinding()] param([AllowEmptyString()][string]$Iface, [int]$Seconds = 15, [AllowEmptyString()][string]$Filter, [AllowEmptyString()][string]$Keylog, [AllowEmptyString()][string]$RsaKey)
+    if (-not "$Iface") { return @{ error = 'pick a capture interface' } }
+    if ($Seconds -lt 1) { $Seconds = 1 }; if ($Seconds -gt 120) { $Seconds = 120 }
+    $pcap = $null
+    try { $pcap = Invoke-TcpkPcapCaptureFile -Interface "$Iface" -Seconds $Seconds -Filter "$(if ($Filter) { $Filter })" } catch { return @{ error = "capture failed: $($_.Exception.Message)" } }
+    try { return (Get-TcpkAgentPcapReview -File $pcap -Keylog $Keylog -RsaKey $RsaKey) }
+    finally { if ($pcap -and (Test-Path -LiteralPath $pcap)) { Remove-Item -LiteralPath $pcap -Force -ErrorAction SilentlyContinue } }
 }
 
 # GET /api/agent/llm-models -- locally-pulled ollama models (best-effort), so the Connect
@@ -1158,7 +1187,18 @@ th,td{padding:7px 11px}
             <div style="flex:1"><label>capture file (.pcap / .pcapng made with Wireshark or dumpcap)</label><input id="pcFile" placeholder="C:\path\capture.pcapng"/></div>
             <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="go mini" onclick="loadPcap()">Analyse</button></div>
           </div>
-          <div class="note" id="pcStatus">capture with Wireshark, then point at the .pcap here. Needs tshark (ships with Wireshark) on this box.</div>
+          <div class="row" style="margin-top:6px">
+            <div style="flex:1"><label>TLS keylog (SSLKEYLOGFILE) -- decrypt HTTPS incl. forward-secret TLS 1.3 (optional)</label><input id="pcKeylog" placeholder="C:\path\sslkeys.log"/></div>
+            <div style="flex:1"><label>RSA private key -- decrypt RSA-key-exchange TLS only, NOT ECDHE / 1.3 (optional)</label><input id="pcRsaKey" placeholder="C:\path\server.key"/></div>
+          </div>
+          <div class="row" style="margin-top:6px;align-items:flex-end">
+            <div><label>live capture interface</label><select id="pcIface"><option value="">(Refresh to list)</option></select></div>
+            <div style="flex:0 0 auto"><button class="mini" onclick="refreshPcapIfaces()">Refresh</button></div>
+            <div style="flex:0 0 80px"><label>seconds</label><input id="pcSecs" value="15"/></div>
+            <div style="flex:1"><label>capture filter (BPF, optional)</label><input id="pcFilter" placeholder="host 10.0.0.5 and port 443"/></div>
+            <div style="flex:0 0 auto"><button class="go mini" onclick="capturePcap()">Start capture</button></div>
+          </div>
+          <div class="note" id="pcStatus">Analyse a saved .pcap, or Start capture live (needs Wireshark/npcap + admin). Add a keylog or RSA key to decrypt TLS. tshark must be installed.</div>
         </div>
         <div class="cv" style="grid-template-columns:1fr 1fr">
           <div class="col"><h4>FINDINGS</h4><div id="pcFindings"><div class="note">-</div></div></div>
@@ -1532,20 +1572,27 @@ async function loadCapture(){var f=val('icFile').trim();var kind=val('icKind');v
     r.findings.forEach(function(f){var k=sevKey(f.sev),cc=confClass(f.conf);var d=document.createElement('div');d.className='panel';d.style.margin='6px 0';
       d.innerHTML='<div><span class="pill '+k+'">'+esc(f.sev)+'</span> <span class="cb '+cc+'">'+esc(f.conf)+'</span> <b>'+esc(f.title)+'</b></div><div class="note" style="margin-top:4px">'+esc(f.rule)+' -- '+esc(f.evidence)+'</div>';box.appendChild(d);});
   }catch(e){st.textContent='parse failed';}}
-async function loadPcap(){var f=val('pcFile').trim();var st=$('pcStatus');var fb=$('pcFindings');var pb=$('pcPackets');
-  if(!f){st.textContent='enter a .pcap file path';return;}
-  st.textContent='analysing with tshark...';fb.innerHTML='';pb.innerHTML='';
-  try{var r=await api('/api/agent/pcap',{json:{file:f}});
-    if(r.error){st.textContent=r.error;fb.innerHTML='<div class="note">'+esc(r.error)+'</div>';return;}
-    st.textContent=r.count+' finding'+(r.count===1?'':'s')+' -- '+(r.packetCount||0)+' packet(s) shown';
-    if(!r.findings||!r.findings.length){fb.innerHTML='<div class="note">no findings.</div>';}
-    else{fb.innerHTML='';r.findings.forEach(function(x){var k=sevKey(x.sev);var d=document.createElement('div');d.className='panel';d.style.margin='6px 0';
-      d.innerHTML='<div><span class="pill '+k+'">'+esc(x.sev)+'</span> <b>'+esc(x.title)+'</b></div><div class="note" style="margin-top:4px">'+esc(x.rule)+' -- '+esc(x.evidence)+'</div>';fb.appendChild(d);});}
-    if(!r.packets||!r.packets.length){pb.innerHTML='<div class="note">no packets.</div>';}
-    else{var h='<div style="overflow:auto;max-height:420px"><table style="width:100%;border-collapse:collapse;font:11px var(--mono)"><thead><tr style="color:var(--dim);text-align:left"><th>#</th><th>src</th><th>dst</th><th>proto</th><th>len</th><th>info</th></tr></thead><tbody>';
-      r.packets.forEach(function(p){h+='<tr><td>'+esc(p.no)+'</td><td>'+esc(p.src)+'</td><td>'+esc(p.dst)+'</td><td>'+esc(p.proto)+'</td><td>'+esc(p.len)+'</td><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.info)+'</td></tr>';});
-      h+='</tbody></table></div>';pb.innerHTML=h;}
-  }catch(e){st.textContent='analysis failed';}}
+function renderPcap(r){var st=$('pcStatus');var fb=$('pcFindings');var pb=$('pcPackets');
+  if(r.error){st.textContent=r.error;fb.innerHTML='<div class="note">'+esc(r.error)+'</div>';pb.innerHTML='';return;}
+  st.textContent=r.count+' finding'+(r.count===1?'':'s')+' -- '+(r.packetCount||0)+' packet(s) shown';
+  if(!r.findings||!r.findings.length){fb.innerHTML='<div class="note">no findings.</div>';}
+  else{fb.innerHTML='';r.findings.forEach(function(x){var k=sevKey(x.sev);var d=document.createElement('div');d.className='panel';d.style.margin='6px 0';
+    d.innerHTML='<div><span class="pill '+k+'">'+esc(x.sev)+'</span> <b>'+esc(x.title)+'</b></div><div class="note" style="margin-top:4px">'+esc(x.rule)+' -- '+esc(x.evidence)+'</div>';fb.appendChild(d);});}
+  if(!r.packets||!r.packets.length){pb.innerHTML='<div class="note">no packets.</div>';}
+  else{var h='<div style="overflow:auto;max-height:420px"><table style="width:100%;border-collapse:collapse;font:11px var(--mono)"><thead><tr style="color:var(--dim);text-align:left"><th>#</th><th>src</th><th>dst</th><th>proto</th><th>len</th><th>info</th></tr></thead><tbody>';
+    r.packets.forEach(function(p){h+='<tr><td>'+esc(p.no)+'</td><td>'+esc(p.src)+'</td><td>'+esc(p.dst)+'</td><td>'+esc(p.proto)+'</td><td>'+esc(p.len)+'</td><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.info)+'</td></tr>';});
+    h+='</tbody></table></div>';pb.innerHTML=h;}}
+function pcapKeys(){return {keylog:val('pcKeylog').trim(),rsakey:val('pcRsaKey').trim()};}
+async function loadPcap(){var f=val('pcFile').trim();var st=$('pcStatus');if(!f){st.textContent='enter a .pcap file path';return;}
+  st.textContent='analysing with tshark...';$('pcFindings').innerHTML='';$('pcPackets').innerHTML='';
+  var k=pcapKeys();try{renderPcap(await api('/api/agent/pcap',{json:{file:f,keylog:k.keylog,rsakey:k.rsakey}}));}catch(e){st.textContent='analysis failed';}}
+async function refreshPcapIfaces(){var sel=$('pcIface');sel.innerHTML='<option value="">(listing...)</option>';
+  try{var r=await api('/api/agent/pcap-ifaces');sel.innerHTML='';
+    if(!r.interfaces||!r.interfaces.length){sel.innerHTML='<option value="">(none -- tshark not found)</option>';return;}
+    r.interfaces.forEach(function(i){var o=document.createElement('option');o.value=i.name;o.textContent=i.name+(i.desc?(' ('+i.desc+')'):'');sel.appendChild(o);});}catch(e){sel.innerHTML='<option value="">(failed)</option>';}}
+async function capturePcap(){var iface=val('pcIface');var st=$('pcStatus');if(!iface){st.textContent='pick a capture interface (Refresh first)';return;}
+  var secs=parseInt(val('pcSecs'),10)||15;st.textContent='capturing '+secs+'s on '+iface+' (needs admin / npcap)...';$('pcFindings').innerHTML='';$('pcPackets').innerHTML='';
+  var k=pcapKeys();try{renderPcap(await api('/api/agent/pcap-capture',{json:{iface:iface,seconds:secs,filter:val('pcFilter').trim(),keylog:k.keylog,rsakey:k.rsakey}}));}catch(e){st.textContent='capture failed';}}
 // ---- phase 4: decompile / IL view ----
 function fmtSize(b){b=b||0;if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
 function mkModRow(path,badge,name,sub,onopen){
