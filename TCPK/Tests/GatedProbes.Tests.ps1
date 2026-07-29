@@ -28,3 +28,30 @@ Describe 'Test-TcpkTlsHandshake (gated)' {
         ($r | Where-Object RuleId -eq 'tls-handshake.unreachable') | Should -Not -BeNullOrEmpty
     }
 }
+
+Describe 'Invoke-TcpkComProbe (gated)' {
+    It 'is exported' {
+        Get-Command Invoke-TcpkComProbe -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+    }
+    It 'refuses without Enable-TcpkExploit' {
+        try { Disable-TcpkExploit | Out-Null } catch {}
+        { Invoke-TcpkComProbe -Clsid '{00000000-0000-0000-0000-000000000000}' } | Should -Throw
+    }
+    It 'requires -Clsid or -ProgId once enabled' -Skip:($IsWindows -eq $false) {
+        # Off Windows the cmdlet returns early (Assert-TcpkWindows) before this check,
+        # so the arg-guard only fires on Windows.
+        Enable-TcpkExploit -Acknowledge | Out-Null
+        { Invoke-TcpkComProbe } | Should -Throw
+    }
+    It 'reports com.not-instantiable for a null CLSID once enabled (no throw)' -Skip:($IsWindows -eq $false) {
+        # COM instantiation is Windows-only; off Windows the cmdlet skips (returns nothing).
+        Enable-TcpkExploit -Acknowledge | Out-Null
+        $r = @(Invoke-TcpkComProbe -Clsid '{00000000-0000-0000-0000-000000000000}' -SkipElevation)
+        ($r | Where-Object RuleId -eq 'com.not-instantiable') | Should -Not -BeNullOrEmpty
+    }
+    It 'skips cleanly off Windows (no throw, no findings) once enabled' -Skip:($IsWindows -eq $true) {
+        Enable-TcpkExploit -Acknowledge | Out-Null
+        $r = @(Invoke-TcpkComProbe -Clsid '{00000000-0000-0000-0000-000000000000}' 3>$null)
+        $r.Count | Should -Be 0
+    }
+}
