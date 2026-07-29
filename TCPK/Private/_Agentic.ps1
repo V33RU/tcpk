@@ -50,6 +50,11 @@ function Invoke-TcpkAgenticApi {
             'POST /api/agent/pcap'         { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentPcapReview -File "$(if($b){$b.file})" -Keylog "$(if($b){$b.keylog})" -RsaKey "$(if($b){$b.rsakey})")) }
             'GET /api/agent/pcap-ifaces'   { return (New-TcpkWebJson 200 (Get-TcpkAgentCaptureIfaces)) }
             'POST /api/agent/pcap-capture' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentPcapCapture -Iface "$(if($b){$b.iface})" -Seconds ([int]("0" + "$(if($b){$b.seconds})")) -Filter "$(if($b){$b.filter})" -Keylog "$(if($b){$b.keylog})" -RsaKey "$(if($b){$b.rsakey})")) }
+            'POST /api/agent/replay-candidates' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentReplayCandidates -Request "$(if($b){$b.request})" -Pcap "$(if($b){$b.pcap})" -Keylog "$(if($b){$b.keylog})" -RsaKey "$(if($b){$b.rsakey})")) }
+            'POST /api/agent/replay'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentReplay -Request "$(if($b){$b.request})" -Target "$(if($b){$b.target})" -Confirm ([bool]($b -and $b.confirm)) -Unsafe ([bool]($b -and $b.unsafe)) -Cookie "$(if($b){$b.cookie})")) }
+            'POST /api/agent/idor'     { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentIdor -Request "$(if($b){$b.request})" -Target "$(if($b){$b.target})" -SwapId "$(if($b){$b.swapid})" -SecondToken "$(if($b){$b.secondtoken})" -Location "$(if($b){$b.location})" -Confirm ([bool]($b -and $b.confirm)) -AutoMutate ([bool]($b -and $b.automutate)))) }
+            'POST /api/agent/jwt-crack' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentJwtCrack -Token "$(if($b){$b.token})" -Pcap "$(if($b){$b.pcap})" -Keylog "$(if($b){$b.keylog})" -RsaKey "$(if($b){$b.rsakey})")) }
+            'POST /api/agent/jwt-attack' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentJwtAttack -Token "$(if($b){$b.token})" -Target "$(if($b){$b.target})" -Attacks "$(if($b){$b.attacks})" -Secret "$(if($b){$b.secret})" -PublicKey "$(if($b){$b.publickey})" -Location "$(if($b){$b.location})" -Confirm ([bool]($b -and $b.confirm)))) }
             'POST /api/agent/runtime'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentRuntime -Check "$(if($b){$b.check})" -Process "$(if($b){$b.process})" -Path "$(if($b){$b.path})")) }
             'GET /api/agent/proclist'   { return (New-TcpkWebJson 200 (Get-TcpkAgentProcList)) }
             'POST /api/agent/procmon'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentProcmon -Proc "$(if($b){$b.proc})")) }
@@ -735,6 +740,92 @@ function Get-TcpkAgentPcapCapture {
     finally { if ($pcap -and (Test-Path -LiteralPath $pcap)) { Remove-Item -LiteralPath $pcap -Force -ErrorAction SilentlyContinue } }
 }
 
+# Serialize findings for the workbench, redacting any credential/token left in evidence.
+function Get-TcpkAgentFindingRows {
+    param([object[]]$Findings)
+    $rows = @(@($Findings) | ForEach-Object { [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = (Get-TcpkRedact "$($_.Title)"); evidence = (Get-TcpkRedact "$($_.Evidence)") } })
+    $counts = [ordered]@{ crit = 0; high = 0; med = 0; low = 0; info = 0 }
+    foreach ($r in $rows) { switch ("$($r.sev)".ToUpper()) { 'CRITICAL' { $counts.crit++ } 'HIGH' { $counts.high++ } 'MEDIUM' { $counts.med++ } 'LOW' { $counts.low++ } default { $counts.info++ } } }
+    return @{ count = $rows.Count; counts = $counts; findings = $rows }
+}
+
+# POST /api/agent/replay-candidates {request|pcap} -- offline id-location enumeration (ungated).
+function Get-TcpkAgentReplayCandidates {
+    param([AllowEmptyString()][string]$Request, [AllowEmptyString()][string]$Pcap, [AllowEmptyString()][string]$Keylog, [AllowEmptyString()][string]$RsaKey)
+    try {
+        if ("$Request") { $f = @(Get-TcpkRequestIdCandidates -RequestText "$Request") }
+        elseif ("$Pcap") {
+            if (-not (Test-Path -LiteralPath "$Pcap" -PathType Leaf)) { return @{ error = 'capture file not found' } }
+            $f = @(Get-TcpkRequestIdCandidates -FromPcap (Resolve-Path -LiteralPath "$Pcap").Path -TsharkPath (Get-TcpkTshark) -KeylogFile "$Keylog" -RsaKeyFile "$RsaKey")
+        } else { return @{ error = 'paste a raw HTTP request or give a pcap path' } }
+    } catch { return @{ error = "parse failed: $($_.Exception.Message)" } }
+    return (Get-TcpkAgentFindingRows -Findings $f)
+}
+
+# POST /api/agent/replay {request, target, confirm, unsafe, cookie} -- missing function-level authz.
+function Get-TcpkAgentReplay {
+    param([AllowEmptyString()][string]$Request, [AllowEmptyString()][string]$Target, [bool]$Confirm, [bool]$Unsafe, [AllowEmptyString()][string]$Cookie)
+    if (-not "$Request") { return @{ error = 'paste the raw HTTP request to replay' } }
+    if (-not "$Target") { return @{ error = 'affirm the target host (authorized targets only)' } }
+    if (-not $Confirm) { return @{ error = 'tick confirm -- this sends a REAL request to the target' } }
+    try {
+        $q = @{ RequestText = "$Request"; Target = "$Target"; ConfirmActive = $true }
+        if ($Unsafe) { $q.AllowUnsafeMethods = $true }
+        if ("$Cookie") { $q.SessionCookieName = "$Cookie" }
+        $f = @(Invoke-TcpkReplay @q)
+    } catch { return @{ error = "$($_.Exception.Message)" } }
+    return (Get-TcpkAgentFindingRows -Findings $f)
+}
+
+# POST /api/agent/idor {request, target, swapid, secondtoken, location, confirm, automutate}
+function Get-TcpkAgentIdor {
+    param([AllowEmptyString()][string]$Request, [AllowEmptyString()][string]$Target, [AllowEmptyString()][string]$SwapId, [AllowEmptyString()][string]$SecondToken, [AllowEmptyString()][string]$Location, [bool]$Confirm, [bool]$AutoMutate)
+    if (-not "$Request") { return @{ error = 'paste the raw HTTP request (identity A, requesting A''s object)' } }
+    if (-not "$Target") { return @{ error = 'affirm the target host' } }
+    if (-not $Confirm) { return @{ error = 'tick confirm -- this sends REAL requests to the target' } }
+    try {
+        $q = @{ RequestText = "$Request"; Target = "$Target"; ConfirmActive = $true }
+        if ("$SwapId") { $q.SwapId = "$SwapId" }
+        if ("$SecondToken") { $q.SecondIdentityToken = "$SecondToken" }
+        if ("$Location") { $q.Location = "$Location" }
+        if ($AutoMutate) { $q.AutoMutate = $true }
+        $f = @(Invoke-TcpkIdorProbe @q)
+    } catch { return @{ error = "$($_.Exception.Message)" } }
+    return (Get-TcpkAgentFindingRows -Findings $f)
+}
+
+# POST /api/agent/jwt-crack {token|pcap} -- offline JWT weakness + weak-secret crack.
+function Get-TcpkAgentJwtCrack {
+    param([AllowEmptyString()][string]$Token, [AllowEmptyString()][string]$Pcap, [AllowEmptyString()][string]$Keylog, [AllowEmptyString()][string]$RsaKey)
+    try {
+        $q = @{}
+        if ("$Token") { $q.Token = "$Token" }
+        elseif ("$Pcap") {
+            if (-not (Test-Path -LiteralPath "$Pcap" -PathType Leaf)) { return @{ error = 'capture file not found' } }
+            $q.Pcap = (Resolve-Path -LiteralPath "$Pcap").Path; $q.KeylogFile = "$Keylog"; $q.RsaKeyFile = "$RsaKey"
+        } else { return @{ error = 'paste a JWT or give a pcap path' } }
+        $f = @(Invoke-TcpkJwtCrack @q)
+    } catch { return @{ error = "$($_.Exception.Message)" } }
+    return (Get-TcpkAgentFindingRows -Findings $f)
+}
+
+# POST /api/agent/jwt-attack {token, target, attacks, secret, publickey, location, confirm}
+function Get-TcpkAgentJwtAttack {
+    param([AllowEmptyString()][string]$Token, [AllowEmptyString()][string]$Target, [AllowEmptyString()][string]$Attacks, [AllowEmptyString()][string]$Secret, [AllowEmptyString()][string]$PublicKey, [AllowEmptyString()][string]$Location, [bool]$Confirm)
+    if (-not "$Token") { return @{ error = 'paste the JWT to attack' } }
+    if (-not "$Target") { return @{ error = 'affirm the target endpoint URL' } }
+    if (-not $Confirm) { return @{ error = 'tick confirm -- this sends REAL forged tokens to the target' } }
+    try {
+        $q = @{ Token = "$Token"; Target = "$Target"; ConfirmActive = $true }
+        if ("$Attacks") { $q.Attacks = @("$Attacks" -split '[,\s]+' | Where-Object { $_ }) }
+        if ("$Secret") { $q.Secret = "$Secret" }
+        if ("$PublicKey") { $q.PublicKey = "$PublicKey" }
+        if ("$Location") { $q.Location = "$Location" }
+        $f = @(Invoke-TcpkJwtAttack @q)
+    } catch { return @{ error = "$($_.Exception.Message)" } }
+    return (Get-TcpkAgentFindingRows -Findings $f)
+}
+
 # GET /api/agent/llm-models -- locally-pulled ollama models (best-effort), so the Connect
 # step can show what is available and hint a pull when ollama is reachable but empty.
 function Get-TcpkAgentLlmModels {
@@ -1007,7 +1098,7 @@ th,td{padding:7px 11px}
       <div class="step" data-p="7"><div class="num">7</div><div><div class="t">Agent</div><div class="s">full auto</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">INTERCEPT<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Review a proxy or hook capture you made with the CLI.</div></div>
       <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
-      <div class="step" data-p="13"><div class="num">13</div><div><div class="t">Traffic</div><div class="s">pcap review</div></div></div>
+      <div class="step" data-p="13"><div class="num">13</div><div><div class="t">Traffic</div><div class="s">pcap + replay/IDOR/JWT</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">RUNTIME<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Read-only live checks on a running process.</div></div>
       <div class="step" data-p="9"><div class="num">9</div><div><div class="t">Runtime</div><div class="s">live process</div></div></div>
       <div class="step" data-p="12"><div class="num">12</div><div><div class="t">Process</div><div class="s">live watch</div></div></div>
@@ -1204,6 +1295,36 @@ th,td{padding:7px 11px}
           <div class="col"><h4>FINDINGS</h4><div id="pcFindings"><div class="note">-</div></div></div>
           <div class="col"><h4>PACKETS (first 500)</h4><div id="pcPackets"><div class="note">-</div></div></div>
         </div>
+        <div class="panel" style="margin-top:14px">
+          <h4 style="margin:0 0 6px 0">ACTIVE: replay / IDOR / JWT (gated)</h4>
+          <p class="lead" style="margin:0 0 8px 0">Turn a captured request into an active backend check. GATED -- run <code>Enable-TcpkExploit -Acknowledge</code> in the session first. Sends REAL requests: authorized targets only, tick confirm to fire. Acceptance is decided by response-body comparison, never status alone.</p>
+          <div class="row"><div style="flex:1"><label>raw HTTP request (paste from a proxy; identity A requesting A's own object)</label><textarea id="atReq" rows="6" style="width:100%;font:11px var(--mono)" placeholder="GET /api/orders/1001 HTTP/1.1&#10;Host: api.target&#10;Authorization: Bearer ..."></textarea></div></div>
+          <div class="row" style="margin-top:6px;align-items:flex-end">
+            <div style="flex:1"><label>target host / URL (operator-affirmed; must match the request host)</label><input id="atTarget" placeholder="api.target"/></div>
+            <div style="flex:0 0 auto"><label><input type="checkbox" id="atConfirm"/> confirm (send)</label></div>
+            <div style="flex:0 0 auto"><label><input type="checkbox" id="atUnsafe"/> allow unsafe verbs</label></div>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <div style="flex:0 0 auto"><button class="mini" onclick="atCandidates()">ID candidates</button></div>
+            <div style="flex:0 0 auto"><button class="go mini" onclick="atReplay()">Replay (missing-authz)</button></div>
+          </div>
+          <div class="row" style="margin-top:6px;align-items:flex-end">
+            <div style="flex:0 0 120px"><label>IDOR swap id</label><input id="atSwap" placeholder="1002"/></div>
+            <div style="flex:1"><label>identity B bearer (ground truth)</label><input id="atSecond" placeholder="B's token"/></div>
+            <div style="flex:0 0 140px"><label>id location (optional)</label><input id="atLoc" placeholder="path:2"/></div>
+            <div style="flex:0 0 auto"><label><input type="checkbox" id="atMutate"/> auto-mutate</label></div>
+            <div style="flex:0 0 auto"><button class="go mini" onclick="atIdor()">IDOR probe</button></div>
+          </div>
+          <div class="row" style="margin-top:10px"><div style="flex:1"><label>JWT (paste a token; or leave blank to reuse the request's Authorization)</label><textarea id="atJwt" rows="2" style="width:100%;font:11px var(--mono)" placeholder="eyJ..."></textarea></div></div>
+          <div class="row" style="margin-top:6px;align-items:flex-end">
+            <div style="flex:1"><label>recovered HMAC secret (optional -- enables exploit-tier forge)</label><input id="atSecret" placeholder="secret from Crack"/></div>
+            <div style="flex:1"><label>RSA public key PEM (optional -- alg confusion)</label><input id="atPub" placeholder="-----BEGIN PUBLIC KEY-----..."/></div>
+            <div style="flex:0 0 auto"><button class="mini" onclick="atJwtCrack()">Crack (offline)</button></div>
+            <div style="flex:0 0 auto"><button class="go mini" onclick="atJwtAttack()">JWT attack (live)</button></div>
+          </div>
+          <div class="note" id="atStatus">Paste a request, affirm the target, tick confirm, then Replay / IDOR. For JWT, Crack offline first, then Attack the target with the token (and the recovered secret if any).</div>
+        </div>
+        <div class="col" style="margin-top:10px"><h4>ACTIVE FINDINGS</h4><div id="atFindings"><div class="note">-</div></div></div>
       </div>
 
       <div class="pane" data-p="9">
@@ -1593,6 +1714,19 @@ async function refreshPcapIfaces(){var sel=$('pcIface');sel.innerHTML='<option v
 async function capturePcap(){var iface=val('pcIface');var st=$('pcStatus');if(!iface){st.textContent='pick a capture interface (Refresh first)';return;}
   var secs=parseInt(val('pcSecs'),10)||15;st.textContent='capturing '+secs+'s on '+iface+' (needs admin / npcap)...';$('pcFindings').innerHTML='';$('pcPackets').innerHTML='';
   var k=pcapKeys();try{renderPcap(await api('/api/agent/pcap-capture',{json:{iface:iface,seconds:secs,filter:val('pcFilter').trim(),keylog:k.keylog,rsakey:k.rsakey}}));}catch(e){st.textContent='capture failed';}}
+// ---- active: replay / IDOR / JWT ----
+function renderAtk(r){var st=$('atStatus');var fb=$('atFindings');
+  if(r.error){st.textContent=r.error;fb.innerHTML='<div class="note">'+esc(r.error)+'</div>';return;}
+  st.textContent=r.count+' finding'+(r.count===1?'':'s');
+  if(!r.findings||!r.findings.length){fb.innerHTML='<div class="note">no findings.</div>';return;}
+  fb.innerHTML='';r.findings.forEach(function(x){var k=sevKey(x.sev);var d=document.createElement('div');d.className='panel';d.style.margin='6px 0';
+    d.innerHTML='<div><span class="pill '+k+'">'+esc(x.sev)+'</span> <b>'+esc(x.title)+'</b> <span class="note">['+esc(x.conf)+']</span></div><div class="note" style="margin-top:4px">'+esc(x.rule)+' -- '+esc(x.evidence)+'</div>';fb.appendChild(d);});}
+function atBusy(m){$('atStatus').textContent=m;$('atFindings').innerHTML='';}
+async function atCandidates(){atBusy('parsing request...');try{renderAtk(await api('/api/agent/replay-candidates',{json:{request:val('atReq')}}));}catch(e){$('atStatus').textContent='parse failed';}}
+async function atReplay(){atBusy('replaying with the credential removed...');try{renderAtk(await api('/api/agent/replay',{json:{request:val('atReq'),target:val('atTarget').trim(),confirm:$('atConfirm').checked,unsafe:$('atUnsafe').checked}}));}catch(e){$('atStatus').textContent='replay failed';}}
+async function atIdor(){atBusy('probing IDOR (4 baselines)...');try{renderAtk(await api('/api/agent/idor',{json:{request:val('atReq'),target:val('atTarget').trim(),swapid:val('atSwap').trim(),secondtoken:val('atSecond').trim(),location:val('atLoc').trim(),confirm:$('atConfirm').checked,automutate:$('atMutate').checked}}));}catch(e){$('atStatus').textContent='idor failed';}}
+async function atJwtCrack(){atBusy('cracking JWT offline...');try{renderAtk(await api('/api/agent/jwt-crack',{json:{token:val('atJwt').trim()}}));}catch(e){$('atStatus').textContent='crack failed';}}
+async function atJwtAttack(){atBusy('forging + testing JWT against the target...');try{renderAtk(await api('/api/agent/jwt-attack',{json:{token:val('atJwt').trim(),target:val('atTarget').trim(),secret:val('atSecret').trim(),publickey:val('atPub').trim(),confirm:$('atConfirm').checked}}));}catch(e){$('atStatus').textContent='attack failed';}}
 // ---- phase 4: decompile / IL view ----
 function fmtSize(b){b=b||0;if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
 function mkModRow(path,badge,name,sub,onopen){
