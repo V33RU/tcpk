@@ -47,6 +47,7 @@ function Invoke-TcpkAgenticApi {
             'POST /api/agent/auto'      { return (Start-TcpkAgentAutoJob -Request $Request -State $State) }
             'GET /api/agent/auto-status'{ return (Get-TcpkAgentAutoStatus -State $State -JobId "$($Request.Query['job'])") }
             'POST /api/agent/intercept' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentInterceptReview -File "$(if($b){$b.file})" -Kind "$(if($b){$b.kind})")) }
+            'POST /api/agent/pcap'      { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentPcapReview -File "$(if($b){$b.file})")) }
             'POST /api/agent/runtime'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentRuntime -Check "$(if($b){$b.check})" -Process "$(if($b){$b.process})" -Path "$(if($b){$b.path})")) }
             'GET /api/agent/proclist'   { return (New-TcpkWebJson 200 (Get-TcpkAgentProcList)) }
             'POST /api/agent/procmon'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentProcmon -Proc "$(if($b){$b.proc})")) }
@@ -686,6 +687,25 @@ function Get-TcpkAgentInterceptReview {
     return @{ kind = $kind; count = $rows.Count; counts = $counts; findings = $rows }
 }
 
+# POST /api/agent/pcap {file} -- analyse a packet capture (.pcap/.pcapng) via the operator's
+# installed tshark (Wireshark) into pcap.* findings + a bounded packet list for the workbench.
+# READ-ONLY: it dissects a capture FILE; it never captures live and needs no admin or driver.
+function Get-TcpkAgentPcapReview {
+    [CmdletBinding()] param([AllowEmptyString()][string]$File)
+    if (-not "$File" -or -not (Test-Path -LiteralPath "$File" -PathType Leaf)) { return @{ error = 'capture file not found' } }
+    $p = (Resolve-Path -LiteralPath "$File").Path
+    $tshark = Get-TcpkTshark
+    if (-not $tshark) { return @{ error = 'tshark not found -- install Wireshark (it includes tshark) to analyse captures' } }
+    $findings = @()
+    try { $findings = @(Get-TcpkPcapFindings -Tshark $tshark -Pcap $p) } catch { return @{ error = "analysis failed: $($_.Exception.Message)" } }
+    $packets = @()
+    try { $packets = @(Get-TcpkPcapPackets -Tshark $tshark -Pcap $p -Max 500) } catch {}
+    $rows = @(@($findings) | ForEach-Object { [ordered]@{ sev = "$($_.Severity)"; conf = "$($_.Confidence)"; rule = "$($_.RuleId)"; title = "$($_.Title)"; evidence = "$($_.Evidence)" } })
+    $counts = [ordered]@{ crit = 0; high = 0; med = 0; low = 0; info = 0 }
+    foreach ($r in $rows) { switch ("$($r.sev)".ToUpper()) { 'CRITICAL' { $counts.crit++ } 'HIGH' { $counts.high++ } 'MEDIUM' { $counts.med++ } 'LOW' { $counts.low++ } default { $counts.info++ } } }
+    return @{ count = $rows.Count; counts = $counts; findings = $rows; packets = $packets; packetCount = $packets.Count }
+}
+
 # GET /api/agent/llm-models -- locally-pulled ollama models (best-effort), so the Connect
 # step can show what is available and hint a pull when ollama is reachable but empty.
 function Get-TcpkAgentLlmModels {
@@ -958,6 +978,7 @@ th,td{padding:7px 11px}
       <div class="step" data-p="7"><div class="num">7</div><div><div class="t">Agent</div><div class="s">full auto</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">INTERCEPT<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Review a proxy or hook capture you made with the CLI.</div></div>
       <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
+      <div class="step" data-p="13"><div class="num">13</div><div><div class="t">Traffic</div><div class="s">pcap review</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">RUNTIME<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Read-only live checks on a running process.</div></div>
       <div class="step" data-p="9"><div class="num">9</div><div><div class="t">Runtime</div><div class="s">live process</div></div></div>
       <div class="step" data-p="12"><div class="num">12</div><div><div class="t">Process</div><div class="s">live watch</div></div></div>
@@ -1127,6 +1148,22 @@ th,td{padding:7px 11px}
           <div class="note" id="icStatus">point at a capture written by Invoke-TcpkIntercept.</div>
         </div>
         <div id="icFindings"></div>
+      </div>
+
+      <div class="pane" data-p="13">
+        <h2>Traffic (packet capture)</h2>
+        <p class="lead">Analyse a packet capture (.pcap / .pcapng) for security issues, via your installed Wireshark (tshark). Read-only: it dissects a capture you already made -- it never captures live and needs no admin. Complements Intercept (HTTP through a proxy) by seeing everything on the wire, including non-HTTP protocols.</p>
+        <div class="panel">
+          <div class="row">
+            <div style="flex:1"><label>capture file (.pcap / .pcapng made with Wireshark or dumpcap)</label><input id="pcFile" placeholder="C:\path\capture.pcapng"/></div>
+            <div style="flex:0 0 auto;display:flex;align-items:flex-end"><button class="go mini" onclick="loadPcap()">Analyse</button></div>
+          </div>
+          <div class="note" id="pcStatus">capture with Wireshark, then point at the .pcap here. Needs tshark (ships with Wireshark) on this box.</div>
+        </div>
+        <div class="cv" style="grid-template-columns:1fr 1fr">
+          <div class="col"><h4>FINDINGS</h4><div id="pcFindings"><div class="note">-</div></div></div>
+          <div class="col"><h4>PACKETS (first 500)</h4><div id="pcPackets"><div class="note">-</div></div></div>
+        </div>
       </div>
 
       <div class="pane" data-p="9">
@@ -1495,6 +1532,20 @@ async function loadCapture(){var f=val('icFile').trim();var kind=val('icKind');v
     r.findings.forEach(function(f){var k=sevKey(f.sev),cc=confClass(f.conf);var d=document.createElement('div');d.className='panel';d.style.margin='6px 0';
       d.innerHTML='<div><span class="pill '+k+'">'+esc(f.sev)+'</span> <span class="cb '+cc+'">'+esc(f.conf)+'</span> <b>'+esc(f.title)+'</b></div><div class="note" style="margin-top:4px">'+esc(f.rule)+' -- '+esc(f.evidence)+'</div>';box.appendChild(d);});
   }catch(e){st.textContent='parse failed';}}
+async function loadPcap(){var f=val('pcFile').trim();var st=$('pcStatus');var fb=$('pcFindings');var pb=$('pcPackets');
+  if(!f){st.textContent='enter a .pcap file path';return;}
+  st.textContent='analysing with tshark...';fb.innerHTML='';pb.innerHTML='';
+  try{var r=await api('/api/agent/pcap',{json:{file:f}});
+    if(r.error){st.textContent=r.error;fb.innerHTML='<div class="note">'+esc(r.error)+'</div>';return;}
+    st.textContent=r.count+' finding'+(r.count===1?'':'s')+' -- '+(r.packetCount||0)+' packet(s) shown';
+    if(!r.findings||!r.findings.length){fb.innerHTML='<div class="note">no findings.</div>';}
+    else{fb.innerHTML='';r.findings.forEach(function(x){var k=sevKey(x.sev);var d=document.createElement('div');d.className='panel';d.style.margin='6px 0';
+      d.innerHTML='<div><span class="pill '+k+'">'+esc(x.sev)+'</span> <b>'+esc(x.title)+'</b></div><div class="note" style="margin-top:4px">'+esc(x.rule)+' -- '+esc(x.evidence)+'</div>';fb.appendChild(d);});}
+    if(!r.packets||!r.packets.length){pb.innerHTML='<div class="note">no packets.</div>';}
+    else{var h='<div style="overflow:auto;max-height:420px"><table style="width:100%;border-collapse:collapse;font:11px var(--mono)"><thead><tr style="color:var(--dim);text-align:left"><th>#</th><th>src</th><th>dst</th><th>proto</th><th>len</th><th>info</th></tr></thead><tbody>';
+      r.packets.forEach(function(p){h+='<tr><td>'+esc(p.no)+'</td><td>'+esc(p.src)+'</td><td>'+esc(p.dst)+'</td><td>'+esc(p.proto)+'</td><td>'+esc(p.len)+'</td><td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.info)+'</td></tr>';});
+      h+='</tbody></table></div>';pb.innerHTML=h;}
+  }catch(e){st.textContent='analysis failed';}}
 // ---- phase 4: decompile / IL view ----
 function fmtSize(b){b=b||0;if(b<1024)return b+' B';if(b<1048576)return (b/1024).toFixed(0)+' KB';return (b/1048576).toFixed(1)+' MB';}
 function mkModRow(path,badge,name,sub,onopen){
