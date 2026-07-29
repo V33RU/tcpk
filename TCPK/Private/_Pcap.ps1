@@ -38,10 +38,14 @@ function Invoke-TcpkTsharkQuery {
         [Parameter(Mandatory)][string]$Pcap,
         [string]$Filter,
         [Parameter(Mandatory)][string[]]$Fields,
-        [int]$Max = 0
+        [int]$Max = 0,
+        [string]$KeylogFile,  # TLS session-key log (SSLKEYLOGFILE) -> decrypt TLS so HTTPS dissects
+        [string]$RsaKeyFile   # server RSA private key -> decrypt RSA-key-exchange TLS (not ECDHE / 1.3)
     )
     $sep = "`t"
     $a = @('-r', $Pcap, '-n')
+    if ($KeylogFile -and (Test-Path -LiteralPath $KeylogFile)) { $a += @('-o', "tls.keylog_file:$KeylogFile") }
+    if ($RsaKeyFile -and (Test-Path -LiteralPath $RsaKeyFile)) { $a += @('-o', ('uat:rsa_keys:"' + $RsaKeyFile + '",""')) }
     if ($Filter) { $a += @('-Y', $Filter) }
     $a += @('-T', 'fields', '-E', "separator=$sep", '-E', 'occurrence=f')
     foreach ($f in $Fields) { $a += @('-e', $f) }
@@ -94,15 +98,21 @@ function ConvertFrom-TcpkBasicAuth {
 # dissector never sinks the rest.
 function Get-TcpkPcapFindings {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap)
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap, [string]$KeylogFile, [string]$RsaKeyFile)
     $out = New-Object System.Collections.Generic.List[object]
+    $q = @{ Tshark = $Tshark; Pcap = $Pcap }
+    if ($KeylogFile) { $q.KeylogFile = $KeylogFile }
+    if ($RsaKeyFile) { $q.RsaKeyFile = $RsaKeyFile }
 
-    # 1. HTTP Basic credentials in cleartext (highest value)
-    foreach ($r in (Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap -Filter 'http.authorization' `
+    # 1. HTTP Basic credentials in cleartext (highest value; dedup by host+user)
+    $seenBasic = @{}
+    foreach ($r in (Invoke-TcpkTsharkQuery @q -Filter 'http.authorization' `
                         -Fields @('ip.dst', 'http.host', 'http.request.uri', 'http.authorization'))) {
         $user = ConvertFrom-TcpkBasicAuth $r.'http.authorization'
         if (-not $user) { continue }
         $host_ = if ($r.'http.host') { $r.'http.host' } else { $r.'ip.dst' }
+        if ($seenBasic.ContainsKey("$host_|$user")) { continue }
+        $seenBasic["$host_|$user"] = $true
         $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.http-basic-cleartext' -Severity 'HIGH' `
             -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319', 'CWE-522') `
             -Title "HTTP Basic credentials sent in cleartext to $host_" `
@@ -113,7 +123,7 @@ function Get-TcpkPcapFindings {
 
     # 2. Cleartext HTTP transport (one finding per host)
     $httpHosts = @{}
-    foreach ($r in (Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap -Filter 'http.request' `
+    foreach ($r in (Invoke-TcpkTsharkQuery @q -Filter 'http.request' `
                         -Fields @('ip.dst', 'tcp.dstport', 'http.host'))) {
         $h = if ($r.'http.host') { $r.'http.host' } else { $r.'ip.dst' }
         if ($h) { $httpHosts[$h] = "$($r.'ip.dst'):$($r.'tcp.dstport')" }
@@ -129,7 +139,7 @@ function Get-TcpkPcapFindings {
 
     # 3. Weak / obsolete TLS negotiated (from the ServerHello)
     $tlsSeen = @{}
-    foreach ($r in (Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap -Filter 'tls.handshake.type == 2' `
+    foreach ($r in (Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
                         -Fields @('ip.src', 'tls.handshake.version'))) {
         $info = Get-TcpkTlsVersionInfo $r.'tls.handshake.version'
         if (-not $info.Weak) { continue }
@@ -145,7 +155,7 @@ function Get-TcpkPcapFindings {
     }
 
     # 4. FTP credentials in cleartext
-    $ftp = Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap `
+    $ftp = Invoke-TcpkTsharkQuery @q `
                 -Filter 'ftp.request.command == "USER" || ftp.request.command == "PASS"' `
                 -Fields @('ip.dst', 'ftp.request.command', 'ftp.request.arg')
     $ftpHosts = @($ftp | ForEach-Object { $_.'ip.dst' } | Where-Object { $_ } | Sort-Object -Unique)
@@ -160,7 +170,7 @@ function Get-TcpkPcapFindings {
     }
 
     # 5. DNS query inventory (INFO -- host discovery / telemetry)
-    $dns = @(Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap -Filter 'dns.flags.response == 0' -Fields @('dns.qry.name') |
+    $dns = @(Invoke-TcpkTsharkQuery @q -Filter 'dns.flags.response == 0' -Fields @('dns.qry.name') |
                 ForEach-Object { $_.'dns.qry.name' } | Where-Object { $_ } | Sort-Object -Unique)
     if ($dns.Count) {
         $list = ($dns | Select-Object -First 40) -join ', '
@@ -173,7 +183,7 @@ function Get-TcpkPcapFindings {
 
     # 6. Endpoint inventory (INFO)
     $eps = @{}
-    foreach ($r in (Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap `
+    foreach ($r in (Invoke-TcpkTsharkQuery @q `
                         -Fields @('ip.dst', 'tcp.dstport', 'udp.dstport', '_ws.col.Protocol'))) {
         $port = if ($r.'tcp.dstport') { $r.'tcp.dstport' } else { $r.'udp.dstport' }
         if (-not $r.'ip.dst') { continue }
@@ -194,8 +204,11 @@ function Get-TcpkPcapFindings {
 # Packet list for the UI: bounded (default 2000 rows) so a huge capture never floods the browser.
 function Get-TcpkPcapPackets {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap, [int]$Max = 2000)
-    $rows = Invoke-TcpkTsharkQuery -Tshark $Tshark -Pcap $Pcap -Max $Max `
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap, [int]$Max = 2000, [string]$KeylogFile, [string]$RsaKeyFile)
+    $q = @{ Tshark = $Tshark; Pcap = $Pcap }
+    if ($KeylogFile) { $q.KeylogFile = $KeylogFile }
+    if ($RsaKeyFile) { $q.RsaKeyFile = $RsaKeyFile }
+    $rows = Invoke-TcpkTsharkQuery @q -Max $Max `
                 -Fields @('frame.number', 'frame.time_relative', 'ip.src', 'ipv6.src', 'ip.dst', 'ipv6.dst', '_ws.col.Protocol', 'frame.len', '_ws.col.Info')
     foreach ($r in $rows) {
         [ordered]@{
@@ -208,4 +221,68 @@ function Get-TcpkPcapPackets {
             info  = $r.'_ws.col.Info'
         }
     }
+}
+
+# --- LIVE CAPTURE (drives the operator's dumpcap; needs a capture driver + elevation) ---------
+# TCPK does not capture itself. Live capture needs a kernel driver (npcap on Windows), which
+# Wireshark installs. These orchestrate the operator's dumpcap: their tool, their driver, their
+# privileges. Off Windows dumpcap needs CAP_NET_RAW; if it cannot capture, the runner throws a
+# clear error rather than pretending.
+
+# Locate dumpcap (mirrors Get-TcpkTshark). Windows paths are plain strings (no C: drive validation).
+function Get-TcpkDumpcap {
+    param([string]$Override)
+    $cands = @()
+    if ($Override) { $cands += $Override }
+    $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+    $cands += (Join-Path $repo 'tools/wireshark/dumpcap')
+    $cands += (Join-Path $repo 'tools/wireshark/dumpcap.exe')
+    foreach ($pf in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, 'C:\Program Files', 'C:\Program Files (x86)')) {
+        if ($pf) { $cands += ($pf.TrimEnd('\', '/') + '\Wireshark\dumpcap.exe') }
+    }
+    foreach ($c in $cands) {
+        try { if ($c -and (Test-Path -LiteralPath $c -ErrorAction SilentlyContinue)) { return (Resolve-Path -LiteralPath $c).Path } } catch { }
+    }
+    $cmd = Get-Command 'dumpcap' -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    return $null
+}
+
+# List capture interfaces via 'tshark -D'. Returns [{ Id; Name; Desc }]. Empty if tshark absent.
+function Get-TcpkCaptureInterfaces {
+    param([string]$TsharkPath)
+    $tshark = if ($TsharkPath) { $TsharkPath } else { Get-TcpkTshark }
+    if (-not $tshark) { return @() }
+    $lines = @()
+    try { $lines = & $tshark -D 2>$null } catch { return @() }
+    $out = New-Object System.Collections.Generic.List[object]
+    foreach ($ln in @($lines)) {
+        if ("$ln" -match '^\s*(\d+)\.\s+(\S+)(?:\s+\((.+)\))?\s*$') {
+            $out.Add([pscustomobject][ordered]@{ Id = $Matches[1]; Name = $Matches[2]; Desc = "$($Matches[3])" })
+        }
+    }
+    return $out.ToArray()
+}
+
+# Capture $Seconds on $Interface into a pcapng and return the file path. Blocks for the duration.
+function Invoke-TcpkPcapCaptureFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Interface,
+        [int]$Seconds = 20,
+        [string]$Filter,        # capture (BPF) filter, e.g. 'host 10.0.0.5 and port 443'
+        [string]$OutFile,
+        [string]$DumpcapPath
+    )
+    $dumpcap = Get-TcpkDumpcap -Override $DumpcapPath
+    if (-not $dumpcap) { throw "dumpcap not found -- install Wireshark (it includes dumpcap)." }
+    if ($Seconds -lt 1) { $Seconds = 1 }
+    if (-not $OutFile) { $OutFile = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-cap-' + [guid]::NewGuid().ToString('N') + '.pcapng') }
+    $a = @('-i', $Interface, '-a', "duration:$Seconds", '-w', $OutFile, '-q')
+    if ($Filter) { $a += @('-f', $Filter) }
+    try { & $dumpcap @a 2>&1 | Out-Null } catch { throw "dumpcap failed: $($_.Exception.Message)" }
+    if (-not (Test-Path -LiteralPath $OutFile)) {
+        throw "capture produced no file -- dumpcap needs a capture driver (npcap on Windows) and elevation."
+    }
+    return (Resolve-Path -LiteralPath $OutFile).Path
 }

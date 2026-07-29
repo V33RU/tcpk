@@ -46,6 +46,16 @@ Describe 'Invoke-TcpkPcapReview - contract and graceful degradation' {
     It 'throws a clear error for a missing capture file' {
         { Invoke-TcpkPcapReview -Path (Join-Path ([IO.Path]::GetTempPath()) 'tcpk-no-such.pcap') } | Should -Throw
     }
+    It 'throws for a missing keylog file (before touching tshark)' {
+        { Invoke-TcpkPcapReview -Path $script:pcap -KeylogFile (Join-Path ([IO.Path]::GetTempPath()) 'tcpk-no-keys.log') } | Should -Throw
+    }
+    It 'throws for a missing RSA key file' {
+        { Invoke-TcpkPcapReview -Path $script:pcap -RsaKeyFile (Join-Path ([IO.Path]::GetTempPath()) 'tcpk-no-key.pem') } | Should -Throw
+    }
+    It 'Get-TcpkCaptureInterface and Get-TcpkDumpcap do not throw on any platform' {
+        { Get-TcpkCaptureInterface } | Should -Not -Throw
+        { & (Get-Module TCPK) { Get-TcpkDumpcap } } | Should -Not -Throw
+    }
     It 'returns a Skipped finding (not a throw) when tshark is unavailable' {
         InModuleScope TCPK -Parameters @{ p = $script:pcap } {
             param($p)

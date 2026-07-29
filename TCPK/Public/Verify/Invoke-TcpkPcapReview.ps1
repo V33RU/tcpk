@@ -34,13 +34,25 @@ function Invoke-TcpkPcapReview {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Path,
-        [string]$TsharkPath
+        [string]$TsharkPath,
+        [string]$KeylogFile,  # a TLS key log (SSLKEYLOGFILE) to DECRYPT TLS so HTTPS is analysed too
+        [string]$RsaKeyFile   # a server RSA private key to DECRYPT RSA-key-exchange TLS (not ECDHE / 1.3)
     )
 
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
         throw "Capture file not found: $Path"
     }
     $pcap = (Resolve-Path -LiteralPath $Path).Path
+    $klog = ''
+    if ($KeylogFile) {
+        if (Test-Path -LiteralPath $KeylogFile -PathType Leaf) { $klog = (Resolve-Path -LiteralPath $KeylogFile).Path }
+        else { throw "Keylog file not found: $KeylogFile" }
+    }
+    $rkey = ''
+    if ($RsaKeyFile) {
+        if (Test-Path -LiteralPath $RsaKeyFile -PathType Leaf) { $rkey = (Resolve-Path -LiteralPath $RsaKeyFile).Path }
+        else { throw "RSA key file not found: $RsaKeyFile" }
+    }
 
     $tshark = Get-TcpkTshark -Override $TsharkPath
     if (-not $tshark) {
@@ -51,7 +63,7 @@ function Invoke-TcpkPcapReview {
             -Fix 'Install Wireshark, or pass -TsharkPath to the tshark executable.')
     }
 
-    $findings = @(Get-TcpkPcapFindings -Tshark $tshark -Pcap $pcap)
+    $findings = @(Get-TcpkPcapFindings -Tshark $tshark -Pcap $pcap -KeylogFile $klog -RsaKeyFile $rkey)
     foreach ($f in $findings) { if (-not $f.File) { $f.File = $pcap } }
     if (-not $findings.Count) {
         return (New-TcpkFinding -Module 'network' -RuleId 'pcap.clean' -Severity 'INFO' `
