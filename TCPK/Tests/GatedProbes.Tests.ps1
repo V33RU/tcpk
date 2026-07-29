@@ -55,3 +55,26 @@ Describe 'Invoke-TcpkComProbe (gated)' {
         $r.Count | Should -Be 0
     }
 }
+
+Describe 'Invoke-TcpkRpcProbe (gated)' {
+    It 'is exported' {
+        Get-Command Invoke-TcpkRpcProbe -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+    }
+    It 'refuses without Enable-TcpkExploit' {
+        try { Disable-TcpkExploit | Out-Null } catch {}
+        { Invoke-TcpkRpcProbe } | Should -Throw
+    }
+    It 'enumerates the local endpoint mapper once enabled (Windows)' -Skip:($IsWindows -eq $false) {
+        # rpcrt4 RpcMgmtEpEltInq* is Windows-only; off Windows the cmdlet skips.
+        Enable-TcpkExploit -Acknowledge | Out-Null
+        $r = @(Invoke-TcpkRpcProbe)
+        # A live Windows host always has RPC interfaces registered; expect a summary or a
+        # graceful rpc.enum-failed, never a throw.
+        ($r | Where-Object { $_.RuleId -in 'rpc.endpoints', 'rpc.local-endpoint', 'rpc.enum-failed' }) | Should -Not -BeNullOrEmpty
+    }
+    It 'skips cleanly off Windows (no throw, no findings) once enabled' -Skip:($IsWindows -eq $true) {
+        Enable-TcpkExploit -Acknowledge | Out-Null
+        $r = @(Invoke-TcpkRpcProbe 3>$null)
+        $r.Count | Should -Be 0
+    }
+}
