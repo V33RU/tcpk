@@ -1054,6 +1054,60 @@ $txtOutA.Text = "Traffic interception console.`r`n`r`nSet the app exe, tick the 
 $tabIcptA.Controls.Add($txtOutA)
 $txtOutA.BringToFront()
 
+# ================= TAB: Traffic (packet-capture analysis) =================
+# Read-only: dissects a .pcap/.pcapng you already captured with Wireshark, via tshark. No gate,
+# no launch, no admin -- it only reads a capture file (Invoke-TcpkPcapReview). Complements the
+# Intercept tab (HTTP through a proxy) by seeing everything on the wire, non-HTTP included.
+$tabPcap = New-Object System.Windows.Forms.TabPage
+$tabPcap.Text = ' Traffic '
+$tabPcap.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$tabs.TabPages.Add($tabPcap)
+
+$ctlP = New-Object System.Windows.Forms.Panel
+$ctlP.Dock = 'Top'; $ctlP.Height = 96; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$lblPcap = New-Object System.Windows.Forms.Label
+$lblPcap.Text = "Packet capture (.pcap / .pcapng) -- analyse it via your installed Wireshark (tshark). Read-only, needs no admin."
+$lblPcap.ForeColor = [System.Drawing.Color]::White
+$lblPcap.Location = New-Object System.Drawing.Point(12,8); $lblPcap.Size = New-Object System.Drawing.Size(1140,18)
+$ctlP.Controls.Add($lblPcap)
+$lblPcapF = New-Object System.Windows.Forms.Label
+$lblPcapF.Text = "Capture file:"; $lblPcapF.ForeColor = [System.Drawing.Color]::White
+$lblPcapF.Location = New-Object System.Drawing.Point(12,40); $lblPcapF.Size = New-Object System.Drawing.Size(84,18)
+$ctlP.Controls.Add($lblPcapF)
+$txtPcap = New-Object System.Windows.Forms.TextBox
+$txtPcap.Location = New-Object System.Drawing.Point(100,37); $txtPcap.Size = New-Object System.Drawing.Size(760,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtPcap.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtPcap.ForeColor = [System.Drawing.Color]::White
+$txtPcap.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$ctlP.Controls.Add($txtPcap)
+$btnPcapBrowse = New-Object System.Windows.Forms.Button
+$btnPcapBrowse.Text = "Browse..."; $btnPcapBrowse.Location = New-Object System.Drawing.Point(868,35); $btnPcapBrowse.Size = New-Object System.Drawing.Size(84,26)
+$btnPcapBrowse.FlatStyle = 'Flat'; $btnPcapBrowse.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnPcapBrowse.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
+$btnPcapBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$ctlP.Controls.Add($btnPcapBrowse)
+$btnPcapBrowse.Add_Click({
+    $dlg = New-Object System.Windows.Forms.OpenFileDialog
+    $dlg.Filter = "Captures (*.pcap;*.pcapng)|*.pcap;*.pcapng|All files (*.*)|*.*"
+    if ($dlg.ShowDialog() -eq 'OK') { $txtPcap.Text = $dlg.FileName }
+})
+$btnPcapGo = New-Object System.Windows.Forms.Button
+$btnPcapGo.Text = "Analyse capture"; $btnPcapGo.Location = New-Object System.Drawing.Point(100,66); $btnPcapGo.Size = New-Object System.Drawing.Size(150,26)
+$btnPcapGo.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnPcapGo.ForeColor = [System.Drawing.Color]::White; $btnPcapGo.FlatStyle = 'Flat'
+$ctlP.Controls.Add($btnPcapGo)
+$btnPcapGo.Add_Click({
+    $file = $txtPcap.Text.Trim()
+    if (-not $file) { Write-IcptLine $txtOutP "`r`n[!] Pick a .pcap / .pcapng file first.`r`n" $icptWarn; return }
+    Invoke-IcptTool $txtOutP "Analyse pcap: $file" { Invoke-TcpkPcapReview -Path $file }
+})
+$tabPcap.Controls.Add($ctlP)
+
+$txtOutP = New-Object System.Windows.Forms.RichTextBox
+$txtOutP.Dock = 'Fill'; $txtOutP.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtOutP.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtOutP.ForeColor = [System.Drawing.Color]::White
+$txtOutP.ReadOnly = $true; $txtOutP.WordWrap = $false
+$txtOutP.Text = "Packet-capture analysis console.`r`n`r`nCapture traffic with Wireshark or dumpcap, then load the .pcap here. TCPK dissects it via tshark (ships with Wireshark) and lists the security-relevant findings: cleartext credentials, plaintext HTTP / FTP, obsolete TLS, DNS and endpoint inventory.`r`n`r`nComplements Intercept: this sees everything on the wire, including non-HTTP protocols. tshark must be installed (Wireshark). Findings stream here, severity-coloured."
+$tabPcap.Controls.Add($txtOutP)
+$txtOutP.BringToFront()
+
 # ================= TAB B: Live Exploit / Creds =================
 $tabIcptB = New-Object System.Windows.Forms.TabPage
 $tabIcptB.Text = ' Creds '
