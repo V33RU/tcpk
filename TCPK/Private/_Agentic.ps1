@@ -292,6 +292,7 @@ function Get-TcpkAgentAsar {
         $base = 8 + $headerObjSize
         $outDir = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
         New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+        $rootFull = [System.IO.Path]::GetFullPath($outDir)
         $files = New-Object System.Collections.Generic.List[object]
         $stack = New-Object System.Collections.Generic.Stack[object]
         $stack.Push([pscustomobject]@{ node = $tree; rel = '' })
@@ -308,6 +309,9 @@ function Get-TcpkAgentAsar {
                 if ($sz -lt 0 -or ($off + $sz) -gt $bytes.Length) { continue }
                 if (($total + $sz) -gt $cap -or $files.Count -ge 8000) { continue }
                 $dest = Join-Path $outDir ($childRel -replace '/', '\')
+                # zip-slip guard: a malicious asar entry name must not escape the extract root
+                $destFull = [System.IO.Path]::GetFullPath($dest)
+                if (-not $destFull.StartsWith($rootFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
                 $ddir = Split-Path -Parent $dest
                 if ($ddir -and -not (Test-Path -LiteralPath $ddir)) { New-Item -ItemType Directory -Path $ddir -Force | Out-Null }
                 $buf = New-Object 'byte[]' $sz

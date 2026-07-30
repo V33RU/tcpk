@@ -63,6 +63,7 @@ function Expand-TcpkAsar {
         }
 
         $outRoot = Join-Path $OutDir $asar.BaseName
+        $rootFull = [System.IO.Path]::GetFullPath($outRoot)
         $extracted = 0
         # Iterative walk of the file tree (name -> node; node has .files (dir) or .offset/.size (file))
         $stack = New-Object System.Collections.Stack
@@ -83,6 +84,12 @@ function Expand-TcpkAsar {
                         $off = [int64]$child.offset; $sz = [int64]$child.size
                         if ($sz -lt 0 -or ($base + $off + $sz) -gt $fs.Length) { continue }
                         $dest = Join-Path $outRoot $rel
+                        # zip-slip guard: a malicious asar entry name (../) must not escape the root
+                        $destFull = [System.IO.Path]::GetFullPath($dest)
+                        if (-not $destFull.StartsWith($rootFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+                            Write-Warning "asar entry escapes the extraction root (zip-slip), skipped: $rel"
+                            continue
+                        }
                         $ddir = Split-Path -Parent $dest
                         if (-not (Test-Path -LiteralPath $ddir)) { New-Item -ItemType Directory -Path $ddir -Force | Out-Null }
                         $fs.Position = $base + $off
