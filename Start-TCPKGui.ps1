@@ -981,7 +981,7 @@ $tabIcptA.Controls.Add($bannerA)
 
 # Controls panel
 $ctlA = New-Object System.Windows.Forms.Panel
-$ctlA.Dock = 'Top'; $ctlA.Height = 200; $ctlA.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$ctlA.Dock = 'Top'; $ctlA.Height = 440; $ctlA.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 
 # App exe row
 $lblExeA = New-Object System.Windows.Forms.Label
@@ -1064,7 +1064,7 @@ $tabPcap.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabPcap)
 
 $ctlP = New-Object System.Windows.Forms.Panel
-$ctlP.Dock = 'Top'; $ctlP.Height = 430; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$ctlP.Dock = 'Top'; $ctlP.Height = 170; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 $lblPcap = New-Object System.Windows.Forms.Label
 $lblPcap.Text = "Packet capture (.pcap / .pcapng) -- analyse it via your installed Wireshark (tshark). Read-only, needs no admin."
 $lblPcap.ForeColor = [System.Drawing.Color]::White
@@ -1134,63 +1134,62 @@ $btnCapGo.Add_Click({
 # Active: replay / IDOR / JWT (gated) -- turn a captured request into an active backend check
 $gbActive = New-Object System.Windows.Forms.GroupBox
 $gbActive.Text = "Active: replay / IDOR / JWT (gated -- authorized targets only)"; $gbActive.ForeColor = [System.Drawing.Color]::White
-$gbActive.Location = New-Object System.Drawing.Point(8,170); $gbActive.Size = New-Object System.Drawing.Size(1150,252)
+$gbActive.Location = New-Object System.Drawing.Point(10,198); $gbActive.Size = New-Object System.Drawing.Size(1150,234)
 $gbActive.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
-$ctlP.Controls.Add($gbActive)
-$chkGateP = New-Object System.Windows.Forms.CheckBox; $chkGateP.Text = "I am authorized to test this target -- enable active replay / IDOR / JWT (Enable-TcpkExploit)"; $chkGateP.ForeColor = $icptWarn; $chkGateP.Location = New-Object System.Drawing.Point(12,20); $chkGateP.Size = New-Object System.Drawing.Size(720,20); $gbActive.Controls.Add($chkGateP)
-$lblReqP = New-Object System.Windows.Forms.Label; $lblReqP.Text = "Raw HTTP request (identity A, requesting A's own object):"; $lblReqP.ForeColor = [System.Drawing.Color]::White; $lblReqP.Location = New-Object System.Drawing.Point(12,44); $lblReqP.Size = New-Object System.Drawing.Size(420,18); $gbActive.Controls.Add($lblReqP)
-$txtReqP = New-Object System.Windows.Forms.TextBox; $txtReqP.Multiline = $true; $txtReqP.ScrollBars = 'Vertical'; $txtReqP.Location = New-Object System.Drawing.Point(12,62); $txtReqP.Size = New-Object System.Drawing.Size(700,70); $txtReqP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtReqP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtReqP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtReqP)
-$lblTgtP = New-Object System.Windows.Forms.Label; $lblTgtP.Text = "Target host/URL:"; $lblTgtP.ForeColor = [System.Drawing.Color]::White; $lblTgtP.Location = New-Object System.Drawing.Point(12,140); $lblTgtP.Size = New-Object System.Drawing.Size(100,18); $gbActive.Controls.Add($lblTgtP)
-$txtTargetP = New-Object System.Windows.Forms.TextBox; $txtTargetP.Location = New-Object System.Drawing.Point(114,137); $txtTargetP.Size = New-Object System.Drawing.Size(300,24); $txtTargetP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtTargetP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTargetP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtTargetP)
-$chkConfirmP = New-Object System.Windows.Forms.CheckBox; $chkConfirmP.Text = "confirm (send)"; $chkConfirmP.ForeColor = [System.Drawing.Color]::White; $chkConfirmP.Location = New-Object System.Drawing.Point(430,139); $chkConfirmP.Size = New-Object System.Drawing.Size(120,20); $gbActive.Controls.Add($chkConfirmP)
-$chkUnsafeP = New-Object System.Windows.Forms.CheckBox; $chkUnsafeP.Text = "allow unsafe verbs"; $chkUnsafeP.ForeColor = [System.Drawing.Color]::White; $chkUnsafeP.Location = New-Object System.Drawing.Point(556,139); $chkUnsafeP.Size = New-Object System.Drawing.Size(150,20); $gbActive.Controls.Add($chkUnsafeP)
-$lblSwapP = New-Object System.Windows.Forms.Label; $lblSwapP.Text = "IDOR swap id:"; $lblSwapP.ForeColor = [System.Drawing.Color]::White; $lblSwapP.Location = New-Object System.Drawing.Point(12,168); $lblSwapP.Size = New-Object System.Drawing.Size(90,18); $gbActive.Controls.Add($lblSwapP)
-$txtSwapP = New-Object System.Windows.Forms.TextBox; $txtSwapP.Location = New-Object System.Drawing.Point(102,165); $txtSwapP.Size = New-Object System.Drawing.Size(90,24); $txtSwapP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSwapP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSwapP)
-$lblSecondP = New-Object System.Windows.Forms.Label; $lblSecondP.Text = "B token:"; $lblSecondP.ForeColor = [System.Drawing.Color]::White; $lblSecondP.Location = New-Object System.Drawing.Point(202,168); $lblSecondP.Size = New-Object System.Drawing.Size(56,18); $gbActive.Controls.Add($lblSecondP)
-$txtSecondP = New-Object System.Windows.Forms.TextBox; $txtSecondP.Location = New-Object System.Drawing.Point(260,165); $txtSecondP.Size = New-Object System.Drawing.Size(200,24); $txtSecondP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSecondP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSecondP)
-$lblLocP = New-Object System.Windows.Forms.Label; $lblLocP.Text = "id loc:"; $lblLocP.ForeColor = [System.Drawing.Color]::White; $lblLocP.Location = New-Object System.Drawing.Point(470,168); $lblLocP.Size = New-Object System.Drawing.Size(44,18); $gbActive.Controls.Add($lblLocP)
-$txtLocP = New-Object System.Windows.Forms.TextBox; $txtLocP.Location = New-Object System.Drawing.Point(514,165); $txtLocP.Size = New-Object System.Drawing.Size(90,24); $txtLocP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLocP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtLocP)
-$chkMutateP = New-Object System.Windows.Forms.CheckBox; $chkMutateP.Text = "auto-mutate"; $chkMutateP.ForeColor = [System.Drawing.Color]::White; $chkMutateP.Location = New-Object System.Drawing.Point(614,167); $chkMutateP.Size = New-Object System.Drawing.Size(110,20); $gbActive.Controls.Add($chkMutateP)
-$lblJwtP = New-Object System.Windows.Forms.Label; $lblJwtP.Text = "JWT:"; $lblJwtP.ForeColor = [System.Drawing.Color]::White; $lblJwtP.Location = New-Object System.Drawing.Point(12,196); $lblJwtP.Size = New-Object System.Drawing.Size(40,18); $gbActive.Controls.Add($lblJwtP)
-$txtJwtP = New-Object System.Windows.Forms.TextBox; $txtJwtP.Location = New-Object System.Drawing.Point(54,193); $txtJwtP.Size = New-Object System.Drawing.Size(406,24); $txtJwtP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtJwtP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtJwtP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtJwtP)
-$lblSecretP = New-Object System.Windows.Forms.Label; $lblSecretP.Text = "secret:"; $lblSecretP.ForeColor = [System.Drawing.Color]::White; $lblSecretP.Location = New-Object System.Drawing.Point(470,196); $lblSecretP.Size = New-Object System.Drawing.Size(50,18); $gbActive.Controls.Add($lblSecretP)
-$txtSecretP = New-Object System.Windows.Forms.TextBox; $txtSecretP.Location = New-Object System.Drawing.Point(522,193); $txtSecretP.Size = New-Object System.Drawing.Size(180,24); $txtSecretP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSecretP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSecretP)
-$btnCandP = New-Object System.Windows.Forms.Button; $btnCandP.Text = "ID candidates"; $btnCandP.Location = New-Object System.Drawing.Point(12,222); $btnCandP.Size = New-Object System.Drawing.Size(110,26); $btnCandP.FlatStyle = 'Flat'; $btnCandP.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnCandP.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbActive.Controls.Add($btnCandP)
-$btnReplayP = New-Object System.Windows.Forms.Button; $btnReplayP.Text = "Replay"; $btnReplayP.Location = New-Object System.Drawing.Point(128,222); $btnReplayP.Size = New-Object System.Drawing.Size(90,26); $btnReplayP.FlatStyle = 'Flat'; $btnReplayP.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnReplayP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnReplayP)
-$btnIdorP = New-Object System.Windows.Forms.Button; $btnIdorP.Text = "IDOR probe"; $btnIdorP.Location = New-Object System.Drawing.Point(224,222); $btnIdorP.Size = New-Object System.Drawing.Size(100,26); $btnIdorP.FlatStyle = 'Flat'; $btnIdorP.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnIdorP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnIdorP)
-$btnJwtCrackP = New-Object System.Windows.Forms.Button; $btnJwtCrackP.Text = "JWT crack"; $btnJwtCrackP.Location = New-Object System.Drawing.Point(330,222); $btnJwtCrackP.Size = New-Object System.Drawing.Size(100,26); $btnJwtCrackP.FlatStyle = 'Flat'; $btnJwtCrackP.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnJwtCrackP.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbActive.Controls.Add($btnJwtCrackP)
-$btnJwtAttackP = New-Object System.Windows.Forms.Button; $btnJwtAttackP.Text = "JWT attack"; $btnJwtAttackP.Location = New-Object System.Drawing.Point(436,222); $btnJwtAttackP.Size = New-Object System.Drawing.Size(100,26); $btnJwtAttackP.FlatStyle = 'Flat'; $btnJwtAttackP.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnJwtAttackP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnJwtAttackP)
-$lblActHint = New-Object System.Windows.Forms.Label; $lblActHint.Text = "acceptance is decided by response-body comparison, never status alone; findings stream to the console below"; $lblActHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblActHint.Location = New-Object System.Drawing.Point(548,228); $lblActHint.Size = New-Object System.Drawing.Size(580,18); $gbActive.Controls.Add($lblActHint)
-$btnCandP.Add_Click({ Invoke-IcptTool $txtOutP "ID candidates" { Get-TcpkRequestIdCandidates -RequestText $txtReqP.Text } })
+$ctlA.Controls.Add($gbActive)
+$lblReqP = New-Object System.Windows.Forms.Label; $lblReqP.Text = "Raw HTTP request (identity A, requesting A's own object):"; $lblReqP.ForeColor = [System.Drawing.Color]::White; $lblReqP.Location = New-Object System.Drawing.Point(12,22); $lblReqP.Size = New-Object System.Drawing.Size(420,18); $gbActive.Controls.Add($lblReqP)
+$txtReqP = New-Object System.Windows.Forms.TextBox; $txtReqP.Multiline = $true; $txtReqP.ScrollBars = 'Vertical'; $txtReqP.Location = New-Object System.Drawing.Point(12,40); $txtReqP.Size = New-Object System.Drawing.Size(700,70); $txtReqP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtReqP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtReqP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtReqP)
+$lblTgtP = New-Object System.Windows.Forms.Label; $lblTgtP.Text = "Target host/URL:"; $lblTgtP.ForeColor = [System.Drawing.Color]::White; $lblTgtP.Location = New-Object System.Drawing.Point(12,118); $lblTgtP.Size = New-Object System.Drawing.Size(100,18); $gbActive.Controls.Add($lblTgtP)
+$txtTargetP = New-Object System.Windows.Forms.TextBox; $txtTargetP.Location = New-Object System.Drawing.Point(114,115); $txtTargetP.Size = New-Object System.Drawing.Size(300,24); $txtTargetP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtTargetP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTargetP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtTargetP)
+$chkConfirmP = New-Object System.Windows.Forms.CheckBox; $chkConfirmP.Text = "confirm (send)"; $chkConfirmP.ForeColor = [System.Drawing.Color]::White; $chkConfirmP.Location = New-Object System.Drawing.Point(430,117); $chkConfirmP.Size = New-Object System.Drawing.Size(120,20); $gbActive.Controls.Add($chkConfirmP)
+$chkUnsafeP = New-Object System.Windows.Forms.CheckBox; $chkUnsafeP.Text = "allow unsafe verbs"; $chkUnsafeP.ForeColor = [System.Drawing.Color]::White; $chkUnsafeP.Location = New-Object System.Drawing.Point(556,117); $chkUnsafeP.Size = New-Object System.Drawing.Size(150,20); $gbActive.Controls.Add($chkUnsafeP)
+$lblSwapP = New-Object System.Windows.Forms.Label; $lblSwapP.Text = "IDOR swap id:"; $lblSwapP.ForeColor = [System.Drawing.Color]::White; $lblSwapP.Location = New-Object System.Drawing.Point(12,146); $lblSwapP.Size = New-Object System.Drawing.Size(90,18); $gbActive.Controls.Add($lblSwapP)
+$txtSwapP = New-Object System.Windows.Forms.TextBox; $txtSwapP.Location = New-Object System.Drawing.Point(102,143); $txtSwapP.Size = New-Object System.Drawing.Size(90,24); $txtSwapP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSwapP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSwapP)
+$lblSecondP = New-Object System.Windows.Forms.Label; $lblSecondP.Text = "B token:"; $lblSecondP.ForeColor = [System.Drawing.Color]::White; $lblSecondP.Location = New-Object System.Drawing.Point(202,146); $lblSecondP.Size = New-Object System.Drawing.Size(56,18); $gbActive.Controls.Add($lblSecondP)
+$txtSecondP = New-Object System.Windows.Forms.TextBox; $txtSecondP.Location = New-Object System.Drawing.Point(260,143); $txtSecondP.Size = New-Object System.Drawing.Size(200,24); $txtSecondP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSecondP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSecondP)
+$lblLocP = New-Object System.Windows.Forms.Label; $lblLocP.Text = "id loc:"; $lblLocP.ForeColor = [System.Drawing.Color]::White; $lblLocP.Location = New-Object System.Drawing.Point(470,146); $lblLocP.Size = New-Object System.Drawing.Size(44,18); $gbActive.Controls.Add($lblLocP)
+$txtLocP = New-Object System.Windows.Forms.TextBox; $txtLocP.Location = New-Object System.Drawing.Point(514,143); $txtLocP.Size = New-Object System.Drawing.Size(90,24); $txtLocP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLocP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtLocP)
+$chkMutateP = New-Object System.Windows.Forms.CheckBox; $chkMutateP.Text = "auto-mutate"; $chkMutateP.ForeColor = [System.Drawing.Color]::White; $chkMutateP.Location = New-Object System.Drawing.Point(614,145); $chkMutateP.Size = New-Object System.Drawing.Size(110,20); $gbActive.Controls.Add($chkMutateP)
+$lblJwtP = New-Object System.Windows.Forms.Label; $lblJwtP.Text = "JWT:"; $lblJwtP.ForeColor = [System.Drawing.Color]::White; $lblJwtP.Location = New-Object System.Drawing.Point(12,174); $lblJwtP.Size = New-Object System.Drawing.Size(40,18); $gbActive.Controls.Add($lblJwtP)
+$txtJwtP = New-Object System.Windows.Forms.TextBox; $txtJwtP.Location = New-Object System.Drawing.Point(54,171); $txtJwtP.Size = New-Object System.Drawing.Size(406,24); $txtJwtP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtJwtP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtJwtP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtJwtP)
+$lblSecretP = New-Object System.Windows.Forms.Label; $lblSecretP.Text = "secret:"; $lblSecretP.ForeColor = [System.Drawing.Color]::White; $lblSecretP.Location = New-Object System.Drawing.Point(470,174); $lblSecretP.Size = New-Object System.Drawing.Size(50,18); $gbActive.Controls.Add($lblSecretP)
+$txtSecretP = New-Object System.Windows.Forms.TextBox; $txtSecretP.Location = New-Object System.Drawing.Point(522,171); $txtSecretP.Size = New-Object System.Drawing.Size(180,24); $txtSecretP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSecretP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSecretP)
+$btnCandP = New-Object System.Windows.Forms.Button; $btnCandP.Text = "ID candidates"; $btnCandP.Location = New-Object System.Drawing.Point(12,200); $btnCandP.Size = New-Object System.Drawing.Size(110,26); $btnCandP.FlatStyle = 'Flat'; $btnCandP.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnCandP.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbActive.Controls.Add($btnCandP)
+$btnReplayP = New-Object System.Windows.Forms.Button; $btnReplayP.Text = "Replay"; $btnReplayP.Location = New-Object System.Drawing.Point(128,200); $btnReplayP.Size = New-Object System.Drawing.Size(90,26); $btnReplayP.FlatStyle = 'Flat'; $btnReplayP.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnReplayP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnReplayP)
+$btnIdorP = New-Object System.Windows.Forms.Button; $btnIdorP.Text = "IDOR probe"; $btnIdorP.Location = New-Object System.Drawing.Point(224,200); $btnIdorP.Size = New-Object System.Drawing.Size(100,26); $btnIdorP.FlatStyle = 'Flat'; $btnIdorP.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnIdorP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnIdorP)
+$btnJwtCrackP = New-Object System.Windows.Forms.Button; $btnJwtCrackP.Text = "JWT crack"; $btnJwtCrackP.Location = New-Object System.Drawing.Point(330,200); $btnJwtCrackP.Size = New-Object System.Drawing.Size(100,26); $btnJwtCrackP.FlatStyle = 'Flat'; $btnJwtCrackP.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnJwtCrackP.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbActive.Controls.Add($btnJwtCrackP)
+$btnJwtAttackP = New-Object System.Windows.Forms.Button; $btnJwtAttackP.Text = "JWT attack"; $btnJwtAttackP.Location = New-Object System.Drawing.Point(436,200); $btnJwtAttackP.Size = New-Object System.Drawing.Size(100,26); $btnJwtAttackP.FlatStyle = 'Flat'; $btnJwtAttackP.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnJwtAttackP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnJwtAttackP)
+$lblActHint = New-Object System.Windows.Forms.Label; $lblActHint.Text = "acceptance is decided by response-body comparison, never status alone; findings stream to the console below"; $lblActHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblActHint.Location = New-Object System.Drawing.Point(548,206); $lblActHint.Size = New-Object System.Drawing.Size(580,18); $gbActive.Controls.Add($lblActHint)
+$btnCandP.Add_Click({ Invoke-IcptTool $txtOutA "ID candidates" { Get-TcpkRequestIdCandidates -RequestText $txtReqP.Text } })
 $btnReplayP.Add_Click({
-    if (-not (Test-IcptGate $chkGateP $txtOutP)) { return }
+    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
     $p = @{ RequestText = $txtReqP.Text; Target = $txtTargetP.Text.Trim() }
     if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
     if ($chkUnsafeP.Checked) { $p.AllowUnsafeMethods = $true }
-    Invoke-IcptTool $txtOutP "Replay (missing-authz)" { Invoke-TcpkReplay @p }
+    Invoke-IcptTool $txtOutA "Replay (missing-authz)" { Invoke-TcpkReplay @p }
 })
 $btnIdorP.Add_Click({
-    if (-not (Test-IcptGate $chkGateP $txtOutP)) { return }
+    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
     $p = @{ RequestText = $txtReqP.Text; Target = $txtTargetP.Text.Trim() }
     if ($txtSwapP.Text.Trim()) { $p.SwapId = $txtSwapP.Text.Trim() }
     if ($txtSecondP.Text.Trim()) { $p.SecondIdentityToken = $txtSecondP.Text.Trim() }
     if ($txtLocP.Text.Trim()) { $p.Location = $txtLocP.Text.Trim() }
     if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
     if ($chkMutateP.Checked) { $p.AutoMutate = $true }
-    Invoke-IcptTool $txtOutP "IDOR probe" { Invoke-TcpkIdorProbe @p }
+    Invoke-IcptTool $txtOutA "IDOR probe" { Invoke-TcpkIdorProbe @p }
 })
 $btnJwtCrackP.Add_Click({
-    if (-not (Test-IcptGate $chkGateP $txtOutP)) { return }
+    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
     $p = @{}
     if ($txtJwtP.Text.Trim()) { $p.Token = $txtJwtP.Text.Trim() }
-    Invoke-IcptTool $txtOutP "JWT crack (offline)" { Invoke-TcpkJwtCrack @p }
+    Invoke-IcptTool $txtOutA "JWT crack (offline)" { Invoke-TcpkJwtCrack @p }
 })
 $btnJwtAttackP.Add_Click({
-    if (-not (Test-IcptGate $chkGateP $txtOutP)) { return }
+    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
     $p = @{ Token = $txtJwtP.Text.Trim(); Target = $txtTargetP.Text.Trim() }
     if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
     if ($txtSecretP.Text.Trim()) { $p.Secret = $txtSecretP.Text.Trim() }
-    Invoke-IcptTool $txtOutP "JWT attack (live)" { Invoke-TcpkJwtAttack @p }
+    Invoke-IcptTool $txtOutA "JWT attack (live)" { Invoke-TcpkJwtAttack @p }
 })
 $tabPcap.Controls.Add($ctlP)
 
