@@ -198,13 +198,13 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Invoke-TcpkDpapiCrossUser** - K04. Attempt to decrypt a DPAPI blob under each available DPAPI scope.
 - **Invoke-TcpkGuiUnlock** - K10. (GATED) Enable disabled controls / unmask password fields (Win32).
 - **Invoke-TcpkInputFuzz** - K09. (GATED) Dumb file/argument fuzzer with crash capture.
-- **Invoke-TcpkMemoryFlagFlip** - K07. (GATED) Locate and optionally patch an in-memory flag to prove
+- **Invoke-TcpkMemoryFlagFlip** - K07. (GATED) Locate and optionally patch an in-memory flag to prove bypass.
 - **Invoke-TcpkPipeProbe** - K08. (GATED) Connect to a named pipe and send a benign probe.
 - **New-TcpkComHijackTemplate** - K05. Generate a proxy-COM scaffold for a flagged COM-server CLSID.
-- **New-TcpkFridaTlsBypass** - K02.
+- **New-TcpkFridaTlsBypass** - K02. Generate a Frida JS script template that bypasses a flagged TLS-pinning mechanism.
 - **New-TcpkIlPatch** - K11. (GATED) IL binary patching via Mono.Cecil: ReturnTrue, ReturnFalse, ReturnNull, Nop, FlipBranch, StripSn.
-- **New-TcpkRegistryHijackTemplate** - K12. (GATED) Registry-based persistence / hijack PoC artifacts (IFEO, RunKey, AppInitDlls). Generate a Frida JS script template that bypasses a flagged
-- **New-TcpkPoisonedUpdateManifest** - K03. Generate a TEMPLATE update-manifest that demonstrates an
+- **New-TcpkRegistryHijackTemplate** - K12. (GATED) Registry-based persistence / hijack PoC artifacts (IFEO, RunKey, AppInitDlls).
+- **New-TcpkPoisonedUpdateManifest** - K03. Generate a TEMPLATE update-manifest that demonstrates an unsigned-update hijack.
 - **New-TcpkProxyDll** - K01. Generate a proxy-DLL source scaffold for a flagged phantom-import.
 - **Start-TcpkPipeMitm** - K06. Local-loopback named-pipe MITM listener.
 
