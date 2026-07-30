@@ -3305,6 +3305,125 @@ $btnPmSave.Add_Click({
 $form.Add_FormClosing({ try { $script:PmonTimer.Stop() } catch {} })
 Set-PmonMode 'live'
 
+# ================= TAB: Attack-Path Graph =================
+# Correlates audit findings into end-to-end attack paths (entry -> primitive -> goal) via
+# Get-TcpkAttackGraph. Shows reachable goals + the Mermaid flowchart source to paste into
+# any renderer. Read-only, offline, reasons over the completed audit's findings.json only.
+$tabGraph = New-Object System.Windows.Forms.TabPage
+$tabGraph.Text = ' Graph '
+$tabGraph.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$tabs.TabPages.Add($tabGraph)
+
+$graphTop = New-Object System.Windows.Forms.Panel
+$graphTop.Dock = 'Top'; $graphTop.Height = 70; $graphTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$lblGraphInfo = New-Object System.Windows.Forms.Label
+$lblGraphInfo.Text = "Attack-path graph -- correlate audit findings into entry -> primitive -> goal paths. Run an audit first, then click Build Graph."
+$lblGraphInfo.ForeColor = [System.Drawing.Color]::White; $lblGraphInfo.Location = New-Object System.Drawing.Point(12, 8); $lblGraphInfo.Size = New-Object System.Drawing.Size(1140, 18)
+$graphTop.Controls.Add($lblGraphInfo)
+$btnGraphBuild = New-Object System.Windows.Forms.Button
+$btnGraphBuild.Text = "Build Graph"; $btnGraphBuild.Location = New-Object System.Drawing.Point(12, 34); $btnGraphBuild.Size = New-Object System.Drawing.Size(120, 28)
+$btnGraphBuild.BackColor = [System.Drawing.Color]::FromArgb(0, 90, 120); $btnGraphBuild.ForeColor = [System.Drawing.Color]::White; $btnGraphBuild.FlatStyle = 'Flat'
+$graphTop.Controls.Add($btnGraphBuild)
+$btnGraphCopy = New-Object System.Windows.Forms.Button
+$btnGraphCopy.Text = "Copy Mermaid"; $btnGraphCopy.Location = New-Object System.Drawing.Point(140, 34); $btnGraphCopy.Size = New-Object System.Drawing.Size(120, 28)
+$btnGraphCopy.FlatStyle = 'Flat'; $btnGraphCopy.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnGraphCopy.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$btnGraphCopy.Enabled = $false
+$graphTop.Controls.Add($btnGraphCopy)
+$lblGraphStatus = New-Object System.Windows.Forms.Label
+$lblGraphStatus.Text = ""; $lblGraphStatus.ForeColor = [System.Drawing.Color]::FromArgb(140, 140, 140)
+$lblGraphStatus.Location = New-Object System.Drawing.Point(270, 40); $lblGraphStatus.Size = New-Object System.Drawing.Size(700, 18)
+$graphTop.Controls.Add($lblGraphStatus)
+$tabGraph.Controls.Add($graphTop)
+
+$splitGraph = New-Object System.Windows.Forms.SplitContainer
+$splitGraph.Dock = 'Fill'; $splitGraph.Orientation = 'Horizontal'; $splitGraph.SplitterDistance = 200
+$splitGraph.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$splitGraph.Panel1.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$splitGraph.Panel2.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+
+$lblGoalsHdr = New-Object System.Windows.Forms.Label
+$lblGoalsHdr.Text = "REACHABLE GOALS"; $lblGoalsHdr.ForeColor = [System.Drawing.Color]::White; $lblGoalsHdr.Dock = 'Top'; $lblGoalsHdr.Height = 22
+$lblGoalsHdr.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
+$splitGraph.Panel1.Controls.Add($lblGoalsHdr)
+$lvGoals = New-Object System.Windows.Forms.ListView
+$lvGoals.Dock = 'Fill'; $lvGoals.View = 'Details'; $lvGoals.FullRowSelect = $true; $lvGoals.GridLines = $true
+$lvGoals.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$lvGoals.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvGoals.ForeColor = [System.Drawing.Color]::White
+[void]$lvGoals.Columns.Add('Severity', 80)
+[void]$lvGoals.Columns.Add('Goal', 360)
+[void]$lvGoals.Columns.Add('Via', 500)
+$splitGraph.Panel1.Controls.Add($lvGoals)
+$lvGoals.BringToFront()
+
+$lblMermaidHdr = New-Object System.Windows.Forms.Label
+$lblMermaidHdr.Text = "MERMAID SOURCE (paste into mermaid.live or any Mermaid renderer)"; $lblMermaidHdr.ForeColor = [System.Drawing.Color]::White; $lblMermaidHdr.Dock = 'Top'; $lblMermaidHdr.Height = 22
+$lblMermaidHdr.Padding = New-Object System.Windows.Forms.Padding(6, 4, 0, 0)
+$splitGraph.Panel2.Controls.Add($lblMermaidHdr)
+$txtMermaid = New-Object System.Windows.Forms.RichTextBox
+$txtMermaid.Dock = 'Fill'; $txtMermaid.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtMermaid.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $txtMermaid.ForeColor = [System.Drawing.Color]::White
+$txtMermaid.ReadOnly = $true; $txtMermaid.WordWrap = $false
+$txtMermaid.Text = "Run an audit (Audit tab), then click Build Graph to correlate findings into attack paths.`r`n`r`nThe graph output is a Mermaid flowchart -- copy it and paste into mermaid.live (or any Mermaid renderer) to visualize the attack paths."
+$splitGraph.Panel2.Controls.Add($txtMermaid)
+$txtMermaid.BringToFront()
+$tabGraph.Controls.Add($splitGraph)
+$splitGraph.BringToFront()
+
+$btnGraphBuild.Add_Click({
+    if (-not $script:CurrentOutDir) { $lblGraphStatus.Text = "No audit output -- run an audit first (Audit tab)."; return }
+    $jsonPath = Join-Path $script:CurrentOutDir 'findings.json'
+    if (-not (Test-Path -LiteralPath $jsonPath)) { $lblGraphStatus.Text = "findings.json not found -- run an audit first."; return }
+    $lblGraphStatus.Text = "Building graph..."
+    [System.Windows.Forms.Application]::DoEvents()
+    try {
+        $raw = @(Get-Content -LiteralPath $jsonPath -Raw -ErrorAction Stop | ConvertFrom-Json)
+        $findings = @($raw | ForEach-Object {
+            $f = New-TcpkFinding -Module "$($_.Module)" -RuleId "$($_.RuleId)" -Severity "$($_.Severity)" -Confidence "$($_.Confidence)" -Title "$($_.Title)"
+            if ($_.File)     { $f.File     = "$($_.File)" }
+            if ($_.Evidence) { $f.Evidence = "$($_.Evidence)" }
+            if ($_.Cwe)      { $f.Cwe      = @($_.Cwe) }
+            $f
+        })
+        $graphFindings = @($findings | Get-TcpkAttackGraph)
+    } catch {
+        $lblGraphStatus.Text = "Graph failed: $($_.Exception.Message)"
+        return
+    }
+    $goals = @($graphFindings | Where-Object { $_.RuleId -eq 'attackgraph.reachable-goal' })
+    $render = $graphFindings | Where-Object { $_.RuleId -eq 'attackgraph.render' } | Select-Object -First 1
+    $noPath = $graphFindings | Where-Object { $_.RuleId -eq 'attackgraph.no-path' } | Select-Object -First 1
+    $lvGoals.Items.Clear()
+    if ($noPath) {
+        $lblGraphStatus.Text = "No end-to-end attack path correlated from $($findings.Count) findings."
+        $txtMermaid.Text = "(no attack paths found -- individual findings may still matter)"
+        $btnGraphCopy.Enabled = $false
+        return
+    }
+    foreach ($g in $goals) {
+        $item = New-Object System.Windows.Forms.ListViewItem("$($g.Severity)")
+        if ($script:SevColour.ContainsKey("$($g.Severity)")) { $item.ForeColor = $script:SevColour["$($g.Severity)"] }
+        [void]$item.SubItems.Add("$($g.Title)")
+        [void]$item.SubItems.Add("$($g.Evidence)")
+        [void]$lvGoals.Items.Add($item)
+    }
+    $mermaid = ''
+    if ($render) {
+        $desc = "$($render.Description)"
+        $m = [regex]::Match($desc, '(?s)```mermaid\r?\n(.+?)\r?\n```')
+        if ($m.Success) { $mermaid = $m.Groups[1].Value }
+    }
+    $txtMermaid.Text = if ($mermaid) { $mermaid } else { "(no diagram)" }
+    $btnGraphCopy.Enabled = [bool]$mermaid
+    $lblGraphStatus.Text = "$($goals.Count) reachable goal(s) from $($findings.Count) findings. $($render.Evidence -replace '\s+', ' ')"
+})
+$btnGraphCopy.Add_Click({
+    $src = $txtMermaid.Text
+    if ($src -and $src -ne '(no diagram)' -and $src -ne '(no attack paths found -- individual findings may still matter)') {
+        [System.Windows.Forms.Clipboard]::SetText($src)
+        $lblGraphStatus.Text = "Mermaid source copied to clipboard."
+    }
+})
+
 $form.Controls.Add($tabs)
 $tabs.BringToFront()
 

@@ -59,6 +59,7 @@ function Invoke-TcpkAgenticApi {
             'GET /api/agent/proclist'   { return (New-TcpkWebJson 200 (Get-TcpkAgentProcList)) }
             'POST /api/agent/procmon'   { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentProcmon -Proc "$(if($b){$b.proc})")) }
             'POST /api/agent/audit-binary' { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentBinaryAudit -Dll "$(if($b){$b.dll})")) }
+            'GET /api/agent/attack-graph' { return (New-TcpkWebJson 200 (Get-TcpkAgentAttackGraph -State $State -JobId "$($Request.Query['job'])")) }
             'POST /api/agent/asar'         { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentAsar -Target "$(if($b){$b.target})")) }
             'POST /api/agent/asar-file'    { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentAsarFile -Dir "$(if($b){$b.dir})" -Rel "$(if($b){$b.rel})")) }
             'POST /api/agent/hex'          { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHex -Path "$(if($b){$b.path})" -Offset ([int]("0" + "$(if($b){$b.offset})")) -Length ([int]("0" + "$(if($b){$b.length})")))) }
@@ -830,6 +831,49 @@ function Get-TcpkAgentJwtAttack {
     return (Get-TcpkAgentFindingRows -Findings $f)
 }
 
+# GET /api/agent/attack-graph?job=<id> -- run Get-TcpkAttackGraph over the completed audit's
+# findings. Reads findings.json from the job's output directory.
+function Get-TcpkAgentAttackGraph {
+    [CmdletBinding()] param([hashtable]$State, [string]$JobId)
+    $entry = $null
+    if ("$JobId" -and $State -and $State.Jobs.ContainsKey($JobId)) { $entry = $State.Jobs[$JobId] }
+    elseif ($State -and $State.Jobs.Count) {
+        foreach ($k in $State.Jobs.Keys) { if ($State.Jobs[$k].Result) { $entry = $State.Jobs[$k]; break } }
+    }
+    if (-not $entry -or -not $entry.OutDir) { return @{ error = 'no completed audit -- run an audit first (step 3)' } }
+    $jsonPath = Join-Path $entry.OutDir 'findings.json'
+    if (-not (Test-Path -LiteralPath $jsonPath)) { return @{ error = 'findings.json not found in the audit output' } }
+    $raw = @(Get-Content -LiteralPath $jsonPath -Raw -ErrorAction Stop | ConvertFrom-Json)
+    if (-not $raw.Count) { return @{ error = 'no findings in the audit output' } }
+    $findings = @($raw | ForEach-Object {
+        $f = New-TcpkFinding -Module "$($_.Module)" -RuleId "$($_.RuleId)" -Severity "$($_.Severity)" -Confidence "$($_.Confidence)" -Title "$($_.Title)"
+        if ($_.File)     { $f.File     = "$($_.File)" }
+        if ($_.Evidence) { $f.Evidence = "$($_.Evidence)" }
+        if ($_.Cwe)      { $f.Cwe      = @($_.Cwe) }
+        $f
+    })
+    try {
+        $graphFindings = @($findings | Get-TcpkAttackGraph)
+    } catch { return @{ error = "graph failed: $($_.Exception.Message)" } }
+    $goals = @($graphFindings | Where-Object { $_.RuleId -eq 'attackgraph.reachable-goal' })
+    $render = $graphFindings | Where-Object { $_.RuleId -eq 'attackgraph.render' } | Select-Object -First 1
+    $noPath = $graphFindings | Where-Object { $_.RuleId -eq 'attackgraph.no-path' } | Select-Object -First 1
+    $mermaid = ''
+    if ($render) {
+        $desc = "$($render.Description)"
+        $m = [regex]::Match($desc, '(?s)```mermaid\r?\n(.+?)\r?\n```')
+        if ($m.Success) { $mermaid = $m.Groups[1].Value }
+    }
+    $goalRows = @($goals | ForEach-Object { [ordered]@{ sev = "$($_.Severity)"; title = "$($_.Title)"; evidence = "$($_.Evidence)"; conf = "$($_.Confidence)" } })
+    $nCount = 0; $eCount = 0
+    if ($render -and "$($render.Evidence)") {
+        $parts = "$($render.Evidence)" -split ','
+        try { $nCount = [int]($parts[0] -replace '[^\d]') } catch {}
+        try { $eCount = [int]($parts[-1] -replace '[^\d]') } catch {}
+    }
+    return @{ goals = $goalRows; mermaid = $mermaid; noPath = [bool]$noPath; count = $goals.Count; nodeCount = $nCount; edgeCount = $eCount; inputFindings = $findings.Count }
+}
+
 # GET /api/agent/llm-models -- locally-pulled ollama models (best-effort), so the Connect
 # step can show what is available and hint a pull when ollama is reachable but empty.
 function Get-TcpkAgentLlmModels {
@@ -1109,6 +1153,8 @@ th,td{padding:7px 11px}
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">FILES<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Unpack an Electron app.asar, or hex-view any file.</div></div>
       <div class="step" data-p="10"><div class="num">10</div><div><div class="t">Asar</div><div class="s">unpack + browse</div></div></div>
       <div class="step" data-p="11"><div class="num">11</div><div><div class="t">Hex</div><div class="s">byte view</div></div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">ANALYSIS<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Correlate findings into attack paths.</div></div>
+      <div class="step" data-p="14"><div class="num">14</div><div><div class="t">Graph</div><div class="s">attack paths</div></div></div>
     </nav>
 
     <main class="stage">
@@ -1441,6 +1487,27 @@ th,td{padding:7px 11px}
         </div>
       </div>
 
+      <div class="pane" data-p="14">
+        <h2>Attack-Path Graph</h2>
+        <p class="lead">Correlate audit findings into end-to-end attack paths: attacker -> entry point -> primitive -> goal (RCE / SYSTEM / credential theft / data access). Run an audit first (step 3), then click Build Graph. The graph uses the <code>Get-TcpkAttackGraph</code> engine (recipe-based, respects Likely-FP demotions).</p>
+        <div class="panel">
+          <div class="row" style="gap:8px;align-items:flex-end">
+            <button class="go mini" onclick="agBuild()">Build Graph</button>
+            <button class="mini" onclick="agCopy()" id="agCopyBtn" disabled>Copy Mermaid source</button>
+            <span class="note" id="agStatus">run an audit, then Build Graph to correlate findings into attack paths.</span>
+          </div>
+        </div>
+        <div id="agGoals" style="margin-top:10px"></div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 6px 0">ATTACK-PATH DIAGRAM</h4>
+          <div id="agDiagram" style="overflow:auto;min-height:80px"><div class="note">build the graph to see the diagram.</div></div>
+        </div>
+        <div class="panel" style="margin-top:10px">
+          <h4 style="margin:0 0 6px 0">MERMAID SOURCE <span class="note">(paste into mermaid.live or any Mermaid renderer)</span></h4>
+          <pre id="agMermaid" style="max-height:40vh;overflow:auto;font:12px var(--mono);white-space:pre-wrap;word-break:break-word"><span class="note">-</span></pre>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -1685,6 +1752,67 @@ function showReports(){var box=$('reports');if(!result||!result.reports||!result
 async function dl(file){try{var res=await fetch('/api/report?job='+JOB+'&file='+encodeURIComponent(file),{headers:{'X-TCPK-Token':T}});var b=await res.blob();var u=URL.createObjectURL(b);var a=document.createElement('a');a.href=u;a.download=file;a.click();URL.revokeObjectURL(u);}catch(e){alert('download failed');}}
 function log(m,cls){var el=$('console');var line=cls?('<span class="'+cls+'">'+esc(m)+'</span>'):esc(m);el.innerHTML+=line+'\n';el.scrollTop=el.scrollHeight;}
 function toggleDock(){$('dock').classList.toggle('collapsed');}
+// ---- tab 14: attack-path graph ----
+window._agData=null;
+async function agBuild(){$('agStatus').textContent='building graph...';$('agGoals').innerHTML='';$('agDiagram').innerHTML='<div class="note">computing...</div>';$('agMermaid').textContent='';$('agCopyBtn').disabled=true;
+  try{var r=await api('/api/agent/attack-graph'+(JOB?'?job='+JOB:''));
+    if(r.error){$('agStatus').textContent=r.error;$('agDiagram').innerHTML='<div class="note">'+esc(r.error)+'</div>';return;}
+    window._agData=r;
+    $('agStatus').textContent=r.count+' reachable goal'+(r.count===1?'':'s')+' from '+r.inputFindings+' findings ('+r.nodeCount+' nodes, '+r.edgeCount+' edges)';
+    if(r.noPath){$('agGoals').innerHTML='<div class="panel"><div class="note" style="color:var(--il)">No end-to-end attack path correlated. Individual findings may still matter.</div></div>';$('agDiagram').innerHTML='<div class="note">no paths to draw.</div>';$('agMermaid').textContent='(no graph)';return;}
+    var gh='';(r.goals||[]).forEach(function(g){var k=sevKey(g.sev);gh+='<div class="panel" style="margin:6px 0;border-left:3px solid var(--'+k+')"><div><span class="pill '+k+'">'+esc(g.sev)+'</span> <b>'+esc(g.title)+'</b> <span class="note">['+esc(g.conf)+']</span></div><div class="note" style="margin-top:4px">'+esc(g.evidence)+'</div></div>';});
+    $('agGoals').innerHTML=gh;
+    if(r.mermaid){$('agMermaid').textContent=r.mermaid;$('agCopyBtn').disabled=false;agRenderSvg(r.mermaid);}
+  }catch(e){$('agStatus').textContent='graph request failed';}}
+function agCopy(){if(!window._agData||!window._agData.mermaid)return;navigator.clipboard.writeText(window._agData.mermaid).then(function(){$('agStatus').textContent='Mermaid source copied to clipboard.';}).catch(function(){$('agStatus').textContent='copy failed -- select and copy manually.';});}
+function agRenderSvg(src){
+  var lines=src.split(/\r?\n/).filter(function(l){return l.trim();});
+  var nodes={},edges=[],nodeList=[];
+  for(var i=0;i<lines.length;i++){var l=lines[i].trim();
+    var nd=l.match(/^(\S+)\s*\(\[["'](.+?)["']\]\)/);if(nd){nodes[nd[1]]={id:nd[1],label:nd[2],shape:'stadium'};continue;}
+    nd=l.match(/^(\S+)\s*\{\{["'](.+?)["']\}\}/);if(nd){nodes[nd[1]]={id:nd[1],label:nd[2],shape:'hex'};continue;}
+    nd=l.match(/^(\S+)\s*\[\/["'](.+?)["']\/\]/);if(nd){nodes[nd[1]]={id:nd[1],label:nd[2],shape:'trap'};continue;}
+    nd=l.match(/^(\S+)\s*\[["'](.+?)["']\]/);if(nd){nodes[nd[1]]={id:nd[1],label:nd[2],shape:'rect'};continue;}
+    var ed=l.match(/^\s*(\S+)\s+(-->\|?|-->\s*|[-.]+->\|)(.*?)\|?\s+(\S+)\s*$/);
+    if(!ed)ed=l.match(/^\s*(\S+)\s+(-->|[-.]+->\|[^|]*\|)\s*(\S+)\s*$/);
+    if(ed){var from=ed[1],to=ed[ed.length-1],lbl='',dashed=l.indexOf('-.->')>=0;
+      var lm=l.match(/\|([^|]+)\|/);if(lm)lbl=lm[1];
+      edges.push({from:from,to:to,label:lbl,dashed:dashed});}}
+  nodeList=Object.keys(nodes).map(function(k){return nodes[k];});
+  if(!nodeList.length){$('agDiagram').innerHTML='<div class="note">no nodes parsed.</div>';return;}
+  var cols={};var rank={};
+  function assignCol(id,c){if(rank[id]!==undefined)return;rank[id]=c;if(!cols[c])cols[c]=[];cols[c].push(id);
+    edges.forEach(function(e){if(e.from===id)assignCol(e.to,c+1);});}
+  nodeList.forEach(function(n){if(n.shape==='stadium')assignCol(n.id,0);});
+  nodeList.forEach(function(n){if(rank[n.id]===undefined)assignCol(n.id,0);});
+  var maxCol=0;for(var c in cols)if(+c>maxCol)maxCol=+c;
+  var colX=180,padX=60,padY=40,nodeW=150,nodeH=44;
+  var colHeights={};for(c=0;c<=maxCol;c++)colHeights[c]=padY;
+  var pos={};
+  for(c=0;c<=maxCol;c++){var ns=(cols[c]||[]);
+    for(var j=0;j<ns.length;j++){pos[ns[j]]={x:padX+c*colX,y:colHeights[c]};colHeights[c]+=nodeH+padY;}}
+  var maxH=0;for(c in colHeights)if(colHeights[c]>maxH)maxH=colHeights[c];
+  var svgW=padX*2+maxCol*colX+nodeW,svgH=Math.max(maxH+padY,120);
+  var svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+svgW+' '+svgH+'" style="width:100%;max-width:'+svgW+'px;height:auto">';
+  svg+='<defs><marker id="ah" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="var(--text)"/></marker>';
+  svg+='<marker id="ahd" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="var(--dim)"/></marker></defs>';
+  edges.forEach(function(e){var p1=pos[e.from],p2=pos[e.to];if(!p1||!p2)return;
+    var x1=p1.x+nodeW,y1=p1.y+nodeH/2,x2=p2.x,y2=p2.y+nodeH/2;
+    var mk=e.dashed?'ahd':'ah',st=e.dashed?'stroke-dasharray:5,4;stroke:var(--dim)':'stroke:var(--text)';
+    svg+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" style="'+st+';stroke-width:1.5" marker-end="url(#'+mk+')"/>';
+    if(e.label){var mx=(x1+x2)/2,my=(y1+y2)/2-6;svg+='<text x="'+mx+'" y="'+my+'" text-anchor="middle" style="font:10px sans-serif;fill:var(--dim)">'+esc(e.label)+'</text>';}});
+  nodeList.forEach(function(n){var p=pos[n.id];if(!p)return;
+    var fill,stroke,rx=6;
+    if(n.shape==='stadium'){fill='var(--accent)';stroke='var(--accent)';rx=nodeH/2;}
+    else if(n.shape==='hex'){fill='var(--crit)';stroke='var(--crit)';rx=4;}
+    else if(n.shape==='trap'){fill='var(--med)';stroke='var(--med)';rx=4;}
+    else{fill='var(--border)';stroke='var(--text)';rx=4;}
+    svg+='<rect x="'+p.x+'" y="'+p.y+'" width="'+nodeW+'" height="'+nodeH+'" rx="'+rx+'" style="fill:'+fill+';stroke:'+stroke+';stroke-width:1.5;opacity:0.85"/>';
+    var lines=n.label.length>18?[n.label.substring(0,18),n.label.substring(18,36)]:[n.label];
+    var ty=p.y+nodeH/2-(lines.length-1)*7;
+    lines.forEach(function(ln,i){svg+='<text x="'+(p.x+nodeW/2)+'" y="'+(ty+i*14)+'" text-anchor="middle" dominant-baseline="central" style="font:bold 11px sans-serif;fill:#fff">'+esc(ln)+'</text>';});});
+  svg+='</svg>';
+  $('agDiagram').innerHTML=svg;}
 function openDock(){$('dock').classList.remove('collapsed');}
 // ---- phase 8: interception (review a mitmproxy/frida capture) ----
 async function loadCapture(){var f=val('icFile').trim();var kind=val('icKind');var box=$('icFindings');var st=$('icStatus');
