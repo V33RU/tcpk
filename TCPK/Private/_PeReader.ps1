@@ -224,8 +224,10 @@ function Get-TcpkPeFiles {
     if ($item.PSIsContainer) {
         # NB: Get-ChildItem -Include is SILENTLY IGNORED when -LiteralPath is used,
         # so it would return EVERY file (png/txt/json/...). Filter on the extension
-        # explicitly instead.
-        Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
+        # explicitly instead. Get-TcpkChildItemSafe (not -Recurse) so a GhostTree/GhostBranch
+        # junction loop in the target cannot hang the scan (5.1 Get-ChildItem -Recurse follows
+        # junctions; the safe walker never descends into a reparse point).
+        Get-TcpkChildItemSafe -Path $Path -File |
             Where-Object { $_.Extension.ToLowerInvariant() -in '.exe', '.dll', '.sys' }
     } else {
         $item
