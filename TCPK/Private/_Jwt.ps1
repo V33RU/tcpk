@@ -159,9 +159,9 @@ function New-TcpkJwtEs256Token {
         $coord = [Math]::Ceiling($Ecdsa.KeySize / 8.0)
         $sig = New-Object byte[] (2 * $coord)   # all zeros
     } else {
-        $sig = $Ecdsa.SignData([Text.Encoding]::ASCII.GetBytes($si),
-            [Security.Cryptography.HashAlgorithmName]::$hashName,
-            [Security.Cryptography.DSASignatureFormat]::IeeeP1363)
+        # 2-arg SignData returns the IEEE-P1363 (raw r||s) encoding JWT requires (the default
+        # for ECDsa); the 3-arg DSASignatureFormat overload is not present on all runtimes.
+        $sig = $Ecdsa.SignData([Text.Encoding]::ASCII.GetBytes($si), [Security.Cryptography.HashAlgorithmName]::$hashName)
     }
     return "$si." + (Convert-TcpkToB64Url -Bytes $sig)
 }
