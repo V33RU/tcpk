@@ -981,7 +981,7 @@ $tabIcptA.Controls.Add($bannerA)
 
 # Controls panel
 $ctlA = New-Object System.Windows.Forms.Panel
-$ctlA.Dock = 'Top'; $ctlA.Height = 440; $ctlA.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$ctlA.Dock = 'Top'; $ctlA.Height = 200; $ctlA.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 
 # App exe row
 $lblExeA = New-Object System.Windows.Forms.Label
@@ -1059,7 +1059,7 @@ $txtOutA.BringToFront()
 # no launch, no admin -- it only reads a capture file (Invoke-TcpkPcapReview). Complements the
 # Intercept tab (HTTP through a proxy) by seeing everything on the wire, non-HTTP included.
 $tabPcap = New-Object System.Windows.Forms.TabPage
-$tabPcap.Text = ' Traffic '
+$tabPcap.Text = ' Pcap '
 $tabPcap.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabPcap)
 
@@ -1134,9 +1134,8 @@ $btnCapGo.Add_Click({
 # Active: replay / IDOR / JWT (gated) -- turn a captured request into an active backend check
 $gbActive = New-Object System.Windows.Forms.GroupBox
 $gbActive.Text = "Active: replay / IDOR / JWT (gated -- authorized targets only)"; $gbActive.ForeColor = [System.Drawing.Color]::White
-$gbActive.Location = New-Object System.Drawing.Point(10,198); $gbActive.Size = New-Object System.Drawing.Size(1150,234)
+$gbActive.Location = New-Object System.Drawing.Point(10,8); $gbActive.Size = New-Object System.Drawing.Size(1150,234)
 $gbActive.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
-$ctlA.Controls.Add($gbActive)
 $lblReqP = New-Object System.Windows.Forms.Label; $lblReqP.Text = "Raw HTTP request (identity A, requesting A's own object):"; $lblReqP.ForeColor = [System.Drawing.Color]::White; $lblReqP.Location = New-Object System.Drawing.Point(12,22); $lblReqP.Size = New-Object System.Drawing.Size(420,18); $gbActive.Controls.Add($lblReqP)
 $txtReqP = New-Object System.Windows.Forms.TextBox; $txtReqP.Multiline = $true; $txtReqP.ScrollBars = 'Vertical'; $txtReqP.Location = New-Object System.Drawing.Point(12,40); $txtReqP.Size = New-Object System.Drawing.Size(700,70); $txtReqP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtReqP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtReqP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtReqP)
 $lblTgtP = New-Object System.Windows.Forms.Label; $lblTgtP.Text = "Target host/URL:"; $lblTgtP.ForeColor = [System.Drawing.Color]::White; $lblTgtP.Location = New-Object System.Drawing.Point(12,118); $lblTgtP.Size = New-Object System.Drawing.Size(100,18); $gbActive.Controls.Add($lblTgtP)
@@ -1160,36 +1159,36 @@ $btnIdorP = New-Object System.Windows.Forms.Button; $btnIdorP.Text = "IDOR probe
 $btnJwtCrackP = New-Object System.Windows.Forms.Button; $btnJwtCrackP.Text = "JWT crack"; $btnJwtCrackP.Location = New-Object System.Drawing.Point(330,200); $btnJwtCrackP.Size = New-Object System.Drawing.Size(100,26); $btnJwtCrackP.FlatStyle = 'Flat'; $btnJwtCrackP.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnJwtCrackP.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbActive.Controls.Add($btnJwtCrackP)
 $btnJwtAttackP = New-Object System.Windows.Forms.Button; $btnJwtAttackP.Text = "JWT attack"; $btnJwtAttackP.Location = New-Object System.Drawing.Point(436,200); $btnJwtAttackP.Size = New-Object System.Drawing.Size(100,26); $btnJwtAttackP.FlatStyle = 'Flat'; $btnJwtAttackP.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnJwtAttackP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnJwtAttackP)
 $lblActHint = New-Object System.Windows.Forms.Label; $lblActHint.Text = "acceptance is decided by response-body comparison, never status alone; findings stream to the console below"; $lblActHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblActHint.Location = New-Object System.Drawing.Point(548,206); $lblActHint.Size = New-Object System.Drawing.Size(580,18); $gbActive.Controls.Add($lblActHint)
-$btnCandP.Add_Click({ Invoke-IcptTool $txtOutA "ID candidates" { Get-TcpkRequestIdCandidates -RequestText $txtReqP.Text } })
+$btnCandP.Add_Click({ Invoke-IcptTool $txtOutR "ID candidates" { Get-TcpkRequestIdCandidates -RequestText $txtReqP.Text } })
 $btnReplayP.Add_Click({
-    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
+    if (-not (Test-IcptGate $chkGateR $txtOutR)) { return }
     $p = @{ RequestText = $txtReqP.Text; Target = $txtTargetP.Text.Trim() }
     if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
     if ($chkUnsafeP.Checked) { $p.AllowUnsafeMethods = $true }
-    Invoke-IcptTool $txtOutA "Replay (missing-authz)" { Invoke-TcpkReplay @p }
+    Invoke-IcptTool $txtOutR "Replay (missing-authz)" { Invoke-TcpkReplay @p }
 })
 $btnIdorP.Add_Click({
-    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
+    if (-not (Test-IcptGate $chkGateR $txtOutR)) { return }
     $p = @{ RequestText = $txtReqP.Text; Target = $txtTargetP.Text.Trim() }
     if ($txtSwapP.Text.Trim()) { $p.SwapId = $txtSwapP.Text.Trim() }
     if ($txtSecondP.Text.Trim()) { $p.SecondIdentityToken = $txtSecondP.Text.Trim() }
     if ($txtLocP.Text.Trim()) { $p.Location = $txtLocP.Text.Trim() }
     if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
     if ($chkMutateP.Checked) { $p.AutoMutate = $true }
-    Invoke-IcptTool $txtOutA "IDOR probe" { Invoke-TcpkIdorProbe @p }
+    Invoke-IcptTool $txtOutR "IDOR probe" { Invoke-TcpkIdorProbe @p }
 })
 $btnJwtCrackP.Add_Click({
-    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
+    if (-not (Test-IcptGate $chkGateR $txtOutR)) { return }
     $p = @{}
     if ($txtJwtP.Text.Trim()) { $p.Token = $txtJwtP.Text.Trim() }
-    Invoke-IcptTool $txtOutA "JWT crack (offline)" { Invoke-TcpkJwtCrack @p }
+    Invoke-IcptTool $txtOutR "JWT crack (offline)" { Invoke-TcpkJwtCrack @p }
 })
 $btnJwtAttackP.Add_Click({
-    if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
+    if (-not (Test-IcptGate $chkGateR $txtOutR)) { return }
     $p = @{ Token = $txtJwtP.Text.Trim(); Target = $txtTargetP.Text.Trim() }
     if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
     if ($txtSecretP.Text.Trim()) { $p.Secret = $txtSecretP.Text.Trim() }
-    Invoke-IcptTool $txtOutA "JWT attack (live)" { Invoke-TcpkJwtAttack @p }
+    Invoke-IcptTool $txtOutR "JWT attack (live)" { Invoke-TcpkJwtAttack @p }
 })
 $tabPcap.Controls.Add($ctlP)
 
@@ -1200,6 +1199,39 @@ $txtOutP.ReadOnly = $true; $txtOutP.WordWrap = $false
 $txtOutP.Text = "Packet-capture analysis console.`r`n`r`nCapture traffic with Wireshark or dumpcap, then load the .pcap here. TCPK dissects it via tshark (ships with Wireshark) and lists the security-relevant findings: cleartext credentials, plaintext HTTP / FTP, obsolete TLS, DNS and endpoint inventory.`r`n`r`nComplements Intercept: this sees everything on the wire, including non-HTTP protocols. tshark must be installed (Wireshark). Findings stream here, severity-coloured."
 $tabPcap.Controls.Add($txtOutP)
 $txtOutP.BringToFront()
+
+# ================= TAB R: Replay / IDOR / JWT =================
+$tabIcptR = New-Object System.Windows.Forms.TabPage
+$tabIcptR.Text = ' Replay '
+$tabIcptR.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$tabs.TabPages.Add($tabIcptR)
+
+$bannerR = New-Object System.Windows.Forms.Panel
+$bannerR.Dock = 'Top'; $bannerR.Height = 50; $bannerR.BackColor = [System.Drawing.Color]::FromArgb(60,20,20)
+$lblWarnR = New-Object System.Windows.Forms.Label
+$lblWarnR.Text = "ACTIVE replay / IDOR / JWT attacks. These send live HTTP requests to the target. LAB / AUTHORIZED targets only."
+$lblWarnR.ForeColor = $icptWarn
+$lblWarnR.Location = New-Object System.Drawing.Point(12,6); $lblWarnR.Size = New-Object System.Drawing.Size(1140,18)
+$bannerR.Controls.Add($lblWarnR)
+$chkGateR = New-Object System.Windows.Forms.CheckBox
+$chkGateR.Text = "I am authorized to test this target -- enable active tools"
+$chkGateR.ForeColor = [System.Drawing.Color]::White
+$chkGateR.Location = New-Object System.Drawing.Point(12,26); $chkGateR.Size = New-Object System.Drawing.Size(460,22)
+$bannerR.Controls.Add($chkGateR)
+$tabIcptR.Controls.Add($bannerR)
+
+$ctlR = New-Object System.Windows.Forms.Panel
+$ctlR.Dock = 'Top'; $ctlR.Height = 252; $ctlR.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$ctlR.Controls.Add($gbActive)
+$tabIcptR.Controls.Add($ctlR)
+
+$txtOutR = New-Object System.Windows.Forms.RichTextBox
+$txtOutR.Dock = 'Fill'; $txtOutR.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtOutR.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtOutR.ForeColor = [System.Drawing.Color]::White
+$txtOutR.ReadOnly = $true; $txtOutR.WordWrap = $false
+$txtOutR.Text = "Replay / IDOR / JWT console.`r`n`r`nPaste a raw HTTP request, set the target host, and use the controls above to replay without authorization, probe for IDOR, or crack / attack JWT tokens.`r`n`r`nEach finding streams here, severity-coloured. The ''confirm'' checkbox must be checked before any live request is sent."
+$tabIcptR.Controls.Add($txtOutR)
+$txtOutR.BringToFront()
 
 # ================= TAB B: Live Exploit / Creds =================
 $tabIcptB = New-Object System.Windows.Forms.TabPage
