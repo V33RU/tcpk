@@ -133,6 +133,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkHandleEnumeration** - E11. Open handle counts and types for the process (triage summary).
 - **Test-TcpkListeningPorts** - E03. TCP listeners + UDP endpoints owned by the process.
 - **Test-TcpkLoadedModulePaths** - E10. Native modules loaded into the process from non-system paths. Checks BOTH the file ACL (module replaceable in place) and the parent directory ACL (a module can be planted). Program Files is intentionally in scope: installers routinely loosen ACLs on their own subdirectories.
+- **Test-TcpkMemoryRegions** - E11. Virtual memory region protection (T1055 / T1620). Walks the process address space with VirtualQueryEx and reports RWX pages (writable and executable at once, so a memory write needs no DEP bypass) and executable memory not backed by a mapped image (the shape a manual-map or reflective loader produces). JIT-calibrated: .NET, V8/Node and the JVM generate code at runtime, so when one of those is loaded the finding is reported as posture rather than a defect. Read-only, opens with PROCESS_QUERY_INFORMATION only.
 - **Test-TcpkLoadedModuleSignatures** - E02. Authenticode status of every module loaded into the live process.
 - **Test-TcpkMailslotsAlpc** - E07. Mailslots and ALPC ports.
 - **Test-TcpkMemoryDump** - E09. Dump the process and scan the dump for secrets.
