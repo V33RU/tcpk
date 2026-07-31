@@ -204,6 +204,7 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^wer\.dump-folder-readable';                                                                                                                            A = 'local-at-rest' }
     @{ Rx = '^crashreporter\.(dumps-present|db-user-writable)';                                                                                                      A = 'local-at-rest' }
     @{ Rx = '^dotnethost\.';                                                                                                                                         A = 'local-privesc' }
+    @{ Rx = '^scan\.';                                                                                                                                               A = 'hardening' }
     @{ Rx = '^crashreporter\.';                                                                                                                                      A = 'hardening' }
     @{ Rx = '^wer\.';                                                                                                                                                A = 'hardening' }
     @{ Rx = '^path\.writable';                                                                                                                                       A = 'local-privesc' }

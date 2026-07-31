@@ -272,6 +272,11 @@ function Invoke-TcpkAudit {
     # Stopwatch for scan timing (recorded into the report scope footer)
     $auditSw = [System.Diagnostics.Stopwatch]::StartNew()
 
+    # Zero the walker's coverage counters so Test-TcpkScanCoverage at the end of this run
+    # reports what THIS audit could not read, not what a previous one in the same session
+    # could not.
+    Reset-TcpkScanStats
+
     # ----- Bucket A (static binary analysis, 21 cmdlets) -----
     _RunCheck 'Test-TcpkSignature'           { Test-TcpkSignature           -Path $Target   }
     # Missing binary-hardening (ASLR/DEP/CFG/HighEntropyVA) is reported as POSTURE in
@@ -534,6 +539,10 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkSelfIntegrityCheck'  { Test-TcpkSelfIntegrityCheck  -Path $expanded }
     _RunCheck 'Test-TcpkAntiInjection'       { Test-TcpkAntiInjection       -Path $expanded }
     _RunCheck 'Test-TcpkTimingAntiDebug'     { Test-TcpkTimingAntiDebug     -Path $expanded }
+
+    # LAST: report what the walker could not read during everything above. Must run after
+    # all other checks so the counters cover the whole audit.
+    _RunCheck 'Test-TcpkScanCoverage'        { Test-TcpkScanCoverage }
 
     # --- Verify layer: dedupe + false-positive killers + correlation ---
     Write-Information -MessageData "" -InformationAction Continue

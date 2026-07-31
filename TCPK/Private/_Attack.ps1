@@ -40,6 +40,7 @@ $script:TcpkAttackMap = @(
     @{ rx = '^dotnethost\.profiler-configured';                                          tech = @('T1574.012 Hijack Execution Flow: COR_PROFILER') }
     @{ rx = '^dotnethost\.(runtimeconfig-writable|probing-path-writable|deps-writable|bundle-extract-writable)'; tech = @('T1574.001 DLL') }
     @{ rx = '^dotnethost\.';                                                             tech = @('T1574 Hijack Execution Flow') }
+    @{ rx = '^scan\.incomplete-coverage';                                                tech = @('T1083 File and Directory Discovery') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
     @{ rx = '^diag\.';                                                                   tech = @('T1005 Data from Local System','T1530 Data from Cloud Storage') }
     @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
