@@ -37,6 +37,9 @@ $script:TcpkAttackMap = @(
     @{ rx = '^comhijack\.';                                                              tech = @('T1546.015 Component Object Model Hijacking') }
     @{ rx = '^wer\.';                                                                    tech = @('T1005 Data from Local System') }
     @{ rx = '^crashreporter\.';                                                          tech = @('T1005 Data from Local System') }
+    @{ rx = '^dotnethost\.profiler-configured';                                          tech = @('T1574.012 Hijack Execution Flow: COR_PROFILER') }
+    @{ rx = '^dotnethost\.(runtimeconfig-writable|probing-path-writable|deps-writable|bundle-extract-writable)'; tech = @('T1574.001 DLL') }
+    @{ rx = '^dotnethost\.';                                                             tech = @('T1574 Hijack Execution Flow') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
     @{ rx = '^diag\.';                                                                   tech = @('T1005 Data from Local System','T1530 Data from Cloud Storage') }
     @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
@@ -121,6 +124,7 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^comhijack\.';                                                                                           da = 'DA5 Improper Authorization' }
     @{ rx = '^wer\.';                                                                                                 da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^crashreporter\.';                                                                                       da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^dotnethost\.';                                                                                          da = 'DA5 Improper Authorization' }
     @{ rx = '^path\.writable';                                                                                        da = 'DA5 Improper Authorization' }
     @{ rx = '^diag\.';                                                                                                da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^grpc\.';                                                                                                 da = 'DA6 Security Misconfiguration' }

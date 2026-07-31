@@ -42,6 +42,7 @@ $script:TcpkTasvsMap = @(
     @{ rx='^comhijack\.';                                                                   tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
     @{ rx='^wer\.';                                                                         tasvs=@('TASVS-STORAGE Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }
     @{ rx='^crashreporter\.';                                                               tasvs=@('TASVS-STORAGE Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }
+    @{ rx='^dotnethost\.';                                                                  tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization','DA6 Security Misconfiguration') }
     @{ rx='^path\.writable';                                                                tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
     @{ rx='^diag\.';                                                                        tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA3 Sensitive Data Exposure') }
     @{ rx='^grpc\.';                                                                        tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA6 Security Misconfiguration') }
