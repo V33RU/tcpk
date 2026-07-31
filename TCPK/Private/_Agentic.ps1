@@ -174,6 +174,9 @@ function Get-TcpkAgentRuntime {
         'windows'         = @{ fn = 'Test-TcpkWindowEnumeration';      kind = 'proc' }
         'gui-inspector'   = @{ fn = 'Test-TcpkGuiInspector';           kind = 'proc' }
         'memory-regions'  = @{ fn = 'Test-TcpkMemoryRegions';         kind = 'proc' }
+        'thread-dacls'    = @{ fn = 'Test-TcpkThreadDacl';            kind = 'proc' }
+        'token-dacl'      = @{ fn = 'Test-TcpkTokenDacl';             kind = 'proc' }
+        'virtualization'  = @{ fn = 'Test-TcpkProcessVirtualization'; kind = 'proc' }
         'named-pipes'     = @{ fn = 'Test-TcpkNamedPipes';             kind = 'sys' }
         'pipe-dacls'      = @{ fn = 'Test-TcpkNamedPipeDacl';          kind = 'sys' }
         'alpc'            = @{ fn = 'Test-TcpkMailslotsAlpc';          kind = 'sys' }
@@ -1401,6 +1404,9 @@ th,td{padding:7px 11px}
             <button class="go mini" onclick="rtRun('windows')">Windows</button>
             <button class="go mini" onclick="rtRun('gui-inspector')">GUI Inspector</button>
             <button class="go mini" onclick="rtRun('memory-regions')">Memory Regions (RWX)</button>
+            <button class="go mini" onclick="rtRun('thread-dacls')">Thread DACLs</button>
+            <button class="go mini" onclick="rtRun('token-dacl')">Token DACL</button>
+            <button class="go mini" onclick="rtRun('virtualization')">Virtualization</button>
           </div>
           <div class="note" style="margin-top:8px">system-wide:</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">

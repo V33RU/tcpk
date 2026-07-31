@@ -1599,6 +1599,9 @@ $script:RtSpecs = @(
     @{ T='Win Messages';     Fn='Test-TcpkWindowMessages';         K='proc' }
     @{ T='Shared Mem';       Fn='Test-TcpkSharedMemoryDacl';       K='proc' }
     @{ T='Memory Regions';   Fn='Test-TcpkMemoryRegions';          K='proc' }
+    @{ T='Thread DACLs';     Fn='Test-TcpkThreadDacl';             K='proc' }
+    @{ T='Token DACL';       Fn='Test-TcpkTokenDacl';              K='proc' }
+    @{ T='Virtualization';   Fn='Test-TcpkProcessVirtualization';  K='proc' }
     @{ T='Clipboard';        Fn='';                                K='clipboard' }
     @{ T='GUI Unlock';        Fn='';                                K='gui-unlock' }
     @{ T='Pipe Probe';        Fn='';                                K='pipe-probe' }

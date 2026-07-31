@@ -43,6 +43,10 @@ $script:TcpkAttackMap = @(
     @{ rx = '^scan\.incomplete-coverage';                                                tech = @('T1083 File and Directory Discovery') }
     @{ rx = '^memregion\.(rwx|private-exec)';                                            tech = @('T1055 Process Injection','T1620 Reflective Code Loading') }
     @{ rx = '^memregion\.';                                                              tech = @('T1055 Process Injection') }
+    @{ rx = '^thread\.dacl-hijackable';                                                  tech = @('T1055.003 Thread Execution Hijacking') }
+    @{ rx = '^token\.dacl-weak';                                                         tech = @('T1134.001 Token Impersonation/Theft') }
+    @{ rx = '^(thread|token)\.';                                                         tech = @('T1068 Exploitation for Privilege Escalation') }
+    @{ rx = '^virtualization\.';                                                         tech = @('T1548.002 Bypass User Account Control') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
     @{ rx = '^diag\.';                                                                   tech = @('T1005 Data from Local System','T1530 Data from Cloud Storage') }
     @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
