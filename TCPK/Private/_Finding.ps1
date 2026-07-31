@@ -202,6 +202,8 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^comhijack\.server-writable';                                                                                                                           A = 'local-privesc' }
     @{ Rx = '^comhijack\.';                                                                                                                                          A = 'hardening' }
     @{ Rx = '^wer\.dump-folder-readable';                                                                                                                            A = 'local-at-rest' }
+    @{ Rx = '^crashreporter\.(dumps-present|db-user-writable)';                                                                                                      A = 'local-at-rest' }
+    @{ Rx = '^crashreporter\.';                                                                                                                                      A = 'hardening' }
     @{ Rx = '^wer\.';                                                                                                                                                A = 'hardening' }
     @{ Rx = '^path\.writable';                                                                                                                                       A = 'local-privesc' }
     @{ Rx = '^diag\.verbose-level';                                                                                                                                  A = 'local-at-rest' }

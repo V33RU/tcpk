@@ -36,6 +36,7 @@ $script:TcpkAttackMap = @(
     @{ rx = '^dllsearch\.(phantom-dll|delayload-phantom|sideload)';                      tech = @('T1574.001 DLL','T1574.002 DLL Side-Loading') }
     @{ rx = '^comhijack\.';                                                              tech = @('T1546.015 Component Object Model Hijacking') }
     @{ rx = '^wer\.';                                                                    tech = @('T1005 Data from Local System') }
+    @{ rx = '^crashreporter\.';                                                          tech = @('T1005 Data from Local System') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
     @{ rx = '^diag\.';                                                                   tech = @('T1005 Data from Local System','T1530 Data from Cloud Storage') }
     @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
@@ -119,6 +120,7 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^dllsearch\.';                                                                                           da = 'DA5 Improper Authorization' }
     @{ rx = '^comhijack\.';                                                                                           da = 'DA5 Improper Authorization' }
     @{ rx = '^wer\.';                                                                                                 da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^crashreporter\.';                                                                                       da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^path\.writable';                                                                                        da = 'DA5 Improper Authorization' }
     @{ rx = '^diag\.';                                                                                                da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^grpc\.';                                                                                                 da = 'DA6 Security Misconfiguration' }
