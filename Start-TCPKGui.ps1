@@ -1602,6 +1602,7 @@ $script:RtSpecs = @(
     @{ T='Thread DACLs';     Fn='Test-TcpkThreadDacl';             K='proc' }
     @{ T='Token DACL';       Fn='Test-TcpkTokenDacl';              K='proc' }
     @{ T='Virtualization';   Fn='Test-TcpkProcessVirtualization';  K='proc' }
+    @{ T='Handle DACLs';     Fn='Test-TcpkHandleDacl';             K='proc' }
     @{ T='Clipboard';        Fn='';                                K='clipboard' }
     @{ T='GUI Unlock';        Fn='';                                K='gui-unlock' }
     @{ T='Pipe Probe';        Fn='';                                K='pipe-probe' }

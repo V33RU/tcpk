@@ -460,7 +460,8 @@ function Invoke-TcpkAudit {
         'Test-TcpkGuiInspector','Test-TcpkProcessToken','Test-TcpkChildProcesses',
         'Test-TcpkProcessDacl','Test-TcpkProcessEnvSecrets',
         'Test-TcpkWindowMessages','Test-TcpkSharedMemoryDacl','Test-TcpkMemoryRegions',
-        'Test-TcpkThreadDacl','Test-TcpkTokenDacl','Test-TcpkProcessVirtualization'
+        'Test-TcpkThreadDacl','Test-TcpkTokenDacl','Test-TcpkProcessVirtualization',
+        'Test-TcpkHandleDacl'
     )
     $liveProcOn = [bool]($ProcessName -and (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue))
     if ($liveProcOn) {
@@ -481,6 +482,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkThreadDacl'              { Test-TcpkThreadDacl              -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkTokenDacl'               { Test-TcpkTokenDacl               -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkProcessVirtualization'   { Test-TcpkProcessVirtualization   -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkHandleDacl'              { Test-TcpkHandleDacl              -ProcessName $ProcessName }
     } else {
         # No live process resolved -> record the gated live-process checks so coverage.json
         # shows them as GatedNoProcess instead of silently omitting them.

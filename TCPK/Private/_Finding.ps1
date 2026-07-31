@@ -208,6 +208,7 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^memregion\.';                                                                                                                                          A = 'hardening' }
     @{ Rx = '^(thread\.dacl-hijackable|token\.dacl-weak)';                                                                                                          A = 'local-privesc' }
     @{ Rx = '^(thread|token|virtualization)\.';                                                                                                                      A = 'hardening' }
+    @{ Rx = '^handle\.';                                                                                                                                             A = 'hardening' }
     @{ Rx = '^crashreporter\.';                                                                                                                                      A = 'hardening' }
     @{ Rx = '^wer\.';                                                                                                                                                A = 'hardening' }
     @{ Rx = '^path\.writable';                                                                                                                                       A = 'local-privesc' }

@@ -47,6 +47,8 @@ $script:TcpkAttackMap = @(
     @{ rx = '^token\.dacl-weak';                                                         tech = @('T1134.001 Token Impersonation/Theft') }
     @{ rx = '^(thread|token)\.';                                                         tech = @('T1068 Exploitation for Privilege Escalation') }
     @{ rx = '^virtualization\.';                                                         tech = @('T1548.002 Bypass User Account Control') }
+    @{ rx = '^handle\.dacl-weak';                                                        tech = @('T1499 Endpoint Denial of Service','T1068 Exploitation for Privilege Escalation') }
+    @{ rx = '^handle\.';                                                                 tech = @('T1057 Process Discovery') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
     @{ rx = '^diag\.';                                                                   tech = @('T1005 Data from Local System','T1530 Data from Cloud Storage') }
     @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
