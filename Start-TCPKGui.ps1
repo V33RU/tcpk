@@ -1598,6 +1598,7 @@ $script:RtSpecs = @(
     @{ T='RPC Surface';       Fn='Test-TcpkRpcSurface';             K='path' }
     @{ T='Win Messages';     Fn='Test-TcpkWindowMessages';         K='proc' }
     @{ T='Shared Mem';       Fn='Test-TcpkSharedMemoryDacl';       K='proc' }
+    @{ T='Memory Regions';   Fn='Test-TcpkMemoryRegions';          K='proc' }
     @{ T='Clipboard';        Fn='';                                K='clipboard' }
     @{ T='GUI Unlock';        Fn='';                                K='gui-unlock' }
     @{ T='Pipe Probe';        Fn='';                                K='pipe-probe' }

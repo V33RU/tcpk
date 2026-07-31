@@ -173,6 +173,7 @@ function Get-TcpkAgentRuntime {
         'handles'         = @{ fn = 'Test-TcpkHandleEnumeration';      kind = 'proc' }
         'windows'         = @{ fn = 'Test-TcpkWindowEnumeration';      kind = 'proc' }
         'gui-inspector'   = @{ fn = 'Test-TcpkGuiInspector';           kind = 'proc' }
+        'memory-regions'  = @{ fn = 'Test-TcpkMemoryRegions';         kind = 'proc' }
         'named-pipes'     = @{ fn = 'Test-TcpkNamedPipes';             kind = 'sys' }
         'pipe-dacls'      = @{ fn = 'Test-TcpkNamedPipeDacl';          kind = 'sys' }
         'alpc'            = @{ fn = 'Test-TcpkMailslotsAlpc';          kind = 'sys' }
@@ -1395,6 +1396,7 @@ th,td{padding:7px 11px}
             <button class="go mini" onclick="rtRun('handles')">Handles</button>
             <button class="go mini" onclick="rtRun('windows')">Windows</button>
             <button class="go mini" onclick="rtRun('gui-inspector')">GUI Inspector</button>
+            <button class="go mini" onclick="rtRun('memory-regions')">Memory Regions (RWX)</button>
           </div>
           <div class="note" style="margin-top:8px">system-wide:</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
