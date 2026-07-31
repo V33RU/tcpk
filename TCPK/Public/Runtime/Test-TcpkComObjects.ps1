@@ -62,6 +62,10 @@ function Test-TcpkComObjects {
             if ($seen.ContainsKey($dedupKey)) { continue }
             $seen[$dedupKey] = $true
 
+            # NOTE: the RuleId is built dynamically and resolves to 'com.InprocServer32',
+            # 'com.LocalServer32' or 'com.InprocHandler32'. A grep for those literals will
+            # NOT find them here. Keep the names in this comment so rule-ID censuses and
+            # the _Attack/_Tasvs/_Finding mapping tables stay in sync with what is emitted.
             New-TcpkFinding -Module 'runtime' -RuleId "com.$serverType" `
                 -Severity 'MEDIUM' -Confidence 'Confirmed' `
                 -Title "COM $serverType CLSID $clsid -> $val" `

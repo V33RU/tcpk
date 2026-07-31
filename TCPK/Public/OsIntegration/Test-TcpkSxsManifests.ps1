@@ -23,6 +23,10 @@ function Test-TcpkSxsManifests {
     $files = Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
         Where-Object { $_.Extension -in '.manifest','.local' }
     foreach ($f in $files) {
+        # NOTE: RuleIds emitted here are 'sxs.manifest' and 'sxs.local-redirect'. They are
+        # built dynamically, so a grep for the literal string will NOT find them. Keep both
+        # names in this comment so rule-ID censuses and the _Attack/_Tasvs/_Finding mapping
+        # tables stay in sync with what this check actually emits.
         $kind = if ($f.Extension -eq '.manifest') { 'sxs.manifest' } else { 'sxs.local-redirect' }
         New-TcpkFinding -Module 'os' -RuleId $kind `
             -Severity 'INFO' -Confidence 'Confirmed' `

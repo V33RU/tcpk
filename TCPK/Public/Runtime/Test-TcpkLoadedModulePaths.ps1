@@ -36,25 +36,57 @@ function Test-TcpkLoadedModulePaths {
         foreach ($m in $mods) {
             $path = $m.FileName
             if ($mainPath -and $path -eq $mainPath) { continue }
+            # OS-owned, ACL-protected locations. These are genuinely not plantable by a
+            # standard user, so skipping them removes noise rather than coverage.
             if ($path -match '\\(System32|SysWOW64|WinSxS|Microsoft\.NET|WindowsApps)\\') { continue }
-            if ($path -match '\\Program Files( \(x86\))?\\') { continue }
 
-            $sev = 'MEDIUM'
+            # NOTE: Program Files is deliberately NOT skipped. It is protected by DEFAULT,
+            # but installers routinely loosen ACLs on their own subdirectories, and a
+            # user-writable directory under Program Files feeding a module into a
+            # privileged process is one of the most common real thick-client LPE findings.
+            # Skipping the whole tree discarded that entire class. The ACL check below is
+            # what decides, not the path.
+
             $writable = $false
+            $dirWritable = $false
+            $userRx = '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE|BUILTIN\\Users)\b'
+            $rightsRx = 'Write|Modify|FullControl|TakeOwnership|ChangePermissions'
+
+            # The FILE ACL covers overwriting this module in place (substitution). The
+            # DIRECTORY ACL covers planting a DIFFERENT module that resolves earlier in
+            # the search order. They are separate primitives and both matter; checking
+            # only the file missed the planting case entirely.
             try {
                 $acl = Get-Acl -LiteralPath $path -ErrorAction Stop
-                $writable = $acl.Access | Where-Object {
-                    $_.IdentityReference.Value -match '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE)\b' -and
-                    $_.FileSystemRights -match 'Write|Modify|FullControl' -and
+                $writable = @($acl.Access | Where-Object {
+                    $_.IdentityReference.Value -match $userRx -and
+                    $_.FileSystemRights -match $rightsRx -and
                     $_.AccessControlType -eq 'Allow'
-                }
+                }).Count -gt 0
             } catch { }
-            if ($writable) { $sev = 'HIGH' }
+            try {
+                $dacl = Get-Acl -LiteralPath (Split-Path $path -Parent) -ErrorAction Stop
+                $dirWritable = @($dacl.Access | Where-Object {
+                    $_.IdentityReference.Value -match $userRx -and
+                    $_.FileSystemRights -match $rightsRx -and
+                    $_.AccessControlType -eq 'Allow'
+                }).Count -gt 0
+            } catch { }
+
+            $sev = if ($writable -or $dirWritable) { 'HIGH' } else { 'MEDIUM' }
+
+            # Plain if/elseif statements rather than an if-expression: a newline can
+            # terminate an assignment expression, so the multi-line expression form is
+            # not reliably parseable across PowerShell versions.
+            $how = ''
+            if ($writable -and $dirWritable) { $how = ' (file and directory user-writable)' }
+            elseif ($writable)    { $how = ' (file user-writable: replaceable in place)' }
+            elseif ($dirWritable) { $how = ' (directory user-writable: a module can be planted)' }
 
             New-TcpkFinding -Module 'runtime' -RuleId 'loaded.non-system-path' `
                 -Severity $sev -Confidence 'Confirmed' `
-                -Title "$($p.Name) loaded $(Split-Path $path -Leaf) from non-system path$(if ($writable) {' (user-writable)'} else {''})" `
-                -File $path -Evidence "PID=$($p.Id)" `
+                -Title "$($p.Name) loaded $(Split-Path $path -Leaf) from non-system path$how" `
+                -File $path -Evidence "PID=$($p.Id); file-writable=$writable; dir-writable=$dirWritable" `
                 -Cwe @('CWE-427')
         }
     }

@@ -291,8 +291,12 @@ function Get-TcpkPeFiles {
         # explicitly instead. Get-TcpkChildItemSafe (not -Recurse) so a GhostTree/GhostBranch
         # junction loop in the target cannot hang the scan (5.1 Get-ChildItem -Recurse follows
         # junctions; the safe walker never descends into a reparse point).
+        # .node (Electron native addons) and .pyd (Python extension modules) are ordinary
+        # PE DLLs with normal import tables, just a different extension. Excluding them
+        # hid the whole Electron native-addon hijack class, which matters because Squirrel
+        # installs to %LOCALAPPDATA% and is therefore user-writable by construction.
         Get-TcpkChildItemSafe -Path $Path -File |
-            Where-Object { $_.Extension.ToLowerInvariant() -in '.exe', '.dll', '.sys' }
+            Where-Object { $_.Extension.ToLowerInvariant() -in '.exe', '.dll', '.sys', '.node', '.pyd' }
     } else {
         $item
     }

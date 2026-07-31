@@ -106,7 +106,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkTrustStore** - C15. Certificate trust-store pollution by the app/installer.
 - **Test-TcpkUnquotedServicePath** - C03. Classic unquoted-service-path LPE primitive.
 - **Test-TcpkWritablePath** - C22. Writable directories in the system PATH (binary planting surface, T1574.007).
-- **Test-TcpkWerExposure** - C21. Windows Error Reporting (WER) crash dump data exposure (T1005).
+- **Test-TcpkWerExposure** - C21. Windows Error Reporting (WER) crash dump data exposure (T1005). Dump files are filtered to the target's own executables, because the dump folder is shared machine-wide. LocalDumps is off by default on Windows, so this normally emits nothing; a global policy is reported only where it governs the target AND there is real exposure. Does NOT cover the default WER ReportArchive/ReportQueue folders. Not applicable to Electron apps, which use Crashpad.
 - **Test-TcpkWmiPersistence** - C16. WMI permanent event subscriptions (persistence mechanism).
 
 ## D - Credential storage  (9)
@@ -118,7 +118,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkKeyMaterial** - D07. Private-key and certificate material inventory.
 - **Test-TcpkLocalDb** - D07. Local databases at rest (SQLite / .db) -- unencrypted + world-readable.
 - **Test-TcpkPlaintextConfigs** - D03. Token-shaped strings in small config files under the path.
-- **Test-TcpkTokenCaches** - D05. MSAL / ADAL / custom OAuth token cache files.
+- **Test-TcpkTokenCaches** - D05. MSAL / ADAL / custom OAuth token cache files under the target path. KNOWN GAP: the well-known per-user locations MSAL and ADAL actually write to (%LOCALAPPDATA%\.IdentityService\, %USERPROFILE%\.azure\) are not scanned, so this finds nothing for an MSAL-based app.
 - **Test-TcpkWebViewCreds** - D06. WebView2 Edge user profile -- saved login state.
 
 ## E - Runtime / live process  (21)
@@ -129,7 +129,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkGuiInspector** - E17. Live GUI object inspection (UI Automation) -- hidden/disabled controls
 - **Test-TcpkHandleEnumeration** - E11. Open handle counts and types for the process (triage summary).
 - **Test-TcpkListeningPorts** - E03. TCP listeners + UDP endpoints owned by the process.
-- **Test-TcpkLoadedModulePaths** - E10. Native modules loaded into the process from non-system paths.
+- **Test-TcpkLoadedModulePaths** - E10. Native modules loaded into the process from non-system paths. Checks BOTH the file ACL (module replaceable in place) and the parent directory ACL (a module can be planted). Program Files is intentionally in scope: installers routinely loosen ACLs on their own subdirectories.
 - **Test-TcpkLoadedModuleSignatures** - E02. Authenticode status of every module loaded into the live process.
 - **Test-TcpkMailslotsAlpc** - E07. Mailslots and ALPC ports.
 - **Test-TcpkMemoryDump** - E09. Dump the process and scan the dump for secrets.
@@ -182,7 +182,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkMemorySecrets** - I04. Live-memory secret scan (read-only) of a running process.
 - **Test-TcpkPageFile** - I02. Page file / hibernation file secrecy hygiene.
 - **Test-TcpkSecureStringUsage** - I03. SecureString / ProtectedData usage in first-party code.
-- **Test-TcpkWerPolicy** - I01. Windows Error Reporting LocalDumps policy.
+- **Test-TcpkWerPolicy** - I01. Windows Error Reporting LocalDumps per-app policy for the target executable. LocalDumps is not enabled by default and requires admin, so an absent key emits nothing by design: that is machine posture the vendor cannot fix. Not applicable to Electron apps, which use Crashpad.
 
 ## J - Anti-debug  (4)
 
