@@ -12,8 +12,11 @@ function Test-TcpkReflectionLoading {
       - AssemblyResolve / add_AssemblyResolve event handlers
 
     Any of these is a hijack-via-managed-resolution candidate. Severity is
-    MEDIUM by default -- low until combined with a writable plugin/extension
-    directory, at which point it escalates to HIGH.
+    always MEDIUM: this is a reference-level scan that proves the API is
+    mentioned, not that the load path is attacker-controlled. It does not
+    resolve the argument passed to the load call, so it cannot escalate on its
+    own. Pair it with a writable-directory finding (acl.user-writable,
+    install-dir.user-writable) to establish a working hijack chain.
 
 .PARAMETER Path
     File or directory.

@@ -198,7 +198,7 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^clickonce\.';                                                                                                                                         A = 'local-privesc' }
     @{ Rx = '^msix\.psf-(full-trust|script-dangerous|startScript|endScript)';                                                                                       A = 'local-privesc' }
     @{ Rx = '^msix\.psf';                                                                                                                                           A = 'hardening' }
-    @{ Rx = '^dllsearch\.(phantom-dll|sideload-candidate)';                                                                                                          A = 'local-privesc' }
+    @{ Rx = '^dllsearch\.(phantom-dll|delayload-phantom|sideload-candidate)';                                                                                        A = 'local-privesc' }
     @{ Rx = '^comhijack\.server-writable';                                                                                                                           A = 'local-privesc' }
     @{ Rx = '^comhijack\.';                                                                                                                                          A = 'hardening' }
     @{ Rx = '^wer\.dump-folder-readable';                                                                                                                            A = 'local-at-rest' }

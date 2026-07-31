@@ -38,7 +38,7 @@ $script:TcpkTasvsMap = @(
     @{ rx='^electron\.(squirrel-updater|updater-sig-bypass|update-http)';                  tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA7 Insecure Communication','DA9 Using Components with Known Vulnerabilities') }
     @{ rx='^clickonce\.';                                                                  tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA7 Insecure Communication','DA9 Using Components with Known Vulnerabilities') }
     @{ rx='^msix\.psf';                                                                    tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA6 Security Misconfiguration') }
-    @{ rx='^dllsearch\.(phantom|sideload)';                                                 tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    @{ rx='^dllsearch\.(phantom|delayload-phantom|sideload)';                               tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
     @{ rx='^comhijack\.';                                                                   tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
     @{ rx='^wer\.';                                                                         tasvs=@('TASVS-STORAGE Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }
     @{ rx='^path\.writable';                                                                tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }

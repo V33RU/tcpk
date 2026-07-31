@@ -1,5 +1,5 @@
 # Pure-PowerShell PE reader.
-# Returns: Path, IsPE32Plus, Machine, DllCharacteristics, Imports[].
+# Returns: Path, IsPE32Plus, Machine, DllCharacteristics, Imports[], DelayImports[].
 # Returns $null on any parse error (graceful - caller must check).
 # Fixes the bugs from TCAWin v2's _ReadPe (no bounds checks, foreach-then-bare-literal).
 
@@ -55,6 +55,7 @@ function Read-TcpkPe {
             return [pscustomobject]@{
                 Path=$Path; IsPE32Plus=$isPE32Plus; Machine=$machine
                 DllCharacteristics=$dllChar; SizeOfCode=$sizeOfCode; Imports=@()
+                DelayImports=@()
                 SectionNames=@(); Exports=@(); SafeSeh='N/A'; StackCookie='N/A'
             }
         }
@@ -66,6 +67,22 @@ function Read-TcpkPe {
         # Load Config Directory (index 10) -> offset ddRva + 80
         $loadCfgRva = 0
         if (($ddRva + 84) -le $fs.Length) { $fs.Position = $ddRva + 80; $loadCfgRva = $br.ReadUInt32() }
+        # Delay Import Descriptor (index 13) -> offset ddRva + 104. Delay-loaded DLLs
+        # resolve at FIRST CALL from the process search path rather than at load time,
+        # which is a wider hijack window than the normal import table, so they are
+        # parsed separately and reported separately.
+        $delayRva = 0
+        if (($ddRva + 108) -le $fs.Length) { $fs.Position = $ddRva + 104; $delayRva = $br.ReadUInt32() }
+
+        # ImageBase. Only needed to normalise pre-VS2005 delay descriptors, which store
+        # virtual addresses instead of RVAs. PE32: optHdr+28 (4 bytes). PE32+: optHdr+24
+        # (8 bytes, no BaseOfData field).
+        $imageBase = [uint64]0
+        if ($isPE32Plus) {
+            if (($peOff + 24 + 32) -le $fs.Length) { $fs.Position = $peOff + 24 + 24; $imageBase = $br.ReadUInt64() }
+        } else {
+            if (($peOff + 24 + 32) -le $fs.Length) { $fs.Position = $peOff + 24 + 28; $imageBase = [uint64]$br.ReadUInt32() }
+        }
 
         # Section table starts at peOff + 4 (sig) + 20 (COFF) + optHdrSize
         $secOff = $peOff + 4 + 20 + $optHdrSize
@@ -127,6 +144,52 @@ function Read-TcpkPe {
                     $name = [Text.Encoding]::ASCII.GetString($bs.ToArray()).ToLowerInvariant()
                     if ($name) { $imports.Add($name) }
                     $entryIdx++
+                }
+            }
+        }
+
+        # --- Delay-load imports (data directory 13) ---
+        # ImgDelayDescr is 8 DWORDs (32 bytes):
+        #   grAttrs, rvaDLLName, rvaHmod, rvaIAT, rvaINT, rvaBoundIAT, rvaUnloadIAT, dwTimeStamp
+        # grAttrs bit 0 (dlattrRva) SET   -> the rva* fields are true RVAs (VS2005+, and
+        #                                    effectively everything built this century).
+        # grAttrs bit 0 CLEAR             -> they are VIRTUAL ADDRESSES (VC6-era linkers),
+        #                                    so subtract ImageBase to recover the RVA.
+        # Terminator is a zero rvaDLLName, matching how the normal import walk above ends.
+        $delayImports = New-Object 'System.Collections.Generic.List[string]'
+        if ($delayRva -ne 0) {
+            $dOff = _RvaToFile $delayRva $secs
+            if ($dOff -ge 0) {
+                $dIdx = 0
+                while ($dIdx -lt 1000) {     # safety cap, same as the import walk
+                    $descStart = $dOff + ($dIdx * 32)
+                    if (($descStart + 32) -gt $fs.Length) { break }
+                    $fs.Position = $descStart
+                    $grAttrs  = $br.ReadUInt32()   # grAttrs
+                    $nameAddr = $br.ReadUInt32()   # rvaDLLName  <- what we want
+                    if ($nameAddr -eq 0) { break }
+
+                    $dNameRva = $nameAddr
+                    if (($grAttrs -band 0x1) -eq 0) {
+                        # Legacy VA form. Without a usable ImageBase, or if the address is
+                        # below it, the value cannot be normalised -- skip rather than guess.
+                        if ($imageBase -eq 0 -or [uint64]$nameAddr -le $imageBase) { $dIdx++; continue }
+                        $dNameRva = [uint32]([uint64]$nameAddr - $imageBase)
+                    }
+
+                    $dnOff = _RvaToFile $dNameRva $secs
+                    if ($dnOff -lt 0 -or $dnOff -ge $fs.Length) { $dIdx++; continue }
+                    $fs.Position = $dnOff
+                    $dbs = New-Object 'System.Collections.Generic.List[byte]'
+                    while ($fs.Position -lt $fs.Length) {
+                        $b = $br.ReadByte()
+                        if ($b -eq 0) { break }
+                        $dbs.Add($b)
+                        if ($dbs.Count -gt 256) { break }    # malformed name, give up
+                    }
+                    $dName = [Text.Encoding]::ASCII.GetString($dbs.ToArray()).ToLowerInvariant()
+                    if ($dName) { $delayImports.Add($dName) }
+                    $dIdx++
                 }
             }
         }
@@ -204,6 +267,7 @@ function Read-TcpkPe {
             DllCharacteristics = $dllChar
             SizeOfCode         = $sizeOfCode
             Imports            = $imports.ToArray()
+            DelayImports       = $delayImports.ToArray()
             SectionNames       = $sectionNames.ToArray()
             Exports            = $exports.ToArray()
             SafeSeh            = $safeSeh

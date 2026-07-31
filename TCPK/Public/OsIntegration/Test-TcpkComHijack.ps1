@@ -11,9 +11,12 @@ function Test-TcpkComHijack {
     creates that COM object it loads the attacker's code.
 
     This check:
-      1. Enumerates COM CLSIDs the application references (IL analysis of
-         CoCreateInstance/Activator.CreateInstance/new ComObject patterns in
-         first-party PEs, plus ProgIDs in shipped configs).
+      1. Collects candidate CLSIDs by scanning the raw bytes of each first-party
+         PE for GUID-shaped strings, plus GUIDs in shipped .config/.json/.xml/
+         .manifest files.  This is a TEXTUAL scan, NOT IL analysis: it does not
+         prove the application calls CoCreateInstance on the CLSID, only that
+         the GUID appears in the file.  Expect candidates the app never
+         instantiates; step 2 filters to those actually registered in HKLM.
       2. For each CLSID registered in HKLM, checks whether HKCU\...\CLSID\{id}
          already exists.  If not, it is hijackable.
       3. Also checks whether the InprocServer32/LocalServer32 binary path

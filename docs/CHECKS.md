@@ -45,7 +45,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkPeExports** - A04. PE export surface enumeration (for proxy-DLL planning).
 - **Test-TcpkPeImports** - A03 -- Phantom DLL imports (DLL hijack candidates).
 - **Test-TcpkPeMitigations** - A02 -- PE compile-time mitigations (ASLR, DEP, CFG, HighEntropyVA). NOT in the default audit (opt-in / compliance use): the audit reports hardening as posture in the DLL Mitigation Matrix (Get-TcpkPeHardening), not as findings.
-- **Test-TcpkPhantomDlls** - A34. Phantom DLL planting opportunities in PE import tables.
+- **Test-TcpkPhantomDlls** - A34. Phantom DLL planting opportunities in PE import tables. Scans BOTH the normal import table (`dllsearch.phantom-dll`) and the delay-import table, data directory 13 (`dllsearch.delayload-phantom`, resolved at first call, so a wider hijack window). Calibrated against live KnownDLLs and System32/SysWOW64 to suppress names that cannot be planted, and severity is gated on install-root writability.
 - **Test-TcpkPInvokeSurface** - A17. P/Invoke surface -- bare-name DllImport declarations.
 - **Test-TcpkReflectionLoading** - A16. Dynamic code loading via reflection.
 - **Test-TcpkRegistryCredentialStore** - A35b. First-party code writing credentials to registry (insecure local-data-storage anti-pattern).
