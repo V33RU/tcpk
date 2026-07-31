@@ -1,7 +1,7 @@
 function Test-TcpkTokenDacl {
 <#
 .SYNOPSIS
-    E13. Access-token DACL -- can a low-privileged user duplicate or adjust it?
+    E20. Access-token DACL -- can a low-privileged user duplicate or adjust it?
 
 .DESCRIPTION
     Test-TcpkProcessToken reports what the token CONTAINS (privileges, integrity

@@ -1,7 +1,7 @@
 function Test-TcpkProcessVirtualization {
 <#
 .SYNOPSIS
-    E14. UAC file and registry virtualization state of a running process.
+    E21. UAC file and registry virtualization state of a running process.
 
 .DESCRIPTION
     UAC virtualization silently redirects a process's writes to protected locations

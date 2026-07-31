@@ -1,7 +1,7 @@
 function Test-TcpkThreadDacl {
 <#
 .SYNOPSIS
-    E12. Running-thread DACL -- hijackable by low-privileged users?
+    E19. Running-thread DACL -- hijackable by low-privileged users?
 
 .DESCRIPTION
     Test-TcpkProcessDacl covers the process object. This covers the THREAD objects

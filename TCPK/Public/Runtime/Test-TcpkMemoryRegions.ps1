@@ -1,7 +1,7 @@
 function Test-TcpkMemoryRegions {
 <#
 .SYNOPSIS
-    E11. Virtual memory region protection: RWX pages and private executable memory.
+    E18. Virtual memory region protection: RWX pages and private executable memory.
 
 .DESCRIPTION
     Walks the target process address space with VirtualQueryEx and classifies every
