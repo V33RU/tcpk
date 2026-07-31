@@ -9,9 +9,7 @@ beside the TCPK\ module folder.)
 QUICK START
 -----------
 
-1. Double-click TCPK.bat (the recommended launcher).
-   (TCPK.exe is a compiled alternative; if it shows "module missing",
-    use TCPK.bat -- the exe must be rebuilt to find the module folder.)
+1. Double-click TCPK.bat (the launcher).
 
 2. In the target box, paste the MSIX install dir or the path to a .msix file:
      C:\Program Files\WindowsApps\YourApp_x.y.z_x64__hash
@@ -37,12 +35,10 @@ QUICK START
 WHAT'S IN HERE
 --------------
 
-  TCPK.bat          Recommended launcher (runs the GUI script in STA mode).
+  TCPK.bat          Launcher (runs the GUI script in STA mode).
   TCPK-Agentic.bat  Agentic AI workbench -- loopback 127.0.0.1 browser UI, token-gated,
                     discovery-only (audit / decompile / AI review / autonomous agent).
   Start-TCPKGui.ps1 The GUI source script (run directly with -STA if you prefer).
-  TCPK.exe          Compiled launcher (branded icon). Must sit beside the TCPK\
-                    module folder AND be rebuilt from Start-TCPKGui.ps1 to find it.
   TCPK\             The PowerShell module that does the actual work.
   assets\           Logo / icon (tcpk.ico, tcpk-logo.png). Swap to rebrand.
   docs\             methodology, bug-classes, CHECKS.md, disclosure-guide.
@@ -129,7 +125,7 @@ TROUBLESHOOTING
   many keys. Wait it out; if it exceeds 5 minutes, the audit log will
   show which check is hanging.
 
-  "Reports folder not found": by default reports go next to TCPK.exe in
+  "Reports folder not found": by default reports go next to the launcher in
   an .\out\ subfolder. Make sure the folder is writable.
 
 

@@ -4,10 +4,10 @@
 
 **To run a full audit you need NOTHING third-party.** Just Windows + Windows
 PowerShell 5.1 (already on every Windows 10/11 box). Drop the folder anywhere,
-double-click `TCPK.bat` (or `TCPK.exe`), and run.
+double-click `TCPK.bat`, and run.
 
 Everything below the "Required" section is **optional** and only adds
-convenience (AI triage, exploit execution, rebuilding the EXE).
+convenience (AI triage, exploit execution).
 
 ---
 
@@ -17,7 +17,7 @@ convenience (AI triage, exploit execution, rebuilding the EXE).
 |-------------|-------|------------------|
 | **Windows 10 / 11** (or Server 2016+) | Thick-client targets are Windows | Yes |
 | **Windows PowerShell 5.1** (`powershell.exe`) | Ships with Windows | Yes |
-| The `TCPK\` module folder + `Start-TCPKGui.ps1` / `TCPK.bat` / `TCPK.exe` | The tool itself | Yes |
+| The `TCPK\` module folder + `Start-TCPKGui.ps1` / `TCPK.bat` | The tool itself | Yes |
 
 That's it. No installs. All 115 checks, recon, CVE matching, reports, and
 exploit-PoC **generation** run on pure PowerShell + built-in Windows tools
@@ -25,7 +25,7 @@ exploit-PoC **generation** run on pure PowerShell + built-in Windows tools
 
 ### How to run
 
-- **GUI:** double-click `TCPK.exe`, or run `TCPK.bat`, or:
+- **GUI:** double-click `TCPK.bat`, or:
   ```powershell
   powershell.exe -NoProfile -ExecutionPolicy Bypass -STA -File .\Start-TCPKGui.ps1
   ```
@@ -115,16 +115,34 @@ them against your authorized target:
 
 ---
 
-## 5. Optional -- rebuild the portable EXE
+## 5. Optional -- building your own launcher EXE
 
-Only if you edit `Start-TCPKGui.ps1` and want a fresh `TCPK.exe`:
+TCPK does **not** ship a compiled `.exe`, deliberately:
+
+- A ps2exe binary **embeds** the GUI script, so it silently goes stale the
+  moment `Start-TCPKGui.ps1` changes. A shipped exe is a second, older copy
+  of the tool that looks current.
+- ps2exe output is 32-bit by default. On 64-bit Windows a 32-bit process hits
+  the WOW64 **file-system and registry redirectors**, so `System32` resolves to
+  `SysWOW64` and `HKLM\Software` resolves to the `WOW6432Node` view. Several
+  checks read those paths directly and will report wrong results.
+- Reputation-based AV commonly quarantines ps2exe binaries, and an unsigned,
+  unreproducible binary in a security tool is not reviewable by the people
+  running it.
+
+`TCPK.bat` gives the same double-click, no-install, USB-portable behaviour
+without any of that.
+
+If you still want a branded launcher for internal use, build it yourself and
+force 64-bit:
 
 ```powershell
 Install-Module ps2exe -Scope CurrentUser
-Invoke-ps2exe -inputFile .\Start-TCPKGui.ps1 -outputFile .\TCPK.exe -STA -noConsole
+Invoke-ps2exe -inputFile .\Start-TCPKGui.ps1 -outputFile .\TCPK.exe -STA -noConsole -x64
 ```
 
-You can always run `TCPK.bat` / the `.ps1` directly without rebuilding.
+Rebuild it on every change to `Start-TCPKGui.ps1`, and keep it beside the
+`TCPK\` module folder. Do not commit it.
 
 ---
 
