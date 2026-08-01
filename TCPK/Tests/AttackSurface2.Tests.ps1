@@ -2,6 +2,12 @@ BeforeAll {
     Import-Module "$PSScriptRoot\..\TCPK.psd1" -Force
 }
 
+# -Skip is evaluated at DISCOVERY time, so the platform probe has to run here.
+# The calibration below reads live KnownDLLs and System32, both Windows-only.
+BeforeDiscovery {
+    $script:isWin = ($env:OS -eq 'Windows_NT')
+}
+
 Describe 'PhantomDlls' {
     It 'runs without error on a directory with a PE' {
         $dir = Join-Path $env:TEMP "tcpk-phantom-$PID"
@@ -27,8 +33,82 @@ Describe 'PhantomDlls' {
         try {
             Copy-Item "$env:SystemRoot\System32\kernel32.dll" "$dir\testapp.exe" -Force
             $r = @(Test-TcpkPhantomDlls -Path $dir)
+            # Two rule IDs are valid here: the normal import table and the
+            # delay-import table (data directory 13), which is scanned too.
             foreach ($f in $r) {
-                $f.RuleId | Should -Be 'dllsearch.phantom-dll'
+                $f.RuleId | Should -BeIn @('dllsearch.phantom-dll', 'dllsearch.delayload-phantom')
+            }
+        } finally { Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+Describe 'PE delay-import parsing' -Skip:(-not $script:isWin) {
+    It 'always exposes DelayImports so downstream detectors can enumerate it safely' {
+        InModuleScope TCPK {
+            $info = Read-TcpkPe -Path (Join-Path $env:SystemRoot 'System32\kernel32.dll')
+            $info | Should -Not -BeNullOrEmpty
+            $info.PSObject.Properties.Name | Should -Contain 'DelayImports'
+        }
+    }
+
+    It 'actually parses delay-import descriptors (data directory 13)' {
+        InModuleScope TCPK {
+            # Delay-loading is pervasive in System32, but WHICH binary uses it varies
+            # by Windows build, so require only that at least one of several does.
+            # A parser that silently returns nothing would fail this.
+            $found = $false
+            foreach ($n in @('shell32.dll', 'comdlg32.dll', 'propsys.dll', 'ole32.dll',
+                             'windows.storage.dll', 'shcore.dll', 'urlmon.dll')) {
+                $p = Join-Path $env:SystemRoot "System32\$n"
+                if (-not (Test-Path -LiteralPath $p)) { continue }
+                $info = Read-TcpkPe -Path $p
+                if ($info -and @($info.DelayImports).Count -gt 0) { $found = $true; break }
+            }
+            $found | Should -BeTrue -Because 'at least one common System32 binary delay-loads something'
+        }
+    }
+
+    It 'returns delay-import names as lowercase dll file names' {
+        InModuleScope TCPK {
+            foreach ($n in @('shell32.dll', 'comdlg32.dll', 'propsys.dll', 'ole32.dll')) {
+                $p = Join-Path $env:SystemRoot "System32\$n"
+                if (-not (Test-Path -LiteralPath $p)) { continue }
+                $d = @((Read-TcpkPe -Path $p).DelayImports)
+                if (-not $d.Count) { continue }
+                foreach ($x in $d) {
+                    $x | Should -Match '^[a-z0-9_\-\.]+$'
+                    $x | Should -Match '\.(dll|drv|ocx|exe)$'
+                }
+                break
+            }
+        }
+    }
+}
+
+Describe 'PhantomDlls calibration' -Skip:(-not $script:isWin) {
+    # Regression guard for the false-positive class the static 76-name allowlist
+    # could not cover: a system binary imports plenty of DLLs that are NOT on the
+    # allowlist, and before calibration every one of them was reported HIGH.
+    # All of them resolve in System32, so the correct result is zero findings.
+    It 'suppresses imports that resolve in System32 rather than reporting them HIGH' {
+        $dir = Join-Path $env:TEMP "tcpk-phantom-cal-$PID"
+        New-Item $dir -ItemType Directory -Force | Out-Null
+        try {
+            Copy-Item "$env:SystemRoot\System32\advapi32.dll" "$dir\testapp.exe" -Force
+            $r = @(Test-TcpkPhantomDlls -Path $dir | Where-Object {
+                $_.RuleId -in @('dllsearch.phantom-dll', 'dllsearch.delayload-phantom') })
+            $r.Count | Should -Be 0
+        } finally { Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+
+    It 'records the calibration inputs in the evidence of anything it does emit' {
+        $dir = Join-Path $env:TEMP "tcpk-phantom-ev-$PID"
+        New-Item $dir -ItemType Directory -Force | Out-Null
+        try {
+            Copy-Item "$env:SystemRoot\System32\kernel32.dll" "$dir\testapp.exe" -Force
+            foreach ($f in @(Test-TcpkPhantomDlls -Path $dir)) {
+                $f.Evidence | Should -Match 'root writable='
+                $f.Severity | Should -BeIn @('HIGH', 'MEDIUM')
             }
         } finally { Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue }
     }
@@ -206,7 +286,7 @@ Describe 'DiagConfig' {
 Describe 'ATT&CK mappings for new attack surface detections' {
     It 'maps phantom DLL to T1574.001' {
         $t = & (Get-Module TCPK) { Get-TcpkAttackTechnique -RuleId 'dllsearch.phantom-dll' }
-        $t | Should -Contain 'T1574.001 DLL Search Order Hijacking'
+        $t | Should -Contain 'T1574.001 DLL'
     }
     It 'maps sideload to T1574.002' {
         $t = & (Get-Module TCPK) { Get-TcpkAttackTechnique -RuleId 'dllsearch.sideload-candidate' }

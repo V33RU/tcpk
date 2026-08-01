@@ -173,6 +173,11 @@ function Get-TcpkAgentRuntime {
         'handles'         = @{ fn = 'Test-TcpkHandleEnumeration';      kind = 'proc' }
         'windows'         = @{ fn = 'Test-TcpkWindowEnumeration';      kind = 'proc' }
         'gui-inspector'   = @{ fn = 'Test-TcpkGuiInspector';           kind = 'proc' }
+        'memory-regions'  = @{ fn = 'Test-TcpkMemoryRegions';         kind = 'proc' }
+        'thread-dacls'    = @{ fn = 'Test-TcpkThreadDacl';            kind = 'proc' }
+        'token-dacl'      = @{ fn = 'Test-TcpkTokenDacl';             kind = 'proc' }
+        'virtualization'  = @{ fn = 'Test-TcpkProcessVirtualization'; kind = 'proc' }
+        'handle-dacls'    = @{ fn = 'Test-TcpkHandleDacl';            kind = 'proc' }
         'named-pipes'     = @{ fn = 'Test-TcpkNamedPipes';             kind = 'sys' }
         'pipe-dacls'      = @{ fn = 'Test-TcpkNamedPipeDacl';          kind = 'sys' }
         'alpc'            = @{ fn = 'Test-TcpkMailslotsAlpc';          kind = 'sys' }
@@ -1146,7 +1151,8 @@ th,td{padding:7px 11px}
       <div class="step" data-p="7"><div class="num">7</div><div><div class="t">Agent</div><div class="s">full auto</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">INTERCEPT<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Review a proxy or hook capture you made with the CLI.</div></div>
       <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
-      <div class="step" data-p="13"><div class="num">13</div><div><div class="t">Traffic</div><div class="s">pcap + replay/IDOR/JWT</div></div></div>
+      <div class="step" data-p="13"><div class="num">13</div><div><div class="t">Pcap</div><div class="s">packet capture</div></div></div>
+      <div class="step" data-p="15"><div class="num">15</div><div><div class="t">Replay</div><div class="s">replay / IDOR / JWT</div></div></div>
       <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">RUNTIME<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Read-only live checks on a running process.</div></div>
       <div class="step" data-p="9"><div class="num">9</div><div><div class="t">Runtime</div><div class="s">live process</div></div></div>
       <div class="step" data-p="12"><div class="num">12</div><div><div class="t">Process</div><div class="s">live watch</div></div></div>
@@ -1321,7 +1327,7 @@ th,td{padding:7px 11px}
       </div>
 
       <div class="pane" data-p="13">
-        <h2>Traffic (packet capture)</h2>
+        <h2>Pcap (packet capture)</h2>
         <p class="lead">Analyse a packet capture (.pcap / .pcapng) for security issues, via your installed Wireshark (tshark). Read-only: it dissects a capture you already made -- it never captures live and needs no admin. Complements Intercept (HTTP through a proxy) by seeing everything on the wire, including non-HTTP protocols.</p>
         <div class="panel">
           <div class="row">
@@ -1345,9 +1351,12 @@ th,td{padding:7px 11px}
           <div class="col"><h4>FINDINGS</h4><div id="pcFindings"><div class="note">-</div></div></div>
           <div class="col"><h4>PACKETS (first 500)</h4><div id="pcPackets"><div class="note">-</div></div></div>
         </div>
-        <div class="panel" style="margin-top:14px">
-          <h4 style="margin:0 0 6px 0">ACTIVE: replay / IDOR / JWT (gated)</h4>
-          <p class="lead" style="margin:0 0 8px 0">Turn a captured request into an active backend check. GATED -- run <code>Enable-TcpkExploit -Acknowledge</code> in the session first. Sends REAL requests: authorized targets only, tick confirm to fire. Acceptance is decided by response-body comparison, never status alone.</p>
+      </div>
+
+      <div class="pane" data-p="15">
+        <h2>Replay / IDOR / JWT</h2>
+        <p class="lead">Turn a captured request into an active backend check. GATED -- run <code>Enable-TcpkExploit -Acknowledge</code> in the session first. Sends REAL requests: authorized targets only, tick confirm to fire. Acceptance is decided by response-body comparison, never status alone. Capture the request in the Pcap or Intercept tab first, then paste it here.</p>
+        <div class="panel">
           <div class="row"><div style="flex:1"><label>raw HTTP request (paste from a proxy; identity A requesting A's own object)</label><textarea id="atReq" rows="6" style="width:100%;font:11px var(--mono)" placeholder="GET /api/orders/1001 HTTP/1.1&#10;Host: api.target&#10;Authorization: Bearer ..."></textarea></div></div>
           <div class="row" style="margin-top:6px;align-items:flex-end">
             <div style="flex:1"><label>target host / URL (operator-affirmed; must match the request host)</label><input id="atTarget" placeholder="api.target"/></div>
@@ -1395,6 +1404,11 @@ th,td{padding:7px 11px}
             <button class="go mini" onclick="rtRun('handles')">Handles</button>
             <button class="go mini" onclick="rtRun('windows')">Windows</button>
             <button class="go mini" onclick="rtRun('gui-inspector')">GUI Inspector</button>
+            <button class="go mini" onclick="rtRun('memory-regions')">Memory Regions (RWX)</button>
+            <button class="go mini" onclick="rtRun('thread-dacls')">Thread DACLs</button>
+            <button class="go mini" onclick="rtRun('token-dacl')">Token DACL</button>
+            <button class="go mini" onclick="rtRun('virtualization')">Virtualization</button>
+            <button class="go mini" onclick="rtRun('handle-dacls')">Handle DACLs</button>
           </div>
           <div class="note" style="margin-top:8px">system-wide:</div>
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">

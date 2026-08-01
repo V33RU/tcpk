@@ -12,18 +12,18 @@
       - Watch findings populate the table as they come in, severity-coloured
       - Open the resulting HTML / JSON / Markdown reports with one click
 
-    Drop this folder onto a USB drive; double-click TCPK.bat (or the compiled
-    TCPK.exe) to launch. No install needed.
+    Drop this folder onto a USB drive; double-click TCPK.bat to launch.
+    No install needed.
 #>
 [CmdletBinding()]
 param()
 
 # Resolve the TCPK module path. This must work whether the GUI is launched as a script
-# (-File: $PSScriptRoot is set) OR as a compiled .exe (ps2exe leaves $PSScriptRoot empty,
-# so we also probe the EXE's own directory, the AppDomain base dir, and the working
-# directory). Keep the whole TCPK folder together: the launcher must sit beside the TCPK\
-# module folder. NOTE: a compiled TCPK.exe must be REBUILT from this script to pick up
-# these extra search locations.
+# (-File: $PSScriptRoot is set) OR from a self-built ps2exe launcher (ps2exe leaves
+# $PSScriptRoot empty, so we also probe the host binary's own directory, the AppDomain
+# base dir, and the working directory). Keep the whole TCPK folder together: the launcher
+# must sit beside the TCPK\ module folder. TCPK ships no compiled .exe -- see
+# REQUIREMENTS.md section 5 for why, and for how to build one yourself if you want it.
 $tcpkBaseDirs = New-Object 'System.Collections.Generic.List[string]'
 if ($PSScriptRoot) { $tcpkBaseDirs.Add($PSScriptRoot) }
 try { $tcpkBaseDirs.Add([AppDomain]::CurrentDomain.BaseDirectory) } catch {}
@@ -42,7 +42,7 @@ if (-not $tcpkPsd1) {
     Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
     $searched = ($tcpkBaseDirs | Where-Object { $_ } | Select-Object -Unique) -join "`n  "
     [System.Windows.Forms.MessageBox]::Show(
-        "TCPK module (TCPK\TCPK.psd1) was not found next to the launcher.`n`nKeep the whole folder together -- TCPK.bat / TCPK.exe must sit beside the TCPK\ module folder. Searched:`n  $searched",
+        "TCPK module (TCPK\TCPK.psd1) was not found next to the launcher.`n`nKeep the whole folder together -- TCPK.bat must sit beside the TCPK\ module folder. Searched:`n  $searched",
         'TCPK GUI -- module missing', 'OK', 'Error') | Out-Null
     exit 1
 }
@@ -1598,6 +1598,11 @@ $script:RtSpecs = @(
     @{ T='RPC Surface';       Fn='Test-TcpkRpcSurface';             K='path' }
     @{ T='Win Messages';     Fn='Test-TcpkWindowMessages';         K='proc' }
     @{ T='Shared Mem';       Fn='Test-TcpkSharedMemoryDacl';       K='proc' }
+    @{ T='Memory Regions';   Fn='Test-TcpkMemoryRegions';          K='proc' }
+    @{ T='Thread DACLs';     Fn='Test-TcpkThreadDacl';             K='proc' }
+    @{ T='Token DACL';       Fn='Test-TcpkTokenDacl';              K='proc' }
+    @{ T='Virtualization';   Fn='Test-TcpkProcessVirtualization';  K='proc' }
+    @{ T='Handle DACLs';     Fn='Test-TcpkHandleDacl';             K='proc' }
     @{ T='Clipboard';        Fn='';                                K='clipboard' }
     @{ T='GUI Unlock';        Fn='';                                K='gui-unlock' }
     @{ T='Pipe Probe';        Fn='';                                K='pipe-probe' }

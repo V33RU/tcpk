@@ -22,6 +22,17 @@ function Test-TcpkDllSideload {
          DLL is NOT shipped in the app directory (the attacker plants it).
       2. The application directory's writability (needed to exploit).
 
+    SCOPE. Every first-party PE module is examined, not just .exe files:
+    DLL-to-DLL side-loading is common, and a shipped DLL importing an
+    unshipped sideload target is the same primitive as an EXE doing it.
+    Delay-load imports (PE data directory 13) count as well, and are the
+    stronger case because they resolve at first call rather than at load.
+
+    One finding is emitted per sideload-target DLL, listing the modules that
+    import it, rather than one finding per importing module. That keeps the
+    count bounded on large applications while still telling the vendor every
+    place the name is reachable from.
+
     Unlike Test-TcpkPhantomDlls (which flags ANY missing import),
     this specifically targets the well-researched sideload DLL names
     used in real-world campaigns (APT29, Lazarus, etc.).
@@ -80,40 +91,66 @@ function Test-TcpkDllSideload {
         } catch {}
     }
 
-    $seen = [System.Collections.Generic.HashSet[string]]::new(
-        [System.StringComparer]::OrdinalIgnoreCase)
-
+    # Pass 1: collect which first-party modules import each unshipped sideload target.
+    # Keyed by DLL name so the finding count stays bounded on large applications.
+    $hits = [ordered]@{}
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
-        if ($pe.Extension -ne '.exe') { continue }
+        if ($pe.Extension.ToLowerInvariant() -notin @('.exe', '.dll', '.node', '.pyd')) { continue }
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $info = Read-TcpkPe -Path $pe.FullName
         if (-not $info) { continue }
 
-        foreach ($imp in @($info.Imports)) {
-            if ([string]::IsNullOrWhiteSpace($imp)) { continue }
-            $dll = $imp.Trim()
+        $cands = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($imp in @($info.Imports))      { $cands.Add([pscustomobject]@{ N = "$imp"; Delay = $false }) }
+        foreach ($imp in @($info.DelayImports)) { $cands.Add([pscustomobject]@{ N = "$imp"; Delay = $true  }) }
+
+        foreach ($c in $cands) {
+            if ([string]::IsNullOrWhiteSpace($c.N)) { continue }
+            $dll = $c.N.Trim()
             if (-not $sideloadSet.Contains($dll)) { continue }
             if ($appFiles.Contains($dll)) { continue }
-            if (-not $seen.Add($dll)) { continue }
 
-            $sev = if ($dirWritable) { 'HIGH' } else { 'MEDIUM' }
-
-            New-TcpkFinding -Module 'static' -RuleId 'dllsearch.sideload-candidate' `
-                -Severity $sev -Confidence 'Confirmed' `
-                -Title "DLL sideload target: $dll (imported by $($pe.Name))" `
-                -File $pe.FullName `
-                -Evidence "imports $dll; not shipped in app dir; dir writable=$dirWritable" `
-                -Cwe @('CWE-427') `
-                -Description ('This executable imports a DLL that is a well-known side-loading ' +
-                    'target (used in real APT campaigns). The DLL is not shipped in the ' +
-                    'application directory, so an attacker can plant a proxy DLL that loads the ' +
-                    'real system DLL while executing arbitrary code. ' +
-                    $(if ($dirWritable) {
-                        'The application directory IS writable by non-admin users -- exploitation is straightforward.'
-                    } else {
-                        'The application directory is not currently writable by non-admin users, but this should be verified on all deployment targets.'
-                    }) + ' (ATT&CK T1574.002 DLL Side-Loading).') `
-                -Fix 'Ship the DLL with the application, use SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32), or sign the application and enforce code integrity.'
+            if (-not $hits.Contains($dll)) {
+                $hits[$dll] = [pscustomobject]@{
+                    Importers = (New-Object 'System.Collections.Generic.List[string]')
+                    AnyDelay  = $false
+                    FirstFile = $pe.FullName
+                }
+            }
+            $label = $pe.Name
+            if ($c.Delay) { $label = "$($pe.Name) [delay-load]"; $hits[$dll].AnyDelay = $true }
+            if (-not $hits[$dll].Importers.Contains($label)) { $hits[$dll].Importers.Add($label) }
         }
+    }
+
+    # Pass 2: one finding per sideload-target DLL.
+    foreach ($dll in @($hits.Keys)) {
+        $h = $hits[$dll]
+        $imps = @($h.Importers)
+        $impTxt = ($imps | Select-Object -First 6) -join ', '
+        if ($imps.Count -gt 6) { $impTxt = "$impTxt (+$($imps.Count - 6) more)" }
+
+        $sev = if ($dirWritable) { 'HIGH' } else { 'MEDIUM' }
+
+        $writeNote = 'The application directory is not currently writable by non-admin users, but this should be verified on all deployment targets.'
+        if ($dirWritable) { $writeNote = 'The application directory IS writable by non-admin users, so exploitation is straightforward.' }
+
+        $delayNote = ''
+        if ($h.AnyDelay) {
+            $delayNote = ' At least one importer DELAY-loads this DLL, which resolves at the first call rather than at process start, so the search runs against the process state at that moment and after any start-up integrity check.'
+        }
+
+        New-TcpkFinding -Module 'static' -RuleId 'dllsearch.sideload-candidate' `
+            -Severity $sev -Confidence 'Confirmed' `
+            -Title "DLL sideload target: $dll (imported by $($imps.Count) module(s))" `
+            -File $h.FirstFile `
+            -Evidence "$dll not shipped in app dir; importers: $impTxt; dir writable=$dirWritable" `
+            -Cwe @('CWE-427') `
+            -Description ('A first-party module imports a DLL that is a well-known side-loading ' +
+                'target (used in real APT campaigns). The DLL is not shipped in the ' +
+                'application directory, so an attacker can plant a proxy DLL that loads the ' +
+                'real system DLL while executing arbitrary code. ' + $writeNote + $delayNote +
+                ' (ATT&CK T1574.002 DLL Side-Loading).') `
+            -Fix 'Ship the DLL with the application, use SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32), or sign the application and enforce code integrity.'
     }
 }

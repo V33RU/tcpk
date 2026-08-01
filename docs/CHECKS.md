@@ -29,9 +29,12 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkDeserialization** - A10. Static heuristic for unsafe .NET deserialization patterns.
 - **Test-TcpkDevArtifacts** - A36. Leftover dev/build artifacts shipped in the release (TASVS-CONF-1.4): debug symbols, source, backups, dev-config, API specs, .git/IDE dirs.
 - **Test-TcpkDiagConfig** - A30. Shipped diagnostic/logging framework configs with exposure risk.
-- **Test-TcpkDllSideload** - A31. DLL side-loading opportunities via known target DLL names (T1574.002).
+- **Test-TcpkDllSideload** - A31. DLL side-loading opportunities via known target DLL names (T1574.002). Examines every first-party PE module (.exe, .dll, .node, .pyd), not just executables, since DLL-to-DLL side-loading is the same primitive. Delay-load imports count too and are called out as the stronger case. Emits one finding per target DLL listing its importers, rather than one per importing module.
 - **Test-TcpkElectron** - A24. Electron / Chromium-embedded insecure configuration (renderer flags incl. nodeIntegration / contextIsolation / sandbox / webSecurity / nodeIntegrationInSubFrames / experimentalFeatures / enableBlinkFeatures / nodeIntegrationInWorkers / webviewTag / webSQL / experimentalCanvasFeatures). Also flags TLS certificate-validation bypass in the bundled JS (electron.cert-validation-bypass, electron.cert-error-accept-all): a setCertificateVerifyProc with no callback(-2) reject path, rejectUnauthorized:false, NODE_TLS_REJECT_UNAUTHORIZED=0, or an accept-all certificate-error handler.
 - **Test-TcpkElectronFuses** - A42. Electron Fuses audit: parses the @electron/fuses wire from the app binary and flags insecure fuse states as Confirmed facts (EnableCookieEncryption off = plaintext cookies; RunAsNode / EnableNodeCliInspectArguments on = node-exec / --inspect LOLBins; EnableEmbeddedAsarIntegrityValidation off = tamperable app.asar) plus a full fuse-posture summary.
+- **Test-TcpkCrashReporter** - A42. Electron / Crashpad crash-reporting exposure (T1005). Electron apps use Crashpad, not Windows Error Reporting, so the WER checks do not apply to them and this one does. Recovers crashReporter.start() config (uploadToServer, submitURL, extra{}) from app.asar and loose first-party JS, and inspects the Crashpad database under the app's own userData directory for dumps and a weak ACL. Attribution is by construction: the database lives inside %APPDATA%\<productName>\Crashpad, so no other product's crash data is examined.
+- **Test-TcpkDotnetHostHijack** - A43. Modern .NET host redirection (T1574.012 / T1574.001). Covers the .NET Core / 5+ vectors that replaced AppDomainManager injection: CLR profiler (COR_PROFILER / CORECLR_PROFILER, an unmanaged DLL loaded before any managed code runs), DOTNET_STARTUP_HOOKS, runtimeconfig.json additionalProbingPaths, writable runtimeconfig.json / deps.json, and single-file bundle extraction (DOTNET_BUNDLE_EXTRACT_BASE_DIR). Findings are split by attribution: the app's own files and shipped launchers are vendor-reportable, while profiler and hook variables already set in the machine or user environment are labelled as environment state the vendor cannot fix, and are reported only when they resolve to something.
+- **Test-TcpkScanCoverage** - A44. Reports what the scan could NOT read, so a partial scan is not mistaken for a clean result. The safe walker drops three classes of subtree: unreadable (ACL, which is the norm for WindowsApps), past the depth cap, and reparse points it refuses to follow. All three were previously silent. Runs LAST in the audit so the counters cover the whole run. LOW when directories were unreadable (a genuine unknown), INFO when only the deliberate limits fired. Says nothing about the application: it is a statement about the completeness of the audit.
 - **Test-TcpkElectronJs** - A41. Electron/JS vulnerable-code-pattern scan: dangerous sinks in the bundled JS (child_process/eval/Function/string-setTimeout exec, shell.openExternal file://, innerHTML/document.write/v-html DOM XSS, unsanitized markdown, resource-protocol path traversal, missing navigation guard, prototype pollution, script-initiated navigation (location.href/window.open/javascript:), CSS-injection/scriptless, weak CSP unsafe-inline/eval/hardcoded-nonce, unsafe <webview> tag, wildcard postMessage, dangerous command-line switches, dynamic executeJavaScript, insertCSS, always-allow permission handler) emitted as Inferred leads. Rules in Data/electron-js-sinks.json.
 - **Test-TcpkEmbeddedScripts** - A20. Embedded script files shipped in the package.
 - **Test-TcpkEndpoints** - A09 -- URL extraction + dev / qe / staging classifier.
@@ -45,7 +48,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkPeExports** - A04. PE export surface enumeration (for proxy-DLL planning).
 - **Test-TcpkPeImports** - A03 -- Phantom DLL imports (DLL hijack candidates).
 - **Test-TcpkPeMitigations** - A02 -- PE compile-time mitigations (ASLR, DEP, CFG, HighEntropyVA). NOT in the default audit (opt-in / compliance use): the audit reports hardening as posture in the DLL Mitigation Matrix (Get-TcpkPeHardening), not as findings.
-- **Test-TcpkPhantomDlls** - A34. Phantom DLL planting opportunities in PE import tables.
+- **Test-TcpkPhantomDlls** - A34. Phantom DLL planting opportunities in PE import tables. Scans BOTH the normal import table (`dllsearch.phantom-dll`) and the delay-import table, data directory 13 (`dllsearch.delayload-phantom`, resolved at first call, so a wider hijack window). Calibrated against live KnownDLLs and System32/SysWOW64 to suppress names that cannot be planted, and severity is gated on install-root writability.
 - **Test-TcpkPInvokeSurface** - A17. P/Invoke surface -- bare-name DllImport declarations.
 - **Test-TcpkReflectionLoading** - A16. Dynamic code loading via reflection.
 - **Test-TcpkRegistryCredentialStore** - A35b. First-party code writing credentials to registry (insecure local-data-storage anti-pattern).
@@ -106,7 +109,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkTrustStore** - C15. Certificate trust-store pollution by the app/installer.
 - **Test-TcpkUnquotedServicePath** - C03. Classic unquoted-service-path LPE primitive.
 - **Test-TcpkWritablePath** - C22. Writable directories in the system PATH (binary planting surface, T1574.007).
-- **Test-TcpkWerExposure** - C21. Windows Error Reporting (WER) crash dump data exposure (T1005).
+- **Test-TcpkWerExposure** - C21. Windows Error Reporting (WER) crash dump data exposure (T1005). Dump files are filtered to the target's own executables, because the dump folder is shared machine-wide. LocalDumps is off by default on Windows, so this normally emits nothing; a global policy is reported only where it governs the target AND there is real exposure. Does NOT cover the default WER ReportArchive/ReportQueue folders. Not applicable to Electron apps, which use Crashpad.
 - **Test-TcpkWmiPersistence** - C16. WMI permanent event subscriptions (persistence mechanism).
 
 ## D - Credential storage  (9)
@@ -118,7 +121,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkKeyMaterial** - D07. Private-key and certificate material inventory.
 - **Test-TcpkLocalDb** - D07. Local databases at rest (SQLite / .db) -- unencrypted + world-readable.
 - **Test-TcpkPlaintextConfigs** - D03. Token-shaped strings in small config files under the path.
-- **Test-TcpkTokenCaches** - D05. MSAL / ADAL / custom OAuth token cache files.
+- **Test-TcpkTokenCaches** - D05. MSAL / ADAL / custom OAuth token cache files under the target path. KNOWN GAP: the well-known per-user locations MSAL and ADAL actually write to (%LOCALAPPDATA%\.IdentityService\, %USERPROFILE%\.azure\) are not scanned, so this finds nothing for an MSAL-based app.
 - **Test-TcpkWebViewCreds** - D06. WebView2 Edge user profile -- saved login state.
 
 ## E - Runtime / live process  (21)
@@ -129,7 +132,12 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkGuiInspector** - E17. Live GUI object inspection (UI Automation) -- hidden/disabled controls
 - **Test-TcpkHandleEnumeration** - E11. Open handle counts and types for the process (triage summary).
 - **Test-TcpkListeningPorts** - E03. TCP listeners + UDP endpoints owned by the process.
-- **Test-TcpkLoadedModulePaths** - E10. Native modules loaded into the process from non-system paths.
+- **Test-TcpkLoadedModulePaths** - E10. Native modules loaded into the process from non-system paths. Checks BOTH the file ACL (module replaceable in place) and the parent directory ACL (a module can be planted). Program Files is intentionally in scope: installers routinely loosen ACLs on their own subdirectories.
+- **Test-TcpkMemoryRegions** - E18. Virtual memory region protection (T1055 / T1620). Walks the process address space with VirtualQueryEx and reports RWX pages (writable and executable at once, so a memory write needs no DEP bypass) and executable memory not backed by a mapped image (the shape a manual-map or reflective loader produces). JIT-calibrated: .NET, V8/Node and the JVM generate code at runtime, so when one of those is loaded the finding is reported as posture rather than a defect. Read-only, opens with PROCESS_QUERY_INFORMATION only.
+- **Test-TcpkThreadDacl** - E19. Running-thread DACL (T1055.003). Test-TcpkProcessDacl covers the process object; this covers the THREAD objects inside it. THREAD_SET_CONTEXT alone redirects execution by rewriting register state, with no process memory-write right needed, so a sound process DACL does not imply a sound thread one. Deduplicated per (account, rights) so a many-threaded process does not emit one finding per thread.
+- **Test-TcpkTokenDacl** - E20. Access-token DACL (T1134.001). Test-TcpkProcessToken reports what the token CONTAINS; this reports who may OPERATE ON it. TOKEN_DUPLICATE on an elevated process is a direct escalation with no code injection: clone the token and CreateProcessAsUser. HIGH for DUPLICATE / IMPERSONATE / WRITE_DAC / ALL_ACCESS.
+- **Test-TcpkProcessVirtualization** - E21. UAC file and registry virtualization state (T1548.002). Windows applies the shim only to 32-bit processes with no requestedExecutionLevel, so a modern app running virtualized is both unmanifested and writing security-relevant state into a user-writable VirtualStore. Reports enabled (MEDIUM) and allowed-but-not-enabled (LOW) separately.
+- **Test-TcpkHandleDacl** - E22. DACLs on the kernel objects a running process actually holds open. The RUNTIME half of Test-TcpkNamedObjects, which infers a squatting surface statically from name literals: this reads the real DACL on the real handles. Grades Event / Mutant / Semaphore / Section / Job / Timer / Key. File-type handles are counted but never name-queried, because NtQueryObject(ObjectNameInformation) blocks indefinitely on a synchronous file or pipe handle with pending I/O. Pipes are covered by Test-TcpkNamedPipeDacl. Needs PROCESS_DUP_HANDLE, so generally elevated.
 - **Test-TcpkLoadedModuleSignatures** - E02. Authenticode status of every module loaded into the live process.
 - **Test-TcpkMailslotsAlpc** - E07. Mailslots and ALPC ports.
 - **Test-TcpkMemoryDump** - E09. Dump the process and scan the dump for secrets.
@@ -182,7 +190,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkMemorySecrets** - I04. Live-memory secret scan (read-only) of a running process.
 - **Test-TcpkPageFile** - I02. Page file / hibernation file secrecy hygiene.
 - **Test-TcpkSecureStringUsage** - I03. SecureString / ProtectedData usage in first-party code.
-- **Test-TcpkWerPolicy** - I01. Windows Error Reporting LocalDumps policy.
+- **Test-TcpkWerPolicy** - I01. Windows Error Reporting LocalDumps per-app policy for the target executable. LocalDumps is not enabled by default and requires admin, so an absent key emits nothing by design: that is machine posture the vendor cannot fix. Not applicable to Electron apps, which use Crashpad.
 
 ## J - Anti-debug  (4)
 

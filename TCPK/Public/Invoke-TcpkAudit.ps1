@@ -272,6 +272,11 @@ function Invoke-TcpkAudit {
     # Stopwatch for scan timing (recorded into the report scope footer)
     $auditSw = [System.Diagnostics.Stopwatch]::StartNew()
 
+    # Zero the walker's coverage counters so Test-TcpkScanCoverage at the end of this run
+    # reports what THIS audit could not read, not what a previous one in the same session
+    # could not.
+    Reset-TcpkScanStats
+
     # ----- Bucket A (static binary analysis, 21 cmdlets) -----
     _RunCheck 'Test-TcpkSignature'           { Test-TcpkSignature           -Path $Target   }
     # Missing binary-hardening (ASLR/DEP/CFG/HighEntropyVA) is reported as POSTURE in
@@ -309,6 +314,8 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkElectron'            { Test-TcpkElectron            -Path $expanded }
     _RunCheck 'Test-TcpkElectronJs'          { Test-TcpkElectronJs          -Path $expanded }
     _RunCheck 'Test-TcpkElectronFuses'       { Test-TcpkElectronFuses       -Path $expanded }
+    _RunCheck 'Test-TcpkCrashReporter'       { Test-TcpkCrashReporter       -Path $expanded }
+    _RunCheck 'Test-TcpkDotnetHostHijack'    { Test-TcpkDotnetHostHijack    -Path $expanded }
     _RunCheck 'Test-TcpkAppDomainHijack'     { Test-TcpkAppDomainHijack     -Path $expanded }
     _RunCheck 'Test-TcpkAotBinary'           { Test-TcpkAotBinary           -Path $expanded }
     _RunCheck 'Test-TcpkClickOnce'           { Test-TcpkClickOnce           -Path $expanded }
@@ -452,7 +459,9 @@ function Invoke-TcpkAudit {
         'Test-TcpkLoadedModulePaths','Test-TcpkHandleEnumeration','Test-TcpkWindowEnumeration',
         'Test-TcpkGuiInspector','Test-TcpkProcessToken','Test-TcpkChildProcesses',
         'Test-TcpkProcessDacl','Test-TcpkProcessEnvSecrets',
-        'Test-TcpkWindowMessages','Test-TcpkSharedMemoryDacl'
+        'Test-TcpkWindowMessages','Test-TcpkSharedMemoryDacl','Test-TcpkMemoryRegions',
+        'Test-TcpkThreadDacl','Test-TcpkTokenDacl','Test-TcpkProcessVirtualization',
+        'Test-TcpkHandleDacl'
     )
     $liveProcOn = [bool]($ProcessName -and (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue))
     if ($liveProcOn) {
@@ -469,6 +478,11 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkProcessEnvSecrets'       { Test-TcpkProcessEnvSecrets       -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkWindowMessages'          { Test-TcpkWindowMessages          -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkSharedMemoryDacl'        { Test-TcpkSharedMemoryDacl        -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkMemoryRegions'           { Test-TcpkMemoryRegions           -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkThreadDacl'              { Test-TcpkThreadDacl              -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkTokenDacl'               { Test-TcpkTokenDacl               -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkProcessVirtualization'   { Test-TcpkProcessVirtualization   -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkHandleDacl'              { Test-TcpkHandleDacl              -ProcessName $ProcessName }
     } else {
         # No live process resolved -> record the gated live-process checks so coverage.json
         # shows them as GatedNoProcess instead of silently omitting them.
@@ -532,6 +546,10 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkSelfIntegrityCheck'  { Test-TcpkSelfIntegrityCheck  -Path $expanded }
     _RunCheck 'Test-TcpkAntiInjection'       { Test-TcpkAntiInjection       -Path $expanded }
     _RunCheck 'Test-TcpkTimingAntiDebug'     { Test-TcpkTimingAntiDebug     -Path $expanded }
+
+    # LAST: report what the walker could not read during everything above. Must run after
+    # all other checks so the counters cover the whole audit.
+    _RunCheck 'Test-TcpkScanCoverage'        { Test-TcpkScanCoverage }
 
     # --- Verify layer: dedupe + false-positive killers + correlation ---
     Write-Information -MessageData "" -InformationAction Continue

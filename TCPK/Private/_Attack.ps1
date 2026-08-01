@@ -33,9 +33,22 @@ $script:TcpkAttackMap = @(
     @{ rx = '^electron\.(squirrel-updater|updater-sig-bypass|update-http)';              tech = @('T1195.002 Compromise Software Supply Chain') }
     @{ rx = '^clickonce\.';                                                              tech = @('T1195.002 Compromise Software Supply Chain','T1204.001 Malicious Link') }
     @{ rx = '^msix\.psf';                                                                tech = @('T1059.001 PowerShell','T1546 Event Triggered Execution') }
-    @{ rx = '^dllsearch\.(phantom-dll|sideload)';                                        tech = @('T1574.001 DLL Search Order Hijacking','T1574.002 DLL Side-Loading') }
+    @{ rx = '^dllsearch\.(phantom-dll|delayload-phantom|sideload)';                      tech = @('T1574.001 DLL','T1574.002 DLL Side-Loading') }
     @{ rx = '^comhijack\.';                                                              tech = @('T1546.015 Component Object Model Hijacking') }
     @{ rx = '^wer\.';                                                                    tech = @('T1005 Data from Local System') }
+    @{ rx = '^crashreporter\.';                                                          tech = @('T1005 Data from Local System') }
+    @{ rx = '^dotnethost\.profiler-configured';                                          tech = @('T1574.012 Hijack Execution Flow: COR_PROFILER') }
+    @{ rx = '^dotnethost\.(runtimeconfig-writable|probing-path-writable|deps-writable|bundle-extract-writable)'; tech = @('T1574.001 DLL') }
+    @{ rx = '^dotnethost\.';                                                             tech = @('T1574 Hijack Execution Flow') }
+    @{ rx = '^scan\.incomplete-coverage';                                                tech = @('T1083 File and Directory Discovery') }
+    @{ rx = '^memregion\.(rwx|private-exec)';                                            tech = @('T1055 Process Injection','T1620 Reflective Code Loading') }
+    @{ rx = '^memregion\.';                                                              tech = @('T1055 Process Injection') }
+    @{ rx = '^thread\.dacl-hijackable';                                                  tech = @('T1055.003 Thread Execution Hijacking') }
+    @{ rx = '^token\.dacl-weak';                                                         tech = @('T1134.001 Token Impersonation/Theft') }
+    @{ rx = '^(thread|token)\.';                                                         tech = @('T1068 Exploitation for Privilege Escalation') }
+    @{ rx = '^virtualization\.';                                                         tech = @('T1548.002 Bypass User Account Control') }
+    @{ rx = '^handle\.dacl-weak';                                                        tech = @('T1499 Endpoint Denial of Service','T1068 Exploitation for Privilege Escalation') }
+    @{ rx = '^handle\.';                                                                 tech = @('T1057 Process Discovery') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
     @{ rx = '^diag\.';                                                                   tech = @('T1005 Data from Local System','T1530 Data from Cloud Storage') }
     @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
@@ -119,6 +132,8 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^dllsearch\.';                                                                                           da = 'DA5 Improper Authorization' }
     @{ rx = '^comhijack\.';                                                                                           da = 'DA5 Improper Authorization' }
     @{ rx = '^wer\.';                                                                                                 da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^crashreporter\.';                                                                                       da = 'DA3 Sensitive Data Exposure' }
+    @{ rx = '^dotnethost\.';                                                                                          da = 'DA5 Improper Authorization' }
     @{ rx = '^path\.writable';                                                                                        da = 'DA5 Improper Authorization' }
     @{ rx = '^diag\.';                                                                                                da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^grpc\.';                                                                                                 da = 'DA6 Security Misconfiguration' }
