@@ -103,7 +103,10 @@ Describe 'Get-TcpkAsarNpmAudit (orchestrator, mocked I/O)' {
                 Get-TcpkAsarNpmAudit -Path $dir
             }
             $res.packages | Should -Be 0
-            $res.note | Should -Match 'No bundled npm packages'
+            # Wording widened when the inventory stopped being asar-only: the audit now also
+            # reads app.asar.unpacked, loose node_modules and lockfiles, so "no bundled npm
+            # packages" would understate what was actually searched.
+            $res.note | Should -Match 'No npm packages found'
             Assert-MockCalled -ModuleName TCPK Get-TcpkOsvMatches -Times 0
         } finally {
             Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue

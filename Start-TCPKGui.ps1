@@ -1842,11 +1842,28 @@ $btnAsarNpm.Add_Click({
                 pkgs   = [int]$r.packages
                 vulns  = @($r.vulns).Count
                 dep    = @($r.deprecated).Count
+                blind  = "$($r.blindspot)"
+                unver  = [int]$r.unverified
+                ver    = [int]$r.verifiedPackages
+                capped = [bool]$r.inventoryCapped
             }
         } $t (Split-Path -Leaf $t)
         $txtAsarView.Text = "$($out.report)"
         $txtAsarView.SelectionStart = 0; $txtAsarView.ScrollToCaret()
-        $lblAsar.Text = "npm audit done: $($out.pkgs) packages, $($out.vulns) vulnerabilities, $($out.dep) deprecated."
+        # "0 vulnerabilities" on a bundled app means the packages were never queried, not
+        # that they are clean. The status line has to say so, because it is the one line
+        # a user reads before deciding the app is fine.
+        $atLeast = if ($out.capped) { 'at least ' } else { '' }
+        if ($out.blind) {
+            # $out.ver, not $out.pkgs: pkgs includes lockfile declarations, so using it here
+            # would claim more was recovered from the shipped files than actually was.
+            $extra = if ($out.unver -gt 0) { " $($out.unver) more are lockfile declarations, presence not verified." } else { '' }
+            $lblAsar.Text = "npm audit INCOMPLETE: only $($out.ver) package(s) recoverable from shipped files (app is bundled).$extra $($out.vulns) vulns found, but most packages were never queried -- see report."
+        } elseif ($out.unver -gt 0) {
+            $lblAsar.Text = "npm audit done: $atLeast$($out.pkgs) packages ($($out.unver) from lockfile, presence not verified), $($out.vulns) vulnerabilities, $($out.dep) deprecated."
+        } else {
+            $lblAsar.Text = "npm audit done: $atLeast$($out.pkgs) packages, $($out.vulns) vulnerabilities, $($out.dep) deprecated."
+        }
     } catch {
         $txtAsarView.Text = "npm audit failed: $($_.Exception.Message)"
         $lblAsar.Text = "npm audit failed."
