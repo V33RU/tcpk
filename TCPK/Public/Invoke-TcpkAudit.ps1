@@ -314,6 +314,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkElectron'            { Test-TcpkElectron            -Path $expanded }
     _RunCheck 'Test-TcpkElectronJs'          { Test-TcpkElectronJs          -Path $expanded }
     _RunCheck 'Test-TcpkElectronFuses'       { Test-TcpkElectronFuses       -Path $expanded }
+    _RunCheck 'Test-TcpkV8Bytecode'          { Test-TcpkV8Bytecode          -Path $expanded }
     _RunCheck 'Test-TcpkCrashReporter'       { Test-TcpkCrashReporter       -Path $expanded }
     _RunCheck 'Test-TcpkDotnetHostHijack'    { Test-TcpkDotnetHostHijack    -Path $expanded }
     _RunCheck 'Test-TcpkAppDomainHijack'     { Test-TcpkAppDomainHijack     -Path $expanded }

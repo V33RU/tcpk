@@ -41,6 +41,7 @@ $script:TcpkAttackMap = @(
     @{ rx = '^dotnethost\.(runtimeconfig-writable|probing-path-writable|deps-writable|bundle-extract-writable)'; tech = @('T1574.001 DLL') }
     @{ rx = '^dotnethost\.';                                                             tech = @('T1574 Hijack Execution Flow') }
     @{ rx = '^scan\.incomplete-coverage';                                                tech = @('T1083 File and Directory Discovery') }
+    @{ rx = '^electron\.v8-bytecode';                                                    tech = @('T1027 Obfuscated Files or Information') }
     @{ rx = '^memregion\.(rwx|private-exec)';                                            tech = @('T1055 Process Injection','T1620 Reflective Code Loading') }
     @{ rx = '^memregion\.';                                                              tech = @('T1055 Process Injection') }
     @{ rx = '^thread\.dacl-hijackable';                                                  tech = @('T1055.003 Thread Execution Hijacking') }

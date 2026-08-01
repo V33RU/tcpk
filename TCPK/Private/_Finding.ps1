@@ -205,6 +205,7 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^crashreporter\.(dumps-present|db-user-writable)';                                                                                                      A = 'local-at-rest' }
     @{ Rx = '^dotnethost\.';                                                                                                                                         A = 'local-privesc' }
     @{ Rx = '^scan\.';                                                                                                                                               A = 'hardening' }
+    @{ Rx = '^electron\.v8-bytecode';                                                                                                                                A = 'hardening' }
     @{ Rx = '^memregion\.';                                                                                                                                          A = 'hardening' }
     @{ Rx = '^(thread\.dacl-hijackable|token\.dacl-weak)';                                                                                                          A = 'local-privesc' }
     @{ Rx = '^(thread|token|virtualization)\.';                                                                                                                      A = 'hardening' }
