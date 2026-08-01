@@ -2976,10 +2976,48 @@ function Populate-DecTypes {
     $lstDecMethods.Items.Clear()
 }
 
+# Fast managed-PE test: read the COM descriptor data directory (index 14). A NATIVE PE
+# (d3dcompiler_47.dll, vcruntime, Qt, Go, Rust, Chromium) has RVA 0 there, and handing one
+# to Mono.Cecil's ReadAssembly throws "Format of the executable (.exe) or library (.dll) is
+# invalid". Native binaries must therefore never reach the decompiler list in the first
+# place. Same directory the module's _PeReader uses; done inline so the GUI needs no
+# private-module call, and it is far cheaper than attempting a Cecil load per file.
+function Test-DecIsManagedPe([string]$Path) {
+    $fs = $null; $br = $null
+    try {
+        $fs = [IO.File]::OpenRead($Path)
+        if ($fs.Length -lt 0x80) { return $false }
+        $br = [IO.BinaryReader]::new($fs)
+        $fs.Position = 0x3C
+        $peOff = $br.ReadInt32()
+        if ($peOff -le 0 -or $peOff -gt ($fs.Length - 24)) { return $false }
+        $fs.Position = $peOff
+        if ($br.ReadUInt32() -ne 0x00004550) { return $false }          # 'PE\0\0'
+        $fs.Position = $peOff + 24
+        $magic = $br.ReadUInt16()                                        # 0x10B PE32 / 0x20B PE32+
+        $ddStart = $peOff + 24 + 96
+        if ($magic -eq 0x20B) { $ddStart = $peOff + 24 + 112 }
+        $comOff = $ddStart + (14 * 8)                                    # data directory 14
+        if (($comOff + 4) -gt $fs.Length) { return $false }
+        $fs.Position = $comOff
+        return ($br.ReadUInt32() -ne 0)
+    } catch { return $false }
+    finally {
+        if ($br) { $br.Dispose() }
+        if ($fs) { $fs.Dispose() }
+    }
+}
+
 function Load-DecAssembly([string]$path) {
     if (-not (Ensure-DecCecil)) { $lblDecStatus.Text = 'Mono.Cecil not available (tools\ILSpy\Mono.Cecil.dll missing).'; return }
     $path = "$path".Trim('"').Trim()
     if (-not $path -or -not (Test-Path -LiteralPath $path)) { $lblDecStatus.Text = "File not found: $path"; return }
+    # Explain a native binary in its own terms rather than surfacing a raw Cecil exception.
+    if (-not (Test-DecIsManagedPe $path)) {
+        $lblDecStatus.Text = ("{0} is a NATIVE binary (no .NET metadata) -- there is no IL to decompile. Use the Mitigations / Signing tabs for its PE posture, or Hex to inspect bytes." -f (Split-Path $path -Leaf))
+        $lstDecTypes.Items.Clear(); $lstDecMethods.Items.Clear(); $txtDecCode.Clear()
+        return
+    }
     if ($script:DecAsm) { try { $script:DecAsm.Dispose() } catch { } ; $script:DecAsm = $null }
     $script:DecCurMethod = $null    # drop any method held from the previous assembly
     $lstDecTypes.Items.Clear(); $lstDecMethods.Items.Clear(); $txtDecCode.Clear()
@@ -3034,9 +3072,24 @@ $btnDecScan.Add_Click({
     $lblDecStatus.Text = 'Scanning for assemblies...'; [System.Windows.Forms.Application]::DoEvents()
     $found = @(Get-ChildItem -LiteralPath $base -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.Extension -eq '.dll' -or $_.Extension -eq '.exe' } | Sort-Object FullName | Select-Object -First 800)
     $cmbDecDll.Items.Clear()
-    foreach ($f in $found) { [void]$cmbDecDll.Items.Add($f.FullName) }
-    if ($found.Count) { $cmbDecDll.SelectedIndex = 0 }
-    $lblDecStatus.Text = ("{0} assemblies under {1}{2}" -f $found.Count, $base, $(if ($found.Count -ge 800) { ' (capped at 800)' } else { '' }))
+    # Only MANAGED assemblies belong in the decompiler list. A target directory is usually
+    # mostly native (Chromium, DirectX, VC runtime, Qt), and listing those meant selecting
+    # one produced a raw Cecil "Format of the executable is invalid" error with no
+    # explanation. Native binaries are counted and reported, not offered.
+    $managed = 0; $native = 0
+    foreach ($f in $found) {
+        if (Test-DecIsManagedPe $f.FullName) { [void]$cmbDecDll.Items.Add($f.FullName); $managed++ }
+        else { $native++ }
+    }
+    if ($managed -gt 0) { $cmbDecDll.SelectedIndex = 0 }
+
+    $capNote = ''
+    if ($found.Count -ge 800) { $capNote = ' (scan capped at 800 files)' }
+    if ($managed -eq 0) {
+        $lblDecStatus.Text = ("No .NET assemblies under {0} -- all {1} binaries are native. This looks like a native or Electron app; use Mitigations / Signing for PE posture, or the Asar tab if it ships app.asar.{2}" -f $base, $native, $capNote)
+    } else {
+        $lblDecStatus.Text = ("{0} .NET assembly(ies) under {1}  ({2} native binaries skipped -- not decompilable){3}" -f $managed, $base, $native, $capNote)
+    }
 })
 $btnDecLoad.Add_Click({ Load-DecAssembly $cmbDecDll.Text })
 $cmbDecDll.Add_SelectedIndexChanged({ if ($cmbDecDll.SelectedItem) { Load-DecAssembly "$($cmbDecDll.SelectedItem)" } })
