@@ -27,18 +27,61 @@ function Compare-TcpkAudit {
 .PARAMETER OutFile
     Optional path to write a Markdown delta report to.
 
+.PARAMETER NormalizePaths
+    Compare locations RELATIVE to each run's own install root instead of by absolute path.
+
+    Without this, two builds installed to different directories -- which is the normal case
+    for a version-to-version retest, e.g. C:\App 1.2\lib\a.dll versus C:\App 1.3\lib\a.dll
+    -- share no location string, so every finding reports as one FIXED plus one NEW and the
+    delta is useless. With it, the longest common directory prefix of each side is stripped
+    first, so the same file lines up across versions.
+
+    Off by default so existing behaviour is unchanged. Use it whenever the two runs are of
+    the same application from different paths; leave it off when comparing runs of the same
+    installed directory, where absolute paths already match.
+
 .OUTPUTS
     [pscustomobject] with New / Fixed / Regressed arrays, UnchangedCount, and Summary.
 
 .EXAMPLE
     Compare-TcpkAudit .\out-v1 .\out-v2 -OutFile .\delta.md
+
+.EXAMPLE
+    Compare-TcpkAudit .\out-1.2 .\out-1.3 -NormalizePaths
 #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, Position = 0)][string]$BaselinePath,
         [Parameter(Mandatory, Position = 1)][string]$CurrentPath,
-        [string]$OutFile
+        [string]$OutFile,
+        [switch]$NormalizePaths
     )
+
+    # Longest common directory prefix of a run's locations. Used only when -NormalizePaths
+    # is set. Returns '' when there is nothing shared, which leaves locations untouched.
+    $commonRoot = {
+        param($list)
+        $paths = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($f in $list) {
+            if (-not $f) { continue }
+            if ($f.PSObject.Properties.Name -contains 'Affected' -and $f.Affected) {
+                foreach ($a in @($f.Affected)) { if ("$a" -match '[\\/]') { $paths.Add("$a") } }
+            } elseif ($f.File -and "$($f.File)" -match '[\\/]') { $paths.Add("$($f.File)") }
+        }
+        if ($paths.Count -eq 0) { return '' }
+        $split = @($paths | ForEach-Object { , ($_ -split '[\\/]') })
+        $min = ($split | ForEach-Object { $_.Count } | Measure-Object -Minimum).Minimum
+        $common = New-Object 'System.Collections.Generic.List[string]'
+        for ($i = 0; $i -lt ($min - 1); $i++) {
+            $seg = $split[0][$i]
+            $allSame = $true
+            foreach ($s in $split) { if ($s[$i] -ne $seg) { $allSame = $false; break } }
+            if (-not $allSame) { break }
+            $common.Add($seg)
+        }
+        if ($common.Count -eq 0) { return '' }
+        return (($common -join '\') + '\')
+    }
 
     $resolve = {
         param($p)
@@ -68,7 +111,7 @@ function Compare-TcpkAudit {
     # (RuleId + location) -> compact entry. Aggregated findings (Affected[]) expand
     # so a fix to one of several affected files is detected.
     $entries = {
-        param($list)
+        param($list, $root)
         $m = [ordered]@{}
         foreach ($f in $list) {
             if (-not $f) { continue }
@@ -77,7 +120,13 @@ function Compare-TcpkAudit {
             elseif ($f.File) { $locs = @("$($f.File)") }
             else { $locs = @('(global)') }
             foreach ($loc in $locs) {
-                $k = "$($f.RuleId)|$loc"
+                # Key on the location relative to this run's own root when normalising, so
+                # the same file in two differently-named install directories matches.
+                $keyLoc = "$loc"
+                if ($root -and $keyLoc.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {
+                    $keyLoc = $keyLoc.Substring($root.Length)
+                }
+                $k = "$($f.RuleId)|$keyLoc"
                 if (-not $m.Contains($k)) {
                     $m[$k] = [pscustomobject]@{
                         Key        = $k
@@ -93,8 +142,14 @@ function Compare-TcpkAudit {
         return $m
     }
 
-    $bMap = & $entries $base
-    $cMap = & $entries $cur
+    $bRoot = ''; $cRoot = ''
+    if ($NormalizePaths) {
+        $bRoot = & $commonRoot $base
+        $cRoot = & $commonRoot $cur
+        Write-Verbose "Compare-TcpkAudit: normalising paths. baseline root '$bRoot', current root '$cRoot'"
+    }
+    $bMap = & $entries $base $bRoot
+    $cMap = & $entries $cur  $cRoot
 
     $new = @(); $fixed = @(); $regressed = @(); $unchanged = 0
     foreach ($k in $cMap.Keys) {
