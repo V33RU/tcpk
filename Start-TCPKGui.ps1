@@ -2930,9 +2930,20 @@ $decCodeBox = New-Object System.Windows.Forms.Panel; $decCodeBox.Dock = 'Fill'; 
 $decCodeBar = New-Object System.Windows.Forms.Panel; $decCodeBar.Dock = 'Top'; $decCodeBar.Height = 30
 $btnDecIl = New-Object System.Windows.Forms.Button; $btnDecIl.Text = 'IL'; $btnDecIl.Location = New-Object System.Drawing.Point(0, 2); $btnDecIl.Size = New-Object System.Drawing.Size(60, 24)
 $btnDecCs = New-Object System.Windows.Forms.Button; $btnDecCs.Text = 'Decompile C#'; $btnDecCs.Location = New-Object System.Drawing.Point(66, 2); $btnDecCs.Size = New-Object System.Drawing.Size(120, 24)
-$chkDecWrap = New-Object System.Windows.Forms.CheckBox; $chkDecWrap.Text = 'Wrap'; $chkDecWrap.Checked = $true; $chkDecWrap.Location = New-Object System.Drawing.Point(194, 5); $chkDecWrap.Size = New-Object System.Drawing.Size(60, 20)
-$lblDecCodeHint = New-Object System.Windows.Forms.Label; $lblDecCodeHint.Text = 'IL via Mono.Cecil (always); C# needs ilspycmd on PATH'; $lblDecCodeHint.Location = New-Object System.Drawing.Point(262, 2); $lblDecCodeHint.Size = New-Object System.Drawing.Size(520, 24); $lblDecCodeHint.TextAlign = 'MiddleLeft'
-$decCodeBar.Controls.Add($btnDecIl); $decCodeBar.Controls.Add($btnDecCs); $decCodeBar.Controls.Add($chkDecWrap); $decCodeBar.Controls.Add($lblDecCodeHint)
+$btnDecHex = New-Object System.Windows.Forms.Button; $btnDecHex.Text = 'Open in Hex'; $btnDecHex.Location = New-Object System.Drawing.Point(192, 2); $btnDecHex.Size = New-Object System.Drawing.Size(104, 24); $btnDecHex.Enabled = $false
+$chkDecWrap = New-Object System.Windows.Forms.CheckBox; $chkDecWrap.Text = 'Wrap'; $chkDecWrap.Checked = $true; $chkDecWrap.Location = New-Object System.Drawing.Point(304, 5); $chkDecWrap.Size = New-Object System.Drawing.Size(60, 20)
+$lblDecCodeHint = New-Object System.Windows.Forms.Label; $lblDecCodeHint.Text = 'IL via Mono.Cecil (always); C# needs ilspycmd on PATH. Native PE shows analysis, not IL.'; $lblDecCodeHint.Location = New-Object System.Drawing.Point(372, 2); $lblDecCodeHint.Size = New-Object System.Drawing.Size(520, 24); $lblDecCodeHint.TextAlign = 'MiddleLeft'
+$decCodeBar.Controls.Add($btnDecIl); $decCodeBar.Controls.Add($btnDecCs); $decCodeBar.Controls.Add($btnDecHex); $decCodeBar.Controls.Add($chkDecWrap); $decCodeBar.Controls.Add($lblDecCodeHint)
+# Staged by Load-DecAssembly when the selection turns out to be native, so the operator can
+# go straight to the bytes instead of retyping the path into the Hex tab.
+$btnDecHex.Add_Click({
+    $t = $script:DecNativePath
+    if (-not $t) { $t = $script:DecDllPath }
+    if (-not $t -or -not (Test-Path -LiteralPath $t)) { $lblDecStatus.Text = 'No file selected to open in Hex.'; return }
+    $txtHexPath.Text = $t
+    $tabs.SelectedTab = $tabHex
+    Load-GuiHex 0
+})
 $txtDecCode = New-Object System.Windows.Forms.RichTextBox; $txtDecCode.Dock = 'Fill'; $txtDecCode.ReadOnly = $true; $txtDecCode.Font = New-Object System.Drawing.Font('Consolas', 9.5); $txtDecCode.WordWrap = $true
 $txtDecCode.Text = "Select a type on the left, then a method, to disassemble its IL here." + [Environment]::NewLine + "Click 'Decompile C#' to reconstruct C# for the selected method (requires ilspycmd)."
 $decCodeBox.Controls.Add($txtDecCode); $decCodeBox.Controls.Add($decCodeBar)
@@ -3008,16 +3019,108 @@ function Test-DecIsManagedPe([string]$Path) {
     }
 }
 
+# Native PE analysis panel. Selecting a native DLL used to be a dead end that told you to
+# go to another tab; a target like a device configurator is mostly native, so that made the
+# tab useless exactly where it was most needed. Everything shown here reuses public cmdlets
+# (Get-TcpkPeHardening) and the shared PE reader, so it agrees with the Mitigations tab.
+function Show-DecNativePe([string]$path) {
+    $leaf = Split-Path $path -Leaf
+    $lblDecStatus.Text = "$leaf is a NATIVE binary -- no IL to decompile. Showing PE analysis instead."
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine("// $leaf")
+    [void]$sb.AppendLine("// NATIVE PE (no .NET metadata) -- compiled machine code, so there is no IL to")
+    [void]$sb.AppendLine("// reconstruct. Recovering source shape needs a disassembler (Ghidra / IDA).")
+    [void]$sb.AppendLine("// What CAN be determined about it is below.")
+    [void]$sb.AppendLine('')
+
+    $mod = @(Get-Module TCPK)
+    $info = $null
+    if ($mod.Count) { try { $info = & $mod[0] { param($p) Read-TcpkPe -Path $p } $path } catch { } }
+
+    if (-not $info) {
+        [void]$sb.AppendLine('  PE header could not be parsed (truncated or malformed file).')
+        $txtDecCode.Text = $sb.ToString(); return
+    }
+
+    $arch = 'x86'
+    if ($info.IsPE32Plus) { $arch = 'x64' }
+    if ($info.Machine -eq 0x01c4 -or $info.Machine -eq 0xAA64) { $arch = 'ARM' }
+    [void]$sb.AppendLine("FILE        $leaf")
+    [void]$sb.AppendLine(("FORMAT      {0}  (machine 0x{1:X4}, {2})" -f $(if ($info.IsPE32Plus) { 'PE32+' } else { 'PE32' }), $info.Machine, $arch))
+    [void]$sb.AppendLine(("SIZE        {0:N0} bytes, SizeOfCode {1:N0}" -f (Get-Item -LiteralPath $path).Length, $info.SizeOfCode))
+    [void]$sb.AppendLine('')
+
+    # Hardening via the public cmdlet, so this panel and the Mitigations tab cannot disagree.
+    $h = $null
+    try { $h = @(Get-TcpkPeHardening -Path $path)[0] } catch { }
+    if ($h) {
+        [void]$sb.AppendLine("HARDENING   $($h.Status)" + $(if ($h.Missing) { "   (missing: $($h.Missing))" } else { '' }))
+        # These fields are STRINGS ('YES'/'NO'), not booleans. Print the value directly:
+        # testing them with if() would be wrong, because the string 'NO' is truthy in
+        # PowerShell and every mitigation would report as enabled.
+        foreach ($n in @('ASLR', 'DEP', 'CFG', 'HighEntropyVA', 'ForceIntegrity', 'SafeSEH', 'GS')) {
+            $v = '?'
+            try { if ($null -ne $h.$n -and "$($h.$n)" -ne '') { $v = "$($h.$n)" } } catch { }
+            [void]$sb.AppendLine(("   {0,-16} {1}" -f $n, $v))
+        }
+        [void]$sb.AppendLine(("   {0,-16} {1}" -f 'DllCharacteristics', $h.DllCharacteristics))
+    } else {
+        # Fall back to the raw reader if the hardening cmdlet skipped it (resource-only PE).
+        [void]$sb.AppendLine('HARDENING   not available (resource-only PE, or SizeOfCode = 0)')
+        [void]$sb.AppendLine(("   {0,-16} {1}" -f 'SafeSEH', $info.SafeSeh))
+        [void]$sb.AppendLine(("   {0,-16} {1}" -f 'StackCookie (/GS)', $info.StackCookie))
+    }
+    [void]$sb.AppendLine('')
+
+    $sigTxt = 'not checked'
+    try {
+        $sg = Get-AuthenticodeSignature -LiteralPath $path -ErrorAction Stop
+        $sigTxt = "$($sg.Status)"
+        if ($sg.SignerCertificate) { $sigTxt = "$sigTxt  --  $($sg.SignerCertificate.Subject)" }
+    } catch { }
+    [void]$sb.AppendLine("SIGNING     $sigTxt")
+    [void]$sb.AppendLine('')
+
+    $imps = @($info.Imports)
+    $dimps = @($info.DelayImports)
+    [void]$sb.AppendLine("IMPORTS     $($imps.Count) module(s)" + $(if ($dimps.Count) { " + $($dimps.Count) delay-loaded" } else { '' }))
+    foreach ($i in ($imps | Select-Object -First 25)) { [void]$sb.AppendLine("   $i") }
+    if ($imps.Count -gt 25) { [void]$sb.AppendLine("   ... +$($imps.Count - 25) more") }
+    foreach ($i in ($dimps | Select-Object -First 10)) { [void]$sb.AppendLine("   $i  [delay-load]") }
+    [void]$sb.AppendLine('')
+
+    $exps = @($info.Exports)
+    [void]$sb.AppendLine("EXPORTS     $($exps.Count) named" + $(if ($exps.Count -ge 100) { ' (reader caps the list at 100)' } else { '' }))
+    foreach ($e in ($exps | Select-Object -First 20)) { [void]$sb.AppendLine("   $e") }
+    if ($exps.Count -gt 20) { [void]$sb.AppendLine("   ... +$($exps.Count - 20) more") }
+    [void]$sb.AppendLine('')
+
+    [void]$sb.AppendLine("SECTIONS    $((@($info.SectionNames)) -join ', ')")
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine('NEXT        "Open in Hex" (button above) for the raw bytes and strings.')
+    [void]$sb.AppendLine('            The Mitigations and Signing tabs show this file alongside every')
+    [void]$sb.AppendLine('            other binary in the target after an audit run.')
+
+    $txtDecCode.Text = $sb.ToString()
+    $txtDecCode.Select(0, 0); $txtDecCode.SelectionStart = 0; $txtDecCode.ScrollToCaret()
+}
+
 function Load-DecAssembly([string]$path) {
     if (-not (Ensure-DecCecil)) { $lblDecStatus.Text = 'Mono.Cecil not available (tools\ILSpy\Mono.Cecil.dll missing).'; return }
     $path = "$path".Trim('"').Trim()
     if (-not $path -or -not (Test-Path -LiteralPath $path)) { $lblDecStatus.Text = "File not found: $path"; return }
-    # Explain a native binary in its own terms rather than surfacing a raw Cecil exception.
+    # A native binary has no IL, so instead of a dead end give the analysis that DOES
+    # apply to it -- PE posture, hardening, imports, exports -- right here in the same
+    # pane, and leave the file staged for the Hex tab one click away.
     if (-not (Test-DecIsManagedPe $path)) {
-        $lblDecStatus.Text = ("{0} is a NATIVE binary (no .NET metadata) -- there is no IL to decompile. Use the Mitigations / Signing tabs for its PE posture, or Hex to inspect bytes." -f (Split-Path $path -Leaf))
-        $lstDecTypes.Items.Clear(); $lstDecMethods.Items.Clear(); $txtDecCode.Clear()
+        $lstDecTypes.Items.Clear(); $lstDecMethods.Items.Clear()
+        $script:DecNativePath = $path
+        Show-DecNativePe $path
+        $btnDecHex.Enabled = $true
         return
     }
+    $script:DecNativePath = $null
+    $btnDecHex.Enabled = $false
     if ($script:DecAsm) { try { $script:DecAsm.Dispose() } catch { } ; $script:DecAsm = $null }
     $script:DecCurMethod = $null    # drop any method held from the previous assembly
     $lstDecTypes.Items.Clear(); $lstDecMethods.Items.Clear(); $txtDecCode.Clear()
