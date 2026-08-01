@@ -3034,26 +3034,140 @@ function Load-DecAssembly([string]$path) {
     $lblDecStatus.Text = ("{0}  --  {1} types  ({2})" -f (Split-Path $path -Leaf), $types.Count, $asm.MainModule.Runtime)
 }
 
+# --- sink awareness -----------------------------------------------------------------
+# The point of showing IL in a security tool is finding the dangerous call, not reading
+# opcodes. These reuse the SHARED callsite sink map, so what the Decompiler tab highlights
+# is exactly what the IL verifier proves -- the two can never drift apart.
+function Get-DecSinkSpecs {
+    if ($script:DecSinkSpecs) { return $script:DecSinkSpecs }
+    $list = New-Object 'System.Collections.Generic.List[object]'
+    $mod = @(Get-Module TCPK)
+    if ($mod.Count) {
+        try {
+            $map = & $mod[0] { Get-TcpkCallsiteSinkMap }
+            foreach ($kv in $map.GetEnumerator()) {
+                foreach ($s in $kv.Value.Sinks) {
+                    $list.Add([pscustomobject]@{ T = "$($s.T)"; M = "$($s.M)"; Mo = [bool]$s.Mo })
+                }
+            }
+        } catch { }
+    }
+    # Deserialization types live in their own detector rather than the callsite map, so
+    # add them explicitly. Same set the workbench uses.
+    foreach ($t in @(
+        'System.Runtime.Serialization.Formatters.Binary.BinaryFormatter',
+        'System.Runtime.Serialization.NetDataContractSerializer',
+        'System.Web.UI.LosFormatter', 'System.Web.UI.ObjectStateFormatter',
+        'System.Messaging.BinaryMessageFormatter', 'SoapFormatter',
+        'System.Xml.Serialization.XmlSerializer', 'System.Runtime.Serialization.DataContractSerializer'
+    )) { $list.Add([pscustomobject]@{ T = $t; M = ''; Mo = $false }) }
+    $script:DecSinkSpecs = $list
+    return $list
+}
+
+# Returns a short label ("Process.Start") when a called method matches a sink spec, else $null.
+# Honours M (exact method on a type) / Mo (P/Invoke method name) / bare-T (any member of the
+# type) so it does not over-flag: Environment::get_NewLine is not the GetEnvironmentVariable sink.
+function Get-DecSinkHit($Mref) {
+    if (-not $Mref) { return $null }
+    $declFull = ''; $declLeaf = ''; $name = ''
+    try {
+        $declFull = "$($Mref.DeclaringType.FullName)"
+        $declLeaf = "$($Mref.DeclaringType.Name)"
+        $name     = "$($Mref.Name)"
+    } catch { return $null }
+    foreach ($s in (Get-DecSinkSpecs)) {
+        if ($s.Mo) {
+            if ($name -like "*$($s.T)*") { return $name }
+        } elseif ($s.M) {
+            if ($declFull -like "*$($s.T)*" -and $name -eq $s.M) { return "$declLeaf.$name" }
+        } else {
+            if ($declFull -like "*$($s.T)*") { return "$declLeaf.$name" }
+        }
+    }
+    return $null
+}
+
+# Distinct sink labels called by a method. Used both to mark the method list and to
+# summarise at the top of the IL view.
+function Get-DecMethodSinks($Method) {
+    $hits = New-Object 'System.Collections.Generic.List[string]'
+    try {
+        if (-not $Method.HasBody) { return $hits }
+        foreach ($ins in $Method.Body.Instructions) {
+            if ("$($ins.OpCode.Name)" -notlike 'call*' -and "$($ins.OpCode.Name)" -ne 'newobj') { continue }
+            $h = Get-DecSinkHit $ins.Operand
+            if ($h -and -not $hits.Contains($h)) { $hits.Add($h) }
+        }
+    } catch { }
+    return $hits
+}
+
 function Show-DecIl {
-    $m = $lstDecMethods.SelectedItem
+    $sel = $lstDecMethods.SelectedItem
+    if (-not $sel) { return }
+    # The list holds display wrappers so sink-bearing methods can be marked; unwrap.
+    $m = $sel
+    if ($sel.PSObject.Properties['Method']) { $m = $sel.Method }
     if (-not $m) { return }
     $script:DecCurMethod = $m
+
+    $sinkLines = New-Object 'System.Collections.Generic.List[int]'
     $sb = New-Object System.Text.StringBuilder
-    [void]$sb.AppendLine("// $($m.DeclaringType.FullName)::$($m.Name)")
-    [void]$sb.AppendLine("// returns $($m.ReturnType.FullName)")
+    # _decLine tracks the 0-based output line so sink call sites can be coloured after
+    # the text is set; RichTextBox needs line indices, not stream offsets.
+    $script:_decLine = 0
+    [void]$sb.AppendLine("// $($m.DeclaringType.FullName)::$($m.Name)"); $script:_decLine++
+    [void]$sb.AppendLine("// returns $($m.ReturnType.FullName)"); $script:_decLine++
+
+    $sinks = Get-DecMethodSinks $m
+    if ($sinks.Count) {
+        [void]$sb.AppendLine("// SINKS REACHED: $($sinks -join ', ')"); $script:_decLine++
+    }
+
     if (-not $m.HasBody) {
-        [void]$sb.AppendLine('// (no managed body -- abstract / extern / P-Invoke / interface)')
+        [void]$sb.AppendLine('// (no managed body -- abstract / extern / P-Invoke / interface)'); $script:_decLine++
     } else {
-        [void]$sb.AppendLine("// $($m.Body.Instructions.Count) IL instructions, $($m.Body.Variables.Count) locals")
-        [void]$sb.AppendLine('')
+        [void]$sb.AppendLine("// $($m.Body.Instructions.Count) IL instructions, $($m.Body.Variables.Count) locals"); $script:_decLine++
+        [void]$sb.AppendLine(''); $script:_decLine++
         foreach ($ins in $m.Body.Instructions) {
             $op  = $ins.OpCode.Name
-            $arg = if ($null -ne $ins.Operand) { " $($ins.Operand)" } else { '' }
-            [void]$sb.AppendLine(("  IL_{0:X4}: {1,-11}{2}" -f $ins.Offset, $op, $arg))
+            $arg = ''
+            if ($null -ne $ins.Operand) { $arg = " $($ins.Operand)" }
+            $hit = $null
+            if ($op -like 'call*' -or $op -eq 'newobj') { $hit = Get-DecSinkHit $ins.Operand }
+            $mark = '  '
+            if ($hit) { $mark = '>>'; $sinkLines.Add($script:_decLine) }
+            [void]$sb.AppendLine(("{0}IL_{1:X4}: {2,-11}{3}" -f $mark, $ins.Offset, $op, $arg))
+            $script:_decLine++
             if ($sb.Length -gt 200000) { [void]$sb.AppendLine('  ... (truncated)'); break }
         }
     }
-    $txtDecCode.Text = $sb.ToString(); $txtDecCode.SelectionStart = 0; $txtDecCode.ScrollToCaret()
+
+    $txtDecCode.Text = $sb.ToString()
+
+    # Colour the sink call sites. RichTextBox keeps SelectionColor until .Text is reset,
+    # so this survives until the next method is shown.
+    if ($sinks.Count) {
+        try {
+            $txtDecCode.Select(0, $txtDecCode.Lines[0].Length + $txtDecCode.Lines[1].Length + 2)
+            $s2 = $txtDecCode.GetFirstCharIndexFromLine(2)
+            if ($s2 -ge 0 -and $txtDecCode.Lines.Count -gt 2) {
+                $txtDecCode.Select($s2, $txtDecCode.Lines[2].Length)
+                $txtDecCode.SelectionColor = [System.Drawing.Color]::FromArgb(255, 160, 90)
+            }
+        } catch { }
+    }
+    foreach ($ln in $sinkLines) {
+        try {
+            if ($ln -ge $txtDecCode.Lines.Count) { continue }
+            $st = $txtDecCode.GetFirstCharIndexFromLine($ln)
+            if ($st -lt 0) { continue }
+            $txtDecCode.Select($st, $txtDecCode.Lines[$ln].Length)
+            $txtDecCode.SelectionColor = [System.Drawing.Color]::FromArgb(255, 110, 110)
+        } catch { }
+    }
+    $txtDecCode.Select(0, 0); $txtDecCode.SelectionStart = 0; $txtDecCode.ScrollToCaret()
 }
 
 # --- wire events ---
@@ -3098,9 +3212,37 @@ $lstDecTypes.Add_SelectedIndexChanged({
     $ty = $lstDecTypes.SelectedItem
     if (-not $ty) { return }
     $lstDecMethods.BeginUpdate(); $lstDecMethods.Items.Clear()
-    try { foreach ($mm in $ty.Methods) { [void]$lstDecMethods.Items.Add($mm) } } catch { }
+    # Mark methods that reach a known sink and sort them to the top. A real assembly type
+    # can hold hundreds of methods, and hunting for the one dangerous call by hand is the
+    # slow part of the job. Wrapped in a display object with a ToString override so the
+    # ListBox shows the marker while Show-DecIl still gets the MethodDefinition.
+    $sinkCount = 0
+    try {
+        $rows = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($mm in $ty.Methods) {
+            $hits = Get-DecMethodSinks $mm
+            $label = "$mm"
+            $rank = 1
+            if ($hits.Count) {
+                $label = ">> $mm    [$($hits -join ', ')]"
+                $rank = 0
+                $sinkCount++
+            }
+            $row = [pscustomobject]@{ Method = $mm; Label = $label; Rank = $rank }
+            $row | Add-Member -MemberType ScriptMethod -Name ToString -Value { $this.Label } -Force
+            $rows.Add($row)
+        }
+        foreach ($r in ($rows | Sort-Object Rank)) { [void]$lstDecMethods.Items.Add($r) }
+    } catch {
+        # Fall back to the plain list rather than showing nothing if sink scanning fails.
+        try { foreach ($mm in $ty.Methods) { [void]$lstDecMethods.Items.Add($mm) } } catch { }
+    }
     $lstDecMethods.EndUpdate()
-    $lblDecMethods.Text = ("Methods ({0})" -f $lstDecMethods.Items.Count)
+    if ($sinkCount -gt 0) {
+        $lblDecMethods.Text = ("Methods ({0})   >> {1} reach a sink" -f $lstDecMethods.Items.Count, $sinkCount)
+    } else {
+        $lblDecMethods.Text = ("Methods ({0})" -f $lstDecMethods.Items.Count)
+    }
 })
 $lstDecMethods.Add_SelectedIndexChanged({ Show-DecIl })
 $btnDecIl.Add_Click({ Show-DecIl })
@@ -3108,6 +3250,9 @@ $btnDecCs.Add_Click({
     # Use the CURRENT method selection (belongs to the loaded assembly); fall back to the
     # last-shown method only if it matches the current selection state.
     $m = $lstDecMethods.SelectedItem; if (-not $m) { $m = $script:DecCurMethod }
+    # The method list holds display wrappers so sink-bearing methods can be marked; unwrap
+    # before touching .Name, or this reads the wrapper instead of the MethodDefinition.
+    if ($m -and $m.PSObject.Properties['Method']) { $m = $m.Method }
     if (-not $m -or -not $script:DecDllPath) { $lblDecStatus.Text = 'Select a method first.'; return }
     $lblDecStatus.Text = "Decompiling $($m.Name) (this can take a while on large assemblies)..."
     $txtDecCode.Text = 'Running ilspycmd (or byte-context fallback)...'; [System.Windows.Forms.Application]::DoEvents()
