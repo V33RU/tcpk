@@ -49,6 +49,10 @@ $script:TcpkTasvsMap = @(
     @{ rx='^(thread|token|virtualization)\.';                                               tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization','DA6 Security Misconfiguration') }
     @{ rx='^handle\.';                                                                      tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA6 Security Misconfiguration') }
     @{ rx='^path\.writable';                                                                tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    # servicedll.* is already reached by the '|service|' alternation on the platform line
+    # above; appinit/appcert/loadpoint/jni are not, so they are named explicitly.
+    @{ rx='^(appinit|appcert|loadpoint)\.';                                                 tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization','DA6 Security Misconfiguration') }
+    @{ rx='^jni\.';                                                                         tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization','DA8 Poor Code Quality') }
     @{ rx='^diag\.';                                                                        tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA3 Sensitive Data Exposure') }
     @{ rx='^grpc\.';                                                                        tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA6 Security Misconfiguration') }
     @{ rx='^wv2\.(sideload|fixed-version)';                                                 tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }

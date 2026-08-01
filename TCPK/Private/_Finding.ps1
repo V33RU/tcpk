@@ -213,6 +213,17 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^crashreporter\.';                                                                                                                                      A = 'hardening' }
     @{ Rx = '^wer\.';                                                                                                                                                A = 'hardening' }
     @{ Rx = '^path\.writable';                                                                                                                                       A = 'local-privesc' }
+    # The '^(install-dir|acl|service|...)\.' line above needs a literal "service." and so does
+    # NOT reach servicedll.* -- these are the explicit entries. Coverage/skip subrules fall to
+    # 'hardening' so an INFO census cannot inherit a privesc vector.
+    @{ Rx = '^servicedll\.(writable|key-writable)';                                                                                                                  A = 'local-privesc' }
+    @{ Rx = '^servicedll\.';                                                                                                                                         A = 'hardening' }
+    @{ Rx = '^appinit\.(dll-writable|app-registers-dll)';                                                                                                            A = 'local-privesc' }
+    @{ Rx = '^(appinit|appcert)\.';                                                                                                                                  A = 'hardening' }
+    @{ Rx = '^loadpoint\.(writable|app-registered)';                                                                                                                 A = 'local-privesc' }
+    @{ Rx = '^loadpoint\.';                                                                                                                                          A = 'hardening' }
+    @{ Rx = '^jni\.(library-path-writable|manifest-classpath-writable)';                                                                                             A = 'local-privesc' }
+    @{ Rx = '^jni\.';                                                                                                                                                A = 'hardening' }
     @{ Rx = '^diag\.verbose-level';                                                                                                                                  A = 'local-at-rest' }
     @{ Rx = '^diag\.insecure-log-path';                                                                                                                              A = 'local-at-rest' }
     @{ Rx = '^diag\.';                                                                                                                                               A = 'hardening' }

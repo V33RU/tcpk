@@ -1,7 +1,7 @@
 function Test-TcpkCrashReporter {
 <#
 .SYNOPSIS
-    A42. Electron / Crashpad crash-reporting exposure.
+    A47. Electron / Crashpad crash-reporting exposure.
 
 .DESCRIPTION
     Electron applications do NOT use Windows Error Reporting. They ship Crashpad

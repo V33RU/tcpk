@@ -50,6 +50,17 @@ $script:TcpkAttackMap = @(
     @{ rx = '^virtualization\.';                                                         tech = @('T1548.002 Bypass User Account Control') }
     @{ rx = '^handle\.dacl-weak';                                                        tech = @('T1499 Endpoint Denial of Service','T1068 Exploitation for Privilege Escalation') }
     @{ rx = '^handle\.';                                                                 tech = @('T1057 Process Discovery') }
+    # thread.unbacked-start is injection EVIDENCE, so it maps to the injection techniques
+    # rather than inheriting the generic T1068 from the '^(thread|token)\.' line above.
+    # Both lines match and the results are unioned, which is the intended behaviour here.
+    @{ rx = '^thread\.unbacked-start';                                                   tech = @('T1055 Process Injection','T1055.001 Dynamic-link Library Injection','T1620 Reflective Code Loading') }
+    @{ rx = '^servicedll\.key-writable';                                                 tech = @('T1574.011 Services Registry Permissions Weakness') }
+    @{ rx = '^servicedll\.writable';                                                     tech = @('T1574.001 DLL','T1543.003 Windows Service') }
+    @{ rx = '^servicedll\.';                                                             tech = @('T1574 Hijack Execution Flow') }
+    @{ rx = '^appinit\.';                                                                tech = @('T1546.010 AppInit DLLs') }
+    @{ rx = '^appcert\.';                                                                tech = @('T1546.009 AppCert DLLs') }
+    @{ rx = '^jni\.';                                                                    tech = @('T1574.001 DLL','T1129 Shared Modules') }
+    @{ rx = '^loadpoint\.';                                                              tech = @('T1546 Event Triggered Execution','T1574 Hijack Execution Flow') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
     @{ rx = '^diag\.';                                                                   tech = @('T1005 Data from Local System','T1530 Data from Cloud Storage') }
     @{ rx = 'outdated-runtime';                                                         tech = @('T1203 Exploitation for Client Execution') }
@@ -136,6 +147,8 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^crashreporter\.';                                                                                       da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^dotnethost\.';                                                                                          da = 'DA5 Improper Authorization' }
     @{ rx = '^path\.writable';                                                                                        da = 'DA5 Improper Authorization' }
+    @{ rx = '^(servicedll|appinit|appcert|loadpoint|jni)\.';                                                          da = 'DA5 Improper Authorization' }
+    @{ rx = '^thread\.unbacked-start';                                                                                da = 'DA8 Poor Code Quality' }
     @{ rx = '^diag\.';                                                                                                da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^grpc\.';                                                                                                 da = 'DA6 Security Misconfiguration' }
     @{ rx = '^amsi\.';                                                                                                 da = 'DA8 Poor Code Quality' }

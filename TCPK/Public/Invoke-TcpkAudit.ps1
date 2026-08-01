@@ -315,6 +315,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkElectronJs'          { Test-TcpkElectronJs          -Path $expanded }
     _RunCheck 'Test-TcpkElectronFuses'       { Test-TcpkElectronFuses       -Path $expanded }
     _RunCheck 'Test-TcpkV8Bytecode'          { Test-TcpkV8Bytecode          -Path $expanded }
+    _RunCheck 'Test-TcpkJavaNativeLoad'      { Test-TcpkJavaNativeLoad      -Path $expanded }
     _RunCheck 'Test-TcpkCrashReporter'       { Test-TcpkCrashReporter       -Path $expanded }
     _RunCheck 'Test-TcpkDotnetHostHijack'    { Test-TcpkDotnetHostHijack    -Path $expanded }
     _RunCheck 'Test-TcpkAppDomainHijack'     { Test-TcpkAppDomainHijack     -Path $expanded }
@@ -378,6 +379,11 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkWerExposure'         { Test-TcpkWerExposure         -Path $expanded }
     _RunCheck 'Test-TcpkComHijack'           { Test-TcpkComHijack           -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkSxsManifests'        { Test-TcpkSxsManifests        -Path $expanded }
+    # Registry-driven DLL load points. All three are scoped by -Path so they report the
+    # audited install tree rather than every load point on the machine.
+    _RunCheck 'Test-TcpkServiceDll'          { Test-TcpkServiceDll          -Path $expanded }
+    _RunCheck 'Test-TcpkAppInitDlls'         { Test-TcpkAppInitDlls         -Path $expanded -NameLike $idTerms }
+    _RunCheck 'Test-TcpkRegistryLoadPoints'  { Test-TcpkRegistryLoadPoints  -Path $expanded }
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $idTerms -Path $expanded }
     # All name-targeted checks are app-aware: they take the FULL derived term set so
@@ -462,7 +468,7 @@ function Invoke-TcpkAudit {
         'Test-TcpkProcessDacl','Test-TcpkProcessEnvSecrets',
         'Test-TcpkWindowMessages','Test-TcpkSharedMemoryDacl','Test-TcpkMemoryRegions',
         'Test-TcpkThreadDacl','Test-TcpkTokenDacl','Test-TcpkProcessVirtualization',
-        'Test-TcpkHandleDacl'
+        'Test-TcpkHandleDacl','Test-TcpkThreadStart'
     )
     $liveProcOn = [bool]($ProcessName -and (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue))
     if ($liveProcOn) {
@@ -484,6 +490,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkTokenDacl'               { Test-TcpkTokenDacl               -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkProcessVirtualization'   { Test-TcpkProcessVirtualization   -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkHandleDacl'              { Test-TcpkHandleDacl              -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkThreadStart'             { Test-TcpkThreadStart             -ProcessName $ProcessName }
     } else {
         # No live process resolved -> record the gated live-process checks so coverage.json
         # shows them as GatedNoProcess instead of silently omitting them.
