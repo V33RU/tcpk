@@ -39,7 +39,13 @@ function Get-TcpkSigningMatrix {
     if (-not $item) { return }
     $isMsixDir = $item.PSIsContainer -and (Test-Path -LiteralPath (Join-Path $item.FullName 'AppxManifest.xml'))
 
-    foreach ($pe in Get-TcpkPeFiles -Path $Path) {
+    $peAll = @(Get-TcpkPeFiles -Path $Path)
+    $mIdx = 0
+    foreach ($pe in $peAll) {
+        # Same CRL/OCSP exposure as Test-TcpkSignature: chain building can block per file.
+        if (Test-TcpkCheckBudgetExpired) { break }
+        $mIdx++
+        Write-TcpkHeartbeat -Component 'Get-TcpkSigningMatrix' -Index $mIdx -Total $peAll.Count -Current $pe.Name -CurrentBytes $pe.Length
         $signed = 'NO'; $status = 'UNKNOWN'; $signer = ''; $algo = ''; $validFrom = ''; $expires = ''; $type = 'None'; $ts = $false
         $subject = ''; $issuer = ''; $serial = ''; $thumb = ''; $keySize = ''; $eku = ''
         $sig = $null

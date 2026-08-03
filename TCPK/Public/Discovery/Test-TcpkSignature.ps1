@@ -126,7 +126,21 @@ function Test-TcpkSignature {
 
     # --- Case 3: non-MSIX --- per-PE Authenticode validation ---
     $unsigned = 0
-    foreach ($pe in Get-TcpkPeFiles -Path $Path) {
+    # Authenticode verification builds the full certificate chain, and Windows may fetch a
+    # CRL or OCSP response to do it. On a filtered or proxied network that blocks for tens of
+    # seconds PER FILE while using almost no CPU -- so an install with dozens of signed
+    # binaries looks like a dead scan rather than a slow one. This is check #1 in the audit,
+    # so when it stalls the user sees ~0% and no explanation at all.
+    #
+    # The heartbeat names the file being verified, and the budget stops the loop rather than
+    # letting it run for the length of however many CRL timeouts remain.
+    $peAll = @(Get-TcpkPeFiles -Path $Path)
+    $sigIdx = 0
+    $sigSkipped = 0
+    foreach ($pe in $peAll) {
+        if (Test-TcpkCheckBudgetExpired) { $sigSkipped = $peAll.Count - $sigIdx; break }
+        $sigIdx++
+        Write-TcpkHeartbeat -Component 'Test-TcpkSignature' -Index $sigIdx -Total $peAll.Count -Current $pe.Name -CurrentBytes $pe.Length
         $sig = Get-AuthenticodeSignature -FilePath $pe.FullName
         switch ($sig.Status) {
             'Valid'       { & $emitWeak $sig $pe.FullName $pe.Name; continue }
@@ -185,4 +199,14 @@ function Test-TcpkSignature {
                 -Fix 'Verify the release pipeline signs EVERY shipped binary (and the installer); fail the build when signing is skipped.'
         }
     }
+    if ($sigSkipped -gt 0) {
+        New-TcpkSkippedFinding -RuleId 'authenticode.budget-exhausted' `
+            -Title "Signature verification stopped early: $sigSkipped of $($peAll.Count) binaries not verified" `
+            -Reason ("This check hit its wall-clock budget after $sigIdx binaries. Authenticode " +
+                "verification can block on a CRL/OCSP fetch when the network is filtered, so the " +
+                "usual cause is revocation lookups timing out rather than the files themselves. " +
+                "The remaining $sigSkipped are UNVERIFIED, not unsigned. Re-run with network access " +
+                "to the CA's CRL endpoints, or raise -CheckBudgetSec.")
+    }
+
 }
