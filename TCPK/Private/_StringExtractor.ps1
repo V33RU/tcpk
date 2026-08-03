@@ -36,12 +36,17 @@
 # back to the bounded chunk reader in _Strings.ps1, which truncates nothing.
 #
 # MEMORY, STATED HONESTLY. Reading is bounded by the 64 KB buffer, but the OUTPUT
-# is not: each view may grow to TcpkMaxViewChars (64 M chars = 128 MB), and
-# Harvest() copies the StringBuilder into a string, so a view can momentarily cost
-# ~256 MB and three views ~768 MB. Dedup adds a HashSet of the distinct runs on
-# top. In practice extracted text is 2-5% of the file, so a 2 GB binary lands well
-# under the caps; the ceilings exist for the pathological case, and reaching one
-# sets OutputCapped so the shortfall is reported rather than hidden.
+# is not: each view may grow to TcpkMaxViewChars (24 M chars = 48 MB), and Harvest()
+# copies the StringBuilder into a string, so a view costs up to ~96 MB at peak and
+# three views ~290 MB. Dedup adds a HashSet of the distinct runs on top. In practice
+# extracted text is 2-5% of the file, so a 2 GB binary lands well under the caps; the
+# ceilings exist for the pathological case, and reaching one sets OutputCapped so the
+# shortfall is reported rather than hidden.
+#
+# TIME IS ALSO BOUNDED. Every pass carries a wall-clock budget
+# (TcpkExtractMaxSeconds). Expiry sets TimedOut, the pass stops where it is, and the
+# caller reports incomplete coverage for that file and moves on. Nothing in this path
+# can run indefinitely on a single file.
 
 $script:TcpkExtractorReady = $false
 $script:TcpkExtractorError = $null
@@ -65,7 +70,23 @@ $script:TcpkDedupAtBytes = 100MB
 
 # Hard ceiling per view. Reaching it sets OutputCapped, which callers surface as
 # a partial-scan finding rather than silently under-reporting.
-$script:TcpkMaxViewChars = 64MB
+#
+# 24M chars, not 64M. Each view is held as a StringBuilder AND copied to a string by
+# Harvest(), so a view costs up to 4 bytes per char at peak; three views at 64M was ~750 MB
+# for a single file before anything downstream even saw it. 24M chars of EXTRACTED text is
+# already far more than any real binary yields, and reaching it is reported.
+$script:TcpkMaxViewChars = 24MB
+
+# WALL-CLOCK BUDGET PER FILE. The reason this exists: an audit sat at 4% on an Electron app
+# with the worker spinning at 1.5 cores and 574 MB, and there was no bound anywhere in the
+# string path and no way to skip past it -- the only option was to kill the tool. A check
+# that can run forever on one file is worse than one that gives up and says so.
+#
+# 60s is deliberately generous: a 200 MB binary extracts in a few seconds, so hitting this
+# means something is wrong with that specific file, not that it is merely large. On expiry
+# the pass stops, TimedOut is set, and the caller reports incomplete coverage for that file
+# and moves to the next one.
+$script:TcpkExtractMaxSeconds = 60
 
 $script:TcpkExtractorSource = @'
 using System;
@@ -85,6 +106,7 @@ namespace Tcpk
         public long   BytesRead;    // bytes actually streamed; equals FileLength on a clean pass
         public bool   Deduped;      // identical runs collapsed
         public bool   OutputCapped; // a view hit its ceiling; coverage is incomplete
+        public bool   TimedOut;     // wall-clock budget expired mid-file; BytesRead < FileLength
     }
 
     /// <summary>
@@ -191,8 +213,9 @@ namespace Tcpk
         /// maxOutChars per view.
         /// </summary>
         public static ExtractResult Extract(string path, int minLen, int maxRun, int carry,
-                                            long dedupAtBytes, long maxOutChars)
+                                            long dedupAtBytes, long maxOutChars, long maxMilliseconds)
         {
+            System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
             ExtractResult r = new ExtractResult();
             r.FileLength = new FileInfo(path).Length;
 
@@ -220,8 +243,20 @@ namespace Tcpk
                                                   BufferSize, FileOptions.SequentialScan))
             {
                 int n;
+                int sinceCheck = 0;
                 while ((n = fs.Read(buf, 0, BufferSize)) > 0)
                 {
+                    // Checked per 64 KB buffer, not per byte: Stopwatch.ElapsedMilliseconds
+                    // in the inner loop would cost more than the work it guards.
+                    if (++sinceCheck >= 16)
+                    {
+                        sinceCheck = 0;
+                        if (maxMilliseconds > 0 && clock.ElapsedMilliseconds > maxMilliseconds)
+                        {
+                            r.TimedOut = true;
+                            break;
+                        }
+                    }
                     for (int i = 0; i < n; i++)
                     {
                         byte b = buf[i];
@@ -325,7 +360,8 @@ function Invoke-TcpkStringExtract {
             [int]$script:TcpkMaxRunChars,
             [int]$script:TcpkRunCarryChars,
             [long]$script:TcpkDedupAtBytes,
-            [long]$script:TcpkMaxViewChars)
+            [long]$script:TcpkMaxViewChars,
+            [long]($script:TcpkExtractMaxSeconds * 1000))
     } catch {
         $sw.Stop()
         $m = "extract failed after $([int]$sw.Elapsed.TotalSeconds)s on $Path -- $($_.Exception.Message)"
@@ -339,6 +375,18 @@ function Invoke-TcpkStringExtract {
     # Announce anything genuinely large or genuinely slow. Small fast reads stay quiet:
     # a per-file line for every DLL in an install tree would bury the useful signal.
     $secs = $sw.Elapsed.TotalSeconds
+
+    # A timeout is always announced, whatever the size. Silence here would put the scan back
+    # to looking stuck, which is the failure this budget exists to prevent.
+    if ($r.TimedOut) {
+        $nm = try { [System.IO.Path]::GetFileName($Path) } catch { $Path }
+        $m = ("{0}: extraction hit the {1}s budget after {2} of {3} MB -- SKIPPED, coverage for this file is incomplete" -f `
+              $nm, $script:TcpkExtractMaxSeconds, [math]::Round($r.BytesRead / 1MB, 1), [math]::Round($len / 1MB, 1))
+        try { Write-Information -MessageData "  [TIMEOUT] $m" -InformationAction Continue } catch { }
+        try { Write-TcpkLog -Level WARN -Component 'strings' -Message $m -DurationMs ([int]$sw.Elapsed.TotalMilliseconds) | Out-Null } catch { }
+        return $r
+    }
+
     if ($len -ge 64MB -or $secs -ge 3.0) {
         $outChars = [int64]$r.Ascii.Length + $r.WideEven.Length + $r.WideOdd.Length
         $pct = if ($len -gt 0) { [math]::Round(($outChars * 100.0) / $len, 1) } else { 0 }

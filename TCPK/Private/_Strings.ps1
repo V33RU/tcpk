@@ -120,7 +120,7 @@ function Read-TcpkStringViewsStreamed {
     # Truncated means "coverage is incomplete", which for a streamed read happens
     # only when a view hit its ceiling or the stream ended early. A normal pass
     # over a multi-GB file is complete and reports Truncated = $false.
-    $incomplete = $r.OutputCapped -or ($r.BytesRead -lt $FileLength)
+    $incomplete = $r.OutputCapped -or $r.TimedOut -or ($r.BytesRead -lt $FileLength)
 
     [pscustomobject]@{
         Path       = $Path
