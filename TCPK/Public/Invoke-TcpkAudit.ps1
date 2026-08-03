@@ -78,6 +78,11 @@ function Invoke-TcpkAudit {
         # OS-integration / persistence enumeration to focus on the target app (named
         # -ScanProfile, not -Profile, to avoid shadowing the automatic $Profile variable).
         [ValidateSet('Quick','Standard','Full')][string]$ScanProfile = 'Full',
+        # Wall-clock ceiling for any ONE check, in seconds. Checks with per-file loops stop
+        # cleanly at the deadline and report what they did not reach; they keep the findings
+        # already produced. 0 disables the budget, which is the old unbounded behaviour and
+        # is only sensible when you know the target is small.
+        [ValidateRange(0, 86400)][int]$CheckBudgetSec = 300,
         # OPT-IN online CVE enrichment. Default OFF keeps the audit fully offline. When set, the
         # shipped NuGet components (name+version) are sent to the OSV API (api.osv.dev) for live
         # vulnerability matching on top of the offline catalog. No findings/secrets/target name
@@ -229,7 +234,8 @@ function Invoke-TcpkAudit {
             # Arm the cooperative budget for this check. Checks with per-file loops consult
             # it and stop cleanly, keeping what they already found; checks that ignore it are
             # unaffected. See Start-TcpkCheckBudget for why this is not a hard timeout.
-            Start-TcpkCheckBudget
+            if ($CheckBudgetSec -gt 0) { Start-TcpkCheckBudget -Seconds $CheckBudgetSec } else { Clear-TcpkCheckBudget }
+            Reset-TcpkHeartbeat
             $r = & $Block
             $sw.Stop()
             $count = if ($r) { @($r).Count } else { 0 }

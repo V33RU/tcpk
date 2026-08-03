@@ -50,6 +50,58 @@ $script:TcpkScanSampleCap = 25
 $script:TcpkCheckDeadline  = $null
 $script:TcpkCheckBudgetSec = 300
 
+# ---------------------------------------------------------------------------
+# HEARTBEAT.
+#
+# Three separate stalls were diagnosed by guesswork -- extractor, then regex backtracking,
+# then aggregate per-file cost -- and the first two guesses were WRONG, because a stalled
+# audit emitted nothing at all. No check name, no file, no counter. That silence is the
+# release blocker: a tool that goes quiet under load cannot be handed to anyone, whatever
+# its findings are worth.
+#
+# Any loop that can run long calls Write-TcpkHeartbeat once per iteration. It is throttled
+# to one line every TcpkHeartbeatSec, so the cost is a DateTime compare per file and the
+# output stays readable. A stall now describes itself:
+#
+#   [heartbeat] Test-TcpkStrings  120s  412/638  current: xul.dll (130 MB)
+#
+# which turns a multi-round guessing game into one line of log.
+$script:TcpkHeartbeatSec  = 15
+$script:TcpkHeartbeatLast = $null
+$script:TcpkHeartbeatFrom = $null
+
+function Reset-TcpkHeartbeat {
+    [CmdletBinding()] param()
+    $script:TcpkHeartbeatLast = $null
+    $script:TcpkHeartbeatFrom = Get-Date
+}
+
+function Write-TcpkHeartbeat {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Component,
+        [int]$Index = 0,
+        [int]$Total = 0,
+        [string]$Current = '',
+        [long]$CurrentBytes = 0
+    )
+    $now = Get-Date
+    if (-not $script:TcpkHeartbeatFrom) { $script:TcpkHeartbeatFrom = $now }
+    if ($script:TcpkHeartbeatLast -and (($now - $script:TcpkHeartbeatLast).TotalSeconds -lt $script:TcpkHeartbeatSec)) { return }
+    $script:TcpkHeartbeatLast = $now
+
+    $el = [int]($now - $script:TcpkHeartbeatFrom).TotalSeconds
+    $pos = if ($Total -gt 0) { "$Index/$Total" } else { "$Index" }
+    $cur = ''
+    if ($Current) {
+        $sz = if ($CurrentBytes -gt 0) { " ({0} MB)" -f [math]::Round($CurrentBytes / 1MB, 1) } else { '' }
+        $cur = "  current: $Current$sz"
+    }
+    $msg = "{0,-30} {1,5}s  {2}{3}" -f $Component, $el, $pos, $cur
+    try { Write-Information -MessageData "  [heartbeat] $msg" -InformationAction Continue } catch { }
+    try { Write-TcpkLog -Level DEBUG -Component $Component -Message "heartbeat $pos$cur" | Out-Null } catch { }
+}
+
 function Start-TcpkCheckBudget {
     [CmdletBinding()] param([int]$Seconds = 0)
     $s = if ($Seconds -gt 0) { $Seconds } else { $script:TcpkCheckBudgetSec }

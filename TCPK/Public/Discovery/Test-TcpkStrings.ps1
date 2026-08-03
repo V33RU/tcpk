@@ -41,6 +41,7 @@ function Test-TcpkStrings {
         # for a browser install with hundreds. Stop cleanly and report rather than run on.
         if (Test-TcpkCheckBudgetExpired) { $skippedBudget = $peList.Count - $scanned; break }
         $scanned++
+        Write-TcpkHeartbeat -Component 'Test-TcpkStrings' -Index $scanned -Total $peList.Count -Current $pe.Name -CurrentBytes $pe.Length
 
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }

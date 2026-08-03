@@ -351,6 +351,13 @@ function Invoke-TcpkStringExtract {
     $len = 0
     try { $len = [System.IO.FileInfo]::new($Path).Length } catch { }
 
+    # Announce BEFORE the read, not after. A 130 MB binary can occupy this call for
+    # seconds; without a line first, a stall inside the extractor looked like a stall
+    # with no attribution at all.
+    if ($len -ge 32MB) {
+        $nm0 = try { [System.IO.Path]::GetFileName($Path) } catch { $Path }
+        try { Write-Information -MessageData ("  [reading] {0} ({1} MB) ..." -f $nm0, [math]::Round($len / 1MB, 1)) -InformationAction Continue } catch { }
+    }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $r = $null
     try {
