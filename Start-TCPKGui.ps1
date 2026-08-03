@@ -3935,33 +3935,47 @@ $txtLog.BringToFront()
 # single-threaded PS 5.1 process, so pegged reads ~100 and stalled reads ~0, which
 # is exactly the signal wanted. Clamped for safety.
 #
-# LAYOUT. These sit in a right-anchored FlowLayoutPanel rather than at fixed
-# coordinates: the header's y=76 row is NOT empty -- $lblAiStatus occupies
-# x 820-1180 of it -- and hard-coding a Point there put these underneath it.
-# Z-ORDER matters too: Controls.Add appends and index 0 is the FRONT, so a control
-# added this late in the script is drawn BEHIND everything added earlier. Once the
-# theme pass gives every Label an opaque BackColor, being behind means invisible.
+# LAYOUT. Directly below Run Audit, left-aligned with it (x 820), in the only band
+# at that x that is actually free. The header is fully packed; measured occupancy in
+# the x 820-1006 column is:
+#     y   6- 32  btnBrowse / btnAutoDetect
+#     y  38- 70  btnRun / btnPause
+#     y  78- 96  lblAiStatus   (x 820-1180)
+#     y 136-156  lblIdent      (x 14-1006)
+# leaving y 98-134. An earlier attempt at (980, 8) landed on top of btnAutoDetect and
+# clipped its caption. picLogo owns x 1008-1176, so the panel stops at 1006, flush
+# with the right edge of btnPause.
+#
+# Z-ORDER matters as much as position: Controls.Add appends and index 0 is the FRONT,
+# so a control added this late in the script is drawn BEHIND everything added earlier.
+# Once the theme pass gives every Label an opaque BackColor, behind means invisible.
 # Hence BringToFront().
-# Tag 'keep' exempts them from Set-CtlThemeRecursive, which repaints every Label
-# with the palette foreground and would erase the colour coding.
+#
+# AutoSize is OFF deliberately -- it overrides Size on a FlowLayoutPanel, and the
+# labels carry Margin 0 so the two of them fit the fixed width exactly.
+# Tag 'keep' exempts them from Set-CtlThemeRecursive, which repaints every Label with
+# the palette foreground and would erase the colour coding.
 $script:ScanWorkerPid     = 0
 $script:ScanWorkerLastCpu = 0.0
 $script:ScanWorkerLastAt  = [DateTime]::Now
 
 $pnlRes = New-Object System.Windows.Forms.FlowLayoutPanel
-$pnlRes.Tag          = 'keep'
+$pnlRes.Tag           = 'keep'
 $pnlRes.FlowDirection = 'LeftToRight'
-$pnlRes.WrapContents = $false
-$pnlRes.AutoSize     = $true
-$pnlRes.Size         = New-Object System.Drawing.Size(190, 24)
-$pnlRes.Location     = New-Object System.Drawing.Point(980, 8)
-$pnlRes.Anchor       = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$pnlRes.WrapContents  = $false
+$pnlRes.AutoSize      = $false
+$pnlRes.Padding       = New-Object System.Windows.Forms.Padding(0)
+$pnlRes.Margin        = New-Object System.Windows.Forms.Padding(0)
+$pnlRes.Size          = New-Object System.Drawing.Size(186, 22)
+$pnlRes.Location      = New-Object System.Drawing.Point(820, 102)
+$pnlRes.Anchor        = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($pnlRes)
 
 $lblCpuPct = New-Object System.Windows.Forms.Label
 $lblCpuPct.Text      = 'CPU   --'
 $lblCpuPct.Tag       = 'keep'
 $lblCpuPct.AutoSize  = $false
+$lblCpuPct.Margin    = New-Object System.Windows.Forms.Padding(0)
 $lblCpuPct.Size      = New-Object System.Drawing.Size(70, 20)
 $lblCpuPct.TextAlign = 'MiddleLeft'
 $lblCpuPct.Font      = New-Object System.Drawing.Font('Consolas', 9, [System.Drawing.FontStyle]::Bold)
@@ -3972,6 +3986,7 @@ $lblRamMb = New-Object System.Windows.Forms.Label
 $lblRamMb.Text      = 'RAM   --'
 $lblRamMb.Tag       = 'keep'
 $lblRamMb.AutoSize  = $false
+$lblRamMb.Margin    = New-Object System.Windows.Forms.Padding(0)
 $lblRamMb.Size      = New-Object System.Drawing.Size(112, 20)
 $lblRamMb.TextAlign = 'MiddleLeft'
 $lblRamMb.Font      = New-Object System.Drawing.Font('Consolas', 9, [System.Drawing.FontStyle]::Bold)
