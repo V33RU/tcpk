@@ -55,7 +55,11 @@ function Test-TcpkScanCoverage {
     # are accumulated centrally and reported here for the whole audit.
     $viewCap    = [int]$s.ViewCappedCount
     $viewDedup  = [int]$s.ViewDedupedCount
-    if (($unreadable + $depth + $reparse + $viewCap + $viewDedup) -eq 0) { return }
+    # A check that ran out of wall-clock budget and stopped enumerating. The check cannot
+    # report this itself -- Get-TcpkPeFiles just stops yielding and the caller returns
+    # normally with a short list -- so it is counted centrally and surfaced here.
+    $budgetOut  = [int]$s.BudgetStoppedCount
+    if (($unreadable + $depth + $reparse + $viewCap + $viewDedup + $budgetOut) -eq 0) { return }
 
     $parts = New-Object 'System.Collections.Generic.List[string]'
     if ($unreadable) { $parts.Add("$unreadable directory(ies) unreadable") }
@@ -63,6 +67,7 @@ function Test-TcpkScanCoverage {
     if ($reparse)    { $parts.Add("$reparse reparse point(s) not followed") }
     if ($viewCap)    { $parts.Add("$viewCap file(s) whose extracted text hit its ceiling") }
     if ($viewDedup)  { $parts.Add("$viewDedup file(s) read with repeated strings collapsed") }
+    if ($budgetOut)  { $parts.Add("$budgetOut check(s) stopped early on the time budget") }
     $summary = $parts -join '; '
 
     $sample = New-Object 'System.Collections.Generic.List[string]'
@@ -71,13 +76,14 @@ function Test-TcpkScanCoverage {
     foreach ($p in @($s.ReparseSkippedSample)) { $sample.Add("reparse: $p") }
     foreach ($p in @($s.ViewCappedSample))     { $sample.Add("text-capped: $p") }
     foreach ($p in @($s.ViewDedupedSample))    { $sample.Add("deduped: $p") }
+    foreach ($p in @($s.BudgetStoppedSample)) { $sample.Add("budget-stopped: $p") }
     $sampleTxt = (@($sample) | Select-Object -First 12) -join ' ; '
 
     # Unreadable directories and a capped text view are the classes that represent an
     # UNKNOWN. A depth cap, a refused reparse point and dedup are deliberate, bounded
     # decisions: dedup keeps every distinct string and loses only repeat counts.
     $sev = 'INFO'
-    if ($unreadable -gt 0 -or $viewCap -gt 0) { $sev = 'LOW' }
+    if ($unreadable -gt 0 -or $viewCap -gt 0 -or $budgetOut -gt 0) { $sev = 'LOW' }
 
     $advice = 'Reparse points and depth-capped subtrees are deliberate limits, not errors.'
     if ($viewDedup -gt 0 -and $unreadable -eq 0 -and $viewCap -eq 0) {
@@ -85,6 +91,13 @@ function Test-TcpkScanCoverage {
             'REPEAT COUNT of an identical string was collapsed, so any finding that reports an ' +
             'occurrence count for one of these files counts distinct strings, not total ' +
             'appearances. Presence and content are unaffected.')
+    }
+    if ($budgetOut -gt 0) {
+        $advice = ('One or more checks ran out of wall-clock budget and stopped part-way through ' +
+            'the target. The files they did not reach were NOT examined, so a clean result for ' +
+            'those paths is unknown rather than verified. Re-run with a larger -CheckBudgetSec, ' +
+            'or point the audit at a narrower -Path. A signature check is the usual one to hit ' +
+            'this, because Authenticode chain building can block on a CRL/OCSP fetch.')
     }
     if ($viewCap -gt 0) {
         $advice = ('The extracted-text view for those files reached its ceiling, so text past that ' +

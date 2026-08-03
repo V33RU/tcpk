@@ -141,6 +141,11 @@ function Reset-TcpkScanStats {
         ViewCappedSample    = (New-Object 'System.Collections.Generic.List[string]')
         ViewDedupedCount    = 0
         ViewDedupedSample   = (New-Object 'System.Collections.Generic.List[string]')
+        # A check that ran out of wall-clock budget and stopped enumerating early. Counted
+        # here because the check itself cannot know it happened -- Get-TcpkPeFiles simply
+        # stops yielding, so the caller sees a short list and returns normally.
+        BudgetStoppedCount  = 0
+        BudgetStoppedSample = (New-Object 'System.Collections.Generic.List[string]')
     }
 }
 
@@ -176,6 +181,10 @@ function Add-TcpkScanSkip {
         'ViewDeduped' {
             $s.ViewDedupedCount++
             if ($ItemPath -and $s.ViewDedupedSample.Count -lt $script:TcpkScanSampleCap) { $s.ViewDedupedSample.Add($ItemPath) }
+        }
+        'BudgetStopped' {
+            $s.BudgetStoppedCount++
+            if ($ItemPath -and $s.BudgetStoppedSample.Count -lt $script:TcpkScanSampleCap) { $s.BudgetStoppedSample.Add($ItemPath) }
         }
     }
 }

@@ -295,8 +295,32 @@ function Get-TcpkPeFiles {
         # PE DLLs with normal import tables, just a different extension. Excluding them
         # hid the whole Electron native-addon hijack class, which matters because Squirrel
         # installs to %LOCALAPPDATA% and is therefore user-writable by construction.
-        Get-TcpkChildItemSafe -Path $Path -File |
-            Where-Object { $_.Extension.ToLowerInvariant() -in '.exe', '.dll', '.sys', '.node', '.pyd' }
+        #
+        # BUDGET + HEARTBEAT ARE APPLIED HERE, NOT IN THE CALLERS.
+        #
+        # About 69 checks iterate this enumerator, and instrumenting each one would mean 69
+        # edits and 69 chances to forget. Doing it at the single point they all share covers
+        # every one of them at once, including any added later -- a new check written the
+        # obvious way is bounded and observable without its author doing anything.
+        #
+        # A caller simply receives a shorter sequence when the deadline passes. That is the
+        # correct behaviour for a cooperative budget: the check keeps whatever it already
+        # found and returns normally, rather than throwing, which would make Invoke-TcpkAudit
+        # discard the whole check's output ($r = & $Block).
+        #
+        # The shortfall is recorded centrally so it is still reported. A caller that stops
+        # early cannot know it did, so the count is kept here and Test-TcpkScanCoverage
+        # surfaces it for the audit as a whole.
+        $emitted = 0
+        $stopped = $false
+        foreach ($f in (Get-TcpkChildItemSafe -Path $Path -File)) {
+            if ($f.Extension.ToLowerInvariant() -notin '.exe', '.dll', '.sys', '.node', '.pyd') { continue }
+            if (Test-TcpkCheckBudgetExpired) { $stopped = $true; break }
+            $emitted++
+            Write-TcpkHeartbeat -Component 'pe-scan' -Index $emitted -Current $f.Name -CurrentBytes $f.Length
+            $f
+        }
+        if ($stopped) { Add-TcpkScanSkip -Kind 'BudgetStopped' -ItemPath "$Path (after $emitted PE file(s))" }
     } else {
         $item
     }
