@@ -30,7 +30,7 @@ function Test-TcpkMsixPsf {
 
     # --- Find PSF config.json ---
     $configFiles = @(Get-ChildItem -LiteralPath $dir -Recurse -File -Filter 'config.json' -ErrorAction SilentlyContinue |
-        Where-Object { $_.Length -lt 1MB })
+        Where-Object { $true })   # no size filter: a large PSF config is still a PSF config
 
     $psfDetected = $false
 

@@ -103,7 +103,7 @@ function Test-TcpkGrpcSurface {
     $configExts = @('.json', '.config', '.xml', '.yaml', '.yml')
     $configFiles = if ($item.PSIsContainer) {
         Get-ChildItem -LiteralPath $root -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension.ToLowerInvariant() -in $configExts -and $_.Length -lt 2MB }
+            Where-Object { $_.Extension.ToLowerInvariant() -in $configExts }   # no size filter
     } else { @() }
 
     foreach ($cf in $configFiles) {

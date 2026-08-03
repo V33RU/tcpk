@@ -143,15 +143,25 @@ function Get-TcpkRuntimeVersions {
     $exe = Get-ChildItem -LiteralPath $eroot -File -Filter '*.exe' -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -notmatch '^(?i:Uninstall)' } | Sort-Object Length -Descending | Select-Object -First 1
     if (-not $exe) { return $null }
-    if ($exe.Length -gt 800MB) { return $null }   # guard: do not slurp a pathologically large file
 
-    $txt = ''
-    try { $txt = [IO.File]::ReadAllText($exe.FullName, [Text.Encoding]::GetEncoding('ISO-8859-1')) } catch { return $null }
-    if (-not $txt) { return $null }
-
-    $chrome   = ([regex]::Match($txt, 'Chrome/(\d+\.\d+\.\d+\.\d+)')).Groups[1].Value
-    $electron = ([regex]::Match($txt, 'Electron/(\d+\.\d+\.\d+)')).Groups[1].Value
-    $node     = ([regex]::Match($txt, '(?i)node\.js/v?(\d+\.\d+\.\d+)')).Groups[1].Value
+    # NO SIZE CAP. The old `-gt 800MB -> return $null` silently gave up on exactly the
+    # target it was asked about, and returning $null here makes the whole Electron runtime
+    # unknown: no version, so no outdated-runtime finding and no CVE correlation. Reading
+    # the exe whole was the real problem (ISO-8859-1 is 1 byte per char, so a 200 MB binary
+    # became a 400 MB string), and streaming fixes that without giving anything up.
+    # Each pattern stops at its first hit, so the common case reads only the chunks it needs.
+    $state = @{ Stop = $false; Chrome = ''; Electron = ''; Node = '' }
+    Invoke-TcpkOnFileText -Path $exe.FullName -State $state -OnText {
+        param($Text, $Src, $S)
+        if (-not $Text) { return }
+        if (-not $S.Chrome)   { $m = [regex]::Match($Text, 'Chrome/(\d+\.\d+\.\d+\.\d+)');        if ($m.Success) { $S.Chrome   = $m.Groups[1].Value } }
+        if (-not $S.Electron) { $m = [regex]::Match($Text, 'Electron/(\d+\.\d+\.\d+)');           if ($m.Success) { $S.Electron = $m.Groups[1].Value } }
+        if (-not $S.Node)     { $m = [regex]::Match($Text, '(?i)node\.js/v?(\d+\.\d+\.\d+)');     if ($m.Success) { $S.Node     = $m.Groups[1].Value } }
+        if ($S.Chrome -and $S.Electron -and $S.Node) { $S.Stop = $true }
+    }
+    $chrome   = $state.Chrome
+    $electron = $state.Electron
+    $node     = $state.Node
     if (-not ($chrome -or $electron)) { return $null }
 
     [pscustomobject]@{ Electron = $electron; Chromium = $chrome; Node = $node; File = $exe.FullName }

@@ -60,9 +60,23 @@ function Test-TcpkDiagConfig {
         $isDiagFile = $diagSet.Contains($f.Name)
         $isConfigFile = $ext -in '.config','.xml','.json'
         if (-not $isDiagFile -and -not $isConfigFile) { continue }
-        if ($f.Length -gt 2MB) { continue }
-
-        try { $raw = Get-Content -LiteralPath $f.FullName -Raw -ErrorAction Stop } catch { continue }
+        # NO SIZE CAP. A `-gt 2MB -> continue` silently skipped exactly the diagnostic
+        # artefact most worth reading: a big verbose log or a bloated appsettings/telemetry
+        # config. Large files are read in bounded chunks instead of being dropped.
+        $raw = ''
+        if ($f.Length -le 2MB) {
+            try { $raw = Get-Content -LiteralPath $f.FullName -Raw -ErrorAction Stop } catch { continue }
+        } else {
+            $sb = New-Object System.Text.StringBuilder
+            $stD = @{ Stop = $false; Sb = $sb }
+            Invoke-TcpkOnFileText -Path $f.FullName -State $stD -Utf8Only -OnText {
+                param($Text, $Src, $S)
+                if (-not $Text) { return }
+                # Bound what is held for pattern matching; the FILE is still fully walked.
+                if ($S.Sb.Length -lt 4194304) { [void]$S.Sb.Append($Text) }
+            }
+            $raw = $sb.ToString()
+        }
         if (-not $raw) { continue }
 
         $isDiag = $isDiagFile

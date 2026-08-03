@@ -64,7 +64,7 @@ function Test-TcpkClickOnce {
 
     # --- Scan .application and .manifest files ---
     $manifestFiles = @(Get-ChildItem -LiteralPath $dir -Recurse -File -ErrorAction SilentlyContinue |
-        Where-Object { $_.Extension -in '.application','.manifest' -and $_.Length -lt 2MB })
+        Where-Object { $_.Extension -in '.application','.manifest' })   # no size filter
     foreach ($f in $manifestFiles) {
         try { $raw = Get-Content -LiteralPath $f.FullName -Raw -ErrorAction Stop } catch { continue }
         if (-not $raw) { continue }

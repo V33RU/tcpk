@@ -880,7 +880,7 @@ function Get-TcpkCrossAsmTaintedReturning {
     $set = New-Object 'System.Collections.Generic.HashSet[string]'
     try {
         $dlls = @(Get-ChildItem -LiteralPath $Dir -File -ErrorAction SilentlyContinue |
-                  Where-Object { ($_.Extension -ieq '.dll' -or $_.Extension -ieq '.exe') -and $_.Length -lt 50MB -and -not (Test-TcpkIsFrameworkFile $_.Name) } |
+                  Where-Object { ($_.Extension -ieq '.dll' -or $_.Extension -ieq '.exe') -and -not (Test-TcpkIsFrameworkFile $_.Name) } |
                   Select-Object -First $MaxDlls)
         foreach ($d in $dlls) {
             $asm = $null; try { $asm = Get-TcpkCecilAssembly $d.FullName } catch { }

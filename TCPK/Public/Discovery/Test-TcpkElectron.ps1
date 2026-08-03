@@ -210,8 +210,13 @@ function Test-TcpkElectron {
     $jsRx = '(?i)^(main|preload|index|app|background|electron(-main)?|entry|renderer)(\.[\w-]+)?\.js$'
     $targets = @()
     $targets += $asars
+    # NO SIZE FILTER. There used to be a `-lt 5MB` here, and it was backwards: a
+    # webpack/esbuild-bundled Electron main.js is routinely 5-50 MB, and that bundle is
+    # exactly where BrowserWindow/webPreferences lives. So the cap silently skipped the
+    # one file this check exists to read, on precisely the apps most likely to be
+    # misconfigured, and reported nothing. Large files are streamed below instead.
     $targets += @(Get-ChildItem -LiteralPath $dir -Recurse -File -Filter '*.js' -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch '(?i)[\\/]node_modules[\\/]' -and $_.Length -lt 5MB -and $_.Name -match $jsRx })
+        Where-Object { $_.FullName -notmatch '(?i)[\\/]node_modules[\\/]' -and $_.Name -match $jsRx })
 
     # --- insecure-by-DEFAULT: an OLD Electron that OMITS a hardening key inherits the insecure
     # default -- nodeIntegration is ON before Electron 5, contextIsolation OFF before 12, the
@@ -225,14 +230,22 @@ function Test-TcpkElectron {
         if ($null -ne $eMaj) {
             $sawBW  = $false
             $sawKey = @{ nodeIntegration = $false; contextIsolation = $false; sandbox = $false }
+            # Streamed: an app.asar or a bundled main.js can be hundreds of MB, and
+            # ReadAllBytes on one of those was both a memory spike and, for the .js side,
+            # unreachable behind the old 5 MB filter. This only needs presence flags, so
+            # it stops as soon as all four are set.
             foreach ($t in ($targets | Select-Object -Unique)) {
-                $txt = ''
-                try { $txt = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($t.FullName)) } catch { continue }
-                if (-not $txt) { continue }
-                if (-not $sawBW -and ($txt -match 'BrowserWindow' -or $txt -match 'webPreferences')) { $sawBW = $true }
-                foreach ($k in @('nodeIntegration', 'contextIsolation', 'sandbox')) {
-                    if (-not $sawKey[$k] -and [regex]::IsMatch($txt, ($k + '["'']?\s*:'))) { $sawKey[$k] = $true }
+                $st = @{ Stop = $false; BW = $sawBW; K = $sawKey }
+                Invoke-TcpkOnFileText -Path $t.FullName -State $st -Utf8Only -OnText {
+                    param($Text, $Src, $S)
+                    if (-not $Text) { return }
+                    if (-not $S.BW -and ($Text -match 'BrowserWindow' -or $Text -match 'webPreferences')) { $S.BW = $true }
+                    foreach ($k in @('nodeIntegration', 'contextIsolation', 'sandbox')) {
+                        if (-not $S.K[$k] -and [regex]::IsMatch($Text, ($k + '["'']?\s*:'))) { $S.K[$k] = $true }
+                    }
+                    if ($S.BW -and $S.K['nodeIntegration'] -and $S.K['contextIsolation'] -and $S.K['sandbox']) { $S.Stop = $true }
                 }
+                $sawBW = $st.BW
             }
             if ($sawBW) {
                 $defaults = @(
@@ -257,13 +270,25 @@ function Test-TcpkElectron {
     }
 
     foreach ($t in ($targets | Select-Object -Unique)) {
-        $blob = ''
-        try { $blob = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($t.FullName)) } catch { continue }
-        if (-not $blob) { continue }
-        # Strip JS comments first so a flag that only appears in a comment (e.g.
-        # "// we avoid webSecurity:false") does NOT fire -- a real false-positive class.
-        $code = Get-TcpkJsCodeOnly $blob
-        if (-not $code) { continue }
+        # STREAMED, NOT SIZE-CAPPED. This used to be one ReadAllBytes, which on a 200 MB
+        # app.asar or a bundled main.js meant several hundred MB of string per file. Large
+        # files now arrive as bounded overlapping chunks; small ones still arrive whole, so
+        # their behaviour is byte-for-byte unchanged. -Utf8Only because a UTF-16 decode of
+        # JavaScript is noise.
+        #
+        # The 64 KB overlap deliberately re-presents boundary bytes, so a match sitting in it
+        # is seen in two chunks. Invoke-TcpkAudit's triage would collapse those on
+        # RuleId::File::Title, but a direct call (the GUI runs single checks) does not go
+        # through triage, so dedupe here on the same key rather than rely on the caller.
+        $seenF = @{}
+        $st = @{ Stop = $false }
+        $found = @(Invoke-TcpkOnFileText -Path $t.FullName -State $st -Utf8Only -OnText {
+            param($blob, $Src, $S)
+            if (-not $blob) { return }
+            # Strip JS comments first so a flag that only appears in a comment (e.g.
+            # "// we avoid webSecurity:false") does NOT fire -- a real false-positive class.
+            $code = Get-TcpkJsCodeOnly $blob
+            if (-not $code) { return }
         foreach ($k in $bad.Keys) {
             $m = [regex]::Match($code, $bad[$k].rx)
             if (-not $m.Success) { continue }
@@ -549,6 +574,13 @@ function Test-TcpkElectron {
                         'identity. This is the simplest Electron supply-chain attack.') `
                     -Fix 'Use HTTPS for the update feed URL and verify the update signature.'
             }
+        }
+        })
+        foreach ($fnd in $found) {
+            $k = "$($fnd.RuleId)::$($fnd.Title)"
+            if ($seenF.ContainsKey($k)) { continue }
+            $seenF[$k] = $true
+            $fnd
         }
     }
 }

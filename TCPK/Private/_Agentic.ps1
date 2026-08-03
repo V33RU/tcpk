@@ -292,14 +292,30 @@ function Get-TcpkAgentAsar {
     $dir = if (Test-Path -LiteralPath $p -PathType Container) { $p } else { Split-Path -Parent $p }
     $asar = Get-ChildItem -LiteralPath $dir -Recurse -File -Filter '*.asar' -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 1
     if (-not $asar) { return @{ error = 'no .asar found under the target (not an Electron app?)' } }
-    if ($asar.Length -gt 400MB) { return @{ error = "asar too large to extract ($([int]($asar.Length/1MB)) MB)" } }
+    # NO SIZE CAP. The old '-gt 400MB -> error' refused to extract exactly the archives an
+    # analyst most needs opened, and ReadAllBytes on everything under it pulled the entire
+    # archive into memory to copy files out of it. Only the HEADER has to be resident; each
+    # entry is then read by seeking, so peak memory is the largest single entry, not the asar.
+    $asarLen = $asar.Length
+    $fsA = $null
     try {
-        $bytes = [System.IO.File]::ReadAllBytes($asar.FullName)
-        if ($bytes.Length -lt 16) { return @{ error = 'asar too small / invalid' } }
-        $headerObjSize = [System.BitConverter]::ToUInt32($bytes, 4)
-        $jsonSize = [System.BitConverter]::ToUInt32($bytes, 12)
-        if (($jsonSize + 16) -gt $bytes.Length) { return @{ error = 'asar header invalid' } }
-        $tree = [System.Text.Encoding]::UTF8.GetString($bytes, 16, $jsonSize) | ConvertFrom-Json
+        $fsA = [System.IO.FileStream]::new($asar.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+               ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+        if ($asarLen -lt 16) { return @{ error = 'asar too small / invalid' } }
+        $hdr = New-Object byte[] 16
+        if ($fsA.Read($hdr, 0, 16) -lt 16) { return @{ error = 'asar too small / invalid' } }
+        $headerObjSize = [System.BitConverter]::ToUInt32($hdr, 4)
+        $jsonSize = [System.BitConverter]::ToUInt32($hdr, 12)
+        if (($jsonSize + 16) -gt $asarLen) { return @{ error = 'asar header invalid' } }
+        $jb = New-Object byte[] ([int]$jsonSize)
+        $jr = 0
+        while ($jr -lt [int]$jsonSize) {
+            $rr = $fsA.Read($jb, $jr, [int]$jsonSize - $jr)
+            if ($rr -le 0) { break }
+            $jr += $rr
+        }
+        if ($jr -lt [int]$jsonSize) { return @{ error = 'asar header truncated' } }
+        $tree = [System.Text.Encoding]::UTF8.GetString($jb, 0, [int]$jsonSize) | ConvertFrom-Json
         $base = 8 + $headerObjSize
         $outDir = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
         New-Item -ItemType Directory -Path $outDir -Force | Out-Null
@@ -307,7 +323,11 @@ function Get-TcpkAgentAsar {
         $files = New-Object System.Collections.Generic.List[object]
         $stack = New-Object System.Collections.Generic.Stack[object]
         $stack.Push([pscustomobject]@{ node = $tree; rel = '' })
+        # These two caps bound EXTRACTION WORK, not reading, and they used to drop entries
+        # with a bare 'continue' -- so a truncated extract looked like a complete one.
+        # Counted now and reported in the result.
         $total = [int64]0; $cap = [int64]200MB
+        $skippedBytes = 0; $skippedCount = 0
         while ($stack.Count) {
             $cur = $stack.Pop()
             if (-not $cur.node.files) { continue }
@@ -317,8 +337,9 @@ function Get-TcpkAgentAsar {
                 if ($child.files) { $stack.Push([pscustomobject]@{ node = $child; rel = $childRel }); continue }
                 if ($null -eq $child.offset) { continue }
                 $sz = [int64]$child.size; $off = $base + [int64]$child.offset
-                if ($sz -lt 0 -or ($off + $sz) -gt $bytes.Length) { continue }
-                if (($total + $sz) -gt $cap -or $files.Count -ge 8000) { continue }
+                if ($sz -lt 0 -or ($off + $sz) -gt $asarLen) { continue }
+                if (($total + $sz) -gt $cap) { $skippedBytes++; continue }
+                if ($files.Count -ge 8000) { $skippedCount++; continue }
                 $dest = Join-Path $outDir ($childRel -replace '/', '\')
                 # zip-slip guard: a malicious asar entry name must not escape the extract root
                 $destFull = [System.IO.Path]::GetFullPath($dest)
@@ -326,15 +347,28 @@ function Get-TcpkAgentAsar {
                 $ddir = Split-Path -Parent $dest
                 if ($ddir -and -not (Test-Path -LiteralPath $ddir)) { New-Item -ItemType Directory -Path $ddir -Force | Out-Null }
                 $buf = New-Object 'byte[]' $sz
-                if ($sz -gt 0) { [System.Array]::Copy($bytes, $off, $buf, 0, $sz) }
+                if ($sz -gt 0) {
+                    $fsA.Position = $off
+                    $bread = 0
+                    while ($bread -lt $sz) {
+                        $rr = $fsA.Read($buf, $bread, [int][Math]::Min([int]::MaxValue, $sz - $bread))
+                        if ($rr -le 0) { break }
+                        $bread += $rr
+                    }
+                    if ($bread -lt $sz) { continue }
+                }
                 [System.IO.File]::WriteAllBytes($dest, $buf)
                 $files.Add([ordered]@{ path = $childRel; size = $sz })
                 $total += $sz
             }
         }
         $script:TcpkAgentAsarDirs[$outDir] = $true
-        return @{ asar = $asar.FullName; outDir = $outDir; count = $files.Count; bytes = $total; files = @($files.ToArray() | Sort-Object { $_.path }) }
+        $trunc = ''
+        if ($skippedBytes -gt 0) { $trunc = "$skippedBytes entr(ies) not extracted: the 200 MB extraction budget was reached. The archive was read in full; the listing below is partial." }
+        if ($skippedCount -gt 0) { $trunc = ("$trunc " + "$skippedCount entr(ies) not extracted: the 8000-file limit was reached.").Trim() }
+        return @{ asar = $asar.FullName; outDir = $outDir; count = $files.Count; bytes = $total; truncated = $trunc; files = @($files.ToArray() | Sort-Object { $_.path }) }
     } catch { return @{ error = "$($_.Exception.Message)" } }
+    finally { if ($fsA) { $fsA.Dispose() } }
 }
 
 # POST /api/agent/asar-file {dir, rel} -- read one extracted file's text (bounded), scoped to
@@ -438,7 +472,6 @@ function Get-TcpkAgentHexFind {
     $p = Resolve-TcpkWebTarget $Path
     if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
     if ([string]::IsNullOrEmpty($Query)) { return @{ error = 'empty search' } }
-    if ((Get-Item -LiteralPath $p).Length -gt 300MB) { return @{ error = 'file too large to search' } }
     $needle = $null
     if ($Kind -eq 'hex') {
         $hx = ($Query -replace '[^0-9a-fA-F]', '')
@@ -447,54 +480,129 @@ function Get-TcpkAgentHexFind {
     } else {
         $needle = [System.Text.Encoding]::ASCII.GetBytes($Query)
     }
-    $bytes = [System.IO.File]::ReadAllBytes($p)
-    $idx = Find-TcpkBytesIndex -Hay $bytes -Needle $needle -Start $From
-    @{ offset = $idx; size = $bytes.Length; needleLen = $needle.Length }
+    # NO SIZE CAP. This used to refuse anything over 300 MB and ReadAllBytes everything
+    # under it. Both are wrong: the refusal made the hex search useless on exactly the
+    # binaries worth searching, and the whole-file read spiked memory for a search that
+    # only ever needs a sliding window. Streamed with a (needleLen - 1) overlap so a match
+    # straddling a chunk boundary is still found. Byte offsets stay absolute.
+    $len = 0
+    try { $len = (Get-Item -LiteralPath $p -ErrorAction Stop).Length } catch { return @{ error = 'file not readable' } }
+    $chunk = 16MB
+    $ov    = [Math]::Max(0, $needle.Length - 1)
+    $pos   = [int64]$From
+    if ($pos -lt 0) { $pos = 0 }
+    $idx   = -1
+    $fs = $null
+    try {
+        $fs = [System.IO.FileStream]::new($p, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+              ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+        $buf = New-Object byte[] ($chunk + $ov)
+        while ($pos -lt $len) {
+            $fs.Position = $pos
+            $want = [int][Math]::Min($buf.Length, $len - $pos)
+            $got = 0
+            while ($got -lt $want) {
+                $r = $fs.Read($buf, $got, $want - $got)
+                if ($r -le 0) { break }
+                $got += $r
+            }
+            if ($got -le 0) { break }
+            $hay = $buf
+            if ($got -ne $buf.Length) { $hay = New-Object byte[] $got; [System.Array]::Copy($buf, 0, $hay, 0, $got) }
+            $hit = Find-TcpkBytesIndex -Hay $hay -Needle $needle -Start 0
+            if ($hit -ge 0) { $idx = $pos + $hit; break }
+            if ($got -lt $want) { break }
+            $pos += $chunk
+        }
+    } catch {
+    } finally { if ($fs) { $fs.Dispose() } }
+    @{ offset = $idx; size = $len; needleLen = $needle.Length }
 }
 
 # POST /api/agent/strings {path, min, filter, kind} -- extract printable ASCII + UTF-16LE
 # ("wide") strings with their byte offsets, so a name / URL / path / function name can be
 # clicked to jump into the hex view. 'filter' narrows to strings containing a substring
-# (case-insensitive) -- this is the "find a name" case. Reads the whole file (size-guarded);
-# a regex over a Latin1 view keeps every match's byte offset exact and is fast.
+# (case-insensitive) -- this is the "find a name" case. A regex over a Latin1 view keeps
+# every match's byte offset exact and is fast.
+#
+# NO SIZE CAP. This used to refuse anything over 300 MB outright, which meant the strings
+# view was unavailable on exactly the large binaries an analyst opens it for. The file is
+# now walked in bounded byte chunks with an overlap, and each chunk's match index is
+# rebased onto its absolute file offset so the hex-view jump target stays correct.
 function Get-TcpkAgentHexStrings {
     [CmdletBinding()] param([string]$Path, [int]$Min = 4, [string]$Filter = '', [string]$Kind = 'both', [int]$Cap = 2000)
     $p = Resolve-TcpkWebTarget $Path
     if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
-    if ((Get-Item -LiteralPath $p).Length -gt 300MB) { return @{ error = 'file too large to scan' } }
     if ($Min -lt 2) { $Min = 2 } elseif ($Min -gt 200) { $Min = 200 }
     if ($Cap -lt 1) { $Cap = 1 } elseif ($Cap -gt 20000) { $Cap = 20000 }
-    $bytes = [System.IO.File]::ReadAllBytes($p)
-    $lat = [System.Text.Encoding]::GetEncoding(28591)   # Latin1: 1 byte <-> 1 char, offsets preserved
-    $text = $lat.GetString($bytes)
-    $flt = "$Filter"
-    $hits = New-Object System.Collections.Generic.List[object]
+    $len = 0
+    try { $len = (Get-Item -LiteralPath $p -ErrorAction Stop).Length } catch { return @{ error = 'file not readable' } }
+
+    $lat   = [System.Text.Encoding]::GetEncoding(28591)   # Latin1: 1 byte <-> 1 char, offsets preserved
+    $flt   = "$Filter"
+    $cmp   = [System.StringComparison]::OrdinalIgnoreCase
+    $hits  = New-Object System.Collections.Generic.List[object]
+    $seen  = @{}                                          # absolute offset -> already recorded
     $total = 0
-    $cmp = [System.StringComparison]::OrdinalIgnoreCase
-    if ($Kind -eq 'both' -or $Kind -eq 'ascii') {
-        foreach ($m in ([regex]::Matches($text, "[\x20-\x7E]{$Min,}"))) {
-            $v = $m.Value
-            if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
-            $total++
-            if ($hits.Count -lt $Cap) {
-                if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }
-                $hits.Add([pscustomobject]@{ offset = [int64]$m.Index; kind = 'a'; text = $v })
+    # Overlap must exceed the longest string we will report (300 chars, 600 bytes wide),
+    # so a string lying across a chunk boundary is fully present in the next chunk.
+    $chunk = 16MB
+    $ov    = 64KB
+
+    $fs = $null
+    try {
+        $fs = [System.IO.FileStream]::new($p, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+              ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+        $buf = New-Object byte[] ($chunk + $ov)
+        $pos = [int64]0
+        while ($pos -lt $len) {
+            $fs.Position = $pos
+            $want = [int][Math]::Min($buf.Length, $len - $pos)
+            $got = 0
+            while ($got -lt $want) {
+                $r = $fs.Read($buf, $got, $want - $got)
+                if ($r -le 0) { break }
+                $got += $r
             }
-        }
-    }
-    if ($Kind -eq 'both' -or $Kind -eq 'wide') {
-        foreach ($m in ([regex]::Matches($text, "(?:[\x20-\x7E]\x00){$Min,}"))) {
-            $v = [System.Text.Encoding]::Unicode.GetString($bytes, $m.Index, $m.Length)
-            if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
-            $total++
-            if ($hits.Count -lt $Cap) {
-                if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }
-                $hits.Add([pscustomobject]@{ offset = [int64]$m.Index; kind = 'w'; text = $v })
+            if ($got -le 0) { break }
+            $text = $lat.GetString($buf, 0, $got)
+
+            if ($Kind -eq 'both' -or $Kind -eq 'ascii') {
+                foreach ($m in ([regex]::Matches($text, "[\x20-\x7E]{$Min,}"))) {
+                    $abs = $pos + $m.Index
+                    if ($seen.ContainsKey("a$abs")) { continue }
+                    $v = $m.Value
+                    if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
+                    $seen["a$abs"] = $true
+                    $total++
+                    if ($hits.Count -lt $Cap) {
+                        if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }
+                        $hits.Add([pscustomobject]@{ offset = [int64]$abs; kind = 'a'; text = $v })
+                    }
+                }
             }
+            if ($Kind -eq 'both' -or $Kind -eq 'wide') {
+                foreach ($m in ([regex]::Matches($text, "(?:[\x20-\x7E]\x00){$Min,}"))) {
+                    $abs = $pos + $m.Index
+                    if ($seen.ContainsKey("w$abs")) { continue }
+                    $v = [System.Text.Encoding]::Unicode.GetString($buf, $m.Index, $m.Length)
+                    if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
+                    $seen["w$abs"] = $true
+                    $total++
+                    if ($hits.Count -lt $Cap) {
+                        if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }
+                        $hits.Add([pscustomobject]@{ offset = [int64]$abs; kind = 'w'; text = $v })
+                    }
+                }
+            }
+            if ($got -lt $want) { break }
+            $pos += $chunk
         }
-    }
+    } catch {
+    } finally { if ($fs) { $fs.Dispose() } }
+
     $items = @($hits | Sort-Object offset)
-    @{ items = $items; total = $total; capped = [bool]($total -gt $items.Count); min = $Min; size = $bytes.Length }
+    @{ items = $items; total = $total; capped = [bool]($total -gt $items.Count); min = $Min; size = $len }
 }
 
 # POST /api/agent/native {dll} -- for a NON-.NET (native) PE: exploit-mitigation

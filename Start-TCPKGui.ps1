@@ -1653,21 +1653,37 @@ function Expand-GuiAsar([string]$target) {
     $dir = if (Test-Path -LiteralPath $target -PathType Container) { $target } else { Split-Path -Parent $target }
     $asar = Get-ChildItem -LiteralPath $dir -Recurse -File -Filter '*.asar' -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 1
     if (-not $asar) { return @{ error = 'no .asar found under the target (not an Electron app?)' } }
-    if ($asar.Length -gt 400MB) { return @{ error = "asar too large ($([int]($asar.Length/1MB)) MB)" } }
+    # NO SIZE CAP. Only the header must be resident; entries are read by seeking, so peak
+    # memory is the largest single entry rather than the whole archive.
+    $asarLen = $asar.Length
+    $fsA = $null
     try {
-        $bytes = [System.IO.File]::ReadAllBytes($asar.FullName)
-        if ($bytes.Length -lt 16) { return @{ error = 'asar invalid' } }
-        $headerObjSize = [System.BitConverter]::ToUInt32($bytes, 4)
-        $jsonSize = [System.BitConverter]::ToUInt32($bytes, 12)
-        if (($jsonSize + 16) -gt $bytes.Length) { return @{ error = 'asar header invalid' } }
-        $tree = [System.Text.Encoding]::UTF8.GetString($bytes, 16, $jsonSize) | ConvertFrom-Json
+        $fsA = [System.IO.FileStream]::new($asar.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+               ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+        if ($asarLen -lt 16) { return @{ error = 'asar invalid' } }
+        $hdr = New-Object byte[] 16
+        if ($fsA.Read($hdr, 0, 16) -lt 16) { return @{ error = 'asar invalid' } }
+        $headerObjSize = [System.BitConverter]::ToUInt32($hdr, 4)
+        $jsonSize = [System.BitConverter]::ToUInt32($hdr, 12)
+        if (($jsonSize + 16) -gt $asarLen) { return @{ error = 'asar header invalid' } }
+        $jb = New-Object byte[] ([int]$jsonSize)
+        $jr = 0
+        while ($jr -lt [int]$jsonSize) {
+            $rr = $fsA.Read($jb, $jr, [int]$jsonSize - $jr)
+            if ($rr -le 0) { break }
+            $jr += $rr
+        }
+        if ($jr -lt [int]$jsonSize) { return @{ error = 'asar header truncated' } }
+        $tree = [System.Text.Encoding]::UTF8.GetString($jb, 0, [int]$jsonSize) | ConvertFrom-Json
         $base = 8 + $headerObjSize
         $outDir = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
         New-Item -ItemType Directory -Path $outDir -Force | Out-Null
+        $rootFull = [System.IO.Path]::GetFullPath($outDir)
         $files = New-Object System.Collections.Generic.List[object]
         $stack = New-Object System.Collections.Generic.Stack[object]
         $stack.Push([pscustomobject]@{ node = $tree; rel = '' })
         $total = [int64]0; $cap = [int64]200MB
+        $skippedBudget = 0; $skippedLimit = 0; $skippedSlip = 0
         while ($stack.Count) {
             $cur = $stack.Pop()
             if (-not $cur.node.files) { continue }
@@ -1677,20 +1693,40 @@ function Expand-GuiAsar([string]$target) {
                 if ($child.files) { $stack.Push([pscustomobject]@{ node = $child; rel = $childRel }); continue }
                 if ($null -eq $child.offset) { continue }
                 $sz = [int64]$child.size; $off = $base + [int64]$child.offset
-                if ($sz -lt 0 -or ($off + $sz) -gt $bytes.Length) { continue }
-                if (($total + $sz) -gt $cap -or $files.Count -ge 8000) { continue }
+                if ($sz -lt 0 -or ($off + $sz) -gt $asarLen) { continue }
+                if (($total + $sz) -gt $cap) { $skippedBudget++; continue }
+                if ($files.Count -ge 8000) { $skippedLimit++; continue }
                 $dest = Join-Path $outDir ($childRel -replace '/', '\')
+                # zip-slip guard: a malicious asar entry name ('../') must not escape the
+                # extract root. Expand-TcpkAsar and the web workbench both had this; this
+                # copy did not, so a crafted archive could write anywhere the user can.
+                $destFull = [System.IO.Path]::GetFullPath($dest)
+                if (-not $destFull.StartsWith($rootFull + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) { $skippedSlip++; continue }
                 $ddir = Split-Path -Parent $dest
                 if ($ddir -and -not (Test-Path -LiteralPath $ddir)) { New-Item -ItemType Directory -Path $ddir -Force | Out-Null }
                 $buf = New-Object 'byte[]' $sz
-                if ($sz -gt 0) { [System.Array]::Copy($bytes, $off, $buf, 0, $sz) }
+                if ($sz -gt 0) {
+                    $fsA.Position = $off
+                    $bread = 0
+                    while ($bread -lt $sz) {
+                        $rr = $fsA.Read($buf, $bread, [int][Math]::Min([int]::MaxValue, $sz - $bread))
+                        if ($rr -le 0) { break }
+                        $bread += $rr
+                    }
+                    if ($bread -lt $sz) { continue }
+                }
                 [System.IO.File]::WriteAllBytes($dest, $buf)
                 $files.Add([pscustomobject]@{ path = $childRel; size = $sz; full = $dest })
                 $total += $sz
             }
         }
-        return @{ outDir = $outDir; bytes = $total; files = @($files.ToArray() | Sort-Object path) }
+        $notes = @()
+        if ($skippedBudget) { $notes += "$skippedBudget entr(ies) skipped (200 MB extraction budget)" }
+        if ($skippedLimit)  { $notes += "$skippedLimit entr(ies) skipped (8000-file limit)" }
+        if ($skippedSlip)   { $notes += "$skippedSlip entr(ies) REFUSED: path escapes the extract root (zip-slip)" }
+        return @{ outDir = $outDir; bytes = $total; truncated = ($notes -join '; '); files = @($files.ToArray() | Sort-Object path) }
     } catch { return @{ error = "$($_.Exception.Message)" } }
+    finally { if ($fsA) { $fsA.Dispose() } }
 }
 function Fill-AsarList {
     $q = $txtAsarFilter.Text.Trim().ToLower()
@@ -1970,19 +2006,46 @@ function Get-GuiHexInspect([string]$path, [int64]$offset) {
 function Find-GuiHexOffset([string]$path, [string]$query, [string]$kind, [int64]$from) {
     if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return [int64]-1 }
     if (-not $query) { return [int64]-1 }
-    if ((Get-Item -LiteralPath $path).Length -gt 300MB) { return [int64]-2 }
     $needle = $null
     if ($kind -eq 'hex') {
         $hx = ($query -replace '[^0-9a-fA-F]', ''); if ($hx.Length -lt 2 -or ($hx.Length % 2)) { return [int64]-3 }
         $needle = [byte[]](0..(($hx.Length / 2) - 1) | ForEach-Object { [Convert]::ToByte($hx.Substring($_ * 2, 2), 16) })
     } else { $needle = [System.Text.Encoding]::ASCII.GetBytes($query) }
-    $bytes = [System.IO.File]::ReadAllBytes($path)
     $nlen = $needle.Length; if (-not $nlen) { return [int64]-1 }
-    $lim = $bytes.Length - $nlen
-    for ($i = [int]([Math]::Max([int64]0, $from)); $i -le $lim; $i++) {
-        $ok = $true; for ($j = 0; $j -lt $nlen; $j++) { if ($bytes[$i + $j] -ne $needle[$j]) { $ok = $false; break } }
-        if ($ok) { return [int64]$i }
-    }
+    # NO SIZE CAP (the old '-gt 300MB -> -2' refused the binaries this is most useful on)
+    # and no ReadAllBytes. Sliding window with a (nlen - 1) overlap, absolute offsets.
+    $flen = 0
+    try { $flen = (Get-Item -LiteralPath $path -ErrorAction Stop).Length } catch { return [int64]-1 }
+    $chunk = 16MB
+    $ov = [Math]::Max(0, $nlen - 1)
+    $pos = [int64]([Math]::Max([int64]0, $from))
+    $fs = $null
+    try {
+        $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+              ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+        $buf = New-Object byte[] ($chunk + $ov)
+        while ($pos -lt $flen) {
+            $fs.Position = $pos
+            $want = [int][Math]::Min($buf.Length, $flen - $pos)
+            $got = 0
+            while ($got -lt $want) {
+                $r = $fs.Read($buf, $got, $want - $got)
+                if ($r -le 0) { break }
+                $got += $r
+            }
+            if ($got -le 0) { break }
+            $lim = $got - $nlen
+            for ($i = 0; $i -le $lim; $i++) {
+                $ok = $true
+                for ($j = 0; $j -lt $nlen; $j++) { if ($buf[$i + $j] -ne $needle[$j]) { $ok = $false; break } }
+                if ($ok) { return [int64]($pos + $i) }
+            }
+            if ($got -lt $want) { break }
+            $pos += $chunk
+        }
+    } catch {
+        return [int64]-1
+    } finally { if ($fs) { $fs.Dispose() } }
     return [int64]-1
 }
 # Extract printable ASCII + UTF-16LE ("wide") strings with their byte offsets, so a name /
@@ -1990,31 +2053,65 @@ function Find-GuiHexOffset([string]$path, [string]$query, [string]$kind, [int64]
 # substring) -- the "find a name" case. Regex over a Latin1 view keeps every offset exact.
 function Get-GuiHexStrings([string]$path, [int]$min, [string]$filter, [string]$kind, [int]$cap) {
     if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return @{ error = 'file not found' } }
-    if ((Get-Item -LiteralPath $path).Length -gt 300MB) { return @{ error = 'file too large to scan' } }
     if ($min -lt 2) { $min = 2 } elseif ($min -gt 200) { $min = 200 }
     if ($cap -lt 1) { $cap = 1 } elseif ($cap -gt 20000) { $cap = 20000 }
-    $bytes = [System.IO.File]::ReadAllBytes($path)
-    $text = [System.Text.Encoding]::GetEncoding(28591).GetString($bytes)   # Latin1: 1 byte <-> 1 char
+    # NO SIZE CAP. The old '-gt 300MB -> error' made the strings view unavailable on exactly
+    # the binaries an analyst opens it for. Chunked with a 64 KB overlap (longer than any
+    # reported string) and each match rebased to its absolute file offset, so the click-to-
+    # jump target stays correct.
+    $flen = 0
+    try { $flen = (Get-Item -LiteralPath $path -ErrorAction Stop).Length } catch { return @{ error = 'file not readable' } }
+    $lat = [System.Text.Encoding]::GetEncoding(28591)   # Latin1: 1 byte <-> 1 char
     $flt = "$filter"
     $cmp = [System.StringComparison]::OrdinalIgnoreCase
     $hits = New-Object System.Collections.Generic.List[object]
+    $seen = @{}
     $total = 0
-    if ($kind -eq 'both' -or $kind -eq 'ascii') {
-        foreach ($m in ([regex]::Matches($text, "[\x20-\x7E]{$min,}"))) {
-            $v = $m.Value
-            if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
-            $total++
-            if ($hits.Count -lt $cap) { if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }; $hits.Add([pscustomobject]@{ offset = [int64]$m.Index; kind = 'a'; text = $v }) }
+    $chunk = 16MB; $ov = 64KB
+    $fs = $null
+    try {
+        $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+              ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
+        $buf = New-Object byte[] ($chunk + $ov)
+        $pos = [int64]0
+        while ($pos -lt $flen) {
+            $fs.Position = $pos
+            $want = [int][Math]::Min($buf.Length, $flen - $pos)
+            $got = 0
+            while ($got -lt $want) {
+                $r = $fs.Read($buf, $got, $want - $got)
+                if ($r -le 0) { break }
+                $got += $r
+            }
+            if ($got -le 0) { break }
+            $text = $lat.GetString($buf, 0, $got)
+            if ($kind -eq 'both' -or $kind -eq 'ascii') {
+                foreach ($m in ([regex]::Matches($text, "[\x20-\x7E]{$min,}"))) {
+                    $abs = $pos + $m.Index
+                    if ($seen.ContainsKey("a$abs")) { continue }
+                    $v = $m.Value
+                    if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
+                    $seen["a$abs"] = $true
+                    $total++
+                    if ($hits.Count -lt $cap) { if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }; $hits.Add([pscustomobject]@{ offset = [int64]$abs; kind = 'a'; text = $v }) }
+                }
+            }
+            if ($kind -eq 'both' -or $kind -eq 'wide') {
+                foreach ($m in ([regex]::Matches($text, "(?:[\x20-\x7E]\x00){$min,}"))) {
+                    $abs = $pos + $m.Index
+                    if ($seen.ContainsKey("w$abs")) { continue }
+                    $v = [System.Text.Encoding]::Unicode.GetString($buf, $m.Index, $m.Length)
+                    if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
+                    $seen["w$abs"] = $true
+                    $total++
+                    if ($hits.Count -lt $cap) { if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }; $hits.Add([pscustomobject]@{ offset = [int64]$abs; kind = 'w'; text = $v }) }
+                }
+            }
+            if ($got -lt $want) { break }
+            $pos += $chunk
         }
-    }
-    if ($kind -eq 'both' -or $kind -eq 'wide') {
-        foreach ($m in ([regex]::Matches($text, "(?:[\x20-\x7E]\x00){$min,}"))) {
-            $v = [System.Text.Encoding]::Unicode.GetString($bytes, $m.Index, $m.Length)
-            if ($flt -and $v.IndexOf($flt, $cmp) -lt 0) { continue }
-            $total++
-            if ($hits.Count -lt $cap) { if ($v.Length -gt 300) { $v = $v.Substring(0, 300) }; $hits.Add([pscustomobject]@{ offset = [int64]$m.Index; kind = 'w'; text = $v }) }
-        }
-    }
+    } catch {
+    } finally { if ($fs) { $fs.Dispose() } }
     $items = @($hits | Sort-Object offset)
     return @{ items = $items; total = $total; capped = [bool]($total -gt $items.Count) }
 }
@@ -2626,8 +2723,9 @@ $btnHexFind.Add_Click({
     $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
     $o = Find-GuiHexOffset $p $q ([string]$cmbHexKind.SelectedItem) $from
     $form.Cursor = [System.Windows.Forms.Cursors]::Default
-    if ($o -eq [int64]-2) { $lblHex.Text = 'file too large to search' }
-    elseif ($o -eq [int64]-3) { $lblHex.Text = 'hex needs an even number of hex digits' }
+    # -2 ('file too large to search') is gone: Find-GuiHexOffset streams now and has no
+    # size limit, so there is no longer a size at which the search declines to run.
+    if ($o -eq [int64]-3) { $lblHex.Text = 'hex needs an even number of hex digits' }
     elseif ($o -lt 0) { $lblHex.Text = "no match from 0x$([Convert]::ToString($from,16))" }
     else { Do-GuiHexInspect $o; $lblHex.Text = "match at 0x$([Convert]::ToString($o,16))" }
 })
