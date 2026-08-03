@@ -39,10 +39,17 @@ function Get-TcpkAttackGraph {
             @{ Id = 'entry.ipc'; Role = 'entry'; Label = 'Locally reachable IPC'; Rx = '^(pipe\.exists|pipe-dacl\.weak|rpc\.(server-interface|local-endpoint)|com\.(instantiable|method-surface))' }
             @{ Id = 'entry.network'; Role = 'entry'; Label = 'Network / backend reachable'; Rx = '^(intercept\.(endpoint-confirmed|cleartext)|pcap\.(cleartext-http|http-basic-cleartext|weak-tls)|endpoints\.|backend\.|tls\.)' }
             @{ Id = 'prim.codeexec'; Role = 'prim'; Label = 'Code-execution sink'; Rx = '^(callsites\.(command-execution|xaml-objectdataprovider-rce|path-traversal-build)|deser\.|reflection\.dynamic-load|electron\.ipc-handler-sink|protocol\.sink-reachable|api-trace\.(command-exec|process-launch))' }
-            @{ Id = 'prim.privbin'; Role = 'prim'; Label = 'Writable privileged binary'; Rx = '^(service\.(writable-binary|weak-dacl|unquoted-path)|scheduled-task\.user-writable)' }
-            @{ Id = 'prim.loaddir'; Role = 'prim'; Label = 'Writable load / trust dir'; Rx = '^(acl\.(programdata-user-writable|user-writable)|install-dir\.user-writable|path\.writable|dll-search|comhijack\.)' }
+            @{ Id = 'prim.privbin'; Role = 'prim'; Label = 'Writable privileged binary / load point'; Rx = '^(service\.(writable-binary|weak-dacl|unquoted-path)|scheduled-task\.user-writable|servicedll\.(writable|key-writable)|appinit\.(dll-writable|app-registers-dll)|loadpoint\.(writable|app-registered))' }
+            @{ Id = 'prim.loaddir'; Role = 'prim'; Label = 'Writable load / trust dir'; Rx = '^(acl\.(programdata-user-writable|user-writable)|install-dir\.user-writable|path\.writable|dll-search|comhijack\.|jni\.(library-path-writable|manifest-classpath-writable))' }
+            # A hijack needs BOTH halves: a name the loader will look for and fail to find,
+            # AND somewhere writable on its search path. TCPK reported the two separately and
+            # never joined them, so the finding set contained a local privilege escalation that
+            # nothing in the report ever said out loud. This is the class behind the Acronis /
+            # Monero / Node.js DLL-hijack reports: a phantom DLL resolved via a user-writable
+            # PATH entry such as %LOCALAPPDATA%\Microsoft\WindowsApps.
+            @{ Id = 'prim.hijackname'; Role = 'prim'; Label = 'Unresolved load name (phantom DLL / side-load)'; Rx = '^(pe-imports\.phantom|dllsearch\.sideload-candidate|dll-search\.name-not-found|jni\.load-path-unevaluated)' }
             @{ Id = 'prim.priv'; Role = 'prim'; Label = 'Impactful token privilege'; Rx = '^(process\.impactful-privileges|process\.running-as-system)' }
-            @{ Id = 'prim.unsigned'; Role = 'prim'; Label = 'Unsigned update accepted'; Rx = '^update\.no-signature-verification' }
+            @{ Id = 'prim.unsigned'; Role = 'prim'; Label = 'Unsigned / tamperable code accepted'; Rx = '^(update\.no-signature-verification|fuses\.asar-integrity-disabled|electron\.(updater-sig-bypass|update-http))' }
             @{ Id = 'prim.isolation'; Role = 'prim'; Label = 'Native<->web bridge exposed'; Rx = '^(webview2\.(add-host-object|are-host-objects-allowed|web-message-handler|script-injection)|electron\.(cert-validation-bypass|bridge-exposes))' }
             @{ Id = 'prim.authbypass'; Role = 'prim'; Label = 'Auth / authorization bypass'; Rx = '^(authflags|guiunlock|flagflip|jwt\.[a-z0-9-]*-accepted|jwt\.(alg-none-issued|weak-secret)|replay\.missing-authz|idor\.horizontal)' }
             @{ Id = 'prim.secret'; Role = 'prim'; Label = 'Exposed secret / key'; Rx = '^(jwt\.(embedded-token|weak-secret)|entropy\.|dpapi\.|browser\.master-key-recovered|token-cache\.|credman\.|exploit\.secret-recovered|api-trace\.(plaintext-secret-write|registry-secret-write))' }
@@ -64,10 +71,16 @@ function Get-TcpkAttackGraph {
             @{ Id = 'goal.rce'; Label = 'Code execution in the app'; Sev = 'CRITICAL'; Cwe = @('CWE-94'); Recipes = @(
                     @('entry.protocol', 'prim.codeexec'), @('entry.web', 'prim.codeexec'), @('entry.renderer', 'prim.codeexec'),
                     @('entry.network', 'prim.codeexec'), @('entry.ipc', 'prim.codeexec'),
-                    @('prim.loaddir', 'prim.unsigned'), @('prim.loaddir', 'prim.evasion'), @('prim.isolation', 'prim.codeexec')
+                    @('prim.loaddir', 'prim.unsigned'), @('prim.loaddir', 'prim.evasion'), @('prim.isolation', 'prim.codeexec'),
+                    @('prim.hijackname', 'prim.loaddir')
                 ) }
             @{ Id = 'goal.system'; Label = 'Local privilege escalation to SYSTEM'; Sev = 'CRITICAL'; Cwe = @('CWE-269'); Recipes = @(
-                    @('prim.privbin'), @('prim.priv', 'prim.codeexec'), @('prim.priv', 'entry.ipc'), @('prim.privbin', 'prim.priv')
+                    @('prim.privbin'), @('prim.priv', 'prim.codeexec'), @('prim.priv', 'entry.ipc'), @('prim.privbin', 'prim.priv'),
+                    # phantom name + writable search path + a privileged loader = the Acronis shape.
+                    # prim.priv is required for the SYSTEM claim: planting a DLL that only ever
+                    # loads into a process running as the SAME user crosses no boundary and is
+                    # not an escalation. Without it the pair still raises goal.rce above.
+                    @('prim.hijackname', 'prim.loaddir', 'prim.priv')
                 ) }
             @{ Id = 'goal.credtheft'; Label = 'Credential / session theft'; Sev = 'HIGH'; Cwe = @('CWE-522'); Recipes = @(
                     @('prim.secret', 'entry.network'), @('prim.authbypass', 'entry.network')
