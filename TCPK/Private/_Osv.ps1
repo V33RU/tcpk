@@ -52,6 +52,66 @@ function ConvertFrom-TcpkOsvVuln {
     }
 }
 
+# QUERY STATUS. A component may only be cached as "checked, none" when OSV actually
+# ANSWERED for it. Without this, any failure wrote every queried component back as clean
+# with a fresh timestamp, and for the next 7 days the freshness test skipped the network
+# entirely -- not even printing the warning again. The report then stated the components
+# "were matched live against OSV", and Export-TcpkSbom wrote an empty vulnerabilities[]
+# into the CycloneDX BOM. A silent, self-perpetuating false negative on the only CVE path
+# in the tool, in a machine-readable artifact a client's pipeline ingests as truth.
+#
+# Two of the three ways to get there need no network failure at all: the MaxDetail cap and
+# a single per-vuln detail fetch that 404s or times out both used to leave the affected
+# component looking clean on a fully successful HTTP 200 run.
+$script:TcpkOsvLastQuery = $null
+$script:TcpkOsvSession   = $null
+
+function Reset-TcpkOsvQueryStatus {
+    [CmdletBinding()] param()
+    $script:TcpkOsvLastQuery = [pscustomobject]@{
+        Ok        = $false
+        Reason    = ''
+        Truncated = $false
+        Queried   = 0
+        # Cache keys OSV gave a complete answer for. ONLY these may be written back.
+        Answered  = (New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase))
+    }
+}
+
+function Get-TcpkOsvQueryStatus {
+    [CmdletBinding()] param()
+    if (-not $script:TcpkOsvLastQuery) { Reset-TcpkOsvQueryStatus }
+    $script:TcpkOsvLastQuery
+}
+
+# Audit-wide roll-up across every ecosystem queried in one run. Invoke-TcpkAudit reads this
+# to decide whether the report may claim the components were matched live.
+function Reset-TcpkOsvSession {
+    [CmdletBinding()] param()
+    $script:TcpkOsvSession = [pscustomobject]@{
+        Attempted  = $false
+        Failures   = 0
+        Truncated  = $false
+        Incomplete = 0        # components queried but not definitively answered
+        Reasons    = (New-Object 'System.Collections.Generic.List[string]')
+    }
+}
+
+function Get-TcpkOsvSession {
+    [CmdletBinding()] param()
+    if (-not $script:TcpkOsvSession) { Reset-TcpkOsvSession }
+    $script:TcpkOsvSession
+}
+
+# $true only when every OSV query this run completed and answered for every component.
+# The report's "matched live against OSV" wording is gated on this, not on the -OnlineCve
+# switch, which only says the user ASKED for a lookup.
+function Test-TcpkOsvRunComplete {
+    [CmdletBinding()] param()
+    $s = Get-TcpkOsvSession
+    return ([bool]$s.Attempted -and $s.Failures -eq 0 -and -not $s.Truncated -and $s.Incomplete -eq 0)
+}
+
 # NETWORK (opt-in). Batch-query OSV for the given components, then fetch per-vuln detail and
 # map. $Components = @( @{ Name=..; Version=..; File=.. } ). Returns mapped match objects, or
 # nothing on any failure (fail-closed). This is the raw network core; callers normally use the
@@ -64,8 +124,12 @@ function Get-TcpkOsvQueryNet {
         [int]$MaxDetail = 60,
         [int]$TimeoutSec = 20
     )
+    Reset-TcpkOsvQueryStatus
+    $st = Get-TcpkOsvQueryStatus
+
     $comp = @($Components | Where-Object { "$($_.Name)" -and "$($_.Version)" })
-    if (-not $comp.Count) { return }
+    if (-not $comp.Count) { $st.Ok = $true; return }
+    $st.Queried = $comp.Count
 
     $queries = @($comp | ForEach-Object { @{ package = @{ name = "$($_.Name)"; ecosystem = $Ecosystem }; version = "$($_.Version)" } })
     $body = @{ queries = $queries } | ConvertTo-Json -Depth 6
@@ -74,35 +138,66 @@ function Get-TcpkOsvQueryNet {
         $resp = Invoke-RestMethod -Uri $script:TcpkOsvBatchUri -Method Post -Body $body `
             -ContentType 'application/json' -TimeoutSec $TimeoutSec -ErrorAction Stop
     } catch {
-        Write-Warning "OSV online query failed ($($_.Exception.Message)); keeping the offline catalog result only."
+        # Ok stays $false, Answered stays empty -> the caller caches NOTHING and the next
+        # run retries instead of reading a fabricated clean entry.
+        $st.Reason = "$($_.Exception.Message)"
+        Write-Warning "OSV online query failed ($($st.Reason)); nothing will be cached, so the next run retries."
         return
     }
 
-    # results[] aligns by index to queries[]; collect unique vuln id -> first matching component.
-    $results = @($resp.results)
+    # results[] aligns by index to queries[]; collect unique vuln id -> first matching component,
+    # and remember which vuln ids belong to which component so a component can be marked
+    # answered only when every one of ITS vulns was successfully enriched.
+    $results  = @($resp.results)
     $idToComp = @{}
-    for ($i = 0; $i -lt $results.Count -and $i -lt $comp.Count; $i++) {
+    $compIds  = @{}
+    for ($i = 0; $i -lt $comp.Count; $i++) {
+        $compIds[$i] = New-Object 'System.Collections.Generic.List[string]'
+        if ($i -ge $results.Count) { continue }   # short response -> this component was not answered
         foreach ($v in @($results[$i].vulns)) {
             $vid = "$($v.id)"; if (-not $vid) { continue }
+            $compIds[$i].Add($vid)
             if (-not $idToComp.ContainsKey($vid)) { $idToComp[$vid] = $comp[$i] }
         }
     }
-    if (-not $idToComp.Count) { return }
 
+    # Enrich. A vuln that is skipped -- by the cap or by a failed detail fetch -- is recorded,
+    # because its component can no longer be called clean.
+    $failed = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     $out = New-Object 'System.Collections.Generic.List[object]'
     $n = 0
+    $warnedCap = $false
     foreach ($vid in @($idToComp.Keys)) {
         if ($n -ge $MaxDetail) {
-            Write-Warning "OSV: reached the $MaxDetail detail-lookup cap; remaining vulns not enriched this run."
-            break
+            # continue, not break: every remaining id must still be marked unenriched so its
+            # component is excluded from the cache. Costs no network.
+            if (-not $warnedCap) {
+                $warnedCap = $true
+                $st.Truncated = $true
+                Write-Warning "OSV: reached the $MaxDetail detail-lookup cap; the affected components will NOT be cached as clean."
+            }
+            [void]$failed.Add($vid)
+            continue
         }
         $n++
         $detail = $null
-        try { $detail = Invoke-RestMethod -Uri "$script:TcpkOsvVulnUri/$vid" -TimeoutSec $TimeoutSec -ErrorAction Stop } catch { continue }
-        if (-not $detail) { continue }
+        try { $detail = Invoke-RestMethod -Uri "$script:TcpkOsvVulnUri/$vid" -TimeoutSec $TimeoutSec -ErrorAction Stop }
+        catch { [void]$failed.Add($vid); continue }
+        if (-not $detail) { [void]$failed.Add($vid); continue }
         $cmp = $idToComp[$vid]
         $out.Add( (ConvertFrom-TcpkOsvVuln -Vuln $detail -Package "$($cmp.Name)" -ShippedVersion "$($cmp.Version)") )
     }
+
+    # A component is ANSWERED when OSV returned a result slot for it and none of its vulns
+    # was dropped. Zero vulns with a result slot is a genuine "checked, none" and caches.
+    for ($i = 0; $i -lt $comp.Count; $i++) {
+        if ($i -ge $results.Count) { continue }
+        $anyFailed = $false
+        foreach ($vid in $compIds[$i]) { if ($failed.Contains($vid)) { $anyFailed = $true; break } }
+        if ($anyFailed) { continue }
+        [void]$st.Answered.Add((Get-TcpkOsvCacheKey -Ecosystem $Ecosystem -Name "$($comp[$i].Name)" -Version "$($comp[$i].Version)"))
+    }
+    $st.Ok = $true
     $out
 }
 
@@ -181,15 +276,30 @@ function Get-TcpkOsvMatches {
 
     $freshOut = @()
     if ($toQuery.Count) {
+        $sess = Get-TcpkOsvSession
+        $sess.Attempted = $true
         $freshOut = @(Get-TcpkOsvQueryNet -Components @($toQuery.ToArray()) -Ecosystem $Ecosystem -MaxDetail $MaxDetail -TimeoutSec $TimeoutSec)
-        # write each queried component's matches back (empty array = "checked, none" = still cached)
-        $stamp = [DateTimeOffset]::UtcNow.ToString('o')
-        foreach ($c in $toQuery) {
-            $key = Get-TcpkOsvCacheKey -Ecosystem $Ecosystem -Name "$($c.Name)" -Version "$($c.Version)"
-            $cm = @($freshOut | Where-Object { "$($_.Package)".ToLowerInvariant() -eq "$($c.Name)".ToLowerInvariant() -and "$($_.ShippedVersion)" -eq "$($c.Version)" })
-            $cache[$key] = [pscustomobject]@{ fetchedUtc = $stamp; matches = $cm }
+        $st = Get-TcpkOsvQueryStatus
+
+        if (-not $st.Ok) {
+            $sess.Failures++
+            if ($st.Reason) { $sess.Reasons.Add("$Ecosystem`: $($st.Reason)") }
+        } else {
+            if ($st.Truncated) { $sess.Truncated = $true }
+            # Write back ONLY components OSV definitively answered for. An unanswered one is
+            # left absent from the cache so the next run queries it again, instead of being
+            # stamped clean and skipped for the whole TTL.
+            $stamp = [DateTimeOffset]::UtcNow.ToString('o')
+            $wrote = 0
+            foreach ($c in $toQuery) {
+                $key = Get-TcpkOsvCacheKey -Ecosystem $Ecosystem -Name "$($c.Name)" -Version "$($c.Version)"
+                if (-not $st.Answered.Contains($key)) { $sess.Incomplete++; continue }
+                $cm = @($freshOut | Where-Object { "$($_.Package)".ToLowerInvariant() -eq "$($c.Name)".ToLowerInvariant() -and "$($_.ShippedVersion)" -eq "$($c.Version)" })
+                $cache[$key] = [pscustomobject]@{ fetchedUtc = $stamp; matches = $cm }
+                $wrote++
+            }
+            if ($wrote -gt 0 -and -not $NoCache) { Save-TcpkOsvCache -Cache $cache }
         }
-        if (-not $NoCache) { Save-TcpkOsvCache -Cache $cache }
     }
 
     # .ToArray() not @($list) -- @() on a generic List throws "Argument types do not match" (PS 5.1).
@@ -222,8 +332,18 @@ function Update-TcpkRuntimeCveText {
         try { $Finding.Description = [regex]::Replace("$($Finding.Description)", $hintRx, "Matching OSV advisories ($($ids.Count)): $idList.") } catch { }
     }
     elseif ($OnlineCve) {
-        try { $Finding.Evidence = "$($Finding.Evidence) | OSV: queried, no advisories returned for this version" } catch { }
-        try { $Finding.Description = [regex]::Replace("$($Finding.Description)", $hintRx, "OSV was queried for this runtime version and returned no advisories (the bundled version may be newer than OSV's data); the version-gap finding stands on its own -- verify against electronjs.org/releases.") } catch { }
+        # Only claim "queried, none" when the lookup actually COMPLETED. -OnlineCve means the
+        # user asked for a query, not that one succeeded; saying "returned no advisories"
+        # after a failed or truncated run is a positive claim about something that never ran.
+        $complete = $true
+        try { $complete = [bool](Test-TcpkOsvRunComplete) } catch { $complete = $true }
+        if ($complete) {
+            try { $Finding.Evidence = "$($Finding.Evidence) | OSV: queried, no advisories returned for this version" } catch { }
+            try { $Finding.Description = [regex]::Replace("$($Finding.Description)", $hintRx, "OSV was queried for this runtime version and returned no advisories (the bundled version may be newer than OSV's data); the version-gap finding stands on its own -- verify against electronjs.org/releases.") } catch { }
+        } else {
+            try { $Finding.Evidence = "$($Finding.Evidence) | OSV: lookup did NOT complete -- advisory status unknown" } catch { }
+            try { $Finding.Description = [regex]::Replace("$($Finding.Description)", $hintRx, "The OSV lookup did NOT complete this run (network failure, or the per-run detail cap was reached), so the advisory status of this runtime version is UNKNOWN rather than clean. Re-run with network access, or check electronjs.org/releases directly.") } catch { }
+        }
     }
     # else: offline -- keep the "Run with -OnlineCve" hint as-is.
     $Finding

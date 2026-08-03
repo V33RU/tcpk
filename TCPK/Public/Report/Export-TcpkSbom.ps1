@@ -86,6 +86,31 @@ function Export-TcpkSbom {
     # throws "Argument types do not match" in PS 5.1 -- set it via the indexer instead.
     $bom['components'] = @($cdxComps.ToArray())
 
+    # CVE-LOOKUP PROVENANCE. An SBOM is a machine-readable artifact another pipeline ingests
+    # as truth, and in CycloneDX an absent or empty vulnerabilities[] reads as "checked,
+    # none". It must therefore never be produced by a lookup that did not complete. Record
+    # what actually happened as metadata.properties, which is the spec's own extension point,
+    # so a consumer can tell "verified clean" from "never asked" without reading the HTML.
+    $cveState = 'not-attempted'
+    try {
+        if (Test-TcpkOsvRunComplete) { $cveState = 'complete' }
+        elseif ((Get-TcpkOsvSession).Attempted) { $cveState = 'incomplete' }
+    } catch { $cveState = 'unknown' }
+    $props = New-Object System.Collections.Generic.List[object]
+    $props.Add([ordered]@{ name = 'tcpk:cve-lookup'; value = $cveState })
+    if ($cveState -eq 'incomplete') {
+        $sess = $null; try { $sess = Get-TcpkOsvSession } catch { }
+        if ($sess) {
+            $props.Add([ordered]@{ name = 'tcpk:cve-lookup-failures';   value = "$($sess.Failures)" })
+            $props.Add([ordered]@{ name = 'tcpk:cve-lookup-unanswered'; value = "$($sess.Incomplete)" })
+            $props.Add([ordered]@{ name = 'tcpk:cve-lookup-truncated';  value = "$([bool]$sess.Truncated)" })
+        }
+        $props.Add([ordered]@{ name = 'tcpk:cve-lookup-note'
+                               value = 'An online CVE lookup was requested but did not complete for every component. An empty or short vulnerabilities[] in this document is UNKNOWN, not verified clean.' })
+    }
+    if (-not $bom.metadata.Contains('properties')) { $bom.metadata['properties'] = @() }
+    $bom.metadata['properties'] = @($props.ToArray())
+
     # CycloneDX vulnerabilities array: TCPK's own CVE matches, linked to the affected
     # component's bom-ref so the SBOM is self-contained (findings + inventory agree).
     # Grouped by CVE id; a group with no confirmed-Vulnerable match (native Present /

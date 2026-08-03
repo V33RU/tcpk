@@ -282,6 +282,10 @@ function Invoke-TcpkAudit {
     # reports what THIS audit could not read, not what a previous one in the same session
     # could not.
     Reset-TcpkScanStats
+    # Same reasoning for the OSV roll-up: whether THIS run's CVE lookups completed, not a
+    # previous run's in the same session. Read back via Test-TcpkOsvRunComplete to decide
+    # whether the report may claim the components were matched live.
+    Reset-TcpkOsvSession
 
     # ----- Bucket A (static binary analysis, 21 cmdlets) -----
     _RunCheck 'Test-TcpkSignature'           { Test-TcpkSignature           -Path $Target   }
@@ -850,7 +854,12 @@ function Invoke-TcpkAudit {
     try { $signing | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'signing.json') -Encoding UTF8 }
     catch { Write-TcpkLog -Level ERROR -Component 'signing.json' -Message $_.Exception.Message | Out-Null }
 
-    $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Signing $signing -Sbom $sbom -CveChecked ([bool]$OnlineCve)
+    # CveChecked gates the report's "matched live against OSV" wording. It must reflect whether
+    # the lookup SUCCEEDED, not whether -OnlineCve was passed: the switch only says the user asked.
+    # A failed or truncated run must not render as a clean bill of health.
+    $cveComplete = $false
+    if ($OnlineCve) { try { $cveComplete = [bool](Test-TcpkOsvRunComplete) } catch { $cveComplete = $false } }
+    $all | Export-TcpkReportHtml -OutFile $htmlPath -Target $Target -Profile $targetProfile -Scope $scope -CveMatches $cveMatches -Hardening $hardening -Signing $signing -Sbom $sbom -CveChecked $cveComplete -CveAttempted ([bool]$OnlineCve)
     # Markdown deliverable (plain-text, client-facing) alongside the HTML.
     try {
         $all | Export-TcpkReportMarkdown -OutFile (Join-Path $OutDir 'report.md') -Target $Target -Profile $targetProfile | Out-Null

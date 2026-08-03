@@ -58,7 +58,12 @@ function Export-TcpkReportHtml {
         [object[]]$Sbom = @(),
         # whether the online CVE lookup actually ran (so the empty state can say "checked, 0 found"
         # vs "not checked"). CVE matching is online-only, so a 0-result run must be distinguishable.
-        [bool]$CveChecked = $true
+        [bool]$CveChecked = $true,
+        # Whether an online CVE lookup was REQUESTED. With CveChecked this gives three
+        # distinct states instead of two: completed, attempted-but-failed, not attempted.
+        # Collapsing the middle one into "not checked" understates it -- the user asked for
+        # the lookup and got no answer, which is an UNKNOWN, not a skipped step.
+        [bool]$CveAttempted = $true
     )
 
     begin { $all = New-Object 'System.Collections.Generic.List[object]' }
@@ -444,12 +449,14 @@ $($cveRows -join "`n")
             $cveN = @($Sbom).Count
             $emptyNote = if ($CveChecked) {
                 "<b>No known vulnerabilities.</b> The shipped components ($cveN inventoried in the SBOM below) were matched <b>live</b> against OSV (NuGet / npm / Maven / PyPI / Go / crates.io) and NVD (native C libraries, by CPE). None are affected by a known CVE for their shipped version. Note: a vendor's own proprietary binaries have no CVE identity anywhere (they are covered by the findings above), and an up-to-date component can still be on an end-of-life branch -- check any <b>library-currency</b> findings."
+            } elseif ($CveAttempted) {
+                "<b>CVE status UNKNOWN -- the lookup did not complete.</b> An online CVE lookup was requested but did not finish for every component (network failure, or the per-run advisory-detail cap was reached). Treat this as unknown, NOT as clean: the components below were inventoried, but some were never matched against OSV or NVD. Nothing was written to the CVE cache for the unanswered components, so re-running with working network access will retry them."
             } else {
                 "<b>CVE not checked this run.</b> Online CVE lookup was not enabled and there is no offline catalog. Re-run with online CVE (needs network) to match shipped components against OSV + NVD."
             }
             $cveHtml = @"
 <section class='card cve'>
-  <h3 class='cvehead'><span class='caret'>&#9662;</span>Known-vulnerability matches (live: OSV + NVD) <span class='seccount'>($(if ($CveChecked) { '0 vulnerable' } else { 'not checked' }))</span></h3>
+  <h3 class='cvehead'><span class='caret'>&#9662;</span>Known-vulnerability matches (live: OSV + NVD) <span class='seccount'>($(if ($CveChecked) { '0 vulnerable' } elseif ($CveAttempted) { 'UNKNOWN -- lookup incomplete' } else { 'not checked' }))</span></h3>
   <div class='cvebody'>
     <div class='cvenote'>$emptyNote</div>
   </div>
