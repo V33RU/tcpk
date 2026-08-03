@@ -15,6 +15,62 @@ $script:TcpkSeverityRank = @{
 # must accept these too.
 $script:TcpkValidConfidence = @('Confirmed','Confirmed (IL)','Confirmed (dynamic)','Confirmed (exploit)','Confirmed (OSV)','Confirmed (NVD)','Inferred','Unverified','Skipped','Confirmed (LLM)','Likely-FP (IL)','Likely-FP (LLM)','Uncertain (LLM)')
 
+# Load a findings.json into a FLAT array of raw deserialized rows.
+#
+# WHY THIS IS NOT JUST ConvertFrom-Json. Windows PowerShell 5.1 writes the
+# deserialized array to the pipeline as ONE object instead of enumerating it, so
+#
+#     $raw = @(Get-Content $p -Raw | ConvertFrom-Json)
+#
+# yields a NESTED array: a single element which is the real array. Piping that to
+# ForEach-Object then runs exactly one iteration with $_ bound to the whole array,
+# and $_.Severity member-enumerates into "MEDIUM MEDIUM INFO INFO HIGH ..." -- which
+# any ValidateSet downstream rejects with "Cannot validate argument on parameter
+# 'Severity'". Three call sites had this shape and all three were broken: both GUIs'
+# attack-path graph and the elevated-relaunch return in Invoke-TcpkAudit.
+#
+# Assign FIRST, then wrap. Assignment binds the emitted array directly, and @() over
+# an existing array is flat. A single-finding file deserializes to one object and
+# still comes back as a one-element array.
+function Read-TcpkFindingsJson {
+    [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return @() }
+    $parsed = $null
+    try { $parsed = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json } catch { return @() }
+    if ($null -eq $parsed) { return @() }
+    return @($parsed)
+}
+
+# Rebuild [TcpkFinding] objects from raw findings.json rows.
+#
+# A row whose Severity or Confidence is outside the allowed set is SKIPPED rather
+# than thrown on: one corrupt row should not take out the whole graph, which is
+# exactly what happened before. Callers can compare the returned count against the
+# input count to see whether anything was dropped.
+function ConvertTo-TcpkFindingObject {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Raw)
+
+    $okSev = @('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($o in $Raw) {
+        if (-not $o) { continue }
+        $sev = "$($o.Severity)"
+        if ($okSev -notcontains $sev) { continue }
+        $con = "$($o.Confidence)"
+        if (-not $con) { $con = 'Inferred' }
+        try {
+            $f = New-TcpkFinding -Module "$($o.Module)" -RuleId "$($o.RuleId)" `
+                 -Severity $sev -Confidence $con -Title "$($o.Title)"
+        } catch { continue }
+        if ($o.File)     { $f.File     = "$($o.File)" }
+        if ($o.Evidence) { $f.Evidence = "$($o.Evidence)" }
+        if ($o.Cwe)      { $f.Cwe      = @($o.Cwe) }
+        $out.Add($f)
+    }
+    return @($out.ToArray())
+}
+
 function New-TcpkFinding {
     [CmdletBinding()]
     [OutputType([TcpkFinding])]

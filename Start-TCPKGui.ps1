@@ -3843,21 +3843,19 @@ $btnGraphBuild.Add_Click({
         if (-not $mod) { throw 'TCPK module is not loaded in this session.' }
         $res = & $mod {
             param($p)
-            $raw = @(Get-Content -LiteralPath $p -Raw -ErrorAction Stop | ConvertFrom-Json)
-            $findings = @($raw | ForEach-Object {
-                $f = New-TcpkFinding -Module "$($_.Module)" -RuleId "$($_.RuleId)" -Severity "$($_.Severity)" -Confidence "$($_.Confidence)" -Title "$($_.Title)"
-                if ($_.File)     { $f.File     = "$($_.File)" }
-                if ($_.Evidence) { $f.Evidence = "$($_.Evidence)" }
-                if ($_.Cwe)      { $f.Cwe      = @($_.Cwe) }
-                $f
-            })
+            $raw = @(Read-TcpkFindingsJson -Path $p)
+            $findings = @(ConvertTo-TcpkFindingObject -Raw $raw)
             [pscustomobject]@{
-                Count = $findings.Count
-                Graph = @($findings | Get-TcpkAttackGraph)
+                Count   = $findings.Count
+                Dropped = ($raw.Count - $findings.Count)
+                Graph   = @($findings | Get-TcpkAttackGraph)
             }
         } $jsonPath
         $findingCount  = [int]$res.Count
         $graphFindings = @($res.Graph)
+        if ([int]$res.Dropped -gt 0) {
+            Write-LogLine "Graph: skipped $($res.Dropped) malformed finding(s) in findings.json" ([System.Drawing.Color]::FromArgb(241,196,15))
+        }
     } catch {
         $lblGraphStatus.Text = "Graph failed: $($_.Exception.Message)"
         return

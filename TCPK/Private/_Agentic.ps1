@@ -961,15 +961,13 @@ function Get-TcpkAgentAttackGraph {
     if (-not $entry -or -not $entry.OutDir) { return @{ error = 'no completed audit -- run an audit first (step 3)' } }
     $jsonPath = Join-Path $entry.OutDir 'findings.json'
     if (-not (Test-Path -LiteralPath $jsonPath)) { return @{ error = 'findings.json not found in the audit output' } }
-    $raw = @(Get-Content -LiteralPath $jsonPath -Raw -ErrorAction Stop | ConvertFrom-Json)
+    # Same PS 5.1 ConvertFrom-Json non-enumeration trap the WinForms graph hit: the old
+    # @(pipeline) form nested the array, so $_ bound to the WHOLE set and $_.Severity
+    # member-enumerated into "MEDIUM MEDIUM INFO ..." which ValidateSet then rejected.
+    $raw = @(Read-TcpkFindingsJson -Path $jsonPath)
     if (-not $raw.Count) { return @{ error = 'no findings in the audit output' } }
-    $findings = @($raw | ForEach-Object {
-        $f = New-TcpkFinding -Module "$($_.Module)" -RuleId "$($_.RuleId)" -Severity "$($_.Severity)" -Confidence "$($_.Confidence)" -Title "$($_.Title)"
-        if ($_.File)     { $f.File     = "$($_.File)" }
-        if ($_.Evidence) { $f.Evidence = "$($_.Evidence)" }
-        if ($_.Cwe)      { $f.Cwe      = @($_.Cwe) }
-        $f
-    })
+    $findings = @(ConvertTo-TcpkFindingObject -Raw $raw)
+    if (-not $findings.Count) { return @{ error = "findings.json has $($raw.Count) row(s) but none were usable (malformed Severity/Confidence)" } }
     try {
         $graphFindings = @($findings | Get-TcpkAttackGraph)
     } catch { return @{ error = "graph failed: $($_.Exception.Message)" } }

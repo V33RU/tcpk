@@ -167,7 +167,10 @@ function Invoke-TcpkAudit {
         if ($relaunched) {
             $jf = Join-Path $OutDir 'findings.json'
             if (Test-Path -LiteralPath $jf) {
-                try { return , (@(Get-Content -LiteralPath $jf -Raw | ConvertFrom-Json)) } catch { return }
+                # , (@(...)) around a PS 5.1 ConvertFrom-Json double-nested the result:
+                # @() wrapped the non-enumerated array once, the unary comma again. The
+                # caller got an array containing an array containing the findings.
+                try { return , (Read-TcpkFindingsJson -Path $jf) } catch { return }
             }
             return
         }
