@@ -983,13 +983,15 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
                 $me.Refresh()
                 $secs = $sw.Elapsed.TotalSeconds
                 $cpuUsed = [Math]::Max(0.0, $me.TotalProcessorTime.TotalSeconds - $cpu0)
-                $pct = if ($secs -gt 0.05) { [int]([Math]::Min(100, ($cpuUsed / $secs) * 100)) } else { 0 }
+                $nc  = [Math]::Max(1, [Environment]::ProcessorCount)
+                $ce  = if ($secs -gt 0.05) { $cpuUsed / $secs } else { 0.0 }
+                $pct = [int]([Math]::Min(100, ($ce / $nc) * 100))
                 $wsMb = [int]($me.WorkingSet64 / 1MB)
                 $dMb  = [int](($me.WorkingSet64 - $ws0) / 1MB)
                 $sign = if ($dMb -ge 0) { '+' } else { '' }
-                Write-IcptLine $box ("   [{0:N1}s  cpu {1}s avg {2}%  ram {3} MB ({4}{5} MB)]`r`n" -f `
-                    $secs, [Math]::Round($cpuUsed, 1), $pct, $wsMb, $sign, $dMb) ([System.Drawing.Color]::FromArgb(120,130,140))
-                Update-ScanResources -CpuPct $pct -RamMb $wsMb
+                Write-IcptLine $box ("   [{0:N1}s  cpu {1}s = {2:N1} core(s), {3}% of machine  ram {4} MB ({5}{6} MB)]`r`n" -f `
+                    $secs, [Math]::Round($cpuUsed, 1), $ce, $pct, $wsMb, $sign, $dMb) ([System.Drawing.Color]::FromArgb(120,130,140))
+                Update-ScanResources -CpuPct $pct -RamMb $wsMb -Cores $ce -Src 'gui'
             }
         } catch { }
         $form.Cursor = [System.Windows.Forms.Cursors]::Default
@@ -4045,7 +4047,7 @@ $lblCpuPct.Text      = 'CPU   --'
 $lblCpuPct.Tag       = 'keep'
 $lblCpuPct.AutoSize  = $false
 $lblCpuPct.Location  = New-Object System.Drawing.Point(0, 0)
-$lblCpuPct.Size      = New-Object System.Drawing.Size(74, 15)
+$lblCpuPct.Size      = New-Object System.Drawing.Size(96, 15)
 $lblCpuPct.TextAlign = 'MiddleLeft'
 $lblCpuPct.Font      = New-Object System.Drawing.Font('Consolas', 8, [System.Drawing.FontStyle]::Bold)
 $lblCpuPct.ForeColor = [System.Drawing.Color]::FromArgb(166, 226, 46)
@@ -4053,8 +4055,8 @@ $pnlRes.Controls.Add($lblCpuPct)
 
 $script:CpuTrack = New-Object System.Windows.Forms.Panel
 $script:CpuTrack.Tag       = 'keep'
-$script:CpuTrack.Location  = New-Object System.Drawing.Point(76, 3)
-$script:CpuTrack.Size      = New-Object System.Drawing.Size(108, 9)
+$script:CpuTrack.Location  = New-Object System.Drawing.Point(98, 3)
+$script:CpuTrack.Size      = New-Object System.Drawing.Size(86, 9)
 $script:CpuTrack.BackColor = [System.Drawing.Color]::FromArgb(38, 42, 50)
 $pnlRes.Controls.Add($script:CpuTrack)
 
@@ -4071,7 +4073,7 @@ $lblRamMb.Text      = 'RAM   --'
 $lblRamMb.Tag       = 'keep'
 $lblRamMb.AutoSize  = $false
 $lblRamMb.Location  = New-Object System.Drawing.Point(0, 17)
-$lblRamMb.Size      = New-Object System.Drawing.Size(74, 15)
+$lblRamMb.Size      = New-Object System.Drawing.Size(96, 15)
 $lblRamMb.TextAlign = 'MiddleLeft'
 $lblRamMb.Font      = New-Object System.Drawing.Font('Consolas', 8, [System.Drawing.FontStyle]::Bold)
 $lblRamMb.ForeColor = [System.Drawing.Color]::FromArgb(102, 217, 239)
@@ -4079,8 +4081,8 @@ $pnlRes.Controls.Add($lblRamMb)
 
 $script:RamTrack = New-Object System.Windows.Forms.Panel
 $script:RamTrack.Tag       = 'keep'
-$script:RamTrack.Location  = New-Object System.Drawing.Point(76, 20)
-$script:RamTrack.Size      = New-Object System.Drawing.Size(108, 9)
+$script:RamTrack.Location  = New-Object System.Drawing.Point(98, 20)
+$script:RamTrack.Size      = New-Object System.Drawing.Size(86, 9)
 $script:RamTrack.BackColor = [System.Drawing.Color]::FromArgb(38, 42, 50)
 $pnlRes.Controls.Add($script:RamTrack)
 
@@ -4098,10 +4100,23 @@ $pnlRes.BringToFront()
 # would be a lie; against the peak it honestly shows "this is the most it has used so far".
 $script:RamPeakMb = 256
 
+# $CpuPct is SYSTEM-WIDE percent, the same denominator Task Manager uses, so the two agree.
+# Callers compute it as (cpu-seconds / wall-seconds / ProcessorCount) * 100. The earlier
+# version divided by wall time only, which is percent-of-ONE-CORE: a single pegged core read
+# 100% here while Task Manager showed 12.5% on an 8-core box, and the two looked like a bug.
+#
+# $Cores is the core-equivalent (1.5 = one and a half cores busy). It is the number that
+# actually tells you whether a scan is pegged, because a single-threaded worker cannot exceed
+# 1.0 no matter how many cores the box has -- so 12% could be idle or could be maxed out, and
+# only the core figure distinguishes them. Both are shown.
+#
+# $Src names the process being measured. Without it there is no way to tell a worker reading
+# 0% from the GUI being sampled because the worker PID was never picked up.
 function Update-ScanResources {
-    param([int]$CpuPct, [int]$RamMb)
-    $lblCpuPct.Text = 'CPU {0,3}%' -f $CpuPct
-    $lblRamMb.Text  = 'RAM {0,5}M' -f $RamMb
+    param([int]$CpuPct, [int]$RamMb, [double]$Cores = -1, [string]$Src = '')
+    $coreTxt = if ($Cores -ge 0) { ' {0:N1}c' -f $Cores } else { '' }
+    $lblCpuPct.Text = 'CPU {0,3}%{1}' -f $CpuPct, $coreTxt
+    $lblRamMb.Text  = 'RAM {0,5}M{1}' -f $RamMb, $(if ($Src) { " $Src" } else { '' })
 
     $c = if ($CpuPct -ge 85) { [System.Drawing.Color]::FromArgb(249, 38, 114) }
          elseif ($CpuPct -ge 50) { [System.Drawing.Color]::FromArgb(230, 176, 40) }
@@ -4152,8 +4167,10 @@ $script:ResTimer.Add_Tick({
         $d = $pr.CPU - $script:ResLastCpu
         $script:ResLastCpu = $pr.CPU
         $script:ResLastAt  = $now
-        $pct = [Math]::Max(0, [Math]::Min(100, [int](($d / $el) * 100)))
-        Update-ScanResources -CpuPct $pct -RamMb ([int]($pr.WorkingSet64 / 1MB))
+        $cores = [Math]::Max(1, [Environment]::ProcessorCount)
+        $ce  = [Math]::Max(0.0, $d / $el)                       # core-equivalent
+        $pct = [Math]::Max(0, [Math]::Min(100, [int](($ce / $cores) * 100)))
+        Update-ScanResources -CpuPct $pct -RamMb ([int]($pr.WorkingSet64 / 1MB)) -Cores $ce -Src 'gui'
     } catch { }
 })
 $script:ResTimer.Start()
@@ -5610,11 +5627,13 @@ $btnRun.Add_Click({
                 try {
                     $wp = Get-Process -Id $script:ScanWorkerPid -ErrorAction Stop
                     $cpuDelta = $wp.CPU - $script:ScanWorkerLastCpu
-                    $cpuPct   = [Math]::Max(0, [Math]::Min(100, [int]($cpuDelta / $sElapsed * 100)))
+                    $nCores   = [Math]::Max(1, [Environment]::ProcessorCount)
+                    $ce       = [Math]::Max(0.0, $cpuDelta / $sElapsed)
+                    $cpuPct   = [Math]::Max(0, [Math]::Min(100, [int](($ce / $nCores) * 100)))
                     $ramMb    = [int]($wp.WorkingSet64 / 1MB)
                     $script:ScanWorkerLastCpu = $wp.CPU
                     $script:ScanWorkerLastAt  = [DateTime]::Now
-                    Update-ScanResources -CpuPct $cpuPct -RamMb $ramMb
+                    Update-ScanResources -CpuPct $cpuPct -RamMb $ramMb -Cores $ce -Src 'worker'
                 } catch { $script:ScanWorkerPid = 0 }
             }
         }
