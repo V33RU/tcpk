@@ -44,6 +44,16 @@ function Reset-TcpkScanStats {
         ReparseSkippedCount = 0
         ReparseSkippedSample= (New-Object 'System.Collections.Generic.List[string]')
         MaxDepthSeen        = 0
+        # Degraded READS, as opposed to skipped directories. A file above the
+        # streaming threshold is fully read but yields printable runs rather than
+        # verbatim text, and above the dedup threshold repeated runs are collapsed.
+        # Both change what downstream checks see, and only one check out of 65 ever
+        # inspected the per-file flags -- so they are accumulated here instead and
+        # reported once for the whole audit.
+        ViewCappedCount     = 0
+        ViewCappedSample    = (New-Object 'System.Collections.Generic.List[string]')
+        ViewDedupedCount    = 0
+        ViewDedupedSample   = (New-Object 'System.Collections.Generic.List[string]')
     }
 }
 
@@ -71,6 +81,14 @@ function Add-TcpkScanSkip {
         'Reparse' {
             $s.ReparseSkippedCount++
             if ($ItemPath -and $s.ReparseSkippedSample.Count -lt $script:TcpkScanSampleCap) { $s.ReparseSkippedSample.Add($ItemPath) }
+        }
+        'ViewCapped' {
+            $s.ViewCappedCount++
+            if ($ItemPath -and $s.ViewCappedSample.Count -lt $script:TcpkScanSampleCap) { $s.ViewCappedSample.Add($ItemPath) }
+        }
+        'ViewDeduped' {
+            $s.ViewDedupedCount++
+            if ($ItemPath -and $s.ViewDedupedSample.Count -lt $script:TcpkScanSampleCap) { $s.ViewDedupedSample.Add($ItemPath) }
         }
     }
 }

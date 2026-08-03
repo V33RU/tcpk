@@ -137,20 +137,28 @@ function Test-TcpkSecrets {
         # framework binary or third-party licence text is not a first-party finding).
         if (-not (Test-TcpkIsFirstParty -Name $f.Name -SizeBytes $f.Length -Path $f.FullName)) { continue }
 
-        # NO size cap: EVERY file is analyzed regardless of size. Files up to a memory-safe
-        # threshold are loaded whole (and view-cached); larger files are streamed in bounded
-        # OVERLAPPING chunks -- so nothing is ever skipped for being big, and a multi-GB file
-        # cannot exhaust memory. The overlap (64KB) exceeds the longest rule match, so a secret
-        # straddling a chunk boundary is still caught.
+        # NO size cap: EVERY file is analyzed regardless of size. Read-TcpkStringViews decodes
+        # a small file verbatim and streams a large one through the C# printable-run extractor,
+        # so every byte is read in bounded memory. That also shrinks the matched text to
+        # typically 2-5% of the file, which is what makes 41 rules over a 200 MB binary
+        # tractable at all: verbatim, the per-rule OrdinalIgnoreCase pre-filter alone is
+        # ~18 billion character comparisons.
+        #
+        # A per-FILE catch, not a per-check one. Invoke-TcpkAudit collects a check's output
+        # with `$r = & $Block`, so an exception escaping this loop would discard every finding
+        # already produced -- a runaway match on file 400 of 900 would throw away files 1-399.
+        # Catch it here, record the file, and carry on.
         $seen = @{}
-        if ($f.Length -le 64MB) {
-            $views = Read-TcpkStringViews -Path $f.FullName
-            if (-not $views) { continue }
+        try {
+        $views = Read-TcpkStringViews -Path $f.FullName
+        if ($views) {
             & $scanText $views.Utf8       'utf8'
             & $scanText $views.Utf16Le    'utf16le'
             & $scanText $views.Utf16LeOdd 'utf16le-odd'
         }
         else {
+            # Only reached when the extractor could not be compiled on this host. Walk the
+            # file in overlapping chunks: bounded memory, nothing skipped, nothing truncated.
             try {
                 $fsr = [System.IO.FileStream]::new($f.FullName, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
                        ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
@@ -172,6 +180,17 @@ function Test-TcpkSecrets {
                     }
                 } finally { $fsr.Dispose() }
             } catch { }
+        }
+        } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+            New-TcpkSkippedFinding -RuleId 'secrets.rule-timeout' `
+                -Title "Secret rules timed out on $($f.Name)" `
+                -Reason ("A regex exceeded the match timeout on this file, so its remaining rules " +
+                    "did not run. Other files were unaffected. Review it directly: strings -a " +
+                    "`"$($f.FullName)`"")
+        } catch {
+            New-TcpkSkippedFinding -RuleId 'secrets.file-error' `
+                -Title "Secret scan failed on $($f.Name)" `
+                -Reason "$($_.Exception.Message)"
         }
     }
     Complete-TcpkProgress -Id 77

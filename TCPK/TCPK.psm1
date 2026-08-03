@@ -11,6 +11,34 @@
 
 $script:TcpkRoot = $PSScriptRoot
 
+# --- runaway-regex seatbelt -----------------------------------------------------------------
+# Give every regex constructed in THIS runspace a default match timeout, so a single match that
+# will never terminate in useful time throws RegexMatchTimeoutException instead of pegging a
+# core indefinitely. Must run before any regex is constructed, hence module load, in whatever
+# runspace imports TCPK (CLI, the WinForms GUI, the web-UI Start-Job worker).
+#
+# THIS IS A SEATBELT, NOT THE FIX, and the distinction matters. An audit that wedged for hours
+# was measured to be aggregate LINEAR work, not catastrophic backtracking: a 212 MB binary
+# decodes to ~445 M characters across the three views, Test-TcpkSecrets runs 41 rules over each,
+# and every rule's cheap pre-filter is String.IndexOf with OrdinalIgnoreCase -- which on .NET
+# Framework goes through NLS collation rather than a byte compare. That is ~18 billion character
+# comparisons for one file, with no single match anywhere near the timeout. The real fix is
+# _StringExtractor.ps1, which cuts the matched text to the printable runs (typically 2-5% of the
+# file). This timeout only catches the different, rarer failure where one pattern genuinely
+# never returns.
+#
+# 60s, not 15s: a legitimate Matches() sweep over a large view can take tens of seconds, and a
+# timeout that fires on healthy work is worse than none. Invoke-TcpkAudit's _RunCheck collects a
+# check's output with `$r = & $Block`, so an escaping exception discards EVERY finding that check
+# already produced -- a timeout on file 400 of 900 would throw away files 1-399 too. Checks that
+# loop over files therefore catch RegexMatchTimeoutException per file (see Test-TcpkSecrets) and
+# keep going; this default is the backstop for everything else.
+try {
+    if (-not [AppDomain]::CurrentDomain.GetData('REGEX_DEFAULT_MATCH_TIMEOUT')) {
+        [AppDomain]::CurrentDomain.SetData('REGEX_DEFAULT_MATCH_TIMEOUT', [TimeSpan]::FromSeconds(60))
+    }
+} catch { }
+
 # Authenticode cmdlets (Get-AuthenticodeSignature) live in Microsoft.PowerShell.Security.
 # In some runspaces -- notably the web UI's background Start-Job -- that module does NOT
 # auto-load on first use and throws "command was found in the module ... but the module

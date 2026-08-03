@@ -17,17 +17,68 @@ function Clear-TcpkTextCache {
     $script:TcpkViewCacheBytes = 0
 }
 
+# Reader selection threshold.
+#
+# Below it, the whole file is decoded verbatim. That preserves byte-exact
+# fidelity (including non-ASCII text in config, JS and JSON) and keeps every
+# occurrence-counting check exact. At this size the memory cost is trivial.
+#
+# At or above it, the file goes through the C# extractor in _StringExtractor.ps1,
+# which reads EVERY byte with a fixed 64 KB buffer and keeps only printable runs.
+# Nothing is skipped and no size cap applies. The extracted text is typically
+# 2-5% of the input, which is the point: Test-TcpkSecrets runs 41 rules over
+# every view, and each rule's cheap pre-filter is an OrdinalIgnoreCase IndexOf
+# that on .NET Framework goes through NLS collation. For a 212 MB binary the
+# verbatim views are ~445 M chars, so the PRE-FILTER ALONE is ~18 billion
+# character comparisons. Cutting the input by 20-40x is what makes that tractable.
+$script:TcpkStreamThreshold = 16MB
+
 function Read-TcpkStringViews {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
     if ($script:TcpkViewCache.ContainsKey($Path)) { return $script:TcpkViewCache[$Path] }
-    if (-not (Test-Path -LiteralPath $Path)) { return $null }
-    # Open with FileShare.ReadWrite|Delete so we can read files a RUNNING target holds open
-    # (Chromium cache block files, logs, SQLite WAL/journal, ...). The default
-    # File.ReadAllBytes uses FileShare.Read, which a process that has the file open for WRITE
-    # denies -- so live artifacts were silently skipped and their secrets never scanned. This
-    # is strictly read-only on our side.
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+
+    # FileInfo.Length reads directory metadata, so it works even on a file another
+    # process holds open for write.
+    try { $fileLen = [System.IO.FileInfo]::new($Path).Length } catch { return $null }
+
+    $obj = $null
+    if ($fileLen -ge $script:TcpkStreamThreshold) {
+        $obj = Read-TcpkStringViewsStreamed -Path $Path -FileLength $fileLen
+        # No extractor on this host -> the caller falls back to the overlapping
+        # chunk walk in Invoke-TcpkOnFileText, which truncates nothing. Returning
+        # $null here is the signal for that; it is NOT a silent skip.
+        if (-not $obj) { return $null }
+    } else {
+        $obj = Read-TcpkStringViewsWhole -Path $Path -FileLength $fileLen
+    }
+    if (-not $obj) { return $null }
+
+    # Cache while within the byte budget. Cost is measured from the ACTUAL view
+    # sizes (2 bytes per char) rather than estimated from file size -- the old
+    # bytes*5 estimate was wildly wrong for a streamed read, and it meant nothing
+    # at or above ~44 MB was ever cached, so every caller re-did the whole decode.
+    $cost = ([int64]$obj.Utf8.Length + $obj.Utf16Le.Length + $obj.Utf16LeOdd.Length) * 2
+    if (($script:TcpkViewCacheBytes + $cost) -lt $script:TcpkViewCacheBudget) {
+        $script:TcpkViewCache[$Path] = $obj
+        $script:TcpkViewCacheBytes  += $cost
+    }
+    return $obj
+}
+
+# Whole-file reader: decodes the file verbatim into the three views.
+function Read-TcpkStringViewsWhole {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][long]$FileLength)
+
+    # FileShare.ReadWrite|Delete so files a RUNNING target holds open are still
+    # readable (Chromium cache blocks, logs, SQLite WAL/journal). The default
+    # File.ReadAllBytes uses FileShare.Read, which a process holding the file open
+    # for WRITE denies -- live artifacts were silently skipped and their secrets
+    # never scanned. FileAccess.Read keeps this strictly read-only on our side.
     try {
-        $fs = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+        $fs = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open,
+              [System.IO.FileAccess]::Read,
               ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
         try {
             $ms = New-Object System.IO.MemoryStream
@@ -38,34 +89,82 @@ function Read-TcpkStringViews {
     } catch {
         return $null
     }
-    # UTF-16LE strings (the #US literal heap) are only decoded correctly when the
-    # decode starts on the same byte parity as the string. Decoding from offset 0
-    # misses every wide string that happens to begin at an ODD file offset (~half
-    # of them). We decode BOTH alignments so literal-string scans (secrets,
-    # endpoints, callsites) are not silently alignment-dependent.
+
+    # UTF-16LE strings (the #US literal heap) only decode correctly when the decode
+    # starts on the same byte parity as the string. Decoding from offset 0 misses
+    # every wide string beginning at an ODD file offset (~half of them), so both
+    # alignments are decoded and literal-string scans are not alignment-dependent.
     $utf16Odd = if ($bytes.Length -gt 1) { [Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1) } else { '' }
-    $obj = [pscustomobject]@{
+    [pscustomobject]@{
         Path       = $Path
         Utf8       = [Text.Encoding]::UTF8.GetString($bytes)
         Utf16Le    = [Text.Encoding]::Unicode.GetString($bytes)
         Utf16LeOdd = $utf16Odd
-        Length     = $bytes.Length
+        Length     = [int64]$bytes.Length
+        FileLength = $FileLength
+        Truncated  = $false
+        Streamed   = $false
+        Deduped    = $false
     }
-    # cache while within the byte budget (decoded views cost ~5x file size)
-    $cost = [int64]$bytes.Length * 5
-    if (($script:TcpkViewCacheBytes + $cost) -lt $script:TcpkViewCacheBudget) {
-        $script:TcpkViewCache[$Path] = $obj
-        $script:TcpkViewCacheBytes  += $cost
-    }
-    return $obj
 }
 
-# Returns the combined UTF-8 + UTF-16LE view as a single string.
+# Streaming reader. Reads every byte and keeps the printable runs.
+# Returns $null when the extractor is unavailable, so the caller can fall back.
+function Read-TcpkStringViewsStreamed {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][long]$FileLength)
+
+    $r = Invoke-TcpkStringExtract -Path $Path
+    if (-not $r) { return $null }
+
+    # Truncated means "coverage is incomplete", which for a streamed read happens
+    # only when a view hit its ceiling or the stream ended early. A normal pass
+    # over a multi-GB file is complete and reports Truncated = $false.
+    $incomplete = $r.OutputCapped -or ($r.BytesRead -lt $FileLength)
+
+    [pscustomobject]@{
+        Path       = $Path
+        Utf8       = $r.Ascii
+        Utf16Le    = $r.WideEven
+        Utf16LeOdd = $r.WideOdd
+        Length     = $r.BytesRead          # bytes examined -- the whole file
+        FileLength = $r.FileLength
+        Truncated  = $incomplete
+        Streamed   = $true
+        Deduped    = $r.Deduped
+    }
+}
+
+# Records a degraded read into the audit-wide scan-coverage accounting.
+#
+# THIS IS THE POINT OF THE FUNCTION. Truncated / Deduped / Streamed used to be
+# returned on the view object and read by exactly one check out of 65 -- so above
+# the threshold, 64 checks silently received altered text and reported nothing
+# about it. Registering here makes the degradation impossible to consume
+# unnoticed: Test-TcpkScanCoverage reports it once, globally, whichever check
+# happened to touch the file.
+function Register-TcpkViewCoverage {
+    [CmdletBinding()] param([Parameter(Mandatory)]$Views)
+    if (-not $Views) { return }
+    try {
+        if ($Views.Truncated) {
+            Add-TcpkScanSkip -Kind 'ViewCapped' -ItemPath "$($Views.Path)"
+        } elseif ($Views.Deduped) {
+            Add-TcpkScanSkip -Kind 'ViewDeduped' -ItemPath "$($Views.Path)"
+        }
+    } catch { }
+}
+
+# Returns the combined UTF-8 + UTF-16LE views as a single string.
 # Use when you only need to test "is this substring present somewhere".
+#
+# Any coverage loss is registered centrally before the text is handed over, so a
+# caller that ignores the flags (all 64 of them) still cannot hide the shortfall.
 function Read-TcpkAllText {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
     $v = Read-TcpkStringViews -Path $Path
     if (-not $v) { return '' }
+    Register-TcpkViewCoverage -Views $v
     "$($v.Utf8)`n$($v.Utf16Le)`n$($v.Utf16LeOdd)"
 }
 
@@ -108,17 +207,15 @@ function Get-TcpkSubstringCount {
 #     is ever cached and every caller re-does the whole decode. That is how a scan
 #     ends up wedged for hours.
 #
-# The fix for both is the same, and it is NOT a size cap: stream. A small file is
-# decoded whole (and cached, as before). A large file is walked in bounded
-# OVERLAPPING chunks, so memory is flat regardless of file size and nothing is
-# skipped. The overlap is what keeps a match that straddles a chunk boundary
-# findable; Test-TcpkSecrets has used exactly this shape on >64 MB files already.
+# The fix for both is the same, and it is NOT a size cap: stream. Read-TcpkStringViews
+# now owns that decision -- a small file is decoded verbatim and cached, a large one
+# goes through the C# printable-run extractor in _StringExtractor.ps1. Every byte is
+# read either way.
 #
-# THRESHOLD. 40 MB, deliberately just under the ~44 MB point where the view cache
-# stops admitting entries. Above that a whole-file load would be re-done by every
-# caller, so streaming is both safer AND faster there.
+# The overlapping chunk walk below is the FALLBACK, used only when that extractor
+# cannot be compiled on the host. It keeps memory flat without truncating anything;
+# the 64 KB overlap is what keeps a match straddling a chunk boundary findable.
 # ---------------------------------------------------------------------------
-$script:TcpkWholeFileMaxBytes = 40MB
 $script:TcpkChunkBytes        = 16MB
 $script:TcpkChunkOverlap      = 64KB
 
@@ -148,10 +245,12 @@ function Invoke-TcpkOnFileText {
     $len = 0
     try { $len = (Get-Item -LiteralPath $Path -ErrorAction Stop).Length } catch { return }
 
-    # Small enough to decode whole: reuse the existing cached-view path unchanged.
-    if ($len -le $script:TcpkWholeFileMaxBytes) {
-        $v = Read-TcpkStringViews -Path $Path
-        if (-not $v) { return }
+    # PREFERRED PATH, whatever the size. Read-TcpkStringViews decodes a small file
+    # verbatim and streams a large one through the C# extractor, so memory is already
+    # bounded and nothing is skipped. Any coverage loss is registered centrally.
+    $v = Read-TcpkStringViews -Path $Path
+    if ($v) {
+        Register-TcpkViewCoverage -Views $v
         $views = if ($Utf8Only) { @(, @($v.Utf8, 'utf8')) }
                  else { @(@($v.Utf8, 'utf8'), @($v.Utf16Le, 'utf16le'), @($v.Utf16LeOdd, 'utf16le-odd')) }
         foreach ($pair in $views) {
@@ -161,8 +260,12 @@ function Invoke-TcpkOnFileText {
         return
     }
 
-    # Large file: overlapping chunk walk. FileShare.ReadWrite|Delete for the same
-    # reason Read-TcpkStringViews uses it -- a running target holds its own files open.
+    # Only reached when the file is at or above the streaming threshold AND the C#
+    # extractor could not be compiled on this host. Falling back to a whole-file read
+    # would blow memory, and truncating would hide content, so walk it in overlapping
+    # chunks instead: bounded memory, nothing skipped, nothing cut.
+    # FileShare.ReadWrite|Delete for the same reason Read-TcpkStringViews uses it --
+    # a running target holds its own files open.
     $fsr = $null
     try {
         $fsr = [System.IO.FileStream]::new($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,

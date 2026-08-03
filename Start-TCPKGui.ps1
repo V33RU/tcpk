@@ -3900,6 +3900,72 @@ $txtLog.WordWrap = $false
 $split.Panel1.Controls.Add($txtLog)
 $txtLog.BringToFront()
 
+# Scan worker resource readout. CPU% and RAM for the active scan job worker,
+# sampled every 2 seconds so a pegged or stalled scan is visible at a glance
+# without an external monitor. The worker is a real separate process (Start-Job),
+# so $PID inside the job is the process to measure.
+#
+# CPU% is delta of Process.CPU over wall seconds. That is summed across cores, so
+# on a multi-threaded process it could exceed 100 -- but the audit worker is a
+# single-threaded PS 5.1 process, so pegged reads ~100 and stalled reads ~0, which
+# is exactly the signal wanted. Clamped for safety.
+#
+# LAYOUT. These sit in a right-anchored FlowLayoutPanel rather than at fixed
+# coordinates: the header's y=76 row is NOT empty -- $lblAiStatus occupies
+# x 820-1180 of it -- and hard-coding a Point there put these underneath it.
+# Z-ORDER matters too: Controls.Add appends and index 0 is the FRONT, so a control
+# added this late in the script is drawn BEHIND everything added earlier. Once the
+# theme pass gives every Label an opaque BackColor, being behind means invisible.
+# Hence BringToFront().
+# Tag 'keep' exempts them from Set-CtlThemeRecursive, which repaints every Label
+# with the palette foreground and would erase the colour coding.
+$script:ScanWorkerPid     = 0
+$script:ScanWorkerLastCpu = 0.0
+$script:ScanWorkerLastAt  = [DateTime]::Now
+
+$pnlRes = New-Object System.Windows.Forms.FlowLayoutPanel
+$pnlRes.Tag          = 'keep'
+$pnlRes.FlowDirection = 'LeftToRight'
+$pnlRes.WrapContents = $false
+$pnlRes.AutoSize     = $true
+$pnlRes.Size         = New-Object System.Drawing.Size(190, 24)
+$pnlRes.Location     = New-Object System.Drawing.Point(980, 8)
+$pnlRes.Anchor       = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$topPanel.Controls.Add($pnlRes)
+
+$lblCpuPct = New-Object System.Windows.Forms.Label
+$lblCpuPct.Text      = 'CPU   --'
+$lblCpuPct.Tag       = 'keep'
+$lblCpuPct.AutoSize  = $false
+$lblCpuPct.Size      = New-Object System.Drawing.Size(70, 20)
+$lblCpuPct.TextAlign = 'MiddleLeft'
+$lblCpuPct.Font      = New-Object System.Drawing.Font('Consolas', 9, [System.Drawing.FontStyle]::Bold)
+$lblCpuPct.ForeColor = [System.Drawing.Color]::FromArgb(166, 226, 46)
+$pnlRes.Controls.Add($lblCpuPct)
+
+$lblRamMb = New-Object System.Windows.Forms.Label
+$lblRamMb.Text      = 'RAM   --'
+$lblRamMb.Tag       = 'keep'
+$lblRamMb.AutoSize  = $false
+$lblRamMb.Size      = New-Object System.Drawing.Size(112, 20)
+$lblRamMb.TextAlign = 'MiddleLeft'
+$lblRamMb.Font      = New-Object System.Drawing.Font('Consolas', 9, [System.Drawing.FontStyle]::Bold)
+$lblRamMb.ForeColor = [System.Drawing.Color]::FromArgb(102, 217, 239)
+$pnlRes.Controls.Add($lblRamMb)
+
+$pnlRes.BringToFront()
+
+function Update-ScanResources {
+    param([int]$CpuPct, [int]$RamMb)
+    $lblCpuPct.Text = 'CPU {0,3}%' -f $CpuPct
+    $lblRamMb.Text  = 'RAM {0,5} MB' -f $RamMb
+}
+
+function Reset-ScanResources {
+    $lblCpuPct.Text = 'CPU   --'
+    $lblRamMb.Text  = 'RAM   --'
+}
+
 # Findings (right)
 $findLabel = New-Object System.Windows.Forms.Label
 $findLabel.Text = "Findings (live)"
@@ -5280,11 +5346,16 @@ $btnRun.Add_Click({
         }
     } catch { }
     Reset-Progress $chkTotal
+    Reset-ScanResources
+    $script:ScanWorkerPid = 0; $script:ScanWorkerLastCpu = 0.0; $script:ScanWorkerLastAt = [DateTime]::Now
 
     # Run as job so we can stream output
     $jobScript = {
         param($modulePath, $params)
         Import-Module $modulePath -Force
+        # First line out: the worker's own PID, so the GUI can sample its CPU/RAM.
+        # Start-Job runs a real separate process, so $PID here is the scan worker.
+        "WPID`t$PID"
         Invoke-TcpkAudit @params 6>&1 |
             ForEach-Object {
                 if ($_ -is [string]) {
@@ -5327,10 +5398,39 @@ $btnRun.Add_Click({
                 Add-Finding $f
                 Update-RunStatus
             }
+            elseif ($line -match '^WPID\t(\d+)$') {
+                $script:ScanWorkerPid = [int]$matches[1]
+                # Baseline immediately so the first sample is a true delta. If this
+                # throws (the worker may not be queryable the instant it emits), the
+                # baseline stays at click time and the first reading over-reads; it is
+                # clamped, so the cost is one spurious high tick, not a wrong trend.
+                try {
+                    $wp0 = Get-Process -Id $script:ScanWorkerPid -ErrorAction Stop
+                    $script:ScanWorkerLastCpu = $wp0.CPU
+                    $script:ScanWorkerLastAt  = [DateTime]::Now
+                } catch { }
+            }
+        }
+        # Sample worker CPU/RAM every 2s and refresh the toolbar readout.
+        if ($script:ScanWorkerPid -gt 0) {
+            $sElapsed = ([DateTime]::Now - $script:ScanWorkerLastAt).TotalSeconds
+            if ($sElapsed -ge 2.0) {
+                try {
+                    $wp = Get-Process -Id $script:ScanWorkerPid -ErrorAction Stop
+                    $cpuDelta = $wp.CPU - $script:ScanWorkerLastCpu
+                    $cpuPct   = [Math]::Max(0, [Math]::Min(100, [int]($cpuDelta / $sElapsed * 100)))
+                    $ramMb    = [int]($wp.WorkingSet64 / 1MB)
+                    $script:ScanWorkerLastCpu = $wp.CPU
+                    $script:ScanWorkerLastAt  = [DateTime]::Now
+                    Update-ScanResources -CpuPct $cpuPct -RamMb $ramMb
+                } catch { $script:ScanWorkerPid = 0 }
+            }
         }
         Start-Sleep -Milliseconds 150
         [System.Windows.Forms.Application]::DoEvents()
     }
+    $script:ScanWorkerPid = 0
+    Reset-ScanResources
     # Drain remaining output from the job (LOG + FND)
     $remaining = Receive-Job -Job $job -Wait -AutoRemoveJob
     foreach ($line in $remaining) {
