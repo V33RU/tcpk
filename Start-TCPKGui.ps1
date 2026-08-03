@@ -986,8 +986,8 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
                 $nc  = [Math]::Max(1, [Environment]::ProcessorCount)
                 $ce  = if ($secs -gt 0.05) { $cpuUsed / $secs } else { 0.0 }
                 $pct = [int]([Math]::Min(100, ($ce / $nc) * 100))
-                $wsMb = [int]($me.WorkingSet64 / 1MB)
-                $dMb  = [int](($me.WorkingSet64 - $ws0) / 1MB)
+                $wsMb = Get-TcpkPrivateWsMb -ProcId $me.Id -FallbackBytes $me.WorkingSet64
+                $dMb  = [int](($me.WorkingSet64 - $ws0) / 1MB)   # delta stays on the same counter it was baselined with
                 $sign = if ($dMb -ge 0) { '+' } else { '' }
                 Write-IcptLine $box ("   [{0:N1}s  cpu {1}s = {2:N1} core(s), {3}% of machine  ram {4} MB ({5}{6} MB)]`r`n" -f `
                     $secs, [Math]::Round($cpuUsed, 1), $ce, $pct, $wsMb, $sign, $dMb) ([System.Drawing.Color]::FromArgb(120,130,140))
@@ -4135,6 +4135,28 @@ function Update-ScanResources {
     } catch { }
 }
 
+# Task Manager's "Memory" column is the ACTIVE PRIVATE working set. Process.WorkingSet64 is
+# private + SHARED -- every mapped DLL page the process shares with other processes counts
+# toward it -- so the two differ by 100 MB or more on a .NET/WinForms host and the gauge
+# looks wrong next to Task Manager even though both numbers are correct.
+#
+# Private working set is not exposed by System.Diagnostics.Process, so it comes from the perf
+# class. WorkingSetPrivate there is PERF_COUNTER_LARGE_RAWCOUNT: the raw value IS the byte
+# count, no rate computation needed. Falls back to WorkingSet64 if the query fails, because
+# performance counters do get corrupted on real machines and a slightly-too-large number
+# beats a blank gauge.
+function Get-TcpkPrivateWsMb {
+    param([int]$ProcId, [long]$FallbackBytes)
+    try {
+        $c = Get-CimInstance -ClassName Win32_PerfRawData_PerfProc_Process -Filter "IDProcess=$ProcId" -ErrorAction Stop
+        if ($c) {
+            $wsp = @($c)[0].WorkingSetPrivate
+            if ($wsp -and $wsp -gt 0) { return [int]($wsp / 1MB) }
+        }
+    } catch { }
+    return [int]($FallbackBytes / 1MB)
+}
+
 function Reset-ScanResources {
     $lblCpuPct.Text = 'CPU   --'
     $lblRamMb.Text  = 'RAM   --'
@@ -4170,7 +4192,7 @@ $script:ResTimer.Add_Tick({
         $cores = [Math]::Max(1, [Environment]::ProcessorCount)
         $ce  = [Math]::Max(0.0, $d / $el)                       # core-equivalent
         $pct = [Math]::Max(0, [Math]::Min(100, [int](($ce / $cores) * 100)))
-        Update-ScanResources -CpuPct $pct -RamMb ([int]($pr.WorkingSet64 / 1MB)) -Cores $ce -Src 'gui'
+        Update-ScanResources -CpuPct $pct -RamMb (Get-TcpkPrivateWsMb -ProcId $pr.Id -FallbackBytes $pr.WorkingSet64) -Cores $ce -Src 'gui'
     } catch { }
 })
 $script:ResTimer.Start()
@@ -5630,7 +5652,7 @@ $btnRun.Add_Click({
                     $nCores   = [Math]::Max(1, [Environment]::ProcessorCount)
                     $ce       = [Math]::Max(0.0, $cpuDelta / $sElapsed)
                     $cpuPct   = [Math]::Max(0, [Math]::Min(100, [int](($ce / $nCores) * 100)))
-                    $ramMb    = [int]($wp.WorkingSet64 / 1MB)
+                    $ramMb    = Get-TcpkPrivateWsMb -ProcId $wp.Id -FallbackBytes $wp.WorkingSet64
                     $script:ScanWorkerLastCpu = $wp.CPU
                     $script:ScanWorkerLastAt  = [DateTime]::Now
                     Update-ScanResources -CpuPct $cpuPct -RamMb $ramMb -Cores $ce -Src 'worker'
