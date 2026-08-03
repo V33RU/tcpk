@@ -1607,6 +1607,7 @@ $script:RtSpecs = @(
     @{ T='Service DLL';      Fn='Test-TcpkServiceDll';             K='path' }
     @{ T='AppInit DLLs';     Fn='Test-TcpkAppInitDlls';            K='path' }
     @{ T='Load Points';      Fn='Test-TcpkRegistryLoadPoints';     K='path' }
+    @{ T='Installer DLL';    Fn='Test-TcpkInstallerPlanting';      K='path' }
     @{ T='JNI Native';       Fn='Test-TcpkJavaNativeLoad';         K='path' }
     @{ T='Clipboard';        Fn='';                                K='clipboard' }
     @{ T='GUI Unlock';        Fn='';                                K='gui-unlock' }

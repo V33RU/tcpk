@@ -59,6 +59,8 @@ $script:TcpkAttackMap = @(
     @{ rx = '^servicedll\.';                                                             tech = @('T1574 Hijack Execution Flow') }
     @{ rx = '^appinit\.';                                                                tech = @('T1546.010 AppInit DLLs') }
     @{ rx = '^appcert\.';                                                                tech = @('T1546.009 AppCert DLLs') }
+    @{ rx = '^installer\.(plantable-import|searchorder-import)';                        tech = @('T1574.001 DLL','T1574.002 DLL Side-Loading') }
+    @{ rx = '^installer\.';                                                             tech = @('T1574 Hijack Execution Flow') }
     @{ rx = '^jni\.';                                                                    tech = @('T1574.001 DLL','T1129 Shared Modules') }
     @{ rx = '^loadpoint\.';                                                              tech = @('T1546 Event Triggered Execution','T1574 Hijack Execution Flow') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
@@ -148,6 +150,7 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^dotnethost\.';                                                                                          da = 'DA5 Improper Authorization' }
     @{ rx = '^path\.writable';                                                                                        da = 'DA5 Improper Authorization' }
     @{ rx = '^(servicedll|appinit|appcert|loadpoint|jni)\.';                                                          da = 'DA5 Improper Authorization' }
+    @{ rx = '^installer\.';                                                                                          da = 'DA5 Improper Authorization' }
     @{ rx = '^thread\.unbacked-start';                                                                                da = 'DA8 Poor Code Quality' }
     @{ rx = '^diag\.';                                                                                                da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^grpc\.';                                                                                                 da = 'DA6 Security Misconfiguration' }

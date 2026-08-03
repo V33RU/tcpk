@@ -390,6 +390,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkServiceDll'          { Test-TcpkServiceDll          -Path $expanded }
     _RunCheck 'Test-TcpkAppInitDlls'         { Test-TcpkAppInitDlls         -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkRegistryLoadPoints'  { Test-TcpkRegistryLoadPoints  -Path $expanded }
+    _RunCheck 'Test-TcpkInstallerPlanting'   { Test-TcpkInstallerPlanting   -Path $expanded }
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $idTerms -Path $expanded }
     # All name-targeted checks are app-aware: they take the FULL derived term set so

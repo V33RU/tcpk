@@ -43,6 +43,19 @@ function Test-TcpkWritablePath {
     $usrPath = [System.Environment]::GetEnvironmentVariable('PATH', 'User')
     if ($usrPath) { $pathDirs += $usrPath.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries) }
 
+    # PATH entries that are user-writable BY DESIGN, not by vendor mistake. These live in
+    # the user's own profile, so the user can always write to them, and an elevated process
+    # launched from that user's session inherits the user PATH -- which is precisely the
+    # privilege crossing. %LOCALAPPDATA%\Microsoft\WindowsApps is the sink in four of the
+    # disclosed DLL-hijack reports in this class (Acronis x3, Monero).
+    #
+    # They must bypass the target-relevance filter below. That filter keeps this check
+    # attributable by only reporting PATH directories at or around the install tree -- but
+    # WindowsApps sits nowhere near an install dir, so the single highest-yield hijack sink
+    # on Windows was structurally unreachable by this check.
+    $knownSinks = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    if ($env:LOCALAPPDATA) { [void]$knownSinks.Add((Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps').TrimEnd('\')) }
+
     $seen = [System.Collections.Generic.HashSet[string]]::new(
         [System.StringComparer]::OrdinalIgnoreCase)
 
@@ -54,6 +67,8 @@ function Test-TcpkWritablePath {
 
         if ($d -match '(?i)^C:\\Windows') { continue }
 
+        $isKnownSink = $knownSinks.Contains($d)
+
         # Only report PATH dirs related to the target: dir is a parent of
         # the target, dir is inside the target, or dir equals the target.
         $dNorm = $d.ToLower()
@@ -61,7 +76,7 @@ function Test-TcpkWritablePath {
         $isParent = $tNorm.StartsWith($dNorm + '\')
         $isChild  = $dNorm.StartsWith($tNorm + '\')
         $isEqual  = $dNorm -eq $tNorm
-        if (-not ($isParent -or $isChild -or $isEqual)) { continue }
+        if (-not ($isParent -or $isChild -or $isEqual -or $isKnownSink)) { continue }
 
         try { $acl = Get-Acl -LiteralPath $d -ErrorAction Stop } catch { continue }
         $bad = @($acl.Access | Where-Object {
@@ -69,9 +84,16 @@ function Test-TcpkWritablePath {
             $_.FileSystemRights -match $writeRights -and
             $_.AccessControlType -eq 'Allow'
         })
-        if ($bad.Count -eq 0) { continue }
+        # A profile-local sink usually grants the OWNING USER rather than a well-known group,
+        # so the group match above legitimately finds nothing. Writability is structural
+        # there -- it is the user's own directory -- so do not require a group ACE for it.
+        if ($bad.Count -eq 0 -and -not $isKnownSink) { continue }
 
-        $ev = ($bad | ForEach-Object { "$($_.IdentityReference) -> $($_.FileSystemRights)" }) -join '; '
+        $ev = if ($bad.Count) {
+            ($bad | ForEach-Object { "$($_.IdentityReference) -> $($_.FileSystemRights)" }) -join '; '
+        } else {
+            'user-writable by design (directory lives in the current user profile)'
+        }
         $inSystem = $false
         if ($sysPath) {
             foreach ($sp in $sysPath.Split(';', [System.StringSplitOptions]::RemoveEmptyEntries)) {
@@ -80,17 +102,46 @@ function Test-TcpkWritablePath {
         }
         $scope = if ($inSystem) { 'system' } else { 'user' }
 
-        New-TcpkFinding -Module 'os' -RuleId 'path.writable-entry' `
-            -Severity 'HIGH' -Confidence 'Confirmed' `
-            -Title "Writable $scope PATH directory: $d" `
-            -File $d `
-            -Evidence "$scope PATH; $ev" `
-            -Cwe @('CWE-427','CWE-426') `
-            -Description ('This directory is in the ' + $scope + ' PATH and is writable by ' +
-                'non-admin users. An attacker can plant a malicious executable here with the ' +
-                'same name as a legitimate tool. When the application (or any process on the ' +
-                'system) resolves that tool name, the planted binary runs instead ' +
-                '(ATT&CK T1574.007 Path Interception).') `
-            -Fix "Remove the directory from PATH or restrict its ACL to administrators/SYSTEM only."
+        if ($isKnownSink) {
+            # Severity is deliberately MEDIUM on its own. The directory existing is a Windows
+            # default and not a vulnerability; it becomes one when this application also
+            # searches for a name it will not find, and the attack graph raises that pair
+            # (prim.hijackname + prim.loaddir) to a reachable goal. Reporting it HIGH standalone
+            # would fire on every Windows box and be an attribution error.
+            New-TcpkFinding -Module 'os' -RuleId 'path.writable-entry' `
+                -Severity 'MEDIUM' -Confidence 'Confirmed' `
+                -Title "Known user-writable PATH sink on the search path: $d" `
+                -File $d `
+                -Evidence "$scope PATH; $ev" `
+                -Cwe @('CWE-427','CWE-426') `
+                -Description ('This directory is in the ' + $scope + ' PATH and sits in the ' +
+                    'current user profile, so any non-admin user can write to it. It is a ' +
+                    'Windows default, NOT a vendor mistake -- but an elevated process launched ' +
+                    'from this user session inherits the user PATH, so anything this application ' +
+                    'resolves by NAME rather than by full path can be satisfied from here. That ' +
+                    'is the privilege crossing behind the publicly disclosed DLL-hijack reports ' +
+                    'in this class, where a missing DLL (for example tcmalloc.dll, providers.dll, ' +
+                    'perf.dll) was planted in this exact directory and loaded by an elevated ' +
+                    'process. On its own this is only the SINK: it matters when paired with a ' +
+                    'name this application searches for and does not find.') `
+                -Fix ('The vendor cannot remove this directory from PATH, and does not need to. ' +
+                    'Fix the loading side instead: load DLLs by full path, call ' +
+                    'SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32) at startup, remove ' +
+                    'imports of DLLs that are not shipped, and launch child processes with a ' +
+                    'fully qualified path rather than a bare name.')
+        } else {
+            New-TcpkFinding -Module 'os' -RuleId 'path.writable-entry' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title "Writable $scope PATH directory: $d" `
+                -File $d `
+                -Evidence "$scope PATH; $ev" `
+                -Cwe @('CWE-427','CWE-426') `
+                -Description ('This directory is in the ' + $scope + ' PATH and is writable by ' +
+                    'non-admin users. An attacker can plant a malicious executable here with the ' +
+                    'same name as a legitimate tool. When the application (or any process on the ' +
+                    'system) resolves that tool name, the planted binary runs instead ' +
+                    '(ATT&CK T1574.007 Path Interception).') `
+                -Fix "Remove the directory from PATH or restrict its ACL to administrators/SYSTEM only."
+        }
     }
 }

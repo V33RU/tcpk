@@ -282,6 +282,8 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^servicedll\.';                                                                                                                                         A = 'hardening' }
     @{ Rx = '^appinit\.(dll-writable|app-registers-dll)';                                                                                                            A = 'local-privesc' }
     @{ Rx = '^(appinit|appcert)\.';                                                                                                                                  A = 'hardening' }
+    @{ Rx = '^installer\.(plantable-import|searchorder-import)';                                                                    A = 'local-privesc' }
+    @{ Rx = '^installer\.';                                                                                                         A = 'hardening' }
     @{ Rx = '^loadpoint\.(writable|app-registered)';                                                                                                                 A = 'local-privesc' }
     @{ Rx = '^loadpoint\.';                                                                                                                                          A = 'hardening' }
     @{ Rx = '^jni\.(library-path-writable|manifest-classpath-writable)';                                                                                             A = 'local-privesc' }

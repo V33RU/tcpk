@@ -182,6 +182,7 @@ function Get-TcpkAgentRuntime {
         'service-dll'     = @{ fn = 'Test-TcpkServiceDll';            kind = 'path' }
         'appinit-dlls'    = @{ fn = 'Test-TcpkAppInitDlls';           kind = 'path' }
         'load-points'     = @{ fn = 'Test-TcpkRegistryLoadPoints';    kind = 'path' }
+        'installer-dll'   = @{ fn = 'Test-TcpkInstallerPlanting';     kind = 'path' }
         'jni-native'      = @{ fn = 'Test-TcpkJavaNativeLoad';        kind = 'path' }
         'named-pipes'     = @{ fn = 'Test-TcpkNamedPipes';             kind = 'sys' }
         'pipe-dacls'      = @{ fn = 'Test-TcpkNamedPipeDacl';          kind = 'sys' }
