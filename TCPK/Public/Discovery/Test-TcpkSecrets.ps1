@@ -128,8 +128,13 @@ function Test-TcpkSecrets {
     }
 
     $fileArr = @($files); $fileTotal = $fileArr.Count; $fileIdx = 0
+    $budgetSkipped = 0
     foreach ($f in $fileArr) {
         $fileIdx++
+        # Same cooperative budget as the other heavy per-file checks. Stopping early keeps
+        # every secret already found; throwing would discard the lot, because Invoke-TcpkAudit
+        # collects a check's output with `$r = & $Block`.
+        if (Test-TcpkCheckBudgetExpired) { $budgetSkipped = $fileTotal - $fileIdx + 1; break }
         Write-TcpkProgress -Id 77 -ParentId 1 -Activity 'Secrets scan' -Status ("{0} ({1} MB) [{2}/{3}]" -f $f.Name, [int]($f.Length / 1MB), $fileIdx, $fileTotal) -Current $fileIdx -Total $fileTotal
         if ($f.Extension.ToLowerInvariant() -in $skipExt) { continue }
         if (Test-TcpkIsFrameworkFile $f.Name)             { continue }
@@ -205,6 +210,13 @@ function Test-TcpkSecrets {
                 -Title "Secret scan failed on $($f.Name)" `
                 -Reason "$($_.Exception.Message)"
         }
+    }
+    if ($budgetSkipped -gt 0) {
+        New-TcpkSkippedFinding -RuleId 'secrets.budget-exhausted' `
+            -Title "Secret scan stopped early: $budgetSkipped of $fileTotal files not scanned" `
+            -Reason ("This check hit its wall-clock budget after $($fileIdx - 1) files. The remaining " +
+                "$budgetSkipped were NOT scanned, so the absence of a secret finding for them is " +
+                "UNKNOWN, not clean. Narrow -Path or raise the budget and re-run to cover them.")
     }
     Complete-TcpkProgress -Id 77
 }

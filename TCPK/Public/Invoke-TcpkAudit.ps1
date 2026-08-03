@@ -226,6 +226,10 @@ function Invoke-TcpkAudit {
         Write-TcpkProgress -Id 1 -Activity 'TCPK audit' -Status ("running {0} ..." -f $Name)
         try {
             $sw = [System.Diagnostics.Stopwatch]::StartNew()
+            # Arm the cooperative budget for this check. Checks with per-file loops consult
+            # it and stop cleanly, keeping what they already found; checks that ignore it are
+            # unaffected. See Start-TcpkCheckBudget for why this is not a hard timeout.
+            Start-TcpkCheckBudget
             $r = & $Block
             $sw.Stop()
             $count = if ($r) { @($r).Count } else { 0 }
@@ -243,6 +247,7 @@ function Invoke-TcpkAudit {
             # not-implemented) -- classify so coverage.json reflects what truly executed.
             $covStatus = Get-TcpkCoverageStatusFromFindings -Findings $r
             Add-TcpkCoverage -Name $Name -Status $covStatus -Count $count -DurationMs ([int]$sw.Elapsed.TotalMilliseconds)
+            Clear-TcpkCheckBudget
         } catch {
             $sw.Stop()
             # Elapsed on the failure line too: a check that dies instantly is a different
@@ -252,6 +257,7 @@ function Invoke-TcpkAudit {
             Write-Information -MessageData $msg -InformationAction Continue
             Write-TcpkLog -Level ERROR -Component $Name -Message $_.Exception.Message -DurationMs ([int]$sw.Elapsed.TotalMilliseconds) | Out-Null
             Add-TcpkCoverage -Name $Name -Status 'Failed' -DurationMs ([int]$sw.Elapsed.TotalMilliseconds)
+            Clear-TcpkCheckBudget
             $all.Add( (New-TcpkFinding -Module 'meta' -RuleId 'meta.cmdlet-failed' `
                 -Severity 'INFO' -Confidence 'Skipped' `
                 -Title "Check '$Name' did not complete" `

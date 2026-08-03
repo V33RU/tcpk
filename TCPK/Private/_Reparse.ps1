@@ -33,6 +33,41 @@ function Get-TcpkLinkTarget {
 $script:TcpkScanStats = $null
 $script:TcpkScanSampleCap = 25
 
+# ---------------------------------------------------------------------------
+# PER-CHECK WALL-CLOCK BUDGET.
+#
+# The extractor already bounds a single FILE. That is not enough: a check that spends 20
+# seconds per binary across 400 binaries runs for hours without any one file misbehaving.
+# Test-TcpkStrings is the worst case -- it concatenates the three extracted views into one
+# string (up to ~144 MB) and runs three regexes over it, PER PE. An audit sat at 4% on two
+# different targets because of exactly that aggregate, and nothing anywhere had a bound.
+#
+# PowerShell cannot interrupt a running scriptblock from outside without a separate runspace,
+# so the budget is COOPERATIVE: _RunCheck arms it, and any check with a per-file loop calls
+# Test-TcpkCheckBudgetExpired once per iteration and stops cleanly. A check that stops early
+# keeps the findings it already produced -- unlike an exception, which would discard them all
+# because _RunCheck collects output with `$r = & $Block`.
+$script:TcpkCheckDeadline  = $null
+$script:TcpkCheckBudgetSec = 300
+
+function Start-TcpkCheckBudget {
+    [CmdletBinding()] param([int]$Seconds = 0)
+    $s = if ($Seconds -gt 0) { $Seconds } else { $script:TcpkCheckBudgetSec }
+    $script:TcpkCheckDeadline = (Get-Date).AddSeconds($s)
+}
+
+function Clear-TcpkCheckBudget {
+    [CmdletBinding()] param()
+    $script:TcpkCheckDeadline = $null
+}
+
+# $true once the current check has overrun. Cheap enough to call per file.
+function Test-TcpkCheckBudgetExpired {
+    [CmdletBinding()] param()
+    if (-not $script:TcpkCheckDeadline) { return $false }
+    return ((Get-Date) -gt $script:TcpkCheckDeadline)
+}
+
 function Reset-TcpkScanStats {
     [CmdletBinding()] param()
     $script:TcpkScanStats = [pscustomobject]@{

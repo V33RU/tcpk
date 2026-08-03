@@ -243,7 +243,7 @@ $script:TcpkCvssRuleArchetype = @(
     # through to the generic severity band instead of the shipped-secret vector. The
     # coverage/skip subrules are listed first so an INFO "this file timed out" record
     # cannot inherit a credential-exposure score.
-    @{ Rx = '^secrets\.(rule-timeout|file-error)';                                                                                                                  A = 'hardening' }
+    @{ Rx = '^secrets\.(rule-timeout|file-error|budget-exhausted)';                                                                                                 A = 'hardening' }
     @{ Rx = '^secrets\.';                                                                                                                                           A = 'shipped-secret' }
     @{ Rx = '^(entropy|jwt|config|app-config)\.';                                                                                                                   A = 'shipped-secret' }
     @{ Rx = '^(dpapi|token-cache|credman|localdb|env|memory|memsecret|pii|log|clipboard)\.';                                                                         A = 'local-at-rest' }
@@ -285,6 +285,8 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^installer\.(plantable-import|searchorder-import)';                                                                    A = 'local-privesc' }
     @{ Rx = '^installer\.';                                                                                                         A = 'hardening' }
     # First match wins here, so the coverage/skip records are listed BEFORE the real ones.
+    @{ Rx = '^strings\.(budget-exhausted|partial-scan|deduped-scan)';                                                                                    A = 'hardening' }
+    @{ Rx = '^strings\.';                                                                                                                               A = 'hardening' }
     @{ Rx = '^loaded\.non-system-path-checked';                                                                                     A = 'hardening' }
     @{ Rx = '^loaded\.non-system-path';                                                                                             A = 'local-privesc' }
     @{ Rx = '^gui\.(no-automation-peers|uia-unavailable|password-field)';                                                            A = 'hardening' }

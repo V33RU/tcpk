@@ -67,6 +67,7 @@ $script:TcpkAttackMap = @(
     @{ rx = '^loaded\.non-system-path$';                                                 tech = @('T1574.001 DLL') }
     @{ rx = '^loaded\.';                                                                tech = @('T1574 Hijack Execution Flow') }
     @{ rx = '^gui\.';                                                                   tech = @('T1548 Abuse Elevation Control Mechanism') }
+    @{ rx = '^strings\.';                                                               tech = @('T1083 File and Directory Discovery') }
     @{ rx = '^jni\.';                                                                    tech = @('T1574.001 DLL','T1129 Shared Modules') }
     @{ rx = '^loadpoint\.';                                                              tech = @('T1546 Event Triggered Execution','T1574 Hijack Execution Flow') }
     @{ rx = '^path\.writable';                                                           tech = @('T1574.007 Path Interception by PATH Environment Variable') }
@@ -158,6 +159,7 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^(servicedll|appinit|appcert|loadpoint|jni)\.';                                                          da = 'DA5 Improper Authorization' }
     @{ rx = '^installer\.';                                                                                          da = 'DA5 Improper Authorization' }
     @{ rx = '^(loaded|gui)\.';                                                                                       da = 'DA5 Improper Authorization' }
+    @{ rx = '^strings\.';                                                                                             da = 'DA6 Security Misconfiguration' }
     @{ rx = '^handle\.';                                                                                             da = 'DA6 Security Misconfiguration' }
     @{ rx = '^thread\.unbacked-start';                                                                                da = 'DA8 Poor Code Quality' }
     @{ rx = '^diag\.';                                                                                                da = 'DA3 Sensitive Data Exposure' }
