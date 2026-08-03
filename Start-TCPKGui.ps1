@@ -933,11 +933,35 @@ function Test-IcptGate($gate, $box) {
 # Run one active/parse cmdlet, stream its findings into the given console (severity-coloured).
 # Synchronous with a wait cursor -- the active modes launch the target, so the window
 # pauses for the capture/instrument duration, matching the Exploit tab's dynamic tools.
+# Shared runner for every tool tab (Runtime, Intercept, Decompiler, ...).
+#
+# Three things happen around the call, all of which used to be missing:
+#
+# 1. OPTIONAL CLEAR. Repeated clicks appended forever, so a pane could hold four identical
+#    GuiInspector blocks and three ListeningPorts blocks with nothing separating them, and
+#    there was no way to tell the current result from the previous one. Callers that set
+#    $script:IcptClearNext get a fresh pane.
+# 2. A TIMESTAMPED HEADER. Even when deliberately accumulating (comparing two checks), the
+#    run separator now carries wall-clock time, so old and new output are distinguishable.
+# 3. CPU / RAM FOR THIS ACTION. These checks run SYNCHRONOUSLY on the UI thread, so the
+#    toolbar gauge cannot tick while one is in flight -- the message pump is blocked. What
+#    IS measurable, and is more useful, is the cost of the check itself: CPU seconds burned
+#    and peak working set, reported as a footer line. The gauge shows idle/worker state; this
+#    shows what the action actually cost.
 function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
-    Write-IcptLine $box "`r`n== $title ==`r`n" ([System.Drawing.Color]::FromArgb(102,217,239))
+    if ($script:IcptClearNext) { try { $box.Clear() } catch { }; $script:IcptClearNext = $false }
+
+    Write-IcptLine $box ("`r`n== {0} ==  [{1}]`r`n" -f $title, (Get-Date -Format 'HH:mm:ss')) ([System.Drawing.Color]::FromArgb(102,217,239))
     Update-Status "$title ... (the window may pause while this runs)"
     $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
     [System.Windows.Forms.Application]::DoEvents()
+
+    # Baseline this process before the call. Process.CPU is total processor seconds across
+    # all cores, so the delta over wall time is the average load this action produced.
+    $me = $null; $cpu0 = 0.0; $ws0 = 0
+    try { $me = [System.Diagnostics.Process]::GetCurrentProcess(); $cpu0 = $me.TotalProcessorTime.TotalSeconds; $ws0 = $me.WorkingSet64 } catch { }
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
     try {
         $res = & $call
         $n = 0
@@ -953,6 +977,21 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
     } catch {
         Write-IcptLine $box ("ERROR: {0}`r`n" -f $_.Exception.Message) ([System.Drawing.Color]::FromArgb(249,38,114))
     } finally {
+        $sw.Stop()
+        try {
+            if ($me) {
+                $me.Refresh()
+                $secs = $sw.Elapsed.TotalSeconds
+                $cpuUsed = [Math]::Max(0.0, $me.TotalProcessorTime.TotalSeconds - $cpu0)
+                $pct = if ($secs -gt 0.05) { [int]([Math]::Min(100, ($cpuUsed / $secs) * 100)) } else { 0 }
+                $wsMb = [int]($me.WorkingSet64 / 1MB)
+                $dMb  = [int](($me.WorkingSet64 - $ws0) / 1MB)
+                $sign = if ($dMb -ge 0) { '+' } else { '' }
+                Write-IcptLine $box ("   [{0:N1}s  cpu {1}s avg {2}%  ram {3} MB ({4}{5} MB)]`r`n" -f `
+                    $secs, [Math]::Round($cpuUsed, 1), $pct, $wsMb, $sign, $dMb) ([System.Drawing.Color]::FromArgb(120,130,140))
+                Update-ScanResources -CpuPct $pct -RamMb $wsMb
+            }
+        } catch { }
         $form.Cursor = [System.Windows.Forms.Cursors]::Default
         Update-Status "Ready."
     }
@@ -1426,6 +1465,17 @@ $splitB.Add_SizeChanged({
 # authorization tick (Test-IcptGate $chkRtGate) + Enable-TcpkExploit before they run.
 Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
 function Invoke-RtCheck([string]$fn, [string]$kind) {
+    # Run All clears ONCE at the start, then accumulates its own sequence. It re-enters this
+    # function per check, so without the RtInRunAll guard each inner call would clear again
+    # and the pane would end up holding only the final check.
+    if ($kind -eq 'run-all') {
+        if ($chkRtClearRun.Checked) { try { $txtRt.Clear() } catch { } }
+        $script:IcptClearNext = $false
+    } elseif ($script:RtInRunAll) {
+        $script:IcptClearNext = $false
+    } else {
+        $script:IcptClearNext = [bool]$chkRtClearRun.Checked
+    }
     switch ($kind) {
         'proc' {
             $p = $txtRtProc.Text.Trim()
@@ -1490,11 +1540,15 @@ function Invoke-RtCheck([string]$fn, [string]$kind) {
             Write-IcptLine $txtRt "Enable-TcpkExploit -Acknowledge`r`nInvoke-TcpkInputFuzz -TargetExe '<app.exe>' -SeedFile '<sample.ext>' -ArgTemplate '{FUZZ}' -Iterations 25`r`n" ([System.Drawing.Color]::White)
         }
         'run-all' {
-            foreach ($rs in $script:RtSpecs) {
-                if ($rs.K -in @('gui-unlock','pipe-probe','flag-flip','input-fuzz','clipboard')) { continue }
-                Invoke-RtCheck $rs.Fn $rs.K
-                [System.Windows.Forms.Application]::DoEvents()
-            }
+            # Set for the whole sequence so the re-entrant calls above do not each clear.
+            $script:RtInRunAll = $true
+            try {
+                foreach ($rs in $script:RtSpecs) {
+                    if ($rs.K -in @('gui-unlock','pipe-probe','flag-flip','input-fuzz','clipboard')) { continue }
+                    Invoke-RtCheck $rs.Fn $rs.K
+                    [System.Windows.Forms.Application]::DoEvents()
+                }
+            } finally { $script:RtInRunAll = $false }
         }
     }
 }
@@ -1549,6 +1603,17 @@ $btnRtRunAll.Text = "Run All"; $btnRtRunAll.Location = New-Object System.Drawing
 $btnRtRunAll.FlatStyle = 'Flat'; $btnRtRunAll.BackColor = [System.Drawing.Color]::FromArgb(40,116,166); $btnRtRunAll.ForeColor = [System.Drawing.Color]::White
 $btnRtRunAll.Add_Click({ Invoke-RtCheck '' 'run-all' })
 $rtTop.Controls.Add($btnRtRunAll)
+# Default ON. Repeated clicks used to append forever -- four identical GuiInspector blocks
+# in one pane with nothing to separate them. Untick to accumulate deliberately, e.g. when
+# comparing two checks side by side; the timestamped header keeps runs distinguishable
+# either way.
+$chkRtClearRun = New-Object System.Windows.Forms.CheckBox
+$chkRtClearRun.Text = "Clear on run"
+$chkRtClearRun.Checked = $true
+$chkRtClearRun.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
+$chkRtClearRun.Location = New-Object System.Drawing.Point(652,39); $chkRtClearRun.Size = New-Object System.Drawing.Size(110,20)
+$rtTop.Controls.Add($chkRtClearRun)
+
 $btnRtCopy = New-Object System.Windows.Forms.Button
 $btnRtCopy.Text = "Copy"; $btnRtCopy.Location = New-Object System.Drawing.Point(510,37); $btnRtCopy.Size = New-Object System.Drawing.Size(64,26)
 $btnRtCopy.FlatStyle = 'Flat'; $btnRtCopy.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRtCopy.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
@@ -3954,6 +4019,8 @@ $txtLog.BringToFront()
 # labels carry Margin 0 so the two of them fit the fixed width exactly.
 # Tag 'keep' exempts them from Set-CtlThemeRecursive, which repaints every Label with
 # the palette foreground and would erase the colour coding.
+$script:IcptClearNext     = $false
+$script:RtInRunAll        = $false
 $script:ScanWorkerPid     = 0
 $script:ScanWorkerLastCpu = 0.0
 $script:ScanWorkerLastAt  = [DateTime]::Now
@@ -4004,6 +4071,36 @@ function Reset-ScanResources {
     $lblCpuPct.Text = 'CPU   --'
     $lblRamMb.Text  = 'RAM   --'
 }
+
+# Keeps the gauge live for the WHOLE tool, not only during an audit. Samples the audit
+# worker when one is running, otherwise this GUI process.
+#
+# HONEST LIMIT: the tool tabs run their checks SYNCHRONOUSLY on the UI thread, so while one
+# is in flight the message pump is blocked and this timer cannot tick. The gauge therefore
+# freezes during a long check -- which is itself the signal that the UI thread is busy, not
+# a bug. Per-action cost is reported separately by Invoke-IcptTool, which measures across
+# the call and prints CPU seconds and peak working set when it returns.
+$script:ResLastCpu = 0.0
+$script:ResLastAt  = [DateTime]::Now
+$script:ResTimer = New-Object System.Windows.Forms.Timer
+$script:ResTimer.Interval = 2000
+$script:ResTimer.Add_Tick({
+    try {
+        # The audit's own poll loop samples the worker and keeps a separate baseline, so bail
+        # out FIRST when one is active rather than querying a process we then discard.
+        if ($script:ScanWorkerPid -gt 0) { return }
+        $pr = Get-Process -Id $PID -ErrorAction Stop
+        $now = [DateTime]::Now
+        $el = ($now - $script:ResLastAt).TotalSeconds
+        if ($el -lt 1.0) { return }
+        $d = $pr.CPU - $script:ResLastCpu
+        $script:ResLastCpu = $pr.CPU
+        $script:ResLastAt  = $now
+        $pct = [Math]::Max(0, [Math]::Min(100, [int](($d / $el) * 100)))
+        Update-ScanResources -CpuPct $pct -RamMb ([int]($pr.WorkingSet64 / 1MB))
+    } catch { }
+})
+$script:ResTimer.Start()
 
 # Findings (right)
 $findLabel = New-Object System.Windows.Forms.Label
