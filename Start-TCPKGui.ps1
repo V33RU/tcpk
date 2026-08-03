@@ -4025,51 +4025,107 @@ $script:ScanWorkerPid     = 0
 $script:ScanWorkerLastCpu = 0.0
 $script:ScanWorkerLastAt  = [DateTime]::Now
 
-$pnlRes = New-Object System.Windows.Forms.FlowLayoutPanel
-$pnlRes.Tag           = 'keep'
-$pnlRes.FlowDirection = 'LeftToRight'
-$pnlRes.WrapContents  = $false
-$pnlRes.AutoSize      = $false
-$pnlRes.Padding       = New-Object System.Windows.Forms.Padding(0)
-$pnlRes.Margin        = New-Object System.Windows.Forms.Padding(0)
-$pnlRes.Size          = New-Object System.Drawing.Size(186, 22)
-$pnlRes.Location      = New-Object System.Drawing.Point(820, 102)
-$pnlRes.Anchor        = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+# Two meters, each a fixed track panel with a coloured fill panel inside it. The fill's
+# WIDTH is the value, so there is no Paint handler and nothing custom-drawn -- an exception
+# inside a WinForms Paint override is ugly and hard to contain, and this needs none.
+#
+# Colour is the point. "CPU 78%" as text needs reading; a bar that turns amber then red is
+# read at a glance from across a room, which is the difference between noticing a pegged
+# scan and not. Thresholds: green under 50, amber 50-84, red 85+.
+$pnlRes = New-Object System.Windows.Forms.Panel
+$pnlRes.Tag      = 'keep'
+$pnlRes.Size     = New-Object System.Drawing.Size(186, 34)
+$pnlRes.Location = New-Object System.Drawing.Point(820, 96)
+$pnlRes.Anchor   = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($pnlRes)
 
+# --- CPU row ---
 $lblCpuPct = New-Object System.Windows.Forms.Label
 $lblCpuPct.Text      = 'CPU   --'
 $lblCpuPct.Tag       = 'keep'
 $lblCpuPct.AutoSize  = $false
-$lblCpuPct.Margin    = New-Object System.Windows.Forms.Padding(0)
-$lblCpuPct.Size      = New-Object System.Drawing.Size(70, 20)
+$lblCpuPct.Location  = New-Object System.Drawing.Point(0, 0)
+$lblCpuPct.Size      = New-Object System.Drawing.Size(74, 15)
 $lblCpuPct.TextAlign = 'MiddleLeft'
-$lblCpuPct.Font      = New-Object System.Drawing.Font('Consolas', 9, [System.Drawing.FontStyle]::Bold)
+$lblCpuPct.Font      = New-Object System.Drawing.Font('Consolas', 8, [System.Drawing.FontStyle]::Bold)
 $lblCpuPct.ForeColor = [System.Drawing.Color]::FromArgb(166, 226, 46)
 $pnlRes.Controls.Add($lblCpuPct)
 
+$script:CpuTrack = New-Object System.Windows.Forms.Panel
+$script:CpuTrack.Tag       = 'keep'
+$script:CpuTrack.Location  = New-Object System.Drawing.Point(76, 3)
+$script:CpuTrack.Size      = New-Object System.Drawing.Size(108, 9)
+$script:CpuTrack.BackColor = [System.Drawing.Color]::FromArgb(38, 42, 50)
+$pnlRes.Controls.Add($script:CpuTrack)
+
+$script:CpuFill = New-Object System.Windows.Forms.Panel
+$script:CpuFill.Tag       = 'keep'
+$script:CpuFill.Location  = New-Object System.Drawing.Point(0, 0)
+$script:CpuFill.Size      = New-Object System.Drawing.Size(0, 9)
+$script:CpuFill.BackColor = [System.Drawing.Color]::FromArgb(166, 226, 46)
+$script:CpuTrack.Controls.Add($script:CpuFill)
+
+# --- RAM row ---
 $lblRamMb = New-Object System.Windows.Forms.Label
 $lblRamMb.Text      = 'RAM   --'
 $lblRamMb.Tag       = 'keep'
 $lblRamMb.AutoSize  = $false
-$lblRamMb.Margin    = New-Object System.Windows.Forms.Padding(0)
-$lblRamMb.Size      = New-Object System.Drawing.Size(112, 20)
+$lblRamMb.Location  = New-Object System.Drawing.Point(0, 17)
+$lblRamMb.Size      = New-Object System.Drawing.Size(74, 15)
 $lblRamMb.TextAlign = 'MiddleLeft'
-$lblRamMb.Font      = New-Object System.Drawing.Font('Consolas', 9, [System.Drawing.FontStyle]::Bold)
+$lblRamMb.Font      = New-Object System.Drawing.Font('Consolas', 8, [System.Drawing.FontStyle]::Bold)
 $lblRamMb.ForeColor = [System.Drawing.Color]::FromArgb(102, 217, 239)
 $pnlRes.Controls.Add($lblRamMb)
 
+$script:RamTrack = New-Object System.Windows.Forms.Panel
+$script:RamTrack.Tag       = 'keep'
+$script:RamTrack.Location  = New-Object System.Drawing.Point(76, 20)
+$script:RamTrack.Size      = New-Object System.Drawing.Size(108, 9)
+$script:RamTrack.BackColor = [System.Drawing.Color]::FromArgb(38, 42, 50)
+$pnlRes.Controls.Add($script:RamTrack)
+
+$script:RamFill = New-Object System.Windows.Forms.Panel
+$script:RamFill.Tag       = 'keep'
+$script:RamFill.Location  = New-Object System.Drawing.Point(0, 0)
+$script:RamFill.Size      = New-Object System.Drawing.Size(0, 9)
+$script:RamFill.BackColor = [System.Drawing.Color]::FromArgb(102, 217, 239)
+$script:RamTrack.Controls.Add($script:RamFill)
+
 $pnlRes.BringToFront()
+
+# RAM has no natural 100% for a scan worker, so the bar is scaled against a moving high-water
+# mark rather than an invented ceiling. A bar pinned at full would say "out of memory", which
+# would be a lie; against the peak it honestly shows "this is the most it has used so far".
+$script:RamPeakMb = 256
 
 function Update-ScanResources {
     param([int]$CpuPct, [int]$RamMb)
     $lblCpuPct.Text = 'CPU {0,3}%' -f $CpuPct
-    $lblRamMb.Text  = 'RAM {0,5} MB' -f $RamMb
+    $lblRamMb.Text  = 'RAM {0,5}M' -f $RamMb
+
+    $c = if ($CpuPct -ge 85) { [System.Drawing.Color]::FromArgb(249, 38, 114) }
+         elseif ($CpuPct -ge 50) { [System.Drawing.Color]::FromArgb(230, 176, 40) }
+         else { [System.Drawing.Color]::FromArgb(166, 226, 46) }
+    try {
+        $w = [int]([Math]::Max(0, [Math]::Min(100, $CpuPct)) * $script:CpuTrack.Width / 100)
+        $script:CpuFill.Width     = $w
+        $script:CpuFill.BackColor = $c
+        $lblCpuPct.ForeColor      = $c
+    } catch { }
+
+    if ($RamMb -gt $script:RamPeakMb) { $script:RamPeakMb = $RamMb }
+    try {
+        $rw = if ($script:RamPeakMb -gt 0) { [int]($RamMb * $script:RamTrack.Width / $script:RamPeakMb) } else { 0 }
+        $script:RamFill.Width = [Math]::Max(0, [Math]::Min($script:RamTrack.Width, $rw))
+    } catch { }
 }
 
 function Reset-ScanResources {
     $lblCpuPct.Text = 'CPU   --'
     $lblRamMb.Text  = 'RAM   --'
+    $lblCpuPct.ForeColor = [System.Drawing.Color]::FromArgb(166, 226, 46)
+    try { $script:CpuFill.Width = 0; $script:RamFill.Width = 0 } catch { }
+    $script:RamPeakMb = 256
 }
 
 # Keeps the gauge live for the WHOLE tool, not only during an audit. Samples the audit
