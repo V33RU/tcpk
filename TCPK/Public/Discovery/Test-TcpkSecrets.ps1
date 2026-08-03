@@ -23,16 +23,31 @@ function Test-TcpkSecrets {
     param([Parameter(Mandatory)][string]$Path)
 
     $rules = (Get-TcpkData).rules
-    # Perf: compile each regex once (RegexOptions.Compiled = JIT to IL, 2-5x faster on
-    # repeated matches), and pre-extract a literal "cheap-substring" prefix so we can
-    # skip rules whose first literal isn't anywhere in the file at all.
+    # NO RegexOptions.Compiled. It was here for "2-5x faster on repeated matches", which is
+    # true and was the wrong trade for this workload.
+    #
+    # Compiled defers IL generation and JIT to the regex's FIRST USE, so the cost of building
+    # all 41 rules lands entirely on the first file scanned. An audit of Firefox Developer
+    # Edition sat on file 1 of 78 -- AccessibleMarshal.dll, under a megabyte -- burning CPU,
+    # with no second heartbeat, which is exactly the shape of a one-time initialisation cost.
+    # Three of the rules are variable-length lookbehinds, which .NET compiles into a reversed
+    # matcher and which are the most expensive of the set to build.
+    #
+    # Worse, it fights the _QuickLit pre-filter directly below. That filter exists so a rule
+    # whose literal prefix is absent NEVER RUNS -- so on a typical file most of these regexes
+    # are skipped entirely, and Compiled pays to JIT every one of them anyway. Paying full
+    # construction cost for matchers you then decline to use is strictly worse than
+    # interpreting the few that survive the filter.
+    #
+    # Compiled only repays itself after thousands of matches against the same instance, and
+    # the extractor already cut the matched text by more than an order of magnitude, so there
+    # is even less left to amortise against.
     foreach ($r in $rules) {
         if (-not $r.PSObject.Properties['_RX']) {
             $r | Add-Member -NotePropertyName _RX -NotePropertyValue ([regex]::new(
                 $r.pattern,
                 [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
-                [System.Text.RegularExpressions.RegexOptions]::Multiline  -bor
-                [System.Text.RegularExpressions.RegexOptions]::Compiled
+                [System.Text.RegularExpressions.RegexOptions]::Multiline
             )) -Force
         }
         if (-not $r.PSObject.Properties['_QuickLit']) {
