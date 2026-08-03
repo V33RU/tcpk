@@ -3829,18 +3829,43 @@ $btnGraphBuild.Add_Click({
     if (-not (Test-Path -LiteralPath $jsonPath)) { $lblGraphStatus.Text = "findings.json not found -- run an audit first."; return }
     $lblGraphStatus.Text = "Building graph..."
     [System.Windows.Forms.Application]::DoEvents()
+    # MUST run inside the module. New-TcpkFinding lives in Private/ and Export-ModuleMember
+    # only publishes Public/*.ps1, so it does not exist in GUI scope -- and [TcpkFinding],
+    # the type Get-TcpkAttackGraph demands, is a module-scoped class that a caller cannot
+    # construct without `using module` either. Calling them from here threw
+    # "not recognized", the catch below turned it into "Graph failed: ...", and the tab
+    # looked broken after every completed audit. Same `& $mod { }` pattern the asar and
+    # decompiler tabs already use.
+    $graphFindings = @()
+    $findingCount  = 0
     try {
-        $raw = @(Get-Content -LiteralPath $jsonPath -Raw -ErrorAction Stop | ConvertFrom-Json)
-        $findings = @($raw | ForEach-Object {
-            $f = New-TcpkFinding -Module "$($_.Module)" -RuleId "$($_.RuleId)" -Severity "$($_.Severity)" -Confidence "$($_.Confidence)" -Title "$($_.Title)"
-            if ($_.File)     { $f.File     = "$($_.File)" }
-            if ($_.Evidence) { $f.Evidence = "$($_.Evidence)" }
-            if ($_.Cwe)      { $f.Cwe      = @($_.Cwe) }
-            $f
-        })
-        $graphFindings = @($findings | Get-TcpkAttackGraph)
+        $mod = @(Get-Module TCPK)[0]
+        if (-not $mod) { throw 'TCPK module is not loaded in this session.' }
+        $res = & $mod {
+            param($p)
+            $raw = @(Get-Content -LiteralPath $p -Raw -ErrorAction Stop | ConvertFrom-Json)
+            $findings = @($raw | ForEach-Object {
+                $f = New-TcpkFinding -Module "$($_.Module)" -RuleId "$($_.RuleId)" -Severity "$($_.Severity)" -Confidence "$($_.Confidence)" -Title "$($_.Title)"
+                if ($_.File)     { $f.File     = "$($_.File)" }
+                if ($_.Evidence) { $f.Evidence = "$($_.Evidence)" }
+                if ($_.Cwe)      { $f.Cwe      = @($_.Cwe) }
+                $f
+            })
+            [pscustomobject]@{
+                Count = $findings.Count
+                Graph = @($findings | Get-TcpkAttackGraph)
+            }
+        } $jsonPath
+        $findingCount  = [int]$res.Count
+        $graphFindings = @($res.Graph)
     } catch {
         $lblGraphStatus.Text = "Graph failed: $($_.Exception.Message)"
+        return
+    }
+    if (-not $graphFindings.Count) {
+        $lblGraphStatus.Text = "Graph produced nothing from $findingCount finding(s) -- no correlation rules matched."
+        $txtMermaid.Text = "(no diagram)"
+        $btnGraphCopy.Enabled = $false
         return
     }
     $goals = @($graphFindings | Where-Object { $_.RuleId -eq 'attackgraph.reachable-goal' })
@@ -3848,7 +3873,7 @@ $btnGraphBuild.Add_Click({
     $noPath = $graphFindings | Where-Object { $_.RuleId -eq 'attackgraph.no-path' } | Select-Object -First 1
     $lvGoals.Items.Clear()
     if ($noPath) {
-        $lblGraphStatus.Text = "No end-to-end attack path correlated from $($findings.Count) findings."
+        $lblGraphStatus.Text = "No end-to-end attack path correlated from $findingCount findings."
         $txtMermaid.Text = "(no attack paths found -- individual findings may still matter)"
         $btnGraphCopy.Enabled = $false
         return
@@ -3868,7 +3893,7 @@ $btnGraphBuild.Add_Click({
     }
     $txtMermaid.Text = if ($mermaid) { $mermaid } else { "(no diagram)" }
     $btnGraphCopy.Enabled = [bool]$mermaid
-    $lblGraphStatus.Text = "$($goals.Count) reachable goal(s) from $($findings.Count) findings. $($render.Evidence -replace '\s+', ' ')"
+    $lblGraphStatus.Text = "$($goals.Count) reachable goal(s) from $findingCount findings. $($render.Evidence -replace '\s+', ' ')"
 })
 $btnGraphCopy.Add_Click({
     $src = $txtMermaid.Text

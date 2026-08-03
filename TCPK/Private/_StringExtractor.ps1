@@ -289,12 +289,37 @@ function Initialize-TcpkExtractor {
     }
 }
 
+# Emitted once per process, the first time the extractor is needed and cannot be
+# built. Without this the host silently drops to the slower fallback and nobody
+# knows why the scan is taking longer.
+$script:TcpkExtractorWarned = $false
+
 # Streams a file and returns a [Tcpk.ExtractResult], or $null if the read failed.
+#
+# Reports its own cost. A big file is the single most common reason a scan appears
+# to hang, so every streamed read announces the size, how much text came out of it,
+# and how long it took. That turns "the GUI is frozen" into "this 212 MB binary is
+# being read, it is 3% text, and it took 40 seconds" -- which is a wait, not a bug.
 function Invoke-TcpkStringExtract {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
-    if (-not (Initialize-TcpkExtractor)) { return $null }
+
+    if (-not (Initialize-TcpkExtractor)) {
+        if (-not $script:TcpkExtractorWarned) {
+            $script:TcpkExtractorWarned = $true
+            $m = "streaming string extractor unavailable on this host, falling back to chunked reads (slower): $script:TcpkExtractorError"
+            try { Write-Information -MessageData "  [strings] $m" -InformationAction Continue } catch { }
+            try { Write-TcpkLog -Level WARN -Component 'strings' -Message $m | Out-Null } catch { }
+        }
+        return $null
+    }
+
+    $len = 0
+    try { $len = [System.IO.FileInfo]::new($Path).Length } catch { }
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $r = $null
     try {
-        return [Tcpk.StringExtractor]::Extract(
+        $r = [Tcpk.StringExtractor]::Extract(
             $Path,
             [int]$script:TcpkMinRunLength,
             [int]$script:TcpkMaxRunChars,
@@ -302,6 +327,31 @@ function Invoke-TcpkStringExtract {
             [long]$script:TcpkDedupAtBytes,
             [long]$script:TcpkMaxViewChars)
     } catch {
+        $sw.Stop()
+        $m = "extract failed after $([int]$sw.Elapsed.TotalSeconds)s on $Path -- $($_.Exception.Message)"
+        try { Write-Information -MessageData "  [strings] $m" -InformationAction Continue } catch { }
+        try { Write-TcpkLog -Level ERROR -Component 'strings' -Message $m | Out-Null } catch { }
         return $null
     }
+    $sw.Stop()
+    if (-not $r) { return $null }
+
+    # Announce anything genuinely large or genuinely slow. Small fast reads stay quiet:
+    # a per-file line for every DLL in an install tree would bury the useful signal.
+    $secs = $sw.Elapsed.TotalSeconds
+    if ($len -ge 64MB -or $secs -ge 3.0) {
+        $outChars = [int64]$r.Ascii.Length + $r.WideEven.Length + $r.WideOdd.Length
+        $pct = if ($len -gt 0) { [math]::Round(($outChars * 100.0) / $len, 1) } else { 0 }
+        $name = try { [System.IO.Path]::GetFileName($Path) } catch { $Path }
+        $note = ''
+        if ($r.Deduped)      { $note += '; repeated strings collapsed' }
+        if ($r.OutputCapped) { $note += '; TEXT CAPPED -- coverage incomplete for this file' }
+        $m = ("{0}: {1} MB read in {2}s -> {3} MB of text ({4}% is text){5}" -f `
+              $name, [math]::Round($len / 1MB, 1), [math]::Round($secs, 1),
+              [math]::Round($outChars * 2 / 1MB, 1), $pct, $note)
+        try { Write-Information -MessageData "  [large file] $m" -InformationAction Continue } catch { }
+        $lvl = if ($r.OutputCapped) { 'WARN' } else { 'INFO' }
+        try { Write-TcpkLog -Level $lvl -Component 'strings' -Message $m -DurationMs ([int]$sw.Elapsed.TotalMilliseconds) | Out-Null } catch { }
+    }
+    return $r
 }

@@ -149,6 +149,7 @@ function Test-TcpkSecrets {
         # already produced -- a runaway match on file 400 of 900 would throw away files 1-399.
         # Catch it here, record the file, and carry on.
         $seen = @{}
+        $fsw = [System.Diagnostics.Stopwatch]::StartNew()
         try {
         $views = Read-TcpkStringViews -Path $f.FullName
         if ($views) {
@@ -181,13 +182,25 @@ function Test-TcpkSecrets {
                 } finally { $fsr.Dispose() }
             } catch { }
         }
+        $fsw.Stop()
+        # Attribute a slow scan to the FILE that caused it. Without this a long check
+        # just looks frozen, and the operator cannot tell a 200 MB binary being read
+        # from a hang. 5s is well above a normal per-file scan.
+        if ($fsw.Elapsed.TotalSeconds -ge 5.0) {
+            $sm = ("{0} took {1}s to scan ({2} MB)" -f $f.Name, [math]::Round($fsw.Elapsed.TotalSeconds, 1), [int]($f.Length / 1MB))
+            try { Write-Information -MessageData "  [slow file] $sm" -InformationAction Continue } catch { }
+            try { Write-TcpkLog -Level INFO -Component 'secrets' -Message $sm -DurationMs ([int]$fsw.Elapsed.TotalMilliseconds) | Out-Null } catch { }
+        }
         } catch [System.Text.RegularExpressions.RegexMatchTimeoutException] {
+            $fsw.Stop()
             New-TcpkSkippedFinding -RuleId 'secrets.rule-timeout' `
                 -Title "Secret rules timed out on $($f.Name)" `
                 -Reason ("A regex exceeded the match timeout on this file, so its remaining rules " +
                     "did not run. Other files were unaffected. Review it directly: strings -a " +
                     "`"$($f.FullName)`"")
         } catch {
+            $fsw.Stop()
+            try { Write-TcpkLog -Level ERROR -Component 'secrets' -Message ("$($f.Name): $($_.Exception.Message)") | Out-Null } catch { }
             New-TcpkSkippedFinding -RuleId 'secrets.file-error' `
                 -Title "Secret scan failed on $($f.Name)" `
                 -Reason "$($_.Exception.Message)"

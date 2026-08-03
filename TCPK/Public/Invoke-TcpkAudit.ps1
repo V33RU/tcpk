@@ -242,7 +242,10 @@ function Invoke-TcpkAudit {
             Add-TcpkCoverage -Name $Name -Status $covStatus -Count $count -DurationMs ([int]$sw.Elapsed.TotalMilliseconds)
         } catch {
             $sw.Stop()
-            $msg = "  {0,-32}  FAILED  ({1})" -f $Name, $_.Exception.Message
+            # Elapsed on the failure line too: a check that dies instantly is a different
+            # problem from one that dies after 40 minutes, and without the number they
+            # read identically in the log.
+            $msg = "  {0,-32}  FAILED after {1}s  ({2})" -f $Name, [int]$sw.Elapsed.TotalSeconds, $_.Exception.Message
             Write-Information -MessageData $msg -InformationAction Continue
             Write-TcpkLog -Level ERROR -Component $Name -Message $_.Exception.Message -DurationMs ([int]$sw.Elapsed.TotalMilliseconds) | Out-Null
             Add-TcpkCoverage -Name $Name -Status 'Failed' -DurationMs ([int]$sw.Elapsed.TotalMilliseconds)
