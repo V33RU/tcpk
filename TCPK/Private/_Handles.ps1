@@ -35,6 +35,7 @@ namespace Tcpk {
 
   const int SystemExtendedHandleInformation = 64;
   const int ObjectTypeInformation = 2;
+  const int ObjectNameInformation = 1;
 
   static string SddlOf(IntPtr h) {
      IntPtr sd;
@@ -45,6 +46,30 @@ namespace Tcpk {
      if (str != IntPtr.Zero) LocalFree(str);
      LocalFree(sd);
      return s;
+  }
+
+  // OBJECT_NAME_INFORMATION is a single UNICODE_STRING. THIS CALL CAN BLOCK FOREVER on a
+  // synchronous File/pipe handle with pending I/O, which is why Inspect() never reaches it
+  // for a File-type handle. For Key / Section / Event / Mutant / Semaphore / Job / Timer the
+  // query is serviced by the object manager without touching a device, so it returns.
+  //
+  // Without the name a finding reads "holds a Key with a permissive DACL" -- true, and
+  // useless: a vendor cannot fix "a Key". The name is what makes it actionable, and it is
+  // also what tells you whether the object is squattable at all, since an UNNAMED object
+  // cannot be created ahead of the app by a different process.
+  static string NameOf(IntPtr h) {
+     int len = 0x2000;
+     IntPtr buf = Marshal.AllocHGlobal(len);
+     try {
+        int ret;
+        int st = NtQueryObject(h, ObjectNameInformation, buf, len, out ret);
+        if (st != 0) return null;
+        short blen = Marshal.ReadInt16(buf, 0);
+        IntPtr sptr = Marshal.ReadIntPtr(buf, IntPtr.Size);
+        if (sptr == IntPtr.Zero || blen <= 0) return null;
+        return Marshal.PtrToStringUni(sptr, blen / 2);
+     } catch { return null; }
+     finally { Marshal.FreeHGlobal(buf); }
   }
 
   // OBJECT_TYPE_INFORMATION begins with a UNICODE_STRING TypeName. Type queries do not
@@ -63,10 +88,11 @@ namespace Tcpk {
      finally { Marshal.FreeHGlobal(buf); }
   }
 
-  // Returns "Type<US>Sddl<US>GrantedAccess" per handle, where <US> is \u001F. A control
-  // character is used as the separator because an SDDL string can legitimately contain
-  // almost any printable character, so any printable delimiter risks colliding with it.
-  // Names are deliberately never queried (see the hang note above).
+  // Returns "Type<US>Sddl<US>GrantedAccess<US>Name" per handle, where <US> is \u001F. A
+  // control character is used as the separator because an SDDL string can legitimately
+  // contain almost any printable character, so any printable delimiter risks colliding.
+  // Name is empty for an unnamed object, and is NEVER queried for a File-type handle
+  // (see the hang note above) -- those are skipped entirely before this point.
   public static string[] Inspect(int pid, int maxHandles) {
      var outp = new List<string>();
      int len = 0x10000; IntPtr buf = IntPtr.Zero; int ret = 0;
@@ -104,7 +130,14 @@ namespace Tcpk {
               // Skip it entirely rather than risk hanging the scan.
               if (t == "File") { seen++; continue; }
               string sddl = SddlOf(dup);
-              outp.Add(t + "\u001F" + (sddl ?? "") + "\u001F" + gacc.ToString());
+              // Only the hang-safe types get a name query. File was already skipped above;
+              // this allow-list keeps any future type from silently reaching NameOf().
+              string nm = "";
+              if (t == "Key" || t == "Section" || t == "Event" || t == "Mutant" ||
+                  t == "Semaphore" || t == "Job" || t == "Timer") {
+                 nm = NameOf(dup) ?? "";
+              }
+              outp.Add(t + "\u001F" + (sddl ?? "") + "\u001F" + gacc.ToString() + "\u001F" + nm);
               seen++;
            } finally { CloseHandle(dup); }
         }

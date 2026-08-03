@@ -33,6 +33,7 @@ function Test-TcpkLoadedModulePaths {
         # every per-user-installed app. Its path/signature posture is already covered statically
         # (authenticode.pe-not-signed / DLL hardening matrix). Dependency DLLs stay in scope.
         $mainPath = $null; try { $mainPath = $p.MainModule.FileName } catch { }
+        $nonWritable = New-Object 'System.Collections.Generic.List[string]'
         foreach ($m in $mods) {
             $path = $m.FileName
             if ($mainPath -and $path -eq $mainPath) { continue }
@@ -73,7 +74,17 @@ function Test-TcpkLoadedModulePaths {
                 }).Count -gt 0
             } catch { }
 
-            $sev = if ($writable -or $dirWritable) { 'HIGH' } else { 'MEDIUM' }
+            # NOT WRITABLE MEANS NOT HIJACKABLE, so it is not a finding. This used to emit
+            # MEDIUM for every module regardless, and on a self-contained .NET app that is
+            # ~76 MEDIUM findings for the app loading its own runtime out of its own install
+            # directory -- all of them reading file-writable=False; dir-writable=False. The
+            # handful of genuinely interesting results in the same run were buried under it.
+            # Writability is the entire point of this check, so it now decides whether there
+            # is a finding at all, not just how severe it is.
+            if (-not ($writable -or $dirWritable)) {
+                $nonWritable.Add((Split-Path $path -Leaf))
+                continue
+            }
 
             # Plain if/elseif statements rather than an if-expression: a newline can
             # terminate an assignment expression, so the multi-line expression form is
@@ -84,10 +95,33 @@ function Test-TcpkLoadedModulePaths {
             elseif ($dirWritable) { $how = ' (directory user-writable: a module can be planted)' }
 
             New-TcpkFinding -Module 'runtime' -RuleId 'loaded.non-system-path' `
-                -Severity $sev -Confidence 'Confirmed' `
-                -Title "$($p.Name) loaded $(Split-Path $path -Leaf) from non-system path$how" `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title "$($p.Name) loaded $(Split-Path $path -Leaf) from a USER-WRITABLE path$how" `
                 -File $path -Evidence "PID=$($p.Id); file-writable=$writable; dir-writable=$dirWritable" `
-                -Cwe @('CWE-427')
+                -Cwe @('CWE-427') `
+                -Description ('This module was loaded from a location a non-admin user can write to, ' +
+                    'so it can be replaced in place or shadowed by a planted copy that resolves ' +
+                    'earlier in the search order. The loading process then executes attacker code ' +
+                    'with its own privileges.') `
+                -Fix ('Restrict the ACL on the module and its directory to Administrators/SYSTEM, and ' +
+                    'load dependencies by full path.')
+        }
+
+        # One aggregated INFO for everything checked and found NOT writable. Keeps the
+        # coverage visible -- silence would otherwise be indistinguishable from "never
+        # looked" -- without emitting a finding per DLL.
+        if ($nonWritable.Count) {
+            $sample = (@($nonWritable) | Select-Object -First 10) -join ', '
+            $more = if ($nonWritable.Count -gt 10) { " (+$($nonWritable.Count - 10) more)" } else { '' }
+            New-TcpkFinding -Module 'runtime' -RuleId 'loaded.non-system-path-checked' `
+                -Severity 'INFO' -Confidence 'Confirmed' `
+                -Title "$($p.Name): $($nonWritable.Count) module(s) loaded from outside the system directories, none user-writable" `
+                -File "$($p.Name) (PID $($p.Id))" `
+                -Evidence "not-writable=$($nonWritable.Count); $sample$more" `
+                -Description ('Every one of these was ACL-checked and is not writable by a non-admin ' +
+                    'user, so none is a DLL-hijack candidate. A self-contained .NET or Electron app ' +
+                    'loading its own runtime from its own install directory is the normal case and ' +
+                    'produces this list. Recorded so the check is visibly complete rather than silent.')
         }
     }
 }

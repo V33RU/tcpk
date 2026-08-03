@@ -53,6 +53,8 @@ $script:TcpkTasvsMap = @(
     # above; appinit/appcert/loadpoint/jni are not, so they are named explicitly.
     @{ rx='^(appinit|appcert|loadpoint)\.';                                                 tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization','DA6 Security Misconfiguration') }
     @{ rx='^installer\.';                                                                   tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization','DA6 Security Misconfiguration') }
+    @{ rx='^loaded\.';                                                                      tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+    @{ rx='^gui\.';                                                                         tasvs=@('TASVS-AUTH Authentication & Session'); da=@('DA5 Improper Authorization') }
     @{ rx='^jni\.';                                                                         tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization','DA8 Poor Code Quality') }
     @{ rx='^diag\.';                                                                        tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA3 Sensitive Data Exposure') }
     @{ rx='^grpc\.';                                                                        tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA6 Security Misconfiguration') }

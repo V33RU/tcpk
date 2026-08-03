@@ -284,6 +284,11 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^(appinit|appcert)\.';                                                                                                                                  A = 'hardening' }
     @{ Rx = '^installer\.(plantable-import|searchorder-import)';                                                                    A = 'local-privesc' }
     @{ Rx = '^installer\.';                                                                                                         A = 'hardening' }
+    # First match wins here, so the coverage/skip records are listed BEFORE the real ones.
+    @{ Rx = '^loaded\.non-system-path-checked';                                                                                     A = 'hardening' }
+    @{ Rx = '^loaded\.non-system-path';                                                                                             A = 'local-privesc' }
+    @{ Rx = '^gui\.(no-automation-peers|uia-unavailable|password-field)';                                                            A = 'hardening' }
+    @{ Rx = '^gui\.';                                                                                                               A = 'client-bypass' }
     @{ Rx = '^loadpoint\.(writable|app-registered)';                                                                                                                 A = 'local-privesc' }
     @{ Rx = '^loadpoint\.';                                                                                                                                          A = 'hardening' }
     @{ Rx = '^jni\.(library-path-writable|manifest-classpath-writable)';                                                                                             A = 'local-privesc' }

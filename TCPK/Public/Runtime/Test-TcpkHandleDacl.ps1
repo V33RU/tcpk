@@ -99,6 +99,9 @@ function Test-TcpkHandleDacl {
             if ($parts.Count -lt 2) { continue }
             $type = $parts[0]
             $sddl = $parts[1]
+            # 4th field is the object name, empty for an unnamed object. Older records had
+            # only 3 fields, so index defensively rather than assume the width.
+            $oname = if ($parts.Count -ge 4) { "$($parts[3])" } else { '' }
             if (-not $type) { continue }
 
             if (-not $byType.ContainsKey($type)) { $byType[$type] = 0 }
@@ -108,21 +111,37 @@ function Test-TcpkHandleDacl {
             if (-not $sddl) { continue }
 
             foreach ($g in (Get-TcpkSddlLowPrivGrants -Sddl $sddl -RightsMap $rights)) {
-                $key = "$type|$($g.Sid)|$($g.Granted -join ',')"
+                # Dedupe on the NAME too. Without it, hundreds of distinct events sharing one
+                # descriptor collapsed into a single nameless finding, which is what made the
+                # result unreportable: "holds a Key with a permissive DACL" names no object a
+                # vendor can act on.
+                $key = "$type|$oname|$($g.Sid)|$($g.Granted -join ',')"
                 if (-not $seen.Add($key)) { continue }
 
+                # An UNNAMED object cannot be pre-created by another process, so the squatting
+                # primitive does not apply to it -- only tampering by a process that can already
+                # open a handle. Different severity, and the text must not imply otherwise.
+                $named = [bool]$oname
+                $sev   = if ($named) { 'MEDIUM' } else { 'LOW' }
+                $label = if ($named) { "$type '$oname'" } else { "an unnamed $type" }
+                $extra = if ($named) {
+                    ' Because the object is NAMED, a low-privileged process can also create it FIRST and win the race before this application does (squatting), not merely tamper with it afterwards.'
+                } else {
+                    ' The object is UNNAMED, so it cannot be squatted ahead of the application; this is a tampering surface only, for a process that can already obtain a handle.'
+                }
+
                 New-TcpkFinding -Module 'runtime' -RuleId 'handle.dacl-weak' `
-                    -Severity 'MEDIUM' -Confidence 'Confirmed' `
-                    -Title "$($p.Name) holds a $type with a permissive DACL ($($g.Account))" `
+                    -Severity $sev -Confidence 'Confirmed' `
+                    -Title "$($p.Name) holds $label with a permissive DACL ($($g.Account))" `
                     -File "$($p.Name) (PID $($p.Id))" `
-                    -Evidence "$type -> $($g.Account) ($($g.Sid)) -> $($g.Granted -join ', ')" `
+                    -Evidence "$type$(if ($oname) { " name=$oname" }) -> $($g.Account) ($($g.Sid)) -> $($g.Granted -join ', ')" `
                     -Cwe @('CWE-732') `
                     -Description ('This process holds a kernel object whose DACL lets a low-privileged ' +
                         'user modify it. For an Event, Mutant or Semaphore that means the object can be ' +
                         'signalled, reset or abandoned by an unprivileged process: a single-instance ' +
                         'mutex becomes a denial of service, and a state event becomes a race the ' +
                         'application does not expect to lose. For a Section it means shared memory the ' +
-                        'application treats as trusted input is attacker-writable.') `
+                        'application treats as trusted input is attacker-writable.' + $extra) `
                     -Fix 'Create these objects with an explicit restrictive security descriptor rather than the default, and namespace them under Local\ rather than Global\ unless cross-session access is genuinely required.'
             }
         }

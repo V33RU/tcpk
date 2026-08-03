@@ -41,12 +41,52 @@ function Test-TcpkGuiInspector {
     $CT = [System.Windows.Automation.ControlType]
     $sensitive = '(?i)(admin|advanced|debug|develop|license|activat|unlock|premium|pro\b|hidden|internal|diagnostic|backdoor|root|superuser|bypass|engineer|factory|service\s*mode|maintenance)'
 
+    # UI frameworks whose controls are NOT exposed as classic automation peers by default.
+    # WinUI 3 draws its own controls into a single HWND, so a descendant walk finds no Edit
+    # or Button elements and the check returns silently -- which is indistinguishable from
+    # "inspected, nothing sensitive". That silence is the bug: this ran four times against a
+    # WinUI 3 target, found nothing each time, and only poked the application for its
+    # trouble. Detect the shell class and SAY SO instead.
+    $shellRx = @{
+        'WinUIDesktopWin32WindowClass' = 'WinUI 3'
+        'Microsoft.UI.Content.DesktopChildSiteBridge' = 'WinUI 3'
+        'Chrome_WidgetWin_1' = 'Chromium / Electron'
+        'Chrome_WidgetWin_0' = 'Chromium / Electron'
+    }
+
     foreach ($p in $procs) {
         $root = $AE::RootElement
         $cond = New-Object System.Windows.Automation.PropertyCondition($AE::ProcessIdProperty, $p.Id)
         $windows = $null
         try { $windows = $root.FindAll($TS::Children, $cond) } catch { continue }
         if (-not $windows) { continue }
+
+        # Count what the descendant walk can actually see, so an empty result can be
+        # attributed rather than reported as a clean inspection.
+        $peerCount = 0
+        $framework = ''
+        foreach ($w in $windows) {
+            $cls = ''
+            try { $cls = "$($w.Current.ClassName)" } catch { }
+            if ($cls -and $shellRx.ContainsKey($cls) -and -not $framework) { $framework = $shellRx[$cls] }
+            try {
+                $anyCond = New-Object System.Windows.Automation.PropertyCondition($AE::IsControlElementProperty, $true)
+                $peerCount += @($w.FindAll($TS::Descendants, $anyCond)).Count
+            } catch { }
+        }
+        if ($peerCount -le 1) {
+            $why = if ($framework) {
+                "The target renders its UI with $framework, which draws controls inside a single window rather than exposing them as classic automation peers, so a descendant walk finds nothing to inspect."
+            } else {
+                'The UI Automation descendant walk returned no control elements for this process. The target may render its own controls, or may not have finished building its UI.'
+            }
+            New-TcpkSkippedFinding -RuleId 'gui.no-automation-peers' `
+                -Title "GUI inspection found no automation peers in $($p.Name)$(if ($framework) { " ($framework)" })" `
+                -Reason ("$why This check therefore says NOTHING about password fields, disabled controls or " +
+                    "hidden privileged elements in this application -- treat that as unknown, not as clean. " +
+                    "Inspect the UI with Accessibility Insights or the framework's own inspector instead.")
+            continue
+        }
 
         foreach ($w in $windows) {
             # --- password fields ---
