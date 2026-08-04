@@ -3728,8 +3728,13 @@ function Render-PmonLive {
     $peakMB = [Math]::Round($p.PeakWorkingSet64 / 1MB, 1); $vmMB = [Math]::Round($p.VirtualMemorySize64 / 1MB, 1)
     $cpu = 0; try { $cpu = [Math]::Round($p.CPU, 1) } catch {}
     $mods = @(); try { $mods = @($p.Modules) } catch {}
-    $conns = @(); try { $conns = @(Get-NetTCPConnection -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue) } catch {}
-    $kids = @(); try { $kids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue) } catch {}
+    $conns  = @(); try { $conns  = @(Get-NetTCPConnection -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue) } catch {}
+    $udp    = @(); try { $udp    = @(Get-NetUDPEndpoint   -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue) } catch {}
+    $kids   = @(); try { $kids   = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue) } catch {}
+    $pipeRx = ''; try { $pipeRx = [regex]::Escape($p.ProcessName) } catch {}
+    $pipes  = @(); try { $allPipes = @([System.IO.Directory]::GetFiles('\\.\pipe\', '*')); $pipes = @($allPipes | Where-Object { -not $pipeRx -or $_ -match "(?i)$pipeRx" } | Select-Object -First 50) } catch {}
+    $estab  = @($conns | Where-Object { "$($_.State)" -ne 'Listen' })
+    $listen = @($conns | Where-Object { "$($_.State)" -eq 'Listen' })
 
     # colortbl: 1 cyan(headers) 2 label 3 value 4 green(path/module/established) 5 dim(paths/sep) 6 yellow(user/child) 7 orange(remote) 8 red
     $r = New-Object System.Text.StringBuilder
@@ -3755,29 +3760,52 @@ function Render-PmonLive {
     Add-PmonRow $r 'Handles' ("$($p.HandleCount)    threads $($p.Threads.Count)    cpu ${cpu}s")
     # Optional module filter (name or path substring, case-insensitive).
     $modsAll = $mods
+    # Modules loaded from user-writable locations are DLL hijack or injection suspects.
+    $wpathRx = '(?i)(\\Temp\\|\\AppData\\Local\\Temp\\|\\Users\\[^\\]+\\Downloads\\)'
+    $wPathMods = @($modsAll | Where-Object { $mf2 = ''; try { $mf2 = "$($_.FileName)" } catch {}; $mf2 -match $wpathRx })
     $mflt = ''; try { $mflt = $txtPmonFilter.Text.Trim() } catch {}
     if ($mflt) {
         $fl = $mflt.ToLower()
         $mods = @($mods | Where-Object { $s = ''; try { $s = "$($_.ModuleName) $($_.FileName)".ToLower() } catch { try { $s = "$($_.ModuleName)".ToLower() } catch {} }; $s.Contains($fl) })
     }
     $modHdr = if ($mflt) { "$($mods.Count) of $($modsAll.Count), filter: $mflt" } else { "$($mods.Count)" }
+    if ($wPathMods.Count) { $modHdr += "  !! $($wPathMods.Count) WRITABLE PATH" }
     # Show ALL modules (a real .NET app has a few hundred). A high safety cap only guards
     # against a pathological runaway -- normal processes never hit it.
     $modCap = 5000
     [void]$r.Append('\par\cf1\b MODULES (' + (Get-PmonRtfText $modHdr) + ')\b0\par ')
     foreach ($m in ($mods | Select-Object -First $modCap)) {
         $mn = ''; $mf = ''; try { $mn = "$($m.ModuleName)" } catch {}; try { $mf = "$($m.FileName)" } catch {}
-        # Always keep a 2-space gap: when the name is longer than the column, the path would
-        # otherwise butt straight up against it. The trailing "  " is inside cf4 (invisible).
-        [void]$r.Append('\cf4     ' + (Get-PmonRtfText $mn).PadRight(38) + '  \cf5 ' + (Get-PmonRtfText $mf) + '\par ')
+        $isWp = $mf -match $wpathRx
+        if ($isWp) {
+            # Loaded from a user-writable path -- red, prefixed with !! to stand out.
+            [void]$r.Append('\cf8 !! ' + (Get-PmonRtfText $mn).PadRight(36) + '  \cf8 ' + (Get-PmonRtfText $mf) + '\par ')
+        } else {
+            # Normal: name in green, path dimmed.  Always keep a 2-space gap so a long name
+            # does not run directly into the path.  The trailing "  " is inside cf4 (invisible).
+            [void]$r.Append('\cf4     ' + (Get-PmonRtfText $mn).PadRight(38) + '  \cf5 ' + (Get-PmonRtfText $mf) + '\par ')
+        }
     }
     if ($mods.Count -gt $modCap) { [void]$r.Append('\cf5     ... ' + ($mods.Count - $modCap) + ' more\par ') }
-    [void]$r.Append('\par\cf1\b NETWORK -- TCP (' + $conns.Count + ')\b0\par ')
-    foreach ($c in ($conns | Select-Object -First 500)) {
+    [void]$r.Append('\par\cf1\b NETWORK -- TCP ESTABLISHED (' + $estab.Count + ')\b0\par ')
+    foreach ($c in ($estab | Select-Object -First 500)) {
         $stc = if ("$($c.State)" -eq 'Established') { 4 } else { 2 }
         [void]$r.Append('\cf3     ' + (Get-PmonRtfText "$($c.LocalAddress):$($c.LocalPort)") + '\cf5  -> \cf7 ' + (Get-PmonRtfText "$($c.RemoteAddress):$($c.RemotePort)") + '\cf' + $stc + '    ' + (Get-PmonRtfText "$($c.State)") + '\par ')
     }
-    if (-not $conns.Count) { [void]$r.Append('\cf5     (none)\par ') }
+    if (-not $estab.Count) { [void]$r.Append('\cf5     (none)\par ') }
+    [void]$r.Append('\par\cf1\b LISTENING TCP (' + $listen.Count + ')\b0\par ')
+    foreach ($c in ($listen | Select-Object -First 100)) {
+        [void]$r.Append('\cf6     ' + (Get-PmonRtfText "$($c.LocalAddress):$($c.LocalPort)") + '\par ')
+    }
+    if (-not $listen.Count) { [void]$r.Append('\cf5     (none)\par ') }
+    [void]$r.Append('\par\cf1\b UDP ENDPOINTS (' + $udp.Count + ')\b0\par ')
+    foreach ($u in ($udp | Select-Object -First 100)) {
+        [void]$r.Append('\cf6     ' + (Get-PmonRtfText "$($u.LocalAddress):$($u.LocalPort)") + '\par ')
+    }
+    if (-not $udp.Count) { [void]$r.Append('\cf5     (none)\par ') }
+    [void]$r.Append('\par\cf1\b NAMED PIPES -- process match (' + $pipes.Count + ')\b0\par ')
+    foreach ($pp in $pipes) { [void]$r.Append('\cf6     ' + (Get-PmonRtfText "$pp") + '\par ') }
+    if (-not $pipes.Count) { [void]$r.Append('\cf5     (none matching process name)\par ') }
     [void]$r.Append('\par\cf1\b CHILD PROCESSES (' + $kids.Count + ')\b0\par ')
     foreach ($k in ($kids | Select-Object -First 500)) { [void]$r.Append('\cf6     ' + (Get-PmonRtfText "$($k.Name)") + '\cf5  (pid ' + $k.ProcessId + ')\par ') }
     if (-not $kids.Count) { [void]$r.Append('\cf5     (none)\par ') }
