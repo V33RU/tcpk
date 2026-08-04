@@ -358,6 +358,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkEmbeddedScripts'     { Test-TcpkEmbeddedScripts     -Path $expanded }
     _RunCheck 'Test-TcpkWebViewNavTargets'   { Test-TcpkWebViewNavTargets   -Path $expanded }
     _RunCheck 'Test-TcpkNamedObjects'        { Test-TcpkNamedObjects        -Path $expanded }
+    _RunCheck 'Test-TcpkTempFileToctou'     { Test-TcpkTempFileToctou      -Path $expanded }
     _RunCheck 'Test-TcpkPacker'              { Test-TcpkPacker              -Path $expanded }
     _RunCheck 'Test-TcpkAuthFlags'           { Test-TcpkAuthFlags           -Path $expanded }
     _RunCheck 'Test-TcpkOAuthState'         { Test-TcpkOAuthState          -Path $expanded }
