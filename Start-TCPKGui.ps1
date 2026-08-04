@@ -4071,6 +4071,426 @@ $txtMermaid.BringToFront()
 $tabGraph.Controls.Add($splitGraph)
 $splitGraph.BringToFront()
 
+# ================= TAB: PE Info (CFF Explorer equivalent) =================
+$tabPeInfo = New-Object System.Windows.Forms.TabPage
+$tabPeInfo.Text = ' PE Info '
+$tabPeInfo.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$tabs.TabPages.Add($tabPeInfo)
+
+$piBar = New-Object System.Windows.Forms.Panel
+$piBar.Dock = 'Top'; $piBar.Height = 74; $piBar.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$tabPeInfo.Controls.Add($piBar)
+
+$piRow1 = New-Object System.Windows.Forms.TableLayoutPanel
+$piRow1.Dock = 'Top'; $piRow1.Height = 38; $piRow1.ColumnCount = 5; $piRow1.RowCount = 1
+[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 42)))
+[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90)))
+[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 110)))
+[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 82)))
+$lblPiFile = New-Object System.Windows.Forms.Label
+$lblPiFile.Text = 'File:'; $lblPiFile.Dock = 'Fill'; $lblPiFile.TextAlign = 'MiddleLeft'
+$lblPiFile.Margin = New-Object System.Windows.Forms.Padding(6, 0, 0, 0); $lblPiFile.ForeColor = [System.Drawing.Color]::White
+$piRow1.Controls.Add($lblPiFile, 0, 0)
+$cmbPiFile = New-Object System.Windows.Forms.ComboBox
+$cmbPiFile.DropDownStyle = 'DropDown'; $cmbPiFile.Anchor = $anchLR; $cmbPiFile.Margin = New-Object System.Windows.Forms.Padding(2, 8, 6, 0)
+$cmbPiFile.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbPiFile.ForeColor = [System.Drawing.Color]::White
+$piRow1.Controls.Add($cmbPiFile, 1, 0)
+$btnPiBrowse = New-Object System.Windows.Forms.Button
+$btnPiBrowse.Text = 'Browse...'; $btnPiBrowse.Dock = 'Fill'; $btnPiBrowse.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$piRow1.Controls.Add($btnPiBrowse, 2, 0)
+$btnPiScan = New-Object System.Windows.Forms.Button
+$btnPiScan.Text = 'Scan target'; $btnPiScan.Dock = 'Fill'; $btnPiScan.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$piRow1.Controls.Add($btnPiScan, 3, 0)
+$btnPiAnalyze = New-Object System.Windows.Forms.Button
+$btnPiAnalyze.Text = 'Analyze'; $btnPiAnalyze.Dock = 'Fill'; $btnPiAnalyze.Margin = New-Object System.Windows.Forms.Padding(2, 6, 6, 6)
+$btnPiAnalyze.BackColor = [System.Drawing.Color]::FromArgb(0, 90, 120); $btnPiAnalyze.ForeColor = [System.Drawing.Color]::White; $btnPiAnalyze.FlatStyle = 'Flat'
+$piRow1.Controls.Add($btnPiAnalyze, 4, 0)
+
+$piRow2 = New-Object System.Windows.Forms.Panel
+$piRow2.Dock = 'Top'; $piRow2.Height = 32
+$lblPiStatus = New-Object System.Windows.Forms.Label
+$lblPiStatus.Dock = 'Fill'; $lblPiStatus.TextAlign = 'MiddleLeft'; $lblPiStatus.Padding = New-Object System.Windows.Forms.Padding(8, 0, 0, 0)
+$lblPiStatus.ForeColor = [System.Drawing.Color]::FromArgb(140, 140, 140)
+$lblPiStatus.Text = 'Browse or type a PE path, then click Analyze.  Red sections = entropy > 7.0 (packed/encrypted).  Yellow exports = forwarded.'
+$piRow2.Controls.Add($lblPiStatus)
+
+$piBar.Controls.Add($piRow2)
+$piBar.Controls.Add($piRow1)
+
+$piMain = New-Object System.Windows.Forms.TabControl
+$piMain.Dock = 'Fill'; $piMain.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$tabPeInfo.Controls.Add($piMain)
+$piMain.BringToFront()
+
+$piDark    = [System.Drawing.Color]::FromArgb(24, 24, 24)
+$piWhite   = [System.Drawing.Color]::White
+$piMuted   = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$piCyan    = [System.Drawing.Color]::FromArgb(86, 182, 194)
+$piGray    = [System.Drawing.Color]::FromArgb(140, 140, 140)
+$piRedBg   = [System.Drawing.Color]::FromArgb(80, 30, 30)
+$piRedFg   = [System.Drawing.Color]::FromArgb(255, 140, 140)
+$piOrgBg   = [System.Drawing.Color]::FromArgb(70, 50, 20)
+$piOrgFg   = [System.Drawing.Color]::FromArgb(255, 200, 120)
+$piYelBg   = [System.Drawing.Color]::FromArgb(50, 50, 20)
+$piYelFg   = [System.Drawing.Color]::FromArgb(255, 220, 80)
+
+# Sub-tab: Summary
+$piTabSum = New-Object System.Windows.Forms.TabPage; $piTabSum.Text = 'Summary'; $piTabSum.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$piMain.TabPages.Add($piTabSum)
+$txtPiSum = New-Object System.Windows.Forms.RichTextBox
+$txtPiSum.Dock = 'Fill'; $txtPiSum.ReadOnly = $true; $txtPiSum.WordWrap = $false
+$txtPiSum.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtPiSum.BackColor = $piDark; $txtPiSum.ForeColor = $piWhite
+$txtPiSum.Text = 'Load a PE file to see the summary.'
+$piTabSum.Controls.Add($txtPiSum)
+
+# Sub-tab: Sections
+$piTabSec = New-Object System.Windows.Forms.TabPage; $piTabSec.Text = 'Sections'; $piTabSec.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$piMain.TabPages.Add($piTabSec)
+$lvPiSec = New-Object System.Windows.Forms.ListView
+$lvPiSec.Dock = 'Fill'; $lvPiSec.View = 'Details'; $lvPiSec.FullRowSelect = $true; $lvPiSec.GridLines = $true
+$lvPiSec.HeaderStyle = 'Nonclickable'; $lvPiSec.Font = New-Object System.Drawing.Font('Consolas', 9)
+$lvPiSec.BackColor = $piDark; $lvPiSec.ForeColor = $piWhite
+[void]$lvPiSec.Columns.Add('Name', 80); [void]$lvPiSec.Columns.Add('VirtAddr', 95)
+[void]$lvPiSec.Columns.Add('VirtSize', 80); [void]$lvPiSec.Columns.Add('RawOffset', 95)
+[void]$lvPiSec.Columns.Add('RawSize', 75); [void]$lvPiSec.Columns.Add('Entropy', 68)
+[void]$lvPiSec.Columns.Add('EntropyFlag', 190); [void]$lvPiSec.Columns.Add('Chars', 150)
+$piTabSec.Controls.Add($lvPiSec); $lvPiSec.BringToFront()
+
+# Sub-tab: Exports
+$piTabExp = New-Object System.Windows.Forms.TabPage; $piTabExp.Text = 'Exports'; $piTabExp.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$piMain.TabPages.Add($piTabExp)
+$lvPiExp = New-Object System.Windows.Forms.ListView
+$lvPiExp.Dock = 'Fill'; $lvPiExp.View = 'Details'; $lvPiExp.FullRowSelect = $true; $lvPiExp.GridLines = $true
+$lvPiExp.HeaderStyle = 'Nonclickable'; $lvPiExp.Font = New-Object System.Drawing.Font('Consolas', 9)
+$lvPiExp.BackColor = $piDark; $lvPiExp.ForeColor = $piWhite
+[void]$lvPiExp.Columns.Add('Name', 220); [void]$lvPiExp.Columns.Add('Ordinal', 65)
+[void]$lvPiExp.Columns.Add('RVA', 90); [void]$lvPiExp.Columns.Add('Forwarded', 70)
+[void]$lvPiExp.Columns.Add('Forward Target', 300)
+$piTabExp.Controls.Add($lvPiExp); $lvPiExp.BringToFront()
+
+# Sub-tab: Rich Header
+$piTabRich = New-Object System.Windows.Forms.TabPage; $piTabRich.Text = 'Rich Header'; $piTabRich.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$piMain.TabPages.Add($piTabRich)
+$piRichHdr = New-Object System.Windows.Forms.Panel; $piRichHdr.Dock = 'Top'; $piRichHdr.Height = 28; $piRichHdr.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$lblPiRichHint = New-Object System.Windows.Forms.Label; $lblPiRichHint.Dock = 'Fill'; $lblPiRichHint.TextAlign = 'MiddleLeft'
+$lblPiRichHint.Padding = New-Object System.Windows.Forms.Padding(8, 0, 0, 0); $lblPiRichHint.ForeColor = $piMuted
+$lblPiRichHint.Text = 'Compiler/linker version fingerprint in the DOS stub (XOR-encoded). Identifies the exact VS toolset used to link the binary.'
+$piRichHdr.Controls.Add($lblPiRichHint)
+$piTabRich.Controls.Add($piRichHdr)
+$lvPiRich = New-Object System.Windows.Forms.ListView
+$lvPiRich.Dock = 'Fill'; $lvPiRich.View = 'Details'; $lvPiRich.FullRowSelect = $true; $lvPiRich.GridLines = $true
+$lvPiRich.HeaderStyle = 'Nonclickable'; $lvPiRich.Font = New-Object System.Drawing.Font('Consolas', 9)
+$lvPiRich.BackColor = $piDark; $lvPiRich.ForeColor = $piWhite
+[void]$lvPiRich.Columns.Add('ToolId', 70); [void]$lvPiRich.Columns.Add('Tool', 150)
+[void]$lvPiRich.Columns.Add('Build#', 75); [void]$lvPiRich.Columns.Add('UseCount', 75)
+$piTabRich.Controls.Add($lvPiRich); $lvPiRich.BringToFront()
+
+# Sub-tab: Version Info
+$piTabVer = New-Object System.Windows.Forms.TabPage; $piTabVer.Text = 'Version Info'; $piTabVer.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$piMain.TabPages.Add($piTabVer)
+$txtPiVer = New-Object System.Windows.Forms.RichTextBox
+$txtPiVer.Dock = 'Fill'; $txtPiVer.ReadOnly = $true; $txtPiVer.WordWrap = $false
+$txtPiVer.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtPiVer.BackColor = $piDark; $txtPiVer.ForeColor = $piWhite
+$txtPiVer.Text = 'Load a PE file to see version resource strings and manifest fields.'
+$piTabVer.Controls.Add($txtPiVer)
+
+# --- PE Info logic ---
+function Load-PeInfo([string]$filePath) {
+    if (-not $filePath -or -not [IO.File]::Exists($filePath)) {
+        $lblPiStatus.Text = "File not found: $filePath"; return
+    }
+    $lblPiStatus.Text = "Analyzing $([IO.Path]::GetFileName($filePath)) ..."
+    [System.Windows.Forms.Application]::DoEvents()
+    $pi = $null
+    try {
+        $mod = @(Get-Module TCPK)[0]
+        if (-not $mod) { $lblPiStatus.Text = 'TCPK module not loaded.'; return }
+        $pi = & $mod { param($p) Get-TcpkPeInfo -Path $p } $filePath
+    } catch { $lblPiStatus.Text = "Error: $($_.Exception.Message)"; return }
+    if (-not $pi) { $lblPiStatus.Text = 'Not a valid PE or no data returned.'; return }
+
+    # Summary
+    $txtPiSum.Clear()
+    function _PiLine($lbl, $val) {
+        $txtPiSum.SelectionColor = $piGray; $txtPiSum.AppendText(("{0,-22}" -f $lbl))
+        $txtPiSum.SelectionColor = $piWhite; $txtPiSum.AppendText("$val`r`n")
+    }
+    $txtPiSum.SelectionColor = $piCyan; $txtPiSum.AppendText("$($pi.Name)`r`n")
+    $txtPiSum.SelectionColor = $piGray; $txtPiSum.AppendText(("-" * 64 + "`r`n"))
+    _PiLine 'Path:'             $pi.FullPath
+    _PiLine 'File size:'        ("{0:N0} bytes" -f $pi.FileSize)
+    _PiLine 'Arch:'             $pi.Arch
+    _PiLine 'Subsystem:'        $pi.Subsystem
+    _PiLine 'Compiler:'         $pi.Compiler
+    _PiLine 'Compiled at:'      $pi.CompiledAt
+    _PiLine 'Linker version:'   $pi.LinkerVersion
+    _PiLine 'Image base:'       $pi.ImageBase
+    _PiLine 'Image size:'       ("{0:N0} bytes" -f $pi.SizeOfImage)
+    _PiLine 'OEP:'              "$($pi.OEP)  (in $($pi.OEPSection))"
+    _PiLine 'Sections:'         $pi.NumberOfSections
+    _PiLine 'Exports:'          $pi.ExportCount
+    _PiLine 'Managed (.NET):'   $pi.IsManaged
+    _PiLine 'DLL chars:'        $pi.DllCharacteristics
+    _PiLine 'Characteristics:'  $pi.Characteristics
+    _PiLine 'Exec level:'       $(if ($pi.ExecutionLevel) { $pi.ExecutionLevel } else { '(no manifest)' })
+    if ($pi.OverlaySize -gt 0) {
+        $txtPiSum.SelectionColor = $piOrgFg; $txtPiSum.AppendText(("{0,-22}" -f 'Overlay:'))
+        $txtPiSum.SelectionColor = $piWhite; $txtPiSum.AppendText("$($pi.OverlayOffset)  ($($pi.OverlaySize) bytes)`r`n")
+    }
+    if ($pi.HighEntropySecs.Count -gt 0) {
+        $txtPiSum.SelectionColor = $piRedFg; $txtPiSum.AppendText(("{0,-22}" -f 'High entropy secs:'))
+        $txtPiSum.SelectionColor = $piWhite; $txtPiSum.AppendText(($pi.HighEntropySecs -join ', ') + "`r`n")
+    }
+    $txtPiSum.SelectionStart = 0; $txtPiSum.ScrollToCaret()
+
+    # Sections
+    $lvPiSec.BeginUpdate(); $lvPiSec.Items.Clear()
+    foreach ($sec in $pi.Sections) {
+        $li = New-Object System.Windows.Forms.ListViewItem($sec.Name)
+        [void]$li.SubItems.Add($sec.VirtualAddress); [void]$li.SubItems.Add("$($sec.VirtualSize)")
+        [void]$li.SubItems.Add($sec.RawOffset);       [void]$li.SubItems.Add("$($sec.RawSize)")
+        [void]$li.SubItems.Add("$($sec.Entropy)");    [void]$li.SubItems.Add($sec.EntropyFlag)
+        [void]$li.SubItems.Add($sec.Characteristics)
+        if ($sec.Entropy -gt 7.0)     { $li.BackColor = $piRedBg; $li.ForeColor = $piRedFg }
+        elseif ($sec.Entropy -gt 6.0) { $li.BackColor = $piOrgBg; $li.ForeColor = $piOrgFg }
+        [void]$lvPiSec.Items.Add($li)
+    }
+    $lvPiSec.EndUpdate()
+
+    # Exports
+    $lvPiExp.BeginUpdate(); $lvPiExp.Items.Clear()
+    foreach ($exp in $pi.Exports) {
+        $li = New-Object System.Windows.Forms.ListViewItem($exp.Name)
+        [void]$li.SubItems.Add("$($exp.Ordinal)"); [void]$li.SubItems.Add($exp.RVA)
+        [void]$li.SubItems.Add($(if ($exp.IsForwarded) { 'YES' } else { '' }))
+        [void]$li.SubItems.Add($exp.ForwardTarget)
+        if ($exp.IsForwarded) { $li.BackColor = $piYelBg; $li.ForeColor = $piYelFg }
+        [void]$lvPiExp.Items.Add($li)
+    }
+    $lvPiExp.EndUpdate()
+
+    # Rich Header
+    $lvPiRich.BeginUpdate(); $lvPiRich.Items.Clear()
+    $rh = $pi.RichHeader
+    $lblPiRichHint.Text = if ($rh.Present) {
+        "Rich Header present.  XOR key: $($rh.XorKey)  |  Compiler hint: $(if ($rh.VsHint) { $rh.VsHint } else { '(unknown build)' })"
+    } else { 'Rich Header: NOT PRESENT (binary stripped its header, or built with a non-MSVC toolchain).' }
+    if ($rh.Present) {
+        foreach ($e in $rh.Entries) {
+            $li = New-Object System.Windows.Forms.ListViewItem($e.ToolId)
+            [void]$li.SubItems.Add($e.ToolName); [void]$li.SubItems.Add("$($e.BuildNumber)"); [void]$li.SubItems.Add("$($e.UseCount)")
+            [void]$lvPiRich.Items.Add($li)
+        }
+    }
+    $lvPiRich.EndUpdate()
+
+    # Version Info
+    $txtPiVer.Clear()
+    function _VerLine($lbl, $val) {
+        $txtPiVer.SelectionColor = $piGray; $txtPiVer.AppendText(("{0,-22}" -f $lbl))
+        $txtPiVer.SelectionColor = $piWhite; $txtPiVer.AppendText($(if ($val) { $val } else { '(not set)' }) + "`r`n")
+    }
+    $txtPiVer.SelectionColor = $piCyan; $txtPiVer.AppendText("VS_VERSIONINFO`r`n")
+    $txtPiVer.SelectionColor = $piGray; $txtPiVer.AppendText(("-" * 52 + "`r`n"))
+    _VerLine 'FileVersion:'      $pi.FileVersion
+    _VerLine 'ProductVersion:'   $pi.ProductVersion
+    _VerLine 'CompanyName:'      $pi.CompanyName
+    _VerLine 'ProductName:'      $pi.ProductName
+    _VerLine 'FileDescription:'  $pi.FileDescription
+    _VerLine 'OriginalFilename:' $pi.OriginalFilename
+    _VerLine 'InternalName:'     $pi.InternalName
+    _VerLine 'LegalCopyright:'   $pi.LegalCopyright
+    $txtPiVer.AppendText("`r`n")
+    $txtPiVer.SelectionColor = $piCyan; $txtPiVer.AppendText("Manifest`r`n")
+    $txtPiVer.SelectionColor = $piGray; $txtPiVer.AppendText(("-" * 52 + "`r`n"))
+    _VerLine 'ExecutionLevel:'   $(if ($pi.ExecutionLevel) { $pi.ExecutionLevel } else { '(not found)' })
+    $txtPiVer.SelectionStart = 0; $txtPiVer.ScrollToCaret()
+
+    $lblPiStatus.Text = "Loaded: $($pi.Name)  |  $($pi.Arch)  |  $($pi.Compiler)  |  $($pi.NumberOfSections) sections  |  $($pi.ExportCount) exports  |  overlay: $($pi.OverlaySize) bytes"
+}
+
+$btnPiBrowse.Add_Click({
+    $ofd = New-Object System.Windows.Forms.OpenFileDialog
+    $ofd.Filter = 'PE Files (*.exe;*.dll;*.sys;*.ocx)|*.exe;*.dll;*.sys;*.ocx|All files (*.*)|*.*'
+    $ofd.Title = 'Select a PE file to inspect'
+    if ($ofd.ShowDialog() -eq 'OK') {
+        if ($cmbPiFile.Items -notcontains $ofd.FileName) { [void]$cmbPiFile.Items.Add($ofd.FileName) }
+        $cmbPiFile.Text = $ofd.FileName
+    }
+    $ofd.Dispose()
+})
+
+$btnPiScan.Add_Click({
+    $base = "$($txtTarget.Text)".Trim()
+    if (-not $base) { $lblPiStatus.Text = 'Set an audit target first (top toolbar).'; return }
+    $lblPiStatus.Text = "Scanning $base ..."
+    [System.Windows.Forms.Application]::DoEvents()
+    $pfs = @(Get-ChildItem -Path $base -Recurse -Include '*.exe','*.dll','*.sys','*.ocx' -File -ErrorAction SilentlyContinue | Select-Object -First 100)
+    $cmbPiFile.BeginUpdate(); $cmbPiFile.Items.Clear()
+    foreach ($pf in $pfs) { [void]$cmbPiFile.Items.Add($pf.FullName) }
+    $cmbPiFile.EndUpdate()
+    if ($cmbPiFile.Items.Count -gt 0) { $cmbPiFile.SelectedIndex = 0; $lblPiStatus.Text = "$($cmbPiFile.Items.Count) PE files found. Select one and click Analyze." }
+    else { $lblPiStatus.Text = 'No PE files found in the target directory.' }
+})
+
+$btnPiAnalyze.Add_Click({ Load-PeInfo "$($cmbPiFile.Text)".Trim() })
+$cmbPiFile.Add_KeyDown({ param($s, $e); if ($e.KeyCode -eq 'Return') { Load-PeInfo "$($cmbPiFile.Text)".Trim() } })
+
+# ================= TAB: Dependencies (Dependency Walker equivalent) =================
+$tabDep = New-Object System.Windows.Forms.TabPage
+$tabDep.Text = ' Dependencies '
+$tabDep.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$tabs.TabPages.Add($tabDep)
+
+$depBar = New-Object System.Windows.Forms.Panel
+$depBar.Dock = 'Top'; $depBar.Height = 74; $depBar.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$tabDep.Controls.Add($depBar)
+
+$depRow1 = New-Object System.Windows.Forms.TableLayoutPanel
+$depRow1.Dock = 'Top'; $depRow1.Height = 38; $depRow1.ColumnCount = 6; $depRow1.RowCount = 1
+[void]$depRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 42)))
+[void]$depRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
+[void]$depRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90)))
+[void]$depRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 110)))
+[void]$depRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 106)))
+[void]$depRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 92)))
+$lblDepFile = New-Object System.Windows.Forms.Label
+$lblDepFile.Text = 'File:'; $lblDepFile.Dock = 'Fill'; $lblDepFile.TextAlign = 'MiddleLeft'
+$lblDepFile.Margin = New-Object System.Windows.Forms.Padding(6, 0, 0, 0); $lblDepFile.ForeColor = [System.Drawing.Color]::White
+$depRow1.Controls.Add($lblDepFile, 0, 0)
+$cmbDepFile = New-Object System.Windows.Forms.ComboBox
+$cmbDepFile.DropDownStyle = 'DropDown'; $cmbDepFile.Anchor = $anchLR; $cmbDepFile.Margin = New-Object System.Windows.Forms.Padding(2, 8, 6, 0)
+$cmbDepFile.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbDepFile.ForeColor = [System.Drawing.Color]::White
+$depRow1.Controls.Add($cmbDepFile, 1, 0)
+$btnDepBrowse = New-Object System.Windows.Forms.Button
+$btnDepBrowse.Text = 'Browse...'; $btnDepBrowse.Dock = 'Fill'; $btnDepBrowse.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$depRow1.Controls.Add($btnDepBrowse, 2, 0)
+$btnDepScan = New-Object System.Windows.Forms.Button
+$btnDepScan.Text = 'Scan target'; $btnDepScan.Dock = 'Fill'; $btnDepScan.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
+$depRow1.Controls.Add($btnDepScan, 3, 0)
+$numDepDepth = New-Object System.Windows.Forms.NumericUpDown
+$numDepDepth.Minimum = 1; $numDepDepth.Maximum = 6; $numDepDepth.Value = 3; $numDepDepth.Dock = 'Fill'; $numDepDepth.Margin = New-Object System.Windows.Forms.Padding(2, 7, 2, 7)
+$numDepDepth.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $numDepDepth.ForeColor = [System.Drawing.Color]::White
+$depRow1.Controls.Add($numDepDepth, 4, 0)
+$btnDepBuild = New-Object System.Windows.Forms.Button
+$btnDepBuild.Text = 'Build Tree'; $btnDepBuild.Dock = 'Fill'; $btnDepBuild.Margin = New-Object System.Windows.Forms.Padding(2, 6, 6, 6)
+$btnDepBuild.BackColor = [System.Drawing.Color]::FromArgb(0, 90, 120); $btnDepBuild.ForeColor = [System.Drawing.Color]::White; $btnDepBuild.FlatStyle = 'Flat'
+$depRow1.Controls.Add($btnDepBuild, 5, 0)
+
+$depRow2 = New-Object System.Windows.Forms.Panel
+$depRow2.Dock = 'Top'; $depRow2.Height = 32
+$lblDepStatus = New-Object System.Windows.Forms.Label
+$lblDepStatus.Dock = 'Fill'; $lblDepStatus.TextAlign = 'MiddleLeft'; $lblDepStatus.Padding = New-Object System.Windows.Forms.Padding(8, 0, 0, 0)
+$lblDepStatus.ForeColor = [System.Drawing.Color]::FromArgb(140, 140, 140)
+$lblDepStatus.Text = 'Browse or type an EXE/DLL, set recursion depth, then click Build Tree.  RED = HIGH risk (MISSING or writable AppDir).  YELLOW = MEDIUM (PATH-resolved).'
+$depRow2.Controls.Add($lblDepStatus)
+$depBar.Controls.Add($depRow2)
+$depBar.Controls.Add($depRow1)
+
+# Filter + summary bar at bottom
+$depBottom = New-Object System.Windows.Forms.Panel
+$depBottom.Dock = 'Bottom'; $depBottom.Height = 30; $depBottom.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24)
+$tabDep.Controls.Add($depBottom)
+$btnDepShowAll = New-Object System.Windows.Forms.Button
+$btnDepShowAll.Text = 'Show All'; $btnDepShowAll.Location = New-Object System.Drawing.Point(8, 3); $btnDepShowAll.Size = New-Object System.Drawing.Size(84, 24)
+$btnDepShowAll.FlatStyle = 'Flat'; $btnDepShowAll.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnDepShowAll.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$depBottom.Controls.Add($btnDepShowAll)
+$btnDepRiskOnly = New-Object System.Windows.Forms.Button
+$btnDepRiskOnly.Text = 'Hijack Risk Only'; $btnDepRiskOnly.Location = New-Object System.Drawing.Point(98, 3); $btnDepRiskOnly.Size = New-Object System.Drawing.Size(130, 24)
+$btnDepRiskOnly.FlatStyle = 'Flat'; $btnDepRiskOnly.BackColor = [System.Drawing.Color]::FromArgb(80, 20, 20); $btnDepRiskOnly.ForeColor = [System.Drawing.Color]::FromArgb(255, 140, 140)
+$depBottom.Controls.Add($btnDepRiskOnly)
+$lblDepSummary = New-Object System.Windows.Forms.Label
+$lblDepSummary.Location = New-Object System.Drawing.Point(238, 6); $lblDepSummary.Size = New-Object System.Drawing.Size(900, 20)
+$lblDepSummary.ForeColor = [System.Drawing.Color]::FromArgb(140, 140, 140)
+$depBottom.Controls.Add($lblDepSummary)
+
+# Main grid
+$lvDep = New-Object System.Windows.Forms.ListView
+$lvDep.Dock = 'Fill'; $lvDep.View = 'Details'; $lvDep.FullRowSelect = $true; $lvDep.GridLines = $true
+$lvDep.HeaderStyle = 'Nonclickable'; $lvDep.Font = New-Object System.Drawing.Font('Consolas', 9)
+$lvDep.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvDep.ForeColor = [System.Drawing.Color]::White
+[void]$lvDep.Columns.Add('DLL', 195); [void]$lvDep.Columns.Add('Parent', 155)
+[void]$lvDep.Columns.Add('Depth', 50); [void]$lvDep.Columns.Add('Status', 130)
+[void]$lvDep.Columns.Add('HijackRisk', 88); [void]$lvDep.Columns.Add('Delay', 48)
+[void]$lvDep.Columns.Add('Resolved Path', 400)
+$tabDep.Controls.Add($lvDep); $lvDep.BringToFront()
+
+$script:DepItems      = @()
+$script:DepRiskFilter = $false
+$depHighBg = [System.Drawing.Color]::FromArgb(80, 20, 20); $depHighFg = [System.Drawing.Color]::FromArgb(255, 140, 140)
+$depMedBg  = [System.Drawing.Color]::FromArgb(70, 60, 10); $depMedFg  = [System.Drawing.Color]::FromArgb(255, 220, 80)
+
+function Refresh-DepGrid {
+    $lvDep.BeginUpdate(); $lvDep.Items.Clear()
+    foreach ($it in $script:DepItems) {
+        if ($script:DepRiskFilter -and $it.Tag -ne 'HIGH' -and $it.Tag -ne 'MEDIUM') { continue }
+        [void]$lvDep.Items.Add($it)
+    }
+    $lvDep.EndUpdate()
+}
+
+function Build-DepTree {
+    $path  = "$($cmbDepFile.Text)".Trim()
+    $depth = [int]$numDepDepth.Value
+    if (-not $path -or -not [IO.File]::Exists($path)) { $lblDepStatus.Text = "File not found: $path"; return }
+    $lblDepStatus.Text = "Building dependency tree for $([IO.Path]::GetFileName($path)) (depth=$depth) ..."
+    [System.Windows.Forms.Application]::DoEvents()
+    $nodes = @()
+    try {
+        $mod = @(Get-Module TCPK)[0]
+        if (-not $mod) { $lblDepStatus.Text = 'TCPK module not loaded.'; return }
+        $nodes = @(& $mod { param($p,$d) Get-TcpkDependencyTree -Path $p -MaxDepth $d } $path $depth)
+    } catch { $lblDepStatus.Text = "Error: $($_.Exception.Message)"; return }
+
+    $indent = '  '
+    $script:DepItems = foreach ($n in $nodes) {
+        $pfx = $indent * ([Math]::Max(0, $n.Depth - 1))
+        $li  = New-Object System.Windows.Forms.ListViewItem("$pfx$($n.DllName)")
+        [void]$li.SubItems.Add($n.ParentDll); [void]$li.SubItems.Add("$($n.Depth)")
+        [void]$li.SubItems.Add($n.Status);    [void]$li.SubItems.Add($n.HijackRisk)
+        [void]$li.SubItems.Add($(if ($n.IsDelayLoad) { 'YES' } else { '' }))
+        [void]$li.SubItems.Add($n.ResolvedPath)
+        $li.Tag = $n.HijackRisk
+        if ($n.HijackRisk -eq 'HIGH')   { $li.BackColor = $depHighBg; $li.ForeColor = $depHighFg }
+        elseif ($n.HijackRisk -eq 'MEDIUM') { $li.BackColor = $depMedBg; $li.ForeColor = $depMedFg }
+        $li
+    }
+    $cH = @($nodes | Where-Object { $_.HijackRisk -eq 'HIGH' }).Count
+    $cM = @($nodes | Where-Object { $_.HijackRisk -eq 'MEDIUM' }).Count
+    $cX = @($nodes | Where-Object { $_.Status -eq 'MISSING' }).Count
+    $lblDepSummary.Text = "Total: $($nodes.Count) DLLs  |  MISSING: $cX  |  HIGH risk: $cH  |  MEDIUM risk: $cM"
+    $lblDepStatus.Text  = "Done: $([IO.Path]::GetFileName($path))  --  $($nodes.Count) DLLs at depth $depth"
+    $script:DepRiskFilter = $false; Refresh-DepGrid
+}
+
+$btnDepBrowse.Add_Click({
+    $ofd = New-Object System.Windows.Forms.OpenFileDialog
+    $ofd.Filter = 'PE Files (*.exe;*.dll;*.sys;*.ocx)|*.exe;*.dll;*.sys;*.ocx|All files (*.*)|*.*'
+    $ofd.Title = 'Select a PE to trace dependencies'
+    if ($ofd.ShowDialog() -eq 'OK') {
+        if ($cmbDepFile.Items -notcontains $ofd.FileName) { [void]$cmbDepFile.Items.Add($ofd.FileName) }
+        $cmbDepFile.Text = $ofd.FileName
+    }
+    $ofd.Dispose()
+})
+$btnDepScan.Add_Click({
+    $base = "$($txtTarget.Text)".Trim()
+    if (-not $base) { $lblDepStatus.Text = 'Set an audit target first (top toolbar).'; return }
+    $exes = @(Get-ChildItem -Path $base -Recurse -Include '*.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 50)
+    $cmbDepFile.BeginUpdate(); $cmbDepFile.Items.Clear()
+    foreach ($f in $exes) { [void]$cmbDepFile.Items.Add($f.FullName) }
+    $cmbDepFile.EndUpdate()
+    if ($cmbDepFile.Items.Count -gt 0) { $cmbDepFile.SelectedIndex = 0; $lblDepStatus.Text = "$($cmbDepFile.Items.Count) EXEs found. Select one and click Build Tree." }
+    else { $lblDepStatus.Text = 'No EXE files found in the target directory.' }
+})
+$btnDepBuild.Add_Click({ Build-DepTree })
+$btnDepShowAll.Add_Click({ $script:DepRiskFilter = $false; Refresh-DepGrid })
+$btnDepRiskOnly.Add_Click({ $script:DepRiskFilter = $true; Refresh-DepGrid })
+$cmbDepFile.Add_KeyDown({ param($s,$e); if ($e.KeyCode -eq 'Return') { Build-DepTree } })
+
 $btnGraphBuild.Add_Click({
     if (-not $script:CurrentOutDir) { $lblGraphStatus.Text = "No audit output -- run an audit first (Audit tab)."; return }
     $jsonPath = Join-Path $script:CurrentOutDir 'findings.json'
