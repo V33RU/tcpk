@@ -40,7 +40,20 @@ function Test-TcpkKernelDrivers {
         }
     } catch { }
 
+    # Same CRL/OCSP stall risk as the other Authenticode loops: bound it and say so.
+    $drvIdx = 0
+    $sysFiles = @($sysFiles)
     foreach ($s in $sysFiles) {
+        if (Test-TcpkCheckBudgetExpired) {
+            New-TcpkSkippedFinding -RuleId 'driver.budget-exhausted' `
+                -Title "Driver signature check stopped early: $($sysFiles.Count - $drvIdx) of $($sysFiles.Count) .sys files not verified" `
+                -Reason ("This check hit its wall-clock budget after $drvIdx drivers. Authenticode " +
+                    "verification can block on a CRL/OCSP fetch when the network is filtered. The " +
+                    "remaining drivers are UNVERIFIED, not unsigned.")
+            break
+        }
+        $drvIdx++
+        Write-TcpkHeartbeat -Component 'Test-TcpkKernelDrivers' -Index $drvIdx -Total $sysFiles.Count -Current $s.Name -CurrentBytes $s.Length
         $sig = $null
         try { $sig = Get-AuthenticodeSignature -FilePath $s.FullName -ErrorAction Stop } catch { }
         $sigTxt = if ($sig) { "$($sig.Status)" } else { 'unknown' }

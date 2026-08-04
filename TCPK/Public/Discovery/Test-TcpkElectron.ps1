@@ -46,7 +46,11 @@ function Test-TcpkElectron {
         $wdacRights     = 'Write|Modify|FullControl'
         $exes = @(Get-ChildItem -LiteralPath $dir -File -Filter '*.exe' -ErrorAction SilentlyContinue |
                   Where-Object { -not (Test-TcpkIsFrameworkFile $_.Name) })
+        $exeIdx = 0
         foreach ($exe in $exes) {
+            if (Test-TcpkCheckBudgetExpired) { break }
+            $exeIdx++
+            Write-TcpkHeartbeat -Component 'Test-TcpkElectron' -Index $exeIdx -Total $exes.Count -Current $exe.Name -CurrentBytes $exe.Length
             $sig = $null
             try { $sig = Get-AuthenticodeSignature -LiteralPath $exe.FullName -ErrorAction Stop } catch { }
             if (-not $sig -or $sig.Status -ne 'Valid') { continue }

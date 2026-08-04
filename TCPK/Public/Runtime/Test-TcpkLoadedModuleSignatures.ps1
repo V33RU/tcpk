@@ -55,13 +55,28 @@ function Test-TcpkLoadedModuleSignatures {
         return $false
     }
 
-    foreach ($p in $procs) {
+    # This is the heaviest signature loop in the tool: EVERY loaded module of EVERY matched
+    # process, and a modern browser or Electron app loads 150-400 of them per process. Each
+    # Get-AuthenticodeSignature can trigger a CRL/OCSP fetch, and on a box with no route out
+    # (or a black-holing proxy) each of those sits on the WinVerifyTrust network timeout. A
+    # few hundred modules times that timeout is a stall measured in hours, from a check whose
+    # name never even reached the screen. Budget + heartbeat, same as Test-TcpkSignature.
+    $modIdx = 0
+    $modSkipped = 0
+    $modTotal = 0
+    foreach ($p in $procs) { try { $modTotal += @($p.Modules).Count } catch { } }
+
+    :proc foreach ($p in $procs) {
         try { $mods = $p.Modules } catch { continue }
         # The main module (.exe) is already covered by the on-disk authenticode.pe-not-signed
         # finding; re-flagging it here as a "loaded unsigned module" is redundant noise -- exclude it.
         # Dependency DLLs (the genuine hijack/tamper candidates) remain in scope.
         $mainPath = $null; try { $mainPath = $p.MainModule.FileName } catch { }
         foreach ($m in $mods) {
+            if (Test-TcpkCheckBudgetExpired) { $modSkipped = $modTotal - $modIdx; break proc }
+            $modIdx++
+            Write-TcpkHeartbeat -Component 'Test-TcpkLoadedModuleSignatures' -Index $modIdx -Total $modTotal -Current (Split-Path $m.FileName -Leaf)
+
             if ($mainPath -and $m.FileName -eq $mainPath) { continue }
             # Skip catalog-covered MSIX-internal modules: per-PE Authenticode is N/A for them.
             if (_IsMsixCatalogCovered $m.FileName) { continue }
@@ -84,5 +99,16 @@ function Test-TcpkLoadedModuleSignatures {
                 -File $m.FileName -Evidence "PID=$($p.Id) status=$($sig.Status)" `
                 -Cwe @('CWE-347')
         }
+    }
+
+    if ($modSkipped -gt 0) {
+        New-TcpkSkippedFinding -RuleId 'loaded.budget-exhausted' `
+            -Title "Loaded-module signature check stopped early: $modSkipped of $modTotal modules not verified" `
+            -Reason ("This check hit its wall-clock budget after $modIdx modules. Authenticode " +
+                "verification can block on a CRL/OCSP fetch when the network is filtered, and a " +
+                "browser or Electron target loads hundreds of modules, so the usual cause is " +
+                "revocation lookups timing out rather than the modules themselves. The remaining " +
+                "$modSkipped are UNVERIFIED, not unsigned. Re-run with network access to the CA's " +
+                "CRL endpoints, or raise -CheckBudgetSec.")
     }
 }

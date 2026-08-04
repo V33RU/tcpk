@@ -233,6 +233,9 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^fuses\.';                                                                                                                                             A = 'local-privesc' }
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
+    # Coverage/skip records first: "we ran out of budget" is not a privilege-escalation
+    # primitive, and this table is first-match-wins.
+    @{ Rx = '^driver\.budget-exhausted';                                                                                                                            A = 'hardening' }
     @{ Rx = '^(install-dir|acl|service|driver|ifeo|scheduled-task|app-paths|autostart|com|named-object|pipe-dacl|dll-search|shim|avexclusion|firewall|wmi|uac|window|sharedmem)\.'; A = 'local-privesc' }
     # active traffic-to-attack findings score as network credential/authz bypass (more specific,
     # so they sit ABOVE the generic jwt line below). Offline jwt.weak-secret / jwt.embedded-token
@@ -287,7 +290,7 @@ $script:TcpkCvssRuleArchetype = @(
     # First match wins here, so the coverage/skip records are listed BEFORE the real ones.
     @{ Rx = '^strings\.(budget-exhausted|partial-scan|deduped-scan)';                                                                                    A = 'hardening' }
     @{ Rx = '^strings\.';                                                                                                                               A = 'hardening' }
-    @{ Rx = '^loaded\.non-system-path-checked';                                                                                     A = 'hardening' }
+    @{ Rx = '^loaded\.(non-system-path-checked|budget-exhausted)';                                                                  A = 'hardening' }
     @{ Rx = '^loaded\.non-system-path';                                                                                             A = 'local-privesc' }
     @{ Rx = '^gui\.(no-automation-peers|uia-unavailable|password-field)';                                                            A = 'hardening' }
     @{ Rx = '^gui\.';                                                                                                               A = 'client-bypass' }

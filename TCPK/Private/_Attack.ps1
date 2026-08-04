@@ -65,7 +65,11 @@ $script:TcpkAttackMap = @(
     # rendered with no technique and a default CVSS. The $ anchor on non-system-path keeps
     # the coverage record (-checked) from inheriting the hijack technique.
     @{ rx = '^loaded\.non-system-path$';                                                 tech = @('T1574.001 DLL') }
-    @{ rx = '^loaded\.';                                                                tech = @('T1574 Hijack Execution Flow') }
+    # budget-exhausted is a COVERAGE record ("we did not finish verifying"), not an attack.
+    # These rx entries union rather than first-match-win, so the exclusion has to live in the
+    # broad pattern itself -- otherwise "we ran out of time" renders as a hijack technique.
+    @{ rx = '^loaded\.(?!budget-exhausted)';                                             tech = @('T1574 Hijack Execution Flow') }
+    @{ rx = '^driver\.(?!budget-exhausted)';                                             tech = @('T1068 Exploitation for Privilege Escalation') }
     @{ rx = '^gui\.';                                                                   tech = @('T1548 Abuse Elevation Control Mechanism') }
     @{ rx = '^strings\.';                                                               tech = @('T1083 File and Directory Discovery') }
     @{ rx = '^jni\.';                                                                    tech = @('T1574.001 DLL','T1129 Shared Modules') }
