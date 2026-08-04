@@ -3571,17 +3571,20 @@ $script:PmonMode = 'live'
 $script:PmonRunning = $false
 $script:PmonPid = 0
 $script:PmonSeenMod = $null; $script:PmonSeenConn = $null; $script:PmonSeenChild = $null
+$script:PmonSeenPipe = $null; $script:PmonSeenListen = $null
 $script:PmonCaptureEnd = $null
+$script:PmonDllJob = $null
 $script:PmonTimer = New-Object System.Windows.Forms.Timer
 $script:PmonTimer.Interval = 2000
 
-$pmGreen = [System.Drawing.Color]::FromArgb(166, 226, 46)
-$pmCyan  = [System.Drawing.Color]::FromArgb(102, 217, 239)
+$pmGreen  = [System.Drawing.Color]::FromArgb(166, 226, 46)
+$pmCyan   = [System.Drawing.Color]::FromArgb(102, 217, 239)
 $pmYellow = [System.Drawing.Color]::FromArgb(214, 137, 16)
-$pmGrey  = [System.Drawing.Color]::FromArgb(150, 150, 150)
+$pmGrey   = [System.Drawing.Color]::FromArgb(150, 150, 150)
+$pmRed    = [System.Drawing.Color]::FromArgb(224, 108, 117)
 
 $pmonTop = New-Object System.Windows.Forms.Panel
-$pmonTop.Dock = 'Top'; $pmonTop.Height = 84; $pmonTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$pmonTop.Dock = 'Top'; $pmonTop.Height = 112; $pmonTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 # Row 1: mode buttons + process picker
 $btnPmLive = New-Object System.Windows.Forms.Button
 $btnPmLive.Text = "Live watch"; $btnPmLive.Location = New-Object System.Drawing.Point(12, 10); $btnPmLive.Size = New-Object System.Drawing.Size(110, 28); $btnPmLive.FlatStyle = 'Flat'
@@ -3633,6 +3636,24 @@ $lblPmStatus = New-Object System.Windows.Forms.Label
 $lblPmStatus.Location = New-Object System.Drawing.Point(584, 52); $lblPmStatus.Size = New-Object System.Drawing.Size(540, 18); $lblPmStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
 $lblPmStatus.Text = "Pick a mode, choose a process (Refresh), set the interval / duration, then Start."
 $pmonTop.Controls.Add($lblPmStatus)
+# Row 3: capture extras -- DLL trace option (ETW, admin) and what the enhanced capture now tracks.
+# The checkbox is only meaningful in capture mode; Set-PmonMode shows/hides it accordingly.
+$chkPmDllTrace = New-Object System.Windows.Forms.CheckBox
+$chkPmDllTrace.Text = 'DLL search trace during capture (requires admin -- shows every phantom-DLL probe in real time)'
+$chkPmDllTrace.Location = New-Object System.Drawing.Point(12, 88)
+$chkPmDllTrace.Size = New-Object System.Drawing.Size(700, 18)
+$chkPmDllTrace.ForeColor = [System.Drawing.Color]::FromArgb(214, 137, 16)
+$chkPmDllTrace.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$chkPmDllTrace.FlatStyle = 'Flat'
+$chkPmDllTrace.Visible = $false
+$pmonTop.Controls.Add($chkPmDllTrace)
+$lblPmCapExtras = New-Object System.Windows.Forms.Label
+$lblPmCapExtras.Text = 'Capture now also tracks: named pipes / new listening ports / unsigned module loads'
+$lblPmCapExtras.Location = New-Object System.Drawing.Point(12, 88)
+$lblPmCapExtras.Size = New-Object System.Drawing.Size(700, 18)
+$lblPmCapExtras.ForeColor = [System.Drawing.Color]::FromArgb(100, 120, 100)
+$lblPmCapExtras.Visible = $false
+$pmonTop.Controls.Add($lblPmCapExtras)
 $tabPmon.Controls.Add($pmonTop)
 
 $txtPmon = New-Object System.Windows.Forms.RichTextBox
@@ -3649,10 +3670,12 @@ function Set-PmonMode([string]$m) {
         $btnPmLive.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnPmLive.ForeColor = [System.Drawing.Color]::White
         $btnPmCap.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230); $btnPmCap.ForeColor = [System.Drawing.Color]::Black
         $lblPmNum.Text = "Refresh interval (s):"; $numPmNum.Value = 2
+        $chkPmDllTrace.Visible = $false; $lblPmCapExtras.Visible = $false
     } else {
         $btnPmCap.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnPmCap.ForeColor = [System.Drawing.Color]::White
         $btnPmLive.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230); $btnPmLive.ForeColor = [System.Drawing.Color]::Black
         $lblPmNum.Text = "Capture duration (s, 0=until Stop):"; $numPmNum.Value = 20
+        $chkPmDllTrace.Visible = $true; $lblPmCapExtras.Visible = $true
     }
 }
 function Resolve-PmonTarget {
@@ -3663,6 +3686,11 @@ function Resolve-PmonTarget {
 }
 function Stop-Pmon {
     try { $script:PmonTimer.Stop() } catch {}
+    if ($script:PmonDllJob) {
+        try { Stop-Job -Job $script:PmonDllJob -ErrorAction SilentlyContinue } catch {}
+        try { Remove-Job -Job $script:PmonDllJob -Force -ErrorAction SilentlyContinue } catch {}
+        $script:PmonDllJob = $null
+    }
     $script:PmonRunning = $false
     $btnPmStart.Enabled = $true; $btnPmStop.Enabled = $false; $btnPmLive.Enabled = $true; $btnPmCap.Enabled = $true
 }
@@ -3763,9 +3791,101 @@ function Poll-PmonCapture {
     if ($script:PmonCaptureEnd -and (Get-Date) -ge $script:PmonCaptureEnd) { Write-IcptLine $txtPmon "`r`n-- capture complete --`r`n" $pmCyan; Stop-Pmon; $lblPmStatus.Text = "Capture complete."; return }
     try { $p = Get-Process -Id $script:PmonPid -ErrorAction Stop } catch { Write-IcptLine $txtPmon "`r`nProcess exited.`r`n" $pmGrey; Stop-Pmon; return }
     $ts = (Get-Date).ToString('HH:mm:ss')
-    try { foreach ($m in $p.Modules) { $k = "$($m.FileName)"; if ($k -and -not $script:PmonSeenMod.Contains($k)) { [void]$script:PmonSeenMod.Add($k); Write-IcptLine $txtPmon ("[{0}] MODULE  {1}`r`n" -f $ts, $k) $pmGreen } } } catch {}
+
+    # --- Module loads (enhanced: check signature and load-path writability for new loads) ---
+    $newMods = New-Object System.Collections.Generic.List[string]
+    try {
+        foreach ($m in $p.Modules) {
+            $k = "$($m.FileName)"
+            if ($k -and -not $script:PmonSeenMod.Contains($k)) {
+                [void]$script:PmonSeenMod.Add($k)
+                [void]$newMods.Add($k)
+            }
+        }
+    } catch {}
+    $sigChecked = 0
+    foreach ($modPath in $newMods) {
+        Write-IcptLine $txtPmon ("[{0}] MODULE  {1}`r`n" -f $ts, $modPath) $pmGreen
+        # Skip OS paths for signature/writability -- they are always signed and never writable.
+        if ($modPath -match '(?i)\\(System32|SysWOW64|WinSxS|Windows\\)') { continue }
+        # Limit per-tick signature calls: these touch disk; too many at once stalls the UI tick.
+        if ($sigChecked -ge 8) { continue }
+        $sigChecked++
+        try {
+            $sig = Get-AuthenticodeSignature -LiteralPath $modPath -ErrorAction Stop
+            if ($sig.Status -ne 'Valid') {
+                Write-IcptLine $txtPmon ("  !! UNSIGNED  {0}  (Authenticode status: {1})`r`n" -f $modPath, $sig.Status) $pmRed
+            }
+        } catch {}
+        # Flag load from a user-writable directory (runtime DLL hijack confirmation).
+        $dir = Split-Path -Parent $modPath
+        if ($dir -and $dir -notmatch '(?i)\\Program Files') {
+            $isUserWritable = $false
+            try {
+                $acl = Get-Acl -LiteralPath $dir -ErrorAction Stop
+                $isUserWritable = $null -ne ($acl.Access | Where-Object {
+                    $_.IdentityReference.Value -match '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE|BUILTIN\\Users)\b' -and
+                    $_.FileSystemRights -match 'Write|Modify|FullControl' -and
+                    $_.AccessControlType -eq 'Allow'
+                })
+            } catch {}
+            if ($isUserWritable) {
+                Write-IcptLine $txtPmon ("  !! WRITABLE PATH  loaded from user-writable dir: {0}`r`n" -f $dir) $pmRed
+            }
+        }
+    }
+
+    # --- TCP connections ---
     try { foreach ($c in (Get-NetTCPConnection -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue)) { $k = "$($c.LocalAddress):$($c.LocalPort)->$($c.RemoteAddress):$($c.RemotePort)"; if (-not $script:PmonSeenConn.Contains($k)) { [void]$script:PmonSeenConn.Add($k); Write-IcptLine $txtPmon ("[{0}] TCP     {1}:{2} -> {3}:{4} [{5}]`r`n" -f $ts, $c.LocalAddress, $c.LocalPort, $c.RemoteAddress, $c.RemotePort, $c.State) $pmCyan } } } catch {}
+
+    # --- New listening ports (new IPC / server surface the app opens during exercise) ---
+    try {
+        foreach ($l in (Get-NetTCPConnection -State Listen -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue)) {
+            $k = "L:$($l.LocalAddress):$($l.LocalPort)"
+            if (-not $script:PmonSeenListen.Contains($k)) {
+                [void]$script:PmonSeenListen.Add($k)
+                Write-IcptLine $txtPmon ("[{0}] LISTEN  TCP $($l.LocalAddress):$($l.LocalPort) (new listening port opened)`r`n" -f $ts) $pmYellow
+            }
+        }
+        foreach ($u in (Get-NetUDPEndpoint -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue)) {
+            $k = "U:$($u.LocalAddress):$($u.LocalPort)"
+            if (-not $script:PmonSeenListen.Contains($k)) {
+                [void]$script:PmonSeenListen.Add($k)
+                Write-IcptLine $txtPmon ("[{0}] LISTEN  UDP $($u.LocalAddress):$($u.LocalPort) (new UDP endpoint)`r`n" -f $ts) $pmYellow
+            }
+        }
+    } catch {}
+
+    # --- Named pipes (new pipes created during exercise -- IPC surface and squatting candidates) ---
+    try {
+        foreach ($pp in (Get-ChildItem '\\.\pipe\' -ErrorAction SilentlyContinue)) {
+            $k = $pp.Name
+            if ($k -and -not $script:PmonSeenPipe.Contains($k)) {
+                [void]$script:PmonSeenPipe.Add($k)
+                Write-IcptLine $txtPmon ("[{0}] PIPE    \\.\pipe\$k`r`n" -f $ts) $pmYellow
+            }
+        }
+    } catch {}
+
+    # --- Child processes ---
     try { foreach ($ch in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue)) { $k = "$($ch.ProcessId)"; if (-not $script:PmonSeenChild.Contains($k)) { [void]$script:PmonSeenChild.Add($k); Write-IcptLine $txtPmon ("[{0}] CHILD   {1} (pid {2})`r`n" -f $ts, $ch.Name, $ch.ProcessId) $pmYellow } } } catch {}
+
+    # --- DLL trace job (ETW phantom-DLL stream, if the operator started it) ---
+    if ($script:PmonDllJob) {
+        try {
+            $lines = Receive-Job -Job $script:PmonDllJob -Keep:$false -ErrorAction SilentlyContinue
+            foreach ($l in $lines) {
+                if ($l -match '^PHANTOM\t(.+)$') {
+                    Write-IcptLine $txtPmon ("[{0}] PHANTOM {1}`r`n" -f $ts, $matches[1]) $pmRed
+                }
+            }
+            if ($script:PmonDllJob.State -ne 'Running') {
+                Write-IcptLine $txtPmon "`r`n-- DLL trace complete --`r`n" $pmCyan
+                try { Remove-Job -Job $script:PmonDllJob -Force -ErrorAction SilentlyContinue } catch {}
+                $script:PmonDllJob = $null
+            }
+        } catch { $script:PmonDllJob = $null }
+    }
 }
 $btnPmRefresh.Add_Click({
     $sel = $cmbPmProc.Text
@@ -3790,11 +3910,18 @@ $btnPmStart.Add_Click({
         $lblPmStatus.Text = "Live watch: $($p.ProcessName) (pid $($p.Id)) every ${n}s -- Stop to end."
         Render-PmonLive
     } else {
-        $script:PmonSeenMod = New-Object 'System.Collections.Generic.HashSet[string]'
-        $script:PmonSeenConn = New-Object 'System.Collections.Generic.HashSet[string]'
-        $script:PmonSeenChild = New-Object 'System.Collections.Generic.HashSet[string]'
+        $script:PmonSeenMod    = New-Object 'System.Collections.Generic.HashSet[string]'
+        $script:PmonSeenConn   = New-Object 'System.Collections.Generic.HashSet[string]'
+        $script:PmonSeenChild  = New-Object 'System.Collections.Generic.HashSet[string]'
+        $script:PmonSeenPipe   = New-Object 'System.Collections.Generic.HashSet[string]'
+        $script:PmonSeenListen = New-Object 'System.Collections.Generic.HashSet[string]'
+        $script:PmonDllJob = $null
+        # Baseline: record what already exists so only CHANGES appear in the log.
         try { foreach ($m in $p.Modules) { [void]$script:PmonSeenMod.Add("$($m.FileName)") } } catch {}
         try { foreach ($c in (Get-NetTCPConnection -OwningProcess $p.Id -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenConn.Add("$($c.LocalAddress):$($c.LocalPort)->$($c.RemoteAddress):$($c.RemotePort)") } } catch {}
+        try { foreach ($l in (Get-NetTCPConnection -State Listen -OwningProcess $p.Id -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenListen.Add("L:$($l.LocalAddress):$($l.LocalPort)") } } catch {}
+        try { foreach ($u in (Get-NetUDPEndpoint -OwningProcess $p.Id -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenListen.Add("U:$($u.LocalAddress):$($u.LocalPort)") } } catch {}
+        try { foreach ($pp in (Get-ChildItem '\\.\pipe\' -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenPipe.Add($pp.Name) } } catch {}
         try { foreach ($ch in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenChild.Add("$($ch.ProcessId)") } } catch {}
         $script:PmonTimer.Interval = 1000
         if ($n -le 0) {
@@ -3806,7 +3933,29 @@ $btnPmStart.Add_Click({
             $lblPmStatus.Text = "Activity capture: $($p.ProcessName) (pid $($p.Id)) for ${n}s -- exercise the app now."
             Write-IcptLine $txtPmon ("== Activity capture: {0} (pid {1}) for {2}s ==`r`n" -f $p.ProcessName, $p.Id, $n) $pmCyan
         }
-        Write-IcptLine $txtPmon "(baseline taken; logging NEW modules / TCP connections / child processes)`r`n`r`n" $pmGrey
+        $extras = 'modules / TCP connections / listening ports / named pipes / child processes'
+        Write-IcptLine $txtPmon ("(baseline taken; logging NEW {0})`r`n" -f $extras) $pmGrey
+        # If DLL trace is requested, start an ETW job in the background.
+        # The job streams PHANTOM<TAB><path> lines for each phantom-DLL probe found.
+        # Poll-PmonCapture picks these up on every timer tick and logs them in red.
+        if ($chkPmDllTrace.Checked) {
+            $procName2 = $p.ProcessName; $secs2 = if ($n -gt 0) { $n } else { 300 }
+            $psd1Ref = $tcpkPsd1
+            $script:PmonDllJob = Start-Job -ScriptBlock {
+                param($modulePath, $procName, $secs)
+                Import-Module $modulePath -Force -ErrorAction Stop
+                & (Get-Module TCPK) {
+                    param($pn, $s)
+                    # Test-TcpkDllSearchTrace writes findings as TcpkFinding objects to the output stream.
+                    foreach ($f in @(Test-TcpkDllSearchTrace -ProcessName $pn -Seconds $s)) {
+                        if ($f -and $f.File) { "PHANTOM`t$($f.File)" }
+                        elseif ($f -and $f.Title) { "PHANTOM`t$($f.Title)" }
+                    }
+                } -ArgumentList $procName, $secs
+            } -ArgumentList $psd1Ref, $procName2, $secs2
+            Write-IcptLine $txtPmon "(DLL search trace started -- phantom-DLL probes will appear in red)`r`n" $pmYellow
+        }
+        Write-IcptLine $txtPmon "" $pmGrey
     }
     $script:PmonTimer.Start()
 })
@@ -3824,7 +3973,10 @@ $btnPmSave.Add_Click({
         catch { $lblPmStatus.Text = "Save failed: $($_.Exception.Message)" }
     }
 })
-$form.Add_FormClosing({ try { $script:PmonTimer.Stop() } catch {} })
+$form.Add_FormClosing({
+    try { $script:PmonTimer.Stop() } catch {}
+    if ($script:PmonDllJob) { try { Stop-Job -Job $script:PmonDllJob -ErrorAction SilentlyContinue; Remove-Job -Job $script:PmonDllJob -Force -ErrorAction SilentlyContinue } catch {} }
+})
 Set-PmonMode 'live'
 
 # ================= TAB: Attack-Path Graph =================
