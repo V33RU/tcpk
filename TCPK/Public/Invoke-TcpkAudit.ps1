@@ -207,6 +207,31 @@ function Invoke-TcpkAudit {
         'Test-TcpkTrustStore','Test-TcpkNamedPipes','Test-TcpkNamedPipeDacl'
     )
 
+    # --- post-check stage runner ---
+    # The budget is armed inside _RunCheck and cleared on BOTH its exit paths, and
+    # Test-TcpkCheckBudgetExpired returns $false on a null deadline. So once the check loop
+    # ends, every downstream guard is a no-op -- including the central one in Get-TcpkPeFiles
+    # that ~69 checks rely on. The report-building stages that run after the loop (SBOM
+    # hashing, PE hardening, the signing matrix) are exactly the PE-heavy, Authenticode-heavy
+    # work the budget exists to bound, and they were running unbounded and silent.
+    #
+    # This arms the same cooperative budget per stage, so a stall in one stage cannot eat the
+    # others' time, and resets the heartbeat so a slow stage still describes itself.
+    function _RunStage([string]$Name, [scriptblock]$Block) {
+        if ($CheckBudgetSec -gt 0) { Start-TcpkCheckBudget -Seconds $CheckBudgetSec } else { Clear-TcpkCheckBudget }
+        Reset-TcpkHeartbeat
+        Write-TcpkProgress -Id 1 -Activity 'TCPK audit' -Status ("building {0} ..." -f $Name)
+        try   { & $Block }
+        finally {
+            if (Test-TcpkCheckBudgetExpired) {
+                Write-Information -MessageData ("  {0,-32}  stopped at the {1}s budget (partial)" -f $Name, $CheckBudgetSec) -InformationAction Continue
+                Write-TcpkLog -Level WARN -Component $Name -Message "stopped at the ${CheckBudgetSec}s budget; result is partial" | Out-Null
+                try { Add-TcpkScanSkip -Kind 'BudgetStopped' -ItemPath "$Name (post-check stage, ${CheckBudgetSec}s budget)" } catch { }
+            }
+            Clear-TcpkCheckBudget
+        }
+    }
+
     # --- per-check runner ---
     function _RunCheck([string]$Name, [scriptblock]$Block) {
         # Quick profile: skip the slow whole-machine OS-integration checks above.
@@ -790,9 +815,10 @@ function Invoke-TcpkAudit {
     # --- SBOM (CycloneDX; Batch C deliverable) ---
     # Inventory once (SHA-256 hashing is the expensive part) and reuse the same
     # component list for the .cdx.json AND the HTML/Excel SBOM sections.
-    $sbom = @()
-    try { $sbom = @(Get-TcpkSbomComponents -Path $expanded) }
-    catch { Write-TcpkLog -Level ERROR -Component 'sbom.inventory' -Message $_.Exception.Message | Out-Null }
+    $sbom = @(_RunStage 'sbom.inventory' {
+        try { Get-TcpkSbomComponents -Path $expanded }
+        catch { Write-TcpkLog -Level ERROR -Component 'sbom.inventory' -Message $_.Exception.Message | Out-Null }
+    })
     try {
         $sbomPath = Join-Path $OutDir 'sbom.cdx.json'
         if ($sbom.Count) { Export-TcpkSbom -Components $sbom -OutFile $sbomPath -Profile $targetProfile -CveMatches $cveMatches | Out-Null }
@@ -853,16 +879,19 @@ function Invoke-TcpkAudit {
     # Per-DLL hardening matrix (ASLR/DEP/CFG/HighEntropyVA/...) for the Excel sheet
     # AND as a JSON sidecar the GUI's "DLL Mitigation Matrix" tab reads.
     $hardening = @()
-    try { $hardening = @(Get-TcpkPeHardening -Path $expanded) }
-    catch { Write-TcpkLog -Level ERROR -Component 'hardening' -Message $_.Exception.Message | Out-Null }
+    $hardening = @(_RunStage 'hardening' {
+        try { Get-TcpkPeHardening -Path $expanded }
+        catch { Write-TcpkLog -Level ERROR -Component 'hardening' -Message $_.Exception.Message | Out-Null }
+    })
     try { $hardening | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'hardening.json') -Encoding UTF8 }
     catch { Write-TcpkLog -Level ERROR -Component 'hardening.json' -Message $_.Exception.Message | Out-Null }
 
     # Per-DLL signing matrix (signed / not signed -- information only) for the Excel
     # 'DLL Signing' sheet, the HTML signing table, and the GUI 'DLL Signing' tab.
-    $signing = @()
-    try { $signing = @(Get-TcpkSigningMatrix -Path $expanded) }
-    catch { Write-TcpkLog -Level ERROR -Component 'signing' -Message $_.Exception.Message | Out-Null }
+    $signing = @(_RunStage 'signing' {
+        try { Get-TcpkSigningMatrix -Path $expanded }
+        catch { Write-TcpkLog -Level ERROR -Component 'signing' -Message $_.Exception.Message | Out-Null }
+    })
     try { $signing | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'signing.json') -Encoding UTF8 }
     catch { Write-TcpkLog -Level ERROR -Component 'signing.json' -Message $_.Exception.Message | Out-Null }
 

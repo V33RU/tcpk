@@ -59,11 +59,18 @@ function Get-TcpkSbomComponents {
     $codeExt = @('.exe', '.dll', '.sys', '.winmd', '.node', '.pyd', '.ocx', '.cpl', '.drv')
 
     $item = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+    # Get-TcpkChildItemSafe, not a raw -Recurse: this walk gets the same depth cap, reparse
+    # guard and unreadable-directory accounting every other TCPK walk gets, so a truncated
+    # inventory is reported instead of silently shipping a short SBOM.
+    #
+    # The extension list stays local rather than delegating to Get-TcpkPeFiles, which filters
+    # to 5 extensions. The SBOM inventories 9, and .winmd/.ocx/.cpl/.drv are real shipped
+    # components that would silently vanish from the CycloneDX output.
     $candidates = if ($item -and -not $item.PSIsContainer) {
         @($item)
     } else {
-        Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Extension.ToLowerInvariant() -in $codeExt }
+        @(Get-TcpkChildItemSafe -Path $Path -File |
+            Where-Object { $_.Extension.ToLowerInvariant() -in $codeExt })
     }
 
     # deps.json runtime map (managed components get a precise pkg:nuget/<id>@<version> purl)
@@ -71,7 +78,17 @@ function Get-TcpkSbomComponents {
     $depsMap = if ($invDir) { Get-TcpkDepsRuntimeMap -Dir $invDir } else { @{} }
 
     $out = New-Object System.Collections.Generic.List[object]
+    # A full PE parse plus a SHA-256 over every shipped binary is one of the most expensive
+    # loops in the tool, and it runs AFTER the check loop, where nothing used to bound it.
+    # Invoke-TcpkAudit now arms the budget around this stage via _RunStage, so poll it here
+    # and emit a heartbeat: an SBOM build over a large install tree used to be both unbounded
+    # and completely silent.
+    $sbIdx = 0
+    $sbStopped = $false
     foreach ($f in $candidates) {
+        if (Test-TcpkCheckBudgetExpired) { $sbStopped = $true; break }
+        $sbIdx++
+        Write-TcpkHeartbeat -Component 'sbom' -Index $sbIdx -Total $candidates.Count -Current $f.Name -CurrentBytes $f.Length
         # Validate it is a REAL PE binary. Read-TcpkPe returns $null for anything
         # that is not a well-formed PE -- so renamed images/resources are dropped,
         # and we reuse the parse result for the managed/native classification.
@@ -120,6 +137,11 @@ function Get-TcpkSbomComponents {
             BomRef    = "$name@$ver"
             Path      = $f.FullName
         })
+    }
+    # A short SBOM and a complete one look identical downstream, and a missing component reads
+    # as "this product does not ship that library". Record the shortfall so coverage says so.
+    if ($sbStopped) {
+        Add-TcpkScanSkip -Kind 'BudgetStopped' -ItemPath ("SBOM inventory (after $sbIdx of $($candidates.Count) binaries)")
     }
     $out | Sort-Object Name, Version
 }
