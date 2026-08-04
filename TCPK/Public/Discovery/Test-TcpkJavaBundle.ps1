@@ -45,6 +45,17 @@ function Test-TcpkJavaBundle {
         @{ Rx='(?i)(X509TrustManager|TrustManager\[\]|checkServerTrusted\s*\([^)]*\)\s*\{\s*\})'; Title='Custom/empty TrustManager (TLS trust bypass)'; Cwe=@('CWE-295') },
         @{ Rx='(?i)(ALLOW_ALL_HOSTNAME_VERIFIER|AllowAllHostnameVerifier|NullHostnameVerifier|setHostnameVerifier)'; Title='All-hosts HostnameVerifier (TLS hostname bypass)'; Cwe=@('CWE-297') }
     )
+    # CWE-502: deserialization of untrusted data.
+    # ObjectInputStream appears in .class bytecode constant pools as the class reference string.
+    # ObjectInputFilter / setObjectInputFilter are the Java 9+ mitigations.
+    $deserClassRx  = '(?i)(java/io/ObjectInputStream|Ljava/io/ObjectInputStream;|readObject|readUnshared)'
+    $deserFilterRx = '(?i)(ObjectInputFilter|setObjectInputFilter)'
+    # Known gadget-chain libraries bundled as nested JARs inside the app archive.
+    # These do not cause a vulnerability on their own but raise the severity of any
+    # ObjectInputStream finding because ready-made gadget chains (ysoserial) exist for them.
+    $gadgetLibRx   = '(?i)(commons-collections-[0-9]|commons-beanutils-[0-9]|' +
+                     'spring-core-[1-4]\.|spring-webmvc-[1-4]\.|groovy-[0-2]\.|groovy-all-[0-2]\.|' +
+                     'xalan-[0-9]|hibernate-core-[0-5]\.)'
 
     foreach ($arc in $archives) {
         New-TcpkFinding -Module 'static' -RuleId 'javabundle.archive' `
@@ -54,10 +65,21 @@ function Test-TcpkJavaBundle {
 
         $zip = $null
         try { $zip = [System.IO.Compression.ZipFile]::OpenRead($arc.FullName) } catch { continue }
+        $deserFound  = $false
+        $filterFound = $false
+        $gadgetFound = [System.Collections.Generic.List[string]]::new()
         try {
             $n = 0
             foreach ($entry in $zip.Entries) {
                 if ($n -ge $MaxEntries) { break }
+
+                # Track nested gadget-chain JARs even without reading their content.
+                if ($entry.FullName.ToLowerInvariant().EndsWith('.jar') -and
+                    $entry.FullName -match $gadgetLibRx) {
+                    $gadgetFound.Add($entry.FullName)
+                    continue
+                }
+
                 if ($entry.Length -le 0) { continue }
                 $isText  = $entry.FullName -match $textRx
                 $isClass = $entry.FullName.ToLowerInvariant().EndsWith('.class')
@@ -97,6 +119,60 @@ function Test-TcpkJavaBundle {
                         }
                     }
                 }
+                if ($isClass) {
+                    if ($text -match $deserClassRx)  { $deserFound  = $true }
+                    if ($text -match $deserFilterRx) { $filterFound = $true }
+                }
+            }
+
+            # ---- Per-archive deserialization findings ----
+
+            foreach ($gl in $gadgetFound) {
+                New-TcpkFinding -Module 'static' -RuleId 'javabundle.gadget-lib' `
+                    -Severity 'HIGH' -Confidence 'Inferred' `
+                    -Title "Known deserialization gadget-chain library bundled: $gl" `
+                    -File $arc.FullName `
+                    -Evidence "Nested JAR: $gl" `
+                    -Cwe @('CWE-502','CWE-829') `
+                    -Description ('A library with known ysoserial gadget chains is bundled inside ' +
+                        'this archive. Gadget libraries (commons-collections, spring-core, groovy, ' +
+                        'xalan, hibernate) are not vulnerabilities by themselves, but any ' +
+                        'ObjectInputStream entry point reachable from untrusted input becomes ' +
+                        'immediately exploitable for remote code execution using off-the-shelf tooling. ' +
+                        'Confirm whether ObjectInputStream is used in this app and whether its input ' +
+                        'originates from an untrusted source (network, file, IPC).') `
+                    -Fix ('Remove gadget-chain libraries from the classpath if unused. Upgrade to a ' +
+                        'version that has addressed the gadget chain (commons-collections >= 3.2.2 / ' +
+                        '4.1). Add ObjectInputFilter (Java 9+) or use a serialization kill-switch to ' +
+                        'allowlist expected types. Prefer JSON/protobuf over Java serialization for ' +
+                        'network protocols.')
+            }
+
+            if ($deserFound -and -not $filterFound) {
+                $sev = if ($gadgetFound.Count) { 'CRITICAL' } else { 'HIGH' }
+                $gadgetNote = if ($gadgetFound.Count) {
+                    " Gadget-chain libraries are also bundled ($($gadgetFound.Count) found), making exploitation with ysoserial immediately practical."
+                } else { '' }
+                New-TcpkFinding -Module 'static' -RuleId 'javabundle.deser-no-filter' `
+                    -Severity $sev -Confidence 'Inferred' `
+                    -Title "Java deserialization (ObjectInputStream) without ObjectInputFilter in $($arc.Name)" `
+                    -File $arc.FullName `
+                    -Evidence "ObjectInputStream present; ObjectInputFilter / setObjectInputFilter absent from all scanned class files" `
+                    -Cwe @('CWE-502') `
+                    -Description ('One or more class files reference ObjectInputStream (the native Java ' +
+                        'deserialization API) and no ObjectInputFilter was found. ObjectInputFilter ' +
+                        '(Java 9+) restricts which classes can be deserialized, blocking gadget chains. ' +
+                        'Without it, any untrusted byte stream reaching readObject() / readUnshared() ' +
+                        'can trigger arbitrary class instantiation.' + $gadgetNote + ' ' +
+                        'Decompile with Jadx to trace the ObjectInputStream entry point. Confirm ' +
+                        'whether the stream originates from a network socket, file, or IPC channel ' +
+                        'under partial attacker control.') `
+                    -Fix ('Add ObjectInputFilter on every ObjectInputStream before the first ' +
+                        'readObject() call. Use an allowlist of expected types: ' +
+                        'stream.setObjectInputFilter(info -> info.serialClass() != null && ' +
+                        'ALLOWED.contains(info.serialClass().getName()) ? ALLOWED : REJECTED). ' +
+                        'For new code, replace Java serialization with JSON (Jackson) or ' +
+                        'protobuf. See JEP 290 and https://owasp.org/www-community/vulnerabilities/Deserialization_of_untrusted_data')
             }
         } finally { $zip.Dispose() }
     }
