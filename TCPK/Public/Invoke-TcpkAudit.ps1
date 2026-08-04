@@ -593,8 +593,9 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkWv2Sideload'     { Test-TcpkWv2Sideload      -Path $expanded }
 
     # ----- Bucket H (logging / telemetry, 3 cmdlets) -----
-    _RunCheck 'Test-TcpkLogFiles'          { Test-TcpkLogFiles          -Path $expanded }
-    _RunCheck 'Test-TcpkLogInjection'      { Test-TcpkLogInjection       -Path $expanded }
+    _RunCheck 'Test-TcpkLogFiles'              { Test-TcpkLogFiles              -Path $expanded }
+    _RunCheck 'Test-TcpkLogInjection'          { Test-TcpkLogInjection          -Path $expanded }
+    _RunCheck 'Test-TcpkSecurityEventLogging'  { Test-TcpkSecurityEventLogging  -Path $expanded }
     _RunCheck 'Test-TcpkTelemetrySdks'     { Test-TcpkTelemetrySdks     -Path $expanded }
     _RunCheck 'Test-TcpkPiiInLogs'         { Test-TcpkPiiInLogs         -Path $expanded }
     _RunCheck 'Test-TcpkEtwProviders'      { Test-TcpkEtwProviders      -Path $expanded }
