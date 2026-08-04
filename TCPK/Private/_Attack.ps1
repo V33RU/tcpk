@@ -7,6 +7,13 @@
 $script:TcpkAttackMap = @(
     @{ rx = '^(dllsearch|pe-imports|proxydll|sxs|apppaths|ifeo|shimcache)';            tech = @('T1574 Hijack Execution Flow') }
     @{ rx = '^(unquoted|servicepermissions|servicebin|taskbin)';                        tech = @('T1543.003 Windows Service','T1574.009 Unquoted Path') }
+    # The writable-directory family had NO entry in this table at all, so install-dir.user-writable
+    # (HIGH) and acl.user-writable rendered with no technique. A non-admin-writable install or
+    # ProgramData directory is a plant location: it is the enabling condition for hijacking the
+    # next load, which is why this maps to T1574 rather than to a permissions-modification
+    # technique -- the weak ACL is what the vendor shipped, not something the attacker changed.
+    @{ rx = '^(install-dir|acl|folderacl|programdata)\.';                               tech = @('T1574 Hijack Execution Flow') }
+    @{ rx = '^scheduled-?task\.user-writable';                                          tech = @('T1053.005 Scheduled Task') }
     @{ rx = '^(autostart|run-key)';                                                     tech = @('T1547.001 Registry Run Keys') }
     @{ rx = '^scheduledtask|autostart.scheduled';                                       tech = @('T1053.005 Scheduled Task') }
     @{ rx = '^wmipersistence';                                                          tech = @('T1546.003 WMI Event Subscription') }
@@ -23,7 +30,10 @@ $script:TcpkAttackMap = @(
     @{ rx = '^process\.dacl|antiinjection';                                             tech = @('T1055 Process Injection') }
     @{ rx = '^(packer|obfusc)';                                                         tech = @('T1027.002 Software Packing') }
     @{ rx = '^(antidebug|timing|selfintegrity)';                                        tech = @('T1622 Debugger Evasion','T1497 Virtualization/Sandbox Evasion') }
-    @{ rx = '^(tlsbypass|tlspinning|tlsprotocols|insecureschemes|crlocsp|selfhost)|^electron\.cert';    tech = @('T1557 Adversary-in-the-Middle','T1040 Network Sniffing') }
+    # tls-?bypass, not tlsbypass: Test-TcpkTlsBypass emits 'tls-bypass.*' with a hyphen, so the
+    # unhyphenated spelling never matched and the CRITICAL cert-callback-accepts-all finding
+    # rendered with no ATT&CK technique at all. Both spellings accepted.
+    @{ rx = '^(tls-?bypass|tlspinning|tlsprotocols|insecureschemes|crlocsp|selfhost)|^electron\.cert';    tech = @('T1557 Adversary-in-the-Middle','T1040 Network Sniffing') }
     @{ rx = '^uac';                                                                     tech = @('T1548.002 Bypass User Account Control') }
     @{ rx = '^callsites';                                                               tech = @('T1059 Command and Scripting Interpreter') }
     @{ rx = '^(updateflow|poisonedupdate|cve\.)';                                       tech = @('T1195.002 Compromise Software Supply Chain') }
@@ -150,7 +160,10 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^electronjs\.';                                                                                          da = 'DA1 Injections' }
     @{ rx = '^(secrets|entropy|appconfigsecrets|dpapiblobs|tokencaches|webviewcreds|processenvsecrets|piiinlogs|memsecret|pii|clipboard)|^browser\.|^strings\.|devartifact|internal-docs|mem\.hygiene|^pagefile|^memory|wer\.'; da = 'DA3 Sensitive Data Exposure' }
     @{ rx = '^(authenticode|strongname|codeintegrity|pe-|pe\.|peimports|peexports|native|antidebug|antiinjection|timing|selfintegrity|packer|obfusc|debugflags|procmit|integrity)|loaded\.(unsigned|non-system)|signing'; da = 'DA8 Poor Code Quality' }
-    @{ rx = '^(installdir|folderacl|registry|servicepermissions|servicebin|unquoted|processtoken|process\.dacl|uac|programdata|scheduledtaskacl|kerneldrivers|sharedmem)';    da = 'DA5 Improper Authorization' }
+    # install-?dir: Test-TcpkInstallDirAcl emits 'install-dir.user-writable' (HIGH) with a
+    # hyphen. Only _Finding.ps1 spelled it correctly, so the flagship writable-install-dir
+    # finding carried no OWASP DA category and no TASVS control.
+    @{ rx = '^(install-?dir|folderacl|registry|servicepermissions|servicebin|unquoted|processtoken|process\.dacl|uac|programdata|scheduledtaskacl|kerneldrivers|sharedmem)';    da = 'DA5 Improper Authorization' }
     @{ rx = '^appdomain\.';                                                                                         da = 'DA5 Improper Authorization' }
     @{ rx = '^clickonce\.';                                                                                          da = 'DA7 Insecure Communication' }
     @{ rx = '^msix\.psf';                                                                                            da = 'DA6 Security Misconfiguration' }
