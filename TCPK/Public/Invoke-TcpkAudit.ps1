@@ -551,6 +551,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkNamedPipes'              { Test-TcpkNamedPipes              -NameLike $idTerms }
         _RunCheck 'Test-TcpkNamedPipeDacl'           { Test-TcpkNamedPipeDacl           -NameLike $idTerms }
         _RunCheck 'Test-TcpkComObjects'              { Test-TcpkComObjects              -NameLike $idTerms -Path $expanded }
+        _RunCheck 'Test-TcpkComPrivilegeEscalation' { Test-TcpkComPrivilegeEscalation  -NameLike $idTerms -Path $expanded }
         _RunCheck 'Test-TcpkMailslotsAlpc'           { Test-TcpkMailslotsAlpc           -NameLike $idTerms }
     }
     # ETW and memory dump only when explicitly requested via -EnableDeepRuntime
