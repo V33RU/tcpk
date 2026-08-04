@@ -146,6 +146,12 @@ function Reset-TcpkScanStats {
         # stops yielding, so the caller sees a short list and returns normally.
         BudgetStoppedCount  = 0
         BudgetStoppedSample = (New-Object 'System.Collections.Generic.List[string]')
+        # A WMI/CIM query that timed out or failed. Without this the audit reads as
+        # clean-on-services when in fact it never got an answer: every service check
+        # catches its own error and returns zero findings, which is indistinguishable
+        # from "no service is misconfigured" unless the gap is recorded here.
+        WmiFailedCount      = 0
+        WmiFailedSample     = (New-Object 'System.Collections.Generic.List[string]')
     }
 }
 
@@ -185,6 +191,10 @@ function Add-TcpkScanSkip {
         'BudgetStopped' {
             $s.BudgetStoppedCount++
             if ($ItemPath -and $s.BudgetStoppedSample.Count -lt $script:TcpkScanSampleCap) { $s.BudgetStoppedSample.Add($ItemPath) }
+        }
+        'WmiFailed' {
+            $s.WmiFailedCount++
+            if ($ItemPath -and $s.WmiFailedSample.Count -lt $script:TcpkScanSampleCap) { $s.WmiFailedSample.Add($ItemPath) }
         }
     }
 }

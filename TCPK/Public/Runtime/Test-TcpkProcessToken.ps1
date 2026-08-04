@@ -23,10 +23,14 @@ function Test-TcpkProcessToken {
         # Owner via WMI
         $owner = $null
         try {
-            $wp = Get-CimInstance Win32_Process -Filter "ProcessId=$($p.Id)" -ErrorAction Stop
-            $ownerInfo = Invoke-CimMethod -InputObject $wp -MethodName GetOwner -ErrorAction Stop
-            if ($ownerInfo.ReturnValue -eq 0) {
-                $owner = "$($ownerInfo.Domain)\$($ownerInfo.User)"
+            # No `continue` on a missing $wp: the owner is optional, and the identity finding
+            # below is still worth emitting with owner "(unknown)".
+            $wp = @(Get-TcpkCimSafe -ClassName Win32_Process -Filter "ProcessId=$($p.Id)")[0]
+            if ($wp) {
+                $ownerInfo = Invoke-CimMethod -InputObject $wp -MethodName GetOwner -OperationTimeoutSec 30 -ErrorAction Stop
+                if ($ownerInfo.ReturnValue -eq 0) {
+                    $owner = "$($ownerInfo.Domain)\$($ownerInfo.User)"
+                }
             }
         } catch { }
 

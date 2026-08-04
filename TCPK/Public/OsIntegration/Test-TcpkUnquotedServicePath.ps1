@@ -1,4 +1,4 @@
-function Test-TcpkUnquotedServicePath {
+﻿function Test-TcpkUnquotedServicePath {
 <#
 .SYNOPSIS
     C03. Classic unquoted-service-path LPE primitive.
@@ -19,12 +19,12 @@ function Test-TcpkUnquotedServicePath {
 
     if (-not (Assert-TcpkWindows 'Test-TcpkUnquotedServicePath')) { return }
 
-    $svcs = Get-CimInstance Win32_Service -ErrorAction SilentlyContinue | Where-Object {
+    $svcs = @(Get-TcpkCimSafe -ClassName Win32_Service | Where-Object {
         (Test-TcpkNameInclude -Text $_.Name -Terms $NameLike) -and
         $_.PathName -match ' ' -and
         $_.PathName -notmatch '^"' -and
         $_.PathName -notmatch '^[A-Za-z]:\\[^ ]+\.exe$'
-    }
+    })
     foreach ($s in $svcs) {
         New-TcpkFinding -Module 'os' -RuleId 'service.unquoted-path' `
             -Severity 'HIGH' -Confidence 'Confirmed' `

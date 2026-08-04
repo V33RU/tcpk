@@ -22,7 +22,7 @@ function Test-TcpkServicePermissions {
     $terms = Get-TcpkNameTerms -NameLike $NameLike
     if (-not $terms.Count) { return }
 
-    foreach ($s in (Get-CimInstance Win32_Service -ErrorAction SilentlyContinue |
+    foreach ($s in (Get-TcpkCimSafe -ClassName Win32_Service |
                     Where-Object { Test-TcpkTermMatch -Text $_.Name -Terms $terms })) {
         $exe = ($s.PathName -split '"')[1]
         if (-not $exe) { $exe = ($s.PathName -split ' ')[0] }

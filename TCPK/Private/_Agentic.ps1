@@ -227,7 +227,7 @@ function Get-TcpkAgentProcmon {
     $path = ''; try { $path = $p.MainModule.FileName } catch { $path = '(access denied)' }
     $desc = ''; $comp = ''; $prod = ''; $fver = ''
     try { $fvi = $p.MainModule.FileVersionInfo; $desc = "$($fvi.FileDescription)"; $comp = "$($fvi.CompanyName)"; $prod = "$($fvi.ProductName)"; $fver = "$($fvi.FileVersion)" } catch {}
-    $ci = $null; try { $ci = Get-CimInstance Win32_Process -Filter "ProcessId=$pid2" -ErrorAction SilentlyContinue } catch {}
+    $ci = $null; try { $ci = @(Get-TcpkCimSafe -ClassName Win32_Process -Filter "ProcessId=$pid2")[0] } catch {}
     $parent = ''; $cmd = ''; if ($ci) { $parent = "$($ci.ParentProcessId)"; $cmd = "$($ci.CommandLine)" }
     $owner = ''; try { if ($ci) { $ow = $ci | Invoke-CimMethod -MethodName GetOwner -ErrorAction SilentlyContinue; if ($ow -and $ow.User) { $owner = "$($ow.Domain)\$($ow.User)" } } } catch {}
     $started = ''; try { $started = $p.StartTime.ToString('yyyy-MM-dd HH:mm:ss') } catch {}
@@ -238,7 +238,7 @@ function Get-TcpkAgentProcmon {
     $conns = New-Object System.Collections.Generic.List[object]
     try { foreach ($c in (Get-NetTCPConnection -OwningProcess $pid2 -ErrorAction SilentlyContinue)) { $conns.Add(@{ local = "$($c.LocalAddress):$($c.LocalPort)"; remote = "$($c.RemoteAddress):$($c.RemotePort)"; state = "$($c.State)" }) } } catch {}
     $kids = New-Object System.Collections.Generic.List[object]
-    try { foreach ($k in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$pid2" -ErrorAction SilentlyContinue)) { $kids.Add(@{ name = "$($k.Name)"; pid = $k.ProcessId }) } } catch {}
+    try { foreach ($k in (Get-TcpkCimSafe -ClassName Win32_Process -Filter "ParentProcessId=$pid2")) { $kids.Add(@{ name = "$($k.Name)"; pid = $k.ProcessId }) } } catch {}
     $cpu = 0; try { $cpu = [Math]::Round($p.CPU, 1) } catch {}
     return @{
         ok = $true; pid = $pid2; name = "$($p.ProcessName)"; path = $path; desc = $desc; company = $comp; product = $prod; fver = $fver

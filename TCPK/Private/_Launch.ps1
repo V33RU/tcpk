@@ -57,7 +57,7 @@ function Stop-TcpkTargetProcess {
     $id = $null; try { $id = $Proc.Id } catch { }
     if (-not $id) { return }
     try {
-        Get-CimInstance Win32_Process -Filter "ParentProcessId=$id" -ErrorAction SilentlyContinue |
+        Get-TcpkCimSafe -ClassName Win32_Process -Filter "ParentProcessId=$id" |
             ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch { } }
     } catch { }
     try { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue } catch { }

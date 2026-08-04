@@ -1,4 +1,4 @@
-function Test-TcpkWmiPersistence {
+﻿function Test-TcpkWmiPersistence {
 <#
 .SYNOPSIS
     C16. WMI permanent event subscriptions (persistence mechanism).
@@ -32,8 +32,11 @@ function Test-TcpkWmiPersistence {
 
     # Consumers (the code-execution end)
     foreach ($cls in 'CommandLineEventConsumer','ActiveScriptEventConsumer') {
-        $items = $null
-        try { $items = Get-CimInstance -Namespace $ns -ClassName $cls -ErrorAction Stop } catch { continue }
+        # root/subscription is the most provider-fragile namespace on the box; the wrapper
+        # bounds it and records the gap so an unreachable namespace does not read as
+        # "no WMI persistence found".
+        $items = @(Get-TcpkCimSafe -ClassName $cls -Namespace $ns)
+        if (-not $items.Count) { continue }
         foreach ($c in $items) {
             $payload = "$($c.Name) $($c.CommandLineTemplate) $($c.ExecutablePath) $($c.ScriptText) $($c.ScriptFileName)"
             if (-not (_match $payload)) { continue }
@@ -48,8 +51,7 @@ function Test-TcpkWmiPersistence {
     }
 
     # Filters (the trigger end) -- MEDIUM
-    $filters = $null
-    try { $filters = Get-CimInstance -Namespace $ns -ClassName '__EventFilter' -ErrorAction Stop } catch { }
+    $filters = @(Get-TcpkCimSafe -ClassName '__EventFilter' -Namespace $ns)
     foreach ($flt in $filters) {
         if (-not (_match "$($flt.Name) $($flt.Query)")) { continue }
         New-TcpkFinding -Module 'os' -RuleId 'wmi.event-filter' `

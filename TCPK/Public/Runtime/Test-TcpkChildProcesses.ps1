@@ -1,4 +1,4 @@
-function Test-TcpkChildProcesses {
+﻿function Test-TcpkChildProcesses {
 <#
 .SYNOPSIS
     E14. Direct child processes spawned by the target.
@@ -19,8 +19,8 @@ function Test-TcpkChildProcesses {
         Get-TcpkProcess -ProcessId $ProcessId
     }
     foreach ($p in $procs) {
-        $kids = Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -ErrorAction SilentlyContinue
-        if (-not $kids) { continue }
+        $kids = @(Get-TcpkCimSafe -ClassName Win32_Process -Filter "ParentProcessId=$($p.Id)")
+        if (-not $kids.Count) { continue }
         foreach ($k in $kids) {
             New-TcpkFinding -Module 'runtime' -RuleId 'process.child' `
                 -Severity 'INFO' -Confidence 'Confirmed' `

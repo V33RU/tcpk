@@ -59,7 +59,12 @@ function Test-TcpkScanCoverage {
     # report this itself -- Get-TcpkPeFiles just stops yielding and the caller returns
     # normally with a short list -- so it is counted centrally and surfaced here.
     $budgetOut  = [int]$s.BudgetStoppedCount
-    if (($unreadable + $depth + $reparse + $viewCap + $viewDedup + $budgetOut) -eq 0) { return }
+    # A WMI/CIM query that timed out or errored. This one matters more than it looks: every
+    # service check catches its own WMI error and returns zero findings, which is byte-for-byte
+    # identical to "no service is misconfigured". Without this counter an audit on a box with a
+    # sick WMI service reads as a clean bill of health for the entire service attack surface.
+    $wmiFail    = [int]$s.WmiFailedCount
+    if (($unreadable + $depth + $reparse + $viewCap + $viewDedup + $budgetOut + $wmiFail) -eq 0) { return }
 
     $parts = New-Object 'System.Collections.Generic.List[string]'
     if ($unreadable) { $parts.Add("$unreadable directory(ies) unreadable") }
@@ -68,6 +73,7 @@ function Test-TcpkScanCoverage {
     if ($viewCap)    { $parts.Add("$viewCap file(s) whose extracted text hit its ceiling") }
     if ($viewDedup)  { $parts.Add("$viewDedup file(s) read with repeated strings collapsed") }
     if ($budgetOut)  { $parts.Add("$budgetOut check(s) stopped early on the time budget") }
+    if ($wmiFail)    { $parts.Add("$wmiFail WMI/CIM query(ies) failed or timed out") }
     $summary = $parts -join '; '
 
     $sample = New-Object 'System.Collections.Generic.List[string]'
@@ -77,13 +83,14 @@ function Test-TcpkScanCoverage {
     foreach ($p in @($s.ViewCappedSample))     { $sample.Add("text-capped: $p") }
     foreach ($p in @($s.ViewDedupedSample))    { $sample.Add("deduped: $p") }
     foreach ($p in @($s.BudgetStoppedSample)) { $sample.Add("budget-stopped: $p") }
+    foreach ($p in @($s.WmiFailedSample))     { $sample.Add("wmi-failed: $p") }
     $sampleTxt = (@($sample) | Select-Object -First 12) -join ' ; '
 
     # Unreadable directories and a capped text view are the classes that represent an
     # UNKNOWN. A depth cap, a refused reparse point and dedup are deliberate, bounded
     # decisions: dedup keeps every distinct string and loses only repeat counts.
     $sev = 'INFO'
-    if ($unreadable -gt 0 -or $viewCap -gt 0 -or $budgetOut -gt 0) { $sev = 'LOW' }
+    if ($unreadable -gt 0 -or $viewCap -gt 0 -or $budgetOut -gt 0 -or $wmiFail -gt 0) { $sev = 'LOW' }
 
     $advice = 'Reparse points and depth-capped subtrees are deliberate limits, not errors.'
     if ($viewDedup -gt 0 -and $unreadable -eq 0 -and $viewCap -eq 0) {
@@ -109,6 +116,15 @@ function Test-TcpkScanCoverage {
             'finding set. Any static result for those paths is currently unknown rather than clean. ' +
             'For MSIX targets, extract the package and scan the extracted tree instead of scanning ' +
             'WindowsApps in place.')
+    }
+    # Last, so it wins when several classes fired: this is the one that silently turns into a
+    # false clean bill of health for an entire attack surface rather than a partial result.
+    if ($wmiFail -gt 0) {
+        $advice = ('A WMI/CIM query failed or hit its 30s timeout. Every check that reads WMI ' +
+            '(services, unquoted paths, service binary ACLs, WMI persistence, process owners, ' +
+            'child processes) returns ZERO findings on that failure, which looks exactly like a ' +
+            'clean result. Treat the service and persistence surface as UNTESTED for this run. ' +
+            'Check the Winmgmt service is running, then re-run: winmgmt /verifyrepository')
     }
 
     New-TcpkFinding -Module 'discovery' -RuleId 'scan.incomplete-coverage' `

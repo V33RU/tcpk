@@ -1,4 +1,4 @@
-function Test-TcpkServiceBinaryAcl {
+﻿function Test-TcpkServiceBinaryAcl {
 <#
 .SYNOPSIS
     C18. Non-admin-writable service / scheduled-task BINARY (EoP).
@@ -66,7 +66,7 @@ function Test-TcpkServiceBinaryAcl {
 
     # ---- services ----
     try {
-        $svcs = Get-CimInstance Win32_Service -ErrorAction Stop
+        $svcs = @(Get-TcpkCimSafe -ClassName Win32_Service)
         foreach ($s in $svcs) {
             if ($terms.Count -and -not (
                     (Test-TcpkTermMatch -Text $s.Name -Terms $terms) -or

@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
     TCPK GUI -- portable interactive pentest console.
@@ -3690,7 +3690,7 @@ function Render-PmonLive {
     $path = '(access denied)'; try { $path = $p.MainModule.FileName } catch {}
     $desc = ''; $comp = ''; $prod = ''; $fver = ''
     try { $fvi = $p.MainModule.FileVersionInfo; $desc = "$($fvi.FileDescription)"; $comp = "$($fvi.CompanyName)"; $prod = "$($fvi.ProductName)"; $fver = "$($fvi.FileVersion)" } catch {}
-    $ci = $null; try { $ci = Get-CimInstance Win32_Process -Filter "ProcessId=$($script:PmonPid)" -ErrorAction SilentlyContinue } catch {}
+    $ci = $null; try { $ci = Get-CimInstance Win32_Process -Filter "ProcessId=$($script:PmonPid)" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue } catch {}
     $ppid = ''; $cmd = ''; if ($ci) { $ppid = "$($ci.ParentProcessId)"; $cmd = "$($ci.CommandLine)" }
     $owner = ''; try { if ($ci) { $ow = $ci | Invoke-CimMethod -MethodName GetOwner -ErrorAction SilentlyContinue; if ($ow -and $ow.User) { $owner = "$($ow.Domain)\$($ow.User)" } } } catch {}
     $started = '(n/a)'; try { $started = $p.StartTime.ToString('yyyy-MM-dd HH:mm:ss') } catch {}
@@ -3701,7 +3701,7 @@ function Render-PmonLive {
     $cpu = 0; try { $cpu = [Math]::Round($p.CPU, 1) } catch {}
     $mods = @(); try { $mods = @($p.Modules) } catch {}
     $conns = @(); try { $conns = @(Get-NetTCPConnection -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue) } catch {}
-    $kids = @(); try { $kids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -ErrorAction SilentlyContinue) } catch {}
+    $kids = @(); try { $kids = @(Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue) } catch {}
 
     # colortbl: 1 cyan(headers) 2 label 3 value 4 green(path/module/established) 5 dim(paths/sep) 6 yellow(user/child) 7 orange(remote) 8 red
     $r = New-Object System.Text.StringBuilder
@@ -3765,7 +3765,7 @@ function Poll-PmonCapture {
     $ts = (Get-Date).ToString('HH:mm:ss')
     try { foreach ($m in $p.Modules) { $k = "$($m.FileName)"; if ($k -and -not $script:PmonSeenMod.Contains($k)) { [void]$script:PmonSeenMod.Add($k); Write-IcptLine $txtPmon ("[{0}] MODULE  {1}`r`n" -f $ts, $k) $pmGreen } } } catch {}
     try { foreach ($c in (Get-NetTCPConnection -OwningProcess $script:PmonPid -ErrorAction SilentlyContinue)) { $k = "$($c.LocalAddress):$($c.LocalPort)->$($c.RemoteAddress):$($c.RemotePort)"; if (-not $script:PmonSeenConn.Contains($k)) { [void]$script:PmonSeenConn.Add($k); Write-IcptLine $txtPmon ("[{0}] TCP     {1}:{2} -> {3}:{4} [{5}]`r`n" -f $ts, $c.LocalAddress, $c.LocalPort, $c.RemoteAddress, $c.RemotePort, $c.State) $pmCyan } } } catch {}
-    try { foreach ($ch in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -ErrorAction SilentlyContinue)) { $k = "$($ch.ProcessId)"; if (-not $script:PmonSeenChild.Contains($k)) { [void]$script:PmonSeenChild.Add($k); Write-IcptLine $txtPmon ("[{0}] CHILD   {1} (pid {2})`r`n" -f $ts, $ch.Name, $ch.ProcessId) $pmYellow } } } catch {}
+    try { foreach ($ch in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$($script:PmonPid)" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue)) { $k = "$($ch.ProcessId)"; if (-not $script:PmonSeenChild.Contains($k)) { [void]$script:PmonSeenChild.Add($k); Write-IcptLine $txtPmon ("[{0}] CHILD   {1} (pid {2})`r`n" -f $ts, $ch.Name, $ch.ProcessId) $pmYellow } } } catch {}
 }
 $btnPmRefresh.Add_Click({
     $sel = $cmbPmProc.Text
@@ -3795,7 +3795,7 @@ $btnPmStart.Add_Click({
         $script:PmonSeenChild = New-Object 'System.Collections.Generic.HashSet[string]'
         try { foreach ($m in $p.Modules) { [void]$script:PmonSeenMod.Add("$($m.FileName)") } } catch {}
         try { foreach ($c in (Get-NetTCPConnection -OwningProcess $p.Id -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenConn.Add("$($c.LocalAddress):$($c.LocalPort)->$($c.RemoteAddress):$($c.RemotePort)") } } catch {}
-        try { foreach ($ch in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenChild.Add("$($ch.ProcessId)") } } catch {}
+        try { foreach ($ch in (Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.Id)" -OperationTimeoutSec 5 -ErrorAction SilentlyContinue)) { [void]$script:PmonSeenChild.Add("$($ch.ProcessId)") } } catch {}
         $script:PmonTimer.Interval = 1000
         if ($n -le 0) {
             $script:PmonCaptureEnd = $null
@@ -4148,7 +4148,7 @@ function Update-ScanResources {
 function Get-TcpkPrivateWsMb {
     param([int]$ProcId, [long]$FallbackBytes)
     try {
-        $c = Get-CimInstance -ClassName Win32_PerfRawData_PerfProc_Process -Filter "IDProcess=$ProcId" -ErrorAction Stop
+        $c = Get-CimInstance -ClassName Win32_PerfRawData_PerfProc_Process -Filter "IDProcess=$ProcId" -OperationTimeoutSec 5 -ErrorAction Stop
         if ($c) {
             $wsp = @($c)[0].WorkingSetPrivate
             if ($wsp -and $wsp -gt 0) { return [int]($wsp / 1MB) }
