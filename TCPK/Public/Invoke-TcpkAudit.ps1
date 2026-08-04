@@ -553,6 +553,8 @@ function Invoke-TcpkAudit {
     # ETW and memory dump only when explicitly requested via -EnableDeepRuntime
     if ($EnableDeepRuntime -and $ProcessName) {
         _RunCheck 'Test-TcpkDllSearchTrace'          { Test-TcpkDllSearchTrace          -ProcessName $ProcessName -Seconds 30 }
+        _RunCheck 'Test-TcpkRegistryWrites'          { Test-TcpkRegistryWrites          -ProcessName $ProcessName -Seconds 30 }
+        _RunCheck 'Test-TcpkFileActivity'            { Test-TcpkFileActivity            -ProcessName $ProcessName -Seconds 30 }
         _RunCheck 'Test-TcpkMemoryDump'              { Test-TcpkMemoryDump              -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkMemorySecrets'           { Test-TcpkMemorySecrets           -ProcessName $ProcessName }
     }
