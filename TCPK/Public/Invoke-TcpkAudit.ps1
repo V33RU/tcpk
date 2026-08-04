@@ -591,6 +591,7 @@ function Invoke-TcpkAudit {
 
     # ----- Bucket H (logging / telemetry, 3 cmdlets) -----
     _RunCheck 'Test-TcpkLogFiles'          { Test-TcpkLogFiles          -Path $expanded }
+    _RunCheck 'Test-TcpkLogInjection'      { Test-TcpkLogInjection       -Path $expanded }
     _RunCheck 'Test-TcpkTelemetrySdks'     { Test-TcpkTelemetrySdks     -Path $expanded }
     _RunCheck 'Test-TcpkPiiInLogs'         { Test-TcpkPiiInLogs         -Path $expanded }
     _RunCheck 'Test-TcpkEtwProviders'      { Test-TcpkEtwProviders      -Path $expanded }
