@@ -142,25 +142,60 @@ function Test-TcpkRegistryWrites {
         if (-not $seen.Add($uniq)) { continue }
 
         $isCredential = ($keyName -match $credTermRx -or "$valName" -match $credTermRx)
-        $severity = if ($isCredential) { 'HIGH' } else { 'MEDIUM' }
-        $title = if ($valName) {
-            "$($proc.ProcessName) wrote registry value: $keyName -> $valName"
+
+        if ($isCredential) {
+            # Writing a credential-named value is suspicious regardless of key path.
+            # Phase 2: ETW attributed the SetValue to the target PID with a credential term.
+            $title2 = if ($valName) {
+                "$($proc.ProcessName) wrote credential-named registry value: $keyName -> $valName"
+            } else {
+                "$($proc.ProcessName) $op credential-named registry key: $keyName"
+            }
+            New-TcpkFinding -Module 'runtime' -RuleId 'reg.write.credential' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title $title2 `
+                -File $keyName `
+                -Evidence "PID=$($proc.Id) op=$op" `
+                -Cwe @('CWE-312') `
+                -Description ('The process wrote a registry value whose name matches a credential pattern ' +
+                    '(password, token, secret, apikey, etc.) during the exercise window. This indicates ' +
+                    'the app may be persisting sensitive material in the registry in cleartext. ' +
+                    'Retrieve the current value with: ' +
+                    "Get-ItemPropertyValue 'Registry::$keyName' '$valName' " +
+                    'to confirm whether cleartext secret data is present.') `
+                -Fix ('Replace cleartext registry storage with Windows Credential Manager ' +
+                    '(CredWrite/CredRead) or DPAPI-encrypted bytes (ProtectedData.Protect). ' +
+                    'Never store plaintext tokens, passwords, or API keys in registry values.')
         } else {
-            "$($proc.ProcessName) $op registry key: $keyName"
+            # Observation only: the app used a persistence or security-relevant registry path.
+            # This is NORMAL for many applications (COM registration, service install, autorun).
+            # Confidence = Inferred so it lands in Leads, not Proven.
+            # To promote to Confirmed: check whether the registered path is user-writable
+            # (run Test-TcpkInstallDirAcl on the value data) or the key ACL is weak (Get-Acl).
+            $title2 = if ($valName) {
+                "Observed: $($proc.ProcessName) wrote to $op path: $keyName -> $valName"
+            } else {
+                "Observed: $($proc.ProcessName) $op registry key: $keyName"
+            }
+            New-TcpkFinding -Module 'runtime' -RuleId 'reg.write.persistence-path' `
+                -Severity 'INFO' -Confidence 'Inferred' `
+                -Title $title2 `
+                -File $keyName `
+                -Evidence "PID=$($proc.Id) op=$op" `
+                -Cwe @('CWE-269') `
+                -Description ('ETW observed the target process write to a persistence or security-relevant ' +
+                    'registry path during the exercise window. This is an observation, not a confirmed ' +
+                    'vulnerability. Many applications legitimately write to Run keys (autorun), ' +
+                    'CLSID keys (COM registration), or Services keys (service install). ' +
+                    'To confirm exploitability: (1) retrieve the value data and check whether the ' +
+                    'target path is user-writable with Test-TcpkInstallDirAcl -- a user-writable ' +
+                    'autorun or COM path is a confirmed hijack candidate; ' +
+                    '(2) check the key ACL with Get-Acl -- if non-admin users can write to the key, ' +
+                    'it is a registry permission misconfiguration (CWE-732).') `
+                -Fix ('No action required unless the follow-up ACL checks confirm a weakness. ' +
+                    'If the registered path is user-writable, harden the ACL or move the binary ' +
+                    'to a location writable only by admin/SYSTEM.')
         }
-        New-TcpkFinding -Module 'runtime' -RuleId 'reg.write' `
-            -Severity $severity -Confidence 'Confirmed' `
-            -Title $title `
-            -File $keyName `
-            -Evidence "PID=$($proc.Id) op=$op" `
-            -Cwe @('CWE-312', 'CWE-269') `
-            -Description ('The process wrote to a persistence or security-relevant registry key during ' +
-                'the capture window. Persistence keys can be used for privilege escalation or persistence ' +
-                'if the key or its directory is writable by non-admin users. Credential values should use ' +
-                'DPAPI-backed storage instead of cleartext registry values.') `
-            -Fix ('Confirm the write is intentional. If it stores credentials, use Windows Credential ' +
-                'Manager or DPAPI-encrypted values. If it registers a COM class or service path, verify ' +
-                'the target path is not user-writable (combine with Test-TcpkInstallDirAcl).')
     }
     Remove-Item $etl -Force -ErrorAction SilentlyContinue
 }

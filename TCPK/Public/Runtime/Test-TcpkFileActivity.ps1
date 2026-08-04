@@ -147,33 +147,55 @@ function Test-TcpkFileActivity {
         if (-not ($isSenspath -or $isCredName -or $isOutsideInstall)) { continue }
         if (-not $seen.Add($file)) { continue }
 
-        $severity = if ($isCredName) { 'HIGH' } elseif ($isSenspath) { 'MEDIUM' } else { 'LOW' }
-        $ruleId   = if ($isCredName) { 'file.write-credential-name' } `
-                    elseif ($isSenspath) { 'file.write-user-writable-path' } `
-                    else { 'file.write-outside-install' }
-
-        $reason = if ($isCredName) {
-            'filename contains credential-related term'
-        } elseif ($isSenspath) {
-            'path is in a user-writable location (TEMP / AppData / ProgramData)'
+        if ($isCredName) {
+            # A file whose name matches a credential pattern is worth confirming regardless of path.
+            # Phase 2: ETW attributed the create/write to the target PID; filename is the proof.
+            New-TcpkFinding -Module 'runtime' -RuleId 'file.write-credential-name' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title "$($proc.ProcessName) wrote credential-named file: $file" `
+                -File $file `
+                -Evidence "PID=$($proc.Id) -- filename contains credential-related term" `
+                -Cwe @('CWE-312') `
+                -Description ('The process created or wrote a file with a name that matches a ' +
+                    'credential pattern (password, token, key, pem, pfx, secret, cookie, etc.) ' +
+                    'during the exercise window. This indicates the app may be persisting sensitive ' +
+                    'material to disk. Read the file immediately after exercise to confirm whether ' +
+                    'cleartext secret data is present.') `
+                -Fix ('Do not write plaintext credentials or key material to disk. Use DPAPI ' +
+                    '(ProtectedData.Protect) for on-disk secrets, or Windows Credential Manager. ' +
+                    'If the file is a certificate bundle (.pfx/.p12), verify it is protected by a ' +
+                    'strong passphrase and stored under a restricted DACL.')
         } else {
-            "path is outside the inferred install directory ($installDir)"
+            # Path-based observation only: the app wrote to a temp or off-install-tree location.
+            # This is NORMAL for many apps (temp extraction, cache, config files in AppData).
+            # Confidence = Inferred -- lands in Leads, not Proven.
+            # To promote to Confirmed: read the file content (is it sensitive?) and check the
+            # DACL (is it readable by other users on the same machine?).
+            $ruleId2 = if ($isSenspath) { 'file.write-user-writable-path' } else { 'file.write-outside-install' }
+            $reason2 = if ($isSenspath) {
+                'path is in a user-writable location (TEMP / AppData / ProgramData)'
+            } else {
+                "path is outside the inferred install directory ($installDir)"
+            }
+            New-TcpkFinding -Module 'runtime' -RuleId $ruleId2 `
+                -Severity 'INFO' -Confidence 'Inferred' `
+                -Title "Observed: $($proc.ProcessName) wrote file outside install tree: $file" `
+                -File $file `
+                -Evidence "PID=$($proc.Id) -- $reason2" `
+                -Cwe @('CWE-377', 'CWE-732') `
+                -Description ('ETW observed the target process write a file during the exercise window. ' +
+                    $reason2 + '. This is an observation, not a confirmed vulnerability. ' +
+                    'Many applications legitimately write to TEMP (extraction, cache) and AppData ' +
+                    '(config, user data). To assess exploitability: ' +
+                    '(1) read the file content -- if it contains sensitive data, escalate to Confirmed (CWE-312); ' +
+                    '(2) check whether the filename is predictable (no random suffix) AND the file is ' +
+                    'later opened by a higher-privilege process -- if so, this is a TOCTOU race (CWE-377); ' +
+                    '(3) check the file DACL with Get-Acl -- if other local users can read it, escalate to Confirmed (CWE-732).') `
+                -Fix ('No action required unless follow-up confirms sensitive content or a weak DACL. ' +
+                    'For temp files: use [IO.Path]::GetTempFileName() (unique name) and set a ' +
+                    'restrictive DACL immediately after creation. For config/data outside install: ' +
+                    'store under a per-user subdirectory in %LOCALAPPDATA% with restricted ACL.')
         }
-        New-TcpkFinding -Module 'runtime' -RuleId $ruleId `
-            -Severity $severity -Confidence 'Confirmed' `
-            -Title "$($proc.ProcessName) wrote file: $file" `
-            -File $file `
-            -Evidence "PID=$($proc.Id) -- $reason" `
-            -Cwe @('CWE-312', 'CWE-377', 'CWE-732') `
-            -Description ('The process created or wrote a file during the capture window. ' +
-                $reason + '. Files in user-writable paths (TEMP, AppData) are race-condition ' +
-                'targets (CWE-377) if created with predictable names and then opened with elevated ' +
-                'rights. Files with credential-related names may persist sensitive material in cleartext ' +
-                'on disk (CWE-312). Use ACL-controlled temp paths and DPAPI-backed storage.') `
-            -Fix ('Review the file content and ACL. For TEMP writes: use GetTempFileNameW (or ' +
-                '[IO.Path]::GetTempFileName()) and immediately set a restrictive DACL, or use a ' +
-                'named subdirectory under LOCALAPPDATA that other users cannot list. ' +
-                'For credential-named files: encrypt at rest with DPAPI (ProtectedData.Protect).')
     }
     Remove-Item $etl -Force -ErrorAction SilentlyContinue
 }
