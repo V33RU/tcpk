@@ -342,6 +342,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkEndpoints'           { Test-TcpkEndpoints           -Path $expanded }
     _RunCheck 'Test-TcpkDeserialization'     { Test-TcpkDeserialization     -Path $expanded }
     _RunCheck 'Test-TcpkCallsites'           { Test-TcpkCallsites           -Path $expanded }
+    _RunCheck 'Test-TcpkSqlInjection'       { Test-TcpkSqlInjection        -Path $expanded }
     _RunCheck 'Test-TcpkTlsBypass'           { Test-TcpkTlsBypass           -Path $expanded }
     _RunCheck 'Test-TcpkXxe'                 { Test-TcpkXxe                 -Path $expanded }
     _RunCheck 'Test-TcpkWcfConfig'           { Test-TcpkWcfConfig           -Path $expanded }
