@@ -360,6 +360,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkNamedObjects'        { Test-TcpkNamedObjects        -Path $expanded }
     _RunCheck 'Test-TcpkPacker'              { Test-TcpkPacker              -Path $expanded }
     _RunCheck 'Test-TcpkAuthFlags'           { Test-TcpkAuthFlags           -Path $expanded }
+    _RunCheck 'Test-TcpkOAuthState'         { Test-TcpkOAuthState          -Path $expanded }
     _RunCheck 'Test-TcpkElectron'            { Test-TcpkElectron            -Path $expanded }
     _RunCheck 'Test-TcpkElectronJs'          { Test-TcpkElectronJs          -Path $expanded }
     _RunCheck 'Test-TcpkElectronFuses'       { Test-TcpkElectronFuses       -Path $expanded }
