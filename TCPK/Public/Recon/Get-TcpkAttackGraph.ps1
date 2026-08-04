@@ -44,8 +44,8 @@ function Get-TcpkAttackGraph {
             # A hijack needs BOTH halves: a name the loader will look for and fail to find,
             # AND somewhere writable on its search path. TCPK reported the two separately and
             # never joined them, so the finding set contained a local privilege escalation that
-            # nothing in the report ever said out loud. This is the class behind the Acronis /
-            # Monero / Node.js DLL-hijack reports: a phantom DLL resolved via a user-writable
+            # nothing in the report ever said out loud. This is the class behind the publicly
+            # disclosed phantom-DLL hijack reports: a phantom DLL resolved via a user-writable
             # PATH entry such as %LOCALAPPDATA%\Microsoft\WindowsApps.
             @{ Id = 'prim.hijackname'; Role = 'prim'; Label = 'Unresolved load name (phantom DLL / side-load)'; Rx = '^(pe-imports\.phantom|dllsearch\.sideload-candidate|dll-search\.name-not-found|jni\.load-path-unevaluated)' }
             @{ Id = 'prim.priv'; Role = 'prim'; Label = 'Impactful token privilege'; Rx = '^(process\.impactful-privileges|process\.running-as-system)' }
@@ -76,7 +76,7 @@ function Get-TcpkAttackGraph {
                 ) }
             @{ Id = 'goal.system'; Label = 'Local privilege escalation to SYSTEM'; Sev = 'CRITICAL'; Cwe = @('CWE-269'); Recipes = @(
                     @('prim.privbin'), @('prim.priv', 'prim.codeexec'), @('prim.priv', 'entry.ipc'), @('prim.privbin', 'prim.priv'),
-                    # phantom name + writable search path + a privileged loader = the Acronis shape.
+                    # phantom name + writable search path + a privileged loader = the classic hijack shape.
                     # prim.priv is required for the SYSTEM claim: planting a DLL that only ever
                     # loads into a process running as the SAME user crosses no boundary and is
                     # not an escalation. Without it the pair still raises goal.rce above.

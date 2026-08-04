@@ -7,9 +7,9 @@
 # first. So a finding set could contain a complete local privilege escalation and nothing in
 # the report ever said so.
 #
-# That is the exact shape of the paid HackerOne reports in this class: a phantom DLL
-# (tcmalloc.dll, providers.dll, perf.dll, snapapi.dll) resolved through a user-writable PATH
-# entry, most often %LOCALAPPDATA%\Microsoft\WindowsApps. Five separate reports, one join.
+# That is the exact shape of the publicly disclosed reports in this class: a phantom DLL
+# resolved through a user-writable PATH entry, most often
+# %LOCALAPPDATA%\Microsoft\WindowsApps. Several separate reports, one join.
 #
 # These tests also pin the HONESTY boundary: the pair alone is code execution, but it is only
 # an ESCALATION when the loading process is privileged. Planting a DLL that loads into a
@@ -43,7 +43,7 @@ Describe 'Phantom DLL + writable search path correlate' {
     It 'raises a goal when BOTH halves are present' {
         $f = @((New-Fx 'pe-imports.phantom' 'MEDIUM'), (New-Fx 'path.writable' 'MEDIUM'))
         $goals = Get-Goals -Findings $f
-        $goals.Count | Should -BeGreaterThan 0 -Because 'this pair IS the Acronis/Monero DLL-hijack report'
+        $goals.Count | Should -BeGreaterThan 0 -Because 'this pair IS a complete DLL-hijack chain'
     }
 
     It 'raises NOTHING from the phantom name alone' {

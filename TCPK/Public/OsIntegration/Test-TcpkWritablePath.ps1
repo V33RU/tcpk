@@ -46,8 +46,8 @@ function Test-TcpkWritablePath {
     # PATH entries that are user-writable BY DESIGN, not by vendor mistake. These live in
     # the user's own profile, so the user can always write to them, and an elevated process
     # launched from that user's session inherits the user PATH -- which is precisely the
-    # privilege crossing. %LOCALAPPDATA%\Microsoft\WindowsApps is the sink in four of the
-    # disclosed DLL-hijack reports in this class (Acronis x3, Monero).
+    # privilege crossing. %LOCALAPPDATA%\Microsoft\WindowsApps is the sink in several of the
+    # publicly disclosed DLL-hijack reports in this class.
     #
     # They must bypass the target-relevance filter below. That filter keeps this check
     # attributable by only reporting PATH directories at or around the install tree -- but
