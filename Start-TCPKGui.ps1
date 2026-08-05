@@ -1201,19 +1201,31 @@ $lblPcapF.Text = "Capture file:"; $lblPcapF.ForeColor = [System.Drawing.Color]::
 $lblPcapF.Location = New-Object System.Drawing.Point(12,33); $lblPcapF.Size = New-Object System.Drawing.Size(110,18)
 $ctlP.Controls.Add($lblPcapF)
 $txtPcap = New-Object System.Windows.Forms.TextBox
-$txtPcap.Location = New-Object System.Drawing.Point(126,30); $txtPcap.Size = New-Object System.Drawing.Size(736,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
-$txtPcap.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtPcap.ForeColor = [System.Drawing.Color]::White
+$txtPcap.Location = New-Object System.Drawing.Point(126,30); $txtPcap.Size = New-Object System.Drawing.Size(690,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtPcap.BackColor = [System.Drawing.Color]::FromArgb(36,36,40); $txtPcap.ForeColor = [System.Drawing.Color]::FromArgb(110,115,120)
+$txtPcap.ReadOnly = $true; $txtPcap.Text = 'Drop a .pcap / .pcapng here -- or click Browse'
+$txtPcap.AllowDrop = $true
+$txtPcap.Add_DragEnter({
+    if ($args[1].Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
+        $args[1].Effect = [System.Windows.Forms.DragDropEffects]::Copy
+    } else { $args[1].Effect = [System.Windows.Forms.DragDropEffects]::None }
+})
+$txtPcap.Add_DragDrop({
+    $files = @($args[1].Data.GetData([System.Windows.Forms.DataFormats]::FileDrop))
+    if ($files.Count -gt 0) { $txtPcap.Text = $files[0]; $txtPcap.ForeColor = [System.Drawing.Color]::White }
+})
 $txtPcap.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlP.Controls.Add($txtPcap)
 $btnPcapBrowse = New-Object System.Windows.Forms.Button
-$btnPcapBrowse.Text = "Browse..."; $btnPcapBrowse.Location = New-Object System.Drawing.Point(868,28); $btnPcapBrowse.Size = New-Object System.Drawing.Size(90,26)
-$btnPcapBrowse.FlatStyle = 'Flat'; $btnPcapBrowse.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnPcapBrowse.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
+$btnPcapBrowse.Text = "Browse"; $btnPcapBrowse.Location = New-Object System.Drawing.Point(822,28); $btnPcapBrowse.Size = New-Object System.Drawing.Size(90,26)
+$btnPcapBrowse.FlatStyle = 'Flat'; $btnPcapBrowse.BackColor = [System.Drawing.Color]::FromArgb(28,78,130); $btnPcapBrowse.ForeColor = [System.Drawing.Color]::White
 $btnPcapBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlP.Controls.Add($btnPcapBrowse)
 $btnPcapBrowse.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog
+    $dlg.Title = 'Select packet capture'
     $dlg.Filter = "Captures (*.pcap;*.pcapng)|*.pcap;*.pcapng|All files (*.*)|*.*"
-    if ($dlg.ShowDialog() -eq 'OK') { $txtPcap.Text = $dlg.FileName }
+    if ($dlg.ShowDialog() -eq 'OK') { $txtPcap.Text = $dlg.FileName; $txtPcap.ForeColor = [System.Drawing.Color]::White }
 })
 $btnPcapGo = New-Object System.Windows.Forms.Button
 $btnPcapGo.Text = "Analyse capture"; $btnPcapGo.Location = New-Object System.Drawing.Point(126,58); $btnPcapGo.Size = New-Object System.Drawing.Size(162,26)
@@ -1251,6 +1263,21 @@ $btnPcapGo.Add_Click({
             [void]$lvi.SubItems.Add("$($c.DstMAC)")
             [void]$lvConv.Items.Add($lvi)
         }
+        # Build network graph data (circular layout, up to 200 conversations)
+        $script:graphConvs = @($convs | Where-Object { $_.SrcIP -and $_.DstIP } | Select-Object -First 200)
+        $gNodes = @($script:graphConvs | ForEach-Object { $_.SrcIP, $_.DstIP } | Where-Object { $_ } | Sort-Object -Unique)
+        $script:graphPositions = @{}
+        if ($gNodes.Count -gt 0) {
+            $gn = $gNodes.Count
+            $gcx = [double](if ($pbGraph.Width  -gt 20) { $pbGraph.Width  / 2 } else { 500 })
+            $gcy = [double](if ($pbGraph.Height -gt 20) { $pbGraph.Height / 2 } else { 350 })
+            $grad = [Math]::Min($gcx, $gcy) * 0.78
+            for ($gi = 0; $gi -lt $gn; $gi++) {
+                $ga = 2 * [Math]::PI * $gi / $gn - [Math]::PI / 2
+                $script:graphPositions[$gNodes[$gi]] = @{ X = $gcx + $grad * [Math]::Cos($ga); Y = $gcy + $grad * [Math]::Sin($ga) }
+            }
+        }
+        $pbGraph.Invalidate()
     } catch { }
     [System.Windows.Forms.Application]::DoEvents()
 
@@ -1503,6 +1530,53 @@ $txtOutBt.ReadOnly = $true; $txtOutBt.WordWrap = $false
 $txtOutBt.Text = "Bluetooth and Zigbee capture analysis.`r`n`r`nLoad a .pcap and click 'Analyse capture'. TCPK auto-detects Bluetooth and Zigbee frames`r`nand runs protocol-specific checks:`r`n`r`nBluetooth / BLE:`r`n  * BLE JustWorks pairing (no MITM protection)   [HIGH]`r`n  * GATT Write / Read operations in cleartext     [HIGH / MEDIUM]`r`n  * BLE advertisement device fingerprinting        [INFO]`r`n  * HCI trace presence (pairing state, link keys)  [INFO]`r`n`r`nZigbee / IEEE 802.15.4:`r`n  * Unencrypted NWK frames (AES-CCM* disabled)     [HIGH]`r`n  * Transport Key broadcast in the air              [CRITICAL]`r`n  * Frame inventory and security summary            [INFO]`r`n`r`nCapture sources:`r`n  BT:     HCI snoop log, Ubertooth One, Wireshark Bluetooth interface, Sniffle`r`n  Zigbee: RZUSBSTICK, ApiMote, Sniffle, any 802.15.4 sniffer (LINKTYPE_IEEE802_15_4)"
 $subPcapBt.Controls.Add($txtOutBt)
 [void]$subPcapTabs.TabPages.Add($subPcapBt)
+
+# --- Tab 6: Network Graph (GDI+ circular IP-conversation graph) ---
+$script:graphConvs = @(); $script:graphPositions = @{}
+$subPcapNetGraph = New-Object System.Windows.Forms.TabPage; $subPcapNetGraph.Text = ' Network Graph '; $subPcapNetGraph.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+$pbGraph = New-Object System.Windows.Forms.PictureBox; $pbGraph.Dock = 'Fill'; $pbGraph.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+$pbGraph.Add_Paint({
+    $g = $args[1].Graphics
+    $g.SmoothingMode      = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $g.TextRenderingHint  = [System.Drawing.Text.TextRenderingHint]::AntiAliasGridFit
+    if ($script:graphPositions.Count -eq 0) {
+        $hbr = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(70,75,82))
+        $hfn = New-Object System.Drawing.Font('Consolas', 10)
+        $g.DrawString('Analyse a capture to build the IP network graph.', $hfn, $hbr, 24, 24)
+        $hbr.Dispose(); $hfn.Dispose(); return
+    }
+    foreach ($c in $script:graphConvs) {
+        $ps = $script:graphPositions["$($c.SrcIP)"]; $pd = $script:graphPositions["$($c.DstIP)"]
+        if (-not $ps -or -not $pd) { continue }
+        $al = [int][Math]::Min(200, [Math]::Max(35, 55 + [Math]::Log([double]$c.Bytes + 2) * 9))
+        $tk = [float][Math]::Max(0.6, [Math]::Min(4.0, [Math]::Log([double]$c.Bytes + 2) / 3.5))
+        $ep = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb($al, 80, 140, 200), $tk)
+        $g.DrawLine($ep, [float]$ps.X, [float]$ps.Y, [float]$pd.X, [float]$pd.Y); $ep.Dispose()
+    }
+    $nb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(90,185,255))
+    $lb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(215,220,228))
+    $fn = New-Object System.Drawing.Font('Consolas', 7)
+    foreach ($ip in $script:graphPositions.Keys) {
+        $p = $script:graphPositions[$ip]; $nx = [float]$p.X; $ny = [float]$p.Y
+        $g.FillEllipse($nb, $nx - 5, $ny - 5, 10, 10)
+        $g.DrawString($ip, $fn, $lb, $nx + 8, $ny - 7)
+    }
+    $nb.Dispose(); $lb.Dispose(); $fn.Dispose()
+})
+$pbGraph.Add_Resize({
+    if ($script:graphConvs.Count -eq 0) { return }
+    $rn = @($script:graphConvs | ForEach-Object { $_.SrcIP, $_.DstIP } | Where-Object { $_ } | Sort-Object -Unique)
+    if ($rn.Count -eq 0) { return }
+    $rc = $rn.Count; $rcx = [double]($pbGraph.Width / 2); $rcy = [double]($pbGraph.Height / 2)
+    $rr = [Math]::Min($rcx, $rcy) * 0.78; $script:graphPositions = @{}
+    for ($ri = 0; $ri -lt $rc; $ri++) {
+        $ra = 2 * [Math]::PI * $ri / $rc - [Math]::PI / 2
+        $script:graphPositions[$rn[$ri]] = @{ X = $rcx + $rr * [Math]::Cos($ra); Y = $rcy + $rr * [Math]::Sin($ra) }
+    }
+    $pbGraph.Invalidate()
+})
+$subPcapNetGraph.Controls.Add($pbGraph)
+[void]$subPcapTabs.TabPages.Add($subPcapNetGraph)
 
 $tabPcap.Controls.Add($subPcapTabs)
 $subPcapTabs.BringToFront()
