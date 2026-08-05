@@ -196,6 +196,10 @@ function Test-TcpkBrowserTokenStore {
     $markerLeaves   = @('Cookies', 'Login Data', 'Web Data')
     $seenProfiles   = New-Object System.Collections.Generic.HashSet[string]
     $seenStorePaths = New-Object System.Collections.Generic.HashSet[string]
+    # Accumulate measured row counts per profile (by Local State path) so the
+    # master-key finding can report what the key actually protects, not just
+    # that the key was recovered.  Keys: TotalCookies, TotalLogins, TotalAutofill.
+    $profileFacts   = @{}
 
     foreach ($base in $bases) {
         $appDirs = Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue |
@@ -325,6 +329,20 @@ function Test-TcpkBrowserTokenStore {
                     $d = Split-Path -Parent $d
                 }
 
+                # Accumulate per-profile measured row counts regardless of whether
+                # this is the first visit to this Local State.  The master-key finding
+                # uses these to describe what the key actually protects.
+                if ($localState) {
+                    if (-not $profileFacts[$localState]) {
+                        $profileFacts[$localState] = @{ TotalCookies=-1; TotalLogins=-1; TotalAutofill=-1; Markers=@() }
+                    }
+                    $pf = $profileFacts[$localState]
+                    if ($cookieRows -ge 0) { $pf.TotalCookies = [Math]::Max(0, [Math]::Max($pf.TotalCookies, $cookieRows)) }
+                    if ($loginRows  -ge 0) { $pf.TotalLogins  = [Math]::Max(0, [Math]::Max($pf.TotalLogins,  $loginRows)) }
+                    if ($afRows     -ge 0) { $pf.TotalAutofill = [Math]::Max(0, [Math]::Max($pf.TotalAutofill, $afRows)) }
+                    if ($storeTitle -notin $pf.Markers) { $pf.Markers += $storeTitle }
+                }
+
                 if (-not ($localState -and $seenProfiles.Add($localState))) { continue }
 
                 $osc = $null
@@ -382,12 +400,41 @@ function Test-TcpkBrowserTokenStore {
                             'infostealer malware.') `
                         -Fix $dpapiFix
 
-                    # Invariant 5: prove the key with an AES-256-GCM round-trip
+                    # Invariant 5: prove the key with an AES-256-GCM round-trip.
+                    # Severity scales with what the key actually protects: 0 rows in every
+                    # discovered store means the key is real but there is nothing to steal.
                     $mk = $null
                     try { $mk = Get-TcpkChromiumMasterKey -LocalStatePath $localState } catch { }
 
                     if ($mk -and $mk.Length -eq 32) {
                         $kh = (($mk[0..3] | ForEach-Object { $_.ToString('x2') }) -join ' ')
+
+                        # Collect profile-wide row counts accumulated during the store loop
+                        $pf = $profileFacts[$localState]
+                        $profCookies  = if ($pf) { $pf.TotalCookies  } else { -1 }
+                        $profLogins   = if ($pf) { $pf.TotalLogins   } else { -1 }
+                        $profAutofill = if ($pf) { $pf.TotalAutofill } else { -1 }
+                        $profMarkers  = if ($pf -and $pf.Markers.Count) { $pf.Markers -join ', ' } else { 'none discovered' }
+
+                        $profHasData  = ($profCookies -gt 0) -or ($profLogins -gt 0) -or ($profAutofill -gt 0)
+                        $profMeasured = ($profCookies -ge 0) -or ($profLogins -ge 0) -or ($profAutofill -ge 0)
+
+                        $profCountSummary = @()
+                        if ($profCookies  -ge 0) { $profCountSummary += "cookies=$profCookies" }
+                        if ($profLogins   -ge 0) { $profCountSummary += "logins=$profLogins" }
+                        if ($profAutofill -ge 0) { $profCountSummary += "autofill=$profAutofill" }
+                        $profCountStr = if ($profCountSummary) { $profCountSummary -join '; ' } else { 'row counts not measured' }
+
+                        $protectedDesc = if ($profHasData) {
+                            "Profile stores with data: $profMarkers. Measured counts: $profCountStr."
+                        } elseif ($profMeasured) {
+                            "Measured row counts: $profCountStr (all zero). " +
+                            "Profile stores discovered: $profMarkers. " +
+                            'No live credential records were found; this app may not persist auth tokens to the Chromium store.'
+                        } else {
+                            "Profile stores discovered: $profMarkers. Row counts not measured (locked or no SQL driver). " +
+                            'Content of the protected stores is unknown.'
+                        }
 
                         # Find a Cookies file in this profile to source a live blob
                         $profileRoot = Split-Path -Parent $localState
@@ -406,19 +453,26 @@ function Test-TcpkBrowserTokenStore {
                             try { $plaintext = Unprotect-TcpkChromiumBlob -Key $mk -Blob $testBlob } catch { }
 
                             if ($null -ne $plaintext) {
+                                # GCM verified - severity by what is actually protected
+                                $mkSev = Resolve-TcpkImpact -RuleId 'browser.master-key-recovered' `
+                                    -Facts @{
+                                        gcm_verified       = $true
+                                        cookie_row_count   = $profCookies
+                                        login_row_count    = $profLogins
+                                        autofill_row_count = $profAutofill
+                                    } `
+                                    -Candidate 'HIGH'
                                 New-TcpkFinding -Module 'creds' -RuleId 'browser.master-key-recovered' `
-                                    -Severity 'HIGH' -Confidence 'Confirmed (dynamic)' `
+                                    -Severity $mkSev -Confidence 'Confirmed (dynamic)' `
                                     -Title 'Chromium master key recovered and AES-256-GCM round-trip verified' `
                                     -File $localState `
                                     -Evidence ("DPAPI-unprotected 32-byte AES-256 key (first 4 bytes: $kh ...); " +
-                                        'AES-256-GCM decryption of a live v10/v11 encrypted_value blob succeeded. ' +
-                                        "Store content: $rowSummary.") `
+                                        "AES-256-GCM decryption of a live v10/v11 encrypted_value blob succeeded. $profCountStr.") `
                                     -Cwe @('CWE-312', 'CWE-522') `
                                     -Description ("TCPK recovered the AES-256 master key via user DPAPI and " +
-                                        "confirmed it decrypts live v10/v11 blobs from the $($app.Name) " +
-                                        'cookie store. Any code running as the current user can dump the ' +
-                                        'entire credential store offline. The infostealer primitive is ' +
-                                        'demonstrated, not inferred.') `
+                                        "confirmed it decrypts live v10/v11 blobs from the $($app.Name) profile. " +
+                                        "Any code running as the current user can read all v10/v11 encrypted values " +
+                                        "in this profile. $protectedDesc") `
                                     -Fix $dpapiFix
                             } else {
                                 New-TcpkFinding -Module 'creds' -RuleId 'browser.master-key-recovered' `
@@ -426,12 +480,12 @@ function Test-TcpkBrowserTokenStore {
                                     -Title 'Chromium master key DPAPI-recovered (GCM round-trip inconclusive)' `
                                     -File $localState `
                                     -Evidence ("DPAPI-unprotected 32-byte key (first 4 bytes: $kh ...); " +
-                                        'GCM decrypt returned null (tag mismatch or blob not v10/v11 format).') `
+                                        'GCM decrypt returned null (tag mismatch or blob not v10/v11 format). ' +
+                                        $profCountStr) `
                                     -Cwe @('CWE-312', 'CWE-522') `
                                     -Description ("The $($app.Name) master key was DPAPI-unprotected (32 bytes) " +
                                         'but a GCM round-trip against a live encrypted_value blob did not ' +
-                                        'verify. Key length is consistent with AES-256; dynamic ' +
-                                        'decryptability not confirmed.') `
+                                        "verify. $protectedDesc") `
                                     -Fix $dpapiFix
                             }
                         } else {
@@ -441,13 +495,11 @@ function Test-TcpkBrowserTokenStore {
                                 -Title 'Chromium master key DPAPI-recovered (no live blob for GCM verification)' `
                                 -File $localState `
                                 -Evidence ("DPAPI-unprotected 32-byte key (first 4 bytes: $kh ...); " +
-                                    'no encrypted_value blobs available to complete GCM round-trip ' +
-                                    "(store empty, locked, or SQLite driver not available).") `
+                                    'no encrypted_value blobs found for GCM round-trip. ' + $profCountStr) `
                                 -Cwe @('CWE-312', 'CWE-522') `
                                 -Description ("The $($app.Name) master key was DPAPI-unprotected (32 bytes, " +
-                                    'consistent with AES-256). No live blob was available for GCM ' +
-                                    'verification. Confidence is Inferred: key type implies decryptability ' +
-                                    'but it has not been confirmed dynamically.') `
+                                    'consistent with AES-256). No live blob was available for GCM verification. ' +
+                                    "Confidence is Inferred. $protectedDesc") `
                                 -Fix $dpapiFix
                         }
                     }

@@ -71,13 +71,26 @@ function Test-TcpkMemoryRegions {
         return
     }
 
-    # Runtimes that generate code at execution time. Their presence makes executable
-    # private memory expected rather than suspicious.
-    $jitModules = @(
-        'clr.dll', 'coreclr.dll', 'clrjit.dll', 'mscorwks.dll',   # .NET
-        'jvm.dll',                                                # Java
-        'node.dll', 'libnode.dll',                                # Node
-        'libcef.dll', 'chrome_elf.dll'                            # Chromium / Electron / CEF
+    # Runtimes that generate code at execution time.  Detection is by MODULE NAME for
+    # runtimes that ship as separate DLLs, and by RUNTIME-CLASS fingerprint for runtimes
+    # that statically link their JIT (Electron/Chromium: V8 lives in the main .exe).
+    # Electron does NOT ship chrome_elf.dll or libcef.dll as separate modules; it ships
+    # libglesv2.dll, libegl.dll, vk_swiftshader.dll etc.  The old list missed every
+    # Electron app that has ever shipped.
+    $jitModuleNames = @(
+        # .NET CLR
+        'clr.dll', 'coreclr.dll', 'clrjit.dll', 'mscorwks.dll',
+        # Java
+        'jvm.dll',
+        # Node.js (standalone, not Electron)
+        'node.dll', 'libnode.dll',
+        # Chromium / CEF companion DLLs.  Any one means V8 is present in the process.
+        # Electron statically links V8 into the main exe; the companion DLLs are still
+        # separate: libglesv2.dll, libegl.dll, vk_swiftshader.dll are always present.
+        'libglesv2.dll', 'libegl.dll', 'vk_swiftshader.dll', 'libvk_swiftshader.dll',
+        'vulkan-1.dll', 'd3dcompiler_47.dll', 'ffmpeg.dll',
+        'libcef.dll',       # CEF-based apps (Spotify, Discord older builds)
+        'chrome_elf.dll'    # Chrome / Edge branded builds only
     )
 
     foreach ($p in $procs) {
@@ -85,9 +98,34 @@ function Test-TcpkMemoryRegions {
         try {
             foreach ($m in $p.Modules) {
                 $mn = "$($m.ModuleName)".ToLowerInvariant()
-                if ($jitModules -contains $mn -and -not $jitFound.Contains($mn)) { $jitFound.Add($mn) }
+                if ($jitModuleNames -contains $mn -and -not $jitFound.Contains($mn)) { $jitFound.Add($mn) }
             }
         } catch { }
+
+        # Runtime-class fallback: if no JIT DLL matched, probe the main module path.
+        # Electron apps have all-in-one exes with V8 statically linked, so the module
+        # list never shows a JIT-named DLL.  A 64 KB header read is enough for the
+        # string markers Test-TcpkIsChromiumRuntime checks.
+        if ($jitFound.Count -eq 0) {
+            $mainModPath = ''
+            try { $mainModPath = $p.MainModule.FileName } catch { }
+            if ($mainModPath) {
+                $headerText = ''
+                try {
+                    $hbuf = [byte[]]::new(65536)
+                    $hfs = [System.IO.FileStream]::new($mainModPath,
+                        [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
+                        [System.IO.FileShare]::ReadWrite)
+                    $hn = $hfs.Read($hbuf, 0, $hbuf.Length)
+                    $hfs.Dispose()
+                    if ($hn -gt 0) { $headerText = [System.Text.Encoding]::Latin1.GetString($hbuf, 0, $hn) }
+                } catch { }
+                if (Test-TcpkIsChromiumRuntime -Name ([System.IO.Path]::GetFileName($mainModPath)) -Text $headerText) {
+                    $jitFound.Add('V8 (statically linked)')
+                }
+            }
+        }
+
         $hasJit = ($jitFound.Count -gt 0)
 
         $h = [IntPtr]::Zero
@@ -137,51 +175,63 @@ function Test-TcpkMemoryRegions {
                 }
             }
 
-            $jitNote = 'No JIT runtime module was found loaded, so runtime code generation does not explain this.'
-            if ($hasJit) {
-                $jitNote = ("A JIT runtime is loaded (" + ($jitFound -join ', ') +
-                    '), which generates executable memory as a matter of course. Reported as posture rather ' +
-                    'than as a defect. Note that .NET 7 and later enable W^X by default, so a writable-executable ' +
-                    'page in a modern .NET process is no longer the expected shape.')
+            $jitLabel = if ($hasJit) { ($jitFound -join '+') } else { 'none' }
+
+            $jitNote = if ($hasJit) {
+                # V8 / Electron special-case: every Chromium-derived app (Chrome, Edge, VS Code,
+                # Slack, Teams, Crestron Virtual Panel) holds RWX V8 code-space pages.
+                # These are MEM_PRIVATE, often reserved-NOACCESS then committed-RWX, and appear
+                # identically in all renderer processes.  They are JIT output, not injected code.
+                # V8 supports --write-protect-code-memory and --jitless, but very few Electron apps
+                # opt in.  Flagging this HIGH would flag the entire Electron/Chromium ecosystem.
+                "JIT runtime detected ($jitLabel). Writable-executable pages are expected: V8 " +
+                "writes machine code into private RWX pages at runtime.  This is the same shape " +
+                "Chrome, Edge, VS Code, Slack, Teams, and every Electron app produces.  Reported " +
+                "as an INFO hardening note (W^X not enforced), not as a defect.  V8 does support " +
+                "--write-protect-code-memory and --jitless; Electron apps can pass these via app.commandLine."
+            } else {
+                'No JIT runtime was detected. A plain native application has no legitimate reason ' +
+                'to hold a writable-executable page; this is a genuine W^X hardening defect.'
             }
 
             if ($rwxCount -gt 0) {
-                $sev = 'HIGH'
-                if ($hasJit) { $sev = 'MEDIUM' }
+                # Only HIGH when no plausible JIT is present.
+                # When a JIT is confirmed (V8, .NET, JVM) downgrade to INFO: RWX is an
+                # expected product of code generation, not an injected-code indicator.
+                # MEDIUM was previously used here for JIT processes but was wrong: it implies
+                # a real defect when the observation is normal behavior for that runtime class.
+                $sev = if ($hasJit) { 'INFO' } else { 'HIGH' }
                 New-TcpkFinding -Module 'runtime' -RuleId 'memregion.rwx' `
                     -Severity $sev -Confidence 'Confirmed' `
                     -Title "$($p.Name): $rwxCount writable-executable region(s), $([int]($rwxBytes / 1KB)) KB" `
                     -File "$($p.Name) (PID $($p.Id))" `
-                    -Evidence (("rwx=$rwxCount ($([int]($rwxBytes / 1KB)) KB); jit=" + $(if ($hasJit) { ($jitFound -join '+') } else { 'none' }) + '; ') + ($rwxSample -join '; ')) `
+                    -Evidence ("rwx=$rwxCount ($([int]($rwxBytes / 1KB)) KB); jit=$jitLabel; " + ($rwxSample -join '; ')) `
                     -Cwe @('CWE-119', 'CWE-1327') `
-                    -Description ('The process holds memory that is writable and executable at the same time. ' +
-                        'An attacker who obtains a memory write into such a region does not then need to defeat ' +
-                        'DEP or chain a VirtualProtect gadget, because the page is already executable. ' + $jitNote) `
-                    -Fix 'Allocate as read-write, write the code, then VirtualProtect to read-execute (W^X). Never hold PAGE_EXECUTE_READWRITE. On .NET 7+ leave the default W^X policy enabled.'
+                    -Description ('The process holds memory that is simultaneously writable and executable. ' +
+                        $jitNote) `
+                    -Fix 'For JIT runtimes: enable --write-protect-code-memory (V8/Electron) or leave .NET 7+ W^X defaults enabled. For native apps with no JIT: allocate read-write, write, then VirtualProtect to read-execute. Never hold PAGE_EXECUTE_READWRITE outside a JIT emit window.'
             }
 
             if ($privExecCount -gt 0) {
-                $sev = 'MEDIUM'
-                if ($hasJit) { $sev = 'INFO' }
+                $sev = if ($hasJit) { 'INFO' } else { 'MEDIUM' }
                 New-TcpkFinding -Module 'runtime' -RuleId 'memregion.private-exec' `
                     -Severity $sev -Confidence 'Confirmed' `
                     -Title "$($p.Name): $privExecCount executable region(s) not backed by an image, $([int]($privExecBytes / 1KB)) KB" `
                     -File "$($p.Name) (PID $($p.Id))" `
-                    -Evidence (("private-exec=$privExecCount ($([int]($privExecBytes / 1KB)) KB); jit=" + $(if ($hasJit) { ($jitFound -join '+') } else { 'none' }) + '; ') + ($privSample -join '; ')) `
+                    -Evidence ("private-exec=$privExecCount ($([int]($privExecBytes / 1KB)) KB); jit=$jitLabel; " + ($privSample -join '; ')) `
                     -Cwe @('CWE-1327') `
-                    -Description ('Executable memory that is not backed by a mapped image file. Loaded modules ' +
-                        'are MEM_IMAGE, so this is code that either was generated at runtime or arrived without ' +
-                        'passing through the loader, which is the shape a manual-map or reflective loader ' +
-                        'produces. ' + $jitNote) `
-                    -Fix 'Where this is not the JIT, identify what allocated it. Enabling the process mitigation policy for dynamic code (ProcessDynamicCodePolicy) prevents non-JIT code generation entirely.'
+                    -Description ('Executable memory not backed by a mapped image file. Loaded modules are ' +
+                        'MEM_IMAGE; private executable memory is either JIT output or code that arrived ' +
+                        'without passing through the loader (the shape a manual-map / reflective loader ' +
+                        'produces). ' + $jitNote) `
+                    -Fix 'Where this is not the JIT, identify what allocated it. Enabling ProcessDynamicCodePolicy prevents non-JIT code generation entirely.'
             }
 
             New-TcpkFinding -Module 'runtime' -RuleId 'memregion.summary' `
                 -Severity 'INFO' -Confidence 'Confirmed' `
                 -Title "$($p.Name): $total committed memory region(s)" `
                 -File "$($p.Name) (PID $($p.Id))" `
-                -Evidence ("regions=$total; rwx=$rwxCount; private-exec=$privExecCount; jit=" +
-                    $(if ($hasJit) { ($jitFound -join '+') } else { 'none' })) `
+                -Evidence ("regions=$total; rwx=$rwxCount; private-exec=$privExecCount; jit=$jitLabel") `
                 -Description 'Committed virtual memory region census for the process.'
         } finally {
             try { [void][Tcpk.MemRegions]::CloseHandle($h) } catch { }

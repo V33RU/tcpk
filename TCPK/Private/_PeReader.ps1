@@ -281,6 +281,205 @@ function Read-TcpkPe {
     }
 }
 
+# Parse function-level imports from both the normal and delay-load import tables.
+# Returns a PSCustomObject with two hashtables:
+#   .Imported      {lowercase-dll-name -> [string[]] function names}
+#   .DelayImported {lowercase-dll-name -> [string[]] function names}
+# Returns $null on any parse error.  Uses FileShare.ReadWrite so it can read PE files
+# that are currently loaded by a running process.
+function Get-TcpkPeFunctionImports {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) { return $null }
+
+    $fs = $null; $br = $null
+    try {
+        $fs = [System.IO.FileStream]::new($Path,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::ReadWrite)
+        $br = [System.IO.BinaryReader]::new($fs)
+
+        if ($fs.Length -lt 0x80) { return $null }
+
+        # MZ -> PE offset
+        $fs.Position = 0x3C
+        $peOff = $br.ReadInt32()
+        if ($peOff -le 0 -or $peOff -gt ($fs.Length - 24)) { return $null }
+
+        $fs.Position = $peOff
+        if ($br.ReadUInt32() -ne 0x00004550) { return $null }   # "PE\0\0"
+
+        # COFF: machine (skip), numSec
+        $null = $br.ReadUInt16()   # Machine
+        $numSec = $br.ReadUInt16()
+
+        # Optional header size at COFF+16
+        $fs.Position = $peOff + 4 + 16
+        $optHdrSize = $br.ReadUInt16()
+
+        # PE32 vs PE32+
+        $fs.Position = $peOff + 24
+        $magic = $br.ReadUInt16()
+        $is64 = ($magic -eq 0x20B)
+
+        # ImageBase (for legacy delay descriptors)
+        $imageBase = [uint64]0
+        if ($is64) {
+            if (($peOff + 24 + 32) -le $fs.Length) { $fs.Position = $peOff + 24 + 24; $imageBase = $br.ReadUInt64() }
+        } else {
+            if (($peOff + 24 + 32) -le $fs.Length) { $fs.Position = $peOff + 24 + 28; $imageBase = [uint64]$br.ReadUInt32() }
+        }
+
+        # Data directories start: PE32 = optHdr+96, PE32+ = optHdr+112
+        $ddRva = if ($is64) { $peOff + 24 + 112 } else { $peOff + 24 + 96 }
+
+        $importRva = 0; $delayRva = 0
+        if (($ddRva + 8) -le $fs.Length) {
+            $fs.Position = $ddRva + 8    # import dir = data directory index 1
+            $importRva = $br.ReadUInt32(); $null = $br.ReadUInt32()
+        }
+        if (($ddRva + 108) -le $fs.Length) {
+            $fs.Position = $ddRva + 104  # delay dir = index 13
+            $delayRva = $br.ReadUInt32()
+        }
+
+        # Section table
+        $secOff = $peOff + 4 + 20 + $optHdrSize
+        $secs = New-Object 'System.Collections.Generic.List[object]'
+        for ($i = 0; $i -lt $numSec; $i++) {
+            $base = $secOff + ($i * 40)
+            if (($base + 40) -gt $fs.Length) { break }
+            $fs.Position = $base + 8     # skip name
+            $vs = $br.ReadUInt32(); $va = $br.ReadUInt32()
+            $null = $br.ReadUInt32()     # SizeOfRawData
+            $rp = $br.ReadUInt32()
+            $secs.Add([pscustomobject]@{ VA=$va; VSize=$vs; RawPtr=$rp })
+        }
+
+        function _R2F($rva) {
+            foreach ($s in $secs) {
+                if ($rva -ge $s.VA -and $rva -lt ($s.VA + $s.VSize)) {
+                    return $s.RawPtr + ($rva - $s.VA)
+                }
+            }
+            return -1
+        }
+
+        # Read a null-terminated ASCII name from file offset
+        function _ReadName($off) {
+            if ($off -lt 0 -or $off -ge $fs.Length) { return $null }
+            $fs.Position = $off
+            $bs = New-Object 'System.Collections.Generic.List[byte]'
+            while ($fs.Position -lt $fs.Length) {
+                $b = $br.ReadByte()
+                if ($b -eq 0) { break }
+                $bs.Add($b)
+                if ($bs.Count -gt 256) { return $null }
+            }
+            if ($bs.Count -eq 0) { return $null }
+            return [System.Text.Encoding]::ASCII.GetString($bs.ToArray())
+        }
+
+        # Walk the OriginalFirstThunk (INT) for one import descriptor.
+        # Returns [string[]] of imported function names (ordinals skipped).
+        function _WalkInt($intRva) {
+            $names = New-Object 'System.Collections.Generic.List[string]'
+            $iOff = _R2F $intRva
+            if ($iOff -lt 0) { return $names.ToArray() }
+            $stride = if ($is64) { 8 } else { 4 }
+            $maxEntries = 4096
+            for ($k = 0; $k -lt $maxEntries; $k++) {
+                $pos = $iOff + ($k * $stride)
+                if (($pos + $stride) -gt $fs.Length) { break }
+                $fs.Position = $pos
+                $thunk = if ($is64) { $br.ReadUInt64() } else { [uint64]$br.ReadUInt32() }
+                if ($thunk -eq 0) { break }
+                $ordinalFlag = if ($is64) { [uint64]0x8000000000000000 } else { [uint64]0x80000000 }
+                if (($thunk -band $ordinalFlag) -ne 0) { continue }   # ordinal import, skip
+                $hinNameRva = [uint32]($thunk -band 0x7FFFFFFF)
+                $hinNameOff = _R2F $hinNameRva
+                if ($hinNameOff -lt 0) { continue }
+                # IMAGE_IMPORT_BY_NAME: WORD Hint, then BYTE Name[]
+                $n = _ReadName ($hinNameOff + 2)
+                if ($n) { $names.Add($n) }
+            }
+            return $names.ToArray()
+        }
+
+        $imported      = @{}
+        $delayImported = @{}
+
+        # Normal import table
+        if ($importRva -ne 0) {
+            $iOff = _R2F $importRva
+            if ($iOff -ge 0) {
+                for ($ei = 0; $ei -lt 1000; $ei++) {
+                    $descOff = $iOff + ($ei * 20)
+                    if (($descOff + 20) -gt $fs.Length) { break }
+                    $fs.Position = $descOff
+                    $oft = $br.ReadUInt32()   # OriginalFirstThunk
+                    $null = $br.ReadUInt32()  # TimeDateStamp
+                    $null = $br.ReadUInt32()  # ForwarderChain
+                    $nRva = $br.ReadUInt32()  # Name RVA (DLL name)
+                    $null = $br.ReadUInt32()  # FirstThunk
+                    if ($nRva -eq 0) { break }
+                    $dllName = _ReadName (_R2F $nRva)
+                    if (-not $dllName) { continue }
+                    $dllName = $dllName.ToLowerInvariant()
+                    $intRva = if ($oft -ne 0) { $oft } else { 0 }
+                    if ($intRva -ne 0) {
+                        $fns = _WalkInt $intRva
+                        if ($fns.Count) { $imported[$dllName] = $fns }
+                    }
+                }
+            }
+        }
+
+        # Delay-load import table
+        if ($delayRva -ne 0) {
+            $dOff = _R2F $delayRva
+            if ($dOff -ge 0) {
+                for ($di = 0; $di -lt 1000; $di++) {
+                    $descOff = $dOff + ($di * 32)
+                    if (($descOff + 32) -gt $fs.Length) { break }
+                    $fs.Position = $descOff
+                    $grAttrs  = $br.ReadUInt32()
+                    $nameAddr = $br.ReadUInt32()
+                    $null = $br.ReadUInt32()   # rvaHmod
+                    $iatRva = $br.ReadUInt32()
+                    $intRva2 = $br.ReadUInt32()
+                    if ($nameAddr -eq 0) { break }
+                    $dNameRva = $nameAddr
+                    if (($grAttrs -band 0x1) -eq 0) {
+                        if ($imageBase -eq 0 -or [uint64]$nameAddr -le $imageBase) { continue }
+                        $dNameRva = [uint32]([uint64]$nameAddr - $imageBase)
+                    }
+                    $dllName = _ReadName (_R2F $dNameRva)
+                    if (-not $dllName) { continue }
+                    $dllName = $dllName.ToLowerInvariant()
+                    $useRva = if ($intRva2 -ne 0) { $intRva2 } else { $iatRva }
+                    if ($useRva -ne 0) {
+                        $fns = _WalkInt $useRva
+                        if ($fns.Count) { $delayImported[$dllName] = $fns }
+                    }
+                }
+            }
+        }
+
+        return [pscustomobject]@{
+            Imported      = $imported
+            DelayImported = $delayImported
+        }
+    } catch {
+        return $null
+    } finally {
+        if ($br) { try { $br.Dispose() } catch { } }
+        if ($fs) { try { $fs.Dispose() } catch { } }
+    }
+}
+
 # Convenience: enumerate PEs under a path. Returns FileInfo objects.
 function Get-TcpkPeFiles {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
