@@ -988,7 +988,23 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
             if ($f.Evidence) { Write-IcptLine $box ("      {0}`r`n" -f $f.Evidence) ([System.Drawing.Color]::FromArgb(150,150,150)) }
         }
         if ($n -eq 0) { Write-IcptLine $box "(no findings returned)`r`n" ([System.Drawing.Color]::FromArgb(150,150,150)) }
-        else { Write-IcptLine $box ("-> {0} finding(s)`r`n" -f $n) ([System.Drawing.Color]::FromArgb(166,226,46)) }
+        else {
+            Write-IcptLine $box ("-> {0} finding(s)`r`n" -f $n) ([System.Drawing.Color]::FromArgb(166,226,46))
+            # Merge into $script:LastFindings so the Dashboard reflects dynamic findings too.
+            $toMerge = @($res | Where-Object { $_ })
+            if ($toMerge.Count) {
+                if ($script:LastFindings) {
+                    $merged = [System.Collections.Generic.List[object]]::new()
+                    foreach ($x in $script:LastFindings) { $merged.Add($x) }
+                    foreach ($x in $toMerge)             { $merged.Add($x) }
+                    $script:LastFindings = $merged
+                } else {
+                    $script:LastFindings = [System.Collections.Generic.List[object]]::new()
+                    foreach ($x in $toMerge) { $script:LastFindings.Add($x) }
+                }
+                try { Update-Dashboard } catch { }
+            }
+        }
     } catch {
         Write-IcptLine $box ("ERROR: {0}`r`n" -f $_.Exception.Message) ([System.Drawing.Color]::FromArgb(249,38,114))
     } finally {
