@@ -1241,21 +1241,35 @@ $lblDecHint = New-Object System.Windows.Forms.Label; $lblDecHint.Text = "keylog:
 
 # Live capture (drives the operator's dumpcap; needs a capture driver + admin)
 $lblIface = New-Object System.Windows.Forms.Label; $lblIface.Text = "Live capture:"; $lblIface.ForeColor = [System.Drawing.Color]::White; $lblIface.Location = New-Object System.Drawing.Point(12,123); $lblIface.Size = New-Object System.Drawing.Size(84,18); $ctlP.Controls.Add($lblIface)
-$cmbIface = New-Object System.Windows.Forms.ComboBox; $cmbIface.Location = New-Object System.Drawing.Point(100,120); $cmbIface.Size = New-Object System.Drawing.Size(200,24); $cmbIface.DropDownStyle = 'DropDownList'; $cmbIface.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbIface.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($cmbIface)
-$btnIface = New-Object System.Windows.Forms.Button; $btnIface.Text = "Refresh"; $btnIface.Location = New-Object System.Drawing.Point(306,118); $btnIface.Size = New-Object System.Drawing.Size(70,26); $btnIface.FlatStyle = 'Flat'; $btnIface.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnIface.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnIface)
-$btnIface.Add_Click({ $cmbIface.Items.Clear(); try { foreach ($i in (Get-TcpkCaptureInterface)) { [void]$cmbIface.Items.Add($i.Name) } } catch {}; if ($cmbIface.Items.Count) { $cmbIface.SelectedIndex = 0 } })
-$lblSecs = New-Object System.Windows.Forms.Label; $lblSecs.Text = "Secs:"; $lblSecs.ForeColor = [System.Drawing.Color]::White; $lblSecs.Location = New-Object System.Drawing.Point(390,123); $lblSecs.Size = New-Object System.Drawing.Size(40,18); $ctlP.Controls.Add($lblSecs)
-$numCapDur = New-Object System.Windows.Forms.NumericUpDown; $numCapDur.Location = New-Object System.Drawing.Point(432,120); $numCapDur.Size = New-Object System.Drawing.Size(56,24); $numCapDur.Minimum = 1; $numCapDur.Maximum = 120; $numCapDur.Value = 15; $numCapDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numCapDur.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($numCapDur)
-$btnCapGo = New-Object System.Windows.Forms.Button; $btnCapGo.Text = "Capture + analyse"; $btnCapGo.Location = New-Object System.Drawing.Point(500,118); $btnCapGo.Size = New-Object System.Drawing.Size(150,26); $btnCapGo.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCapGo.ForeColor = [System.Drawing.Color]::White; $btnCapGo.FlatStyle = 'Flat'; $ctlP.Controls.Add($btnCapGo)
-$lblCapHint = New-Object System.Windows.Forms.Label; $lblCapHint.Text = "needs Wireshark + npcap + admin (drives dumpcap)"; $lblCapHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblCapHint.Location = New-Object System.Drawing.Point(660,123); $lblCapHint.Size = New-Object System.Drawing.Size(300,18); $ctlP.Controls.Add($lblCapHint)
+$script:PcapIfaceList = @()
+$cmbIface = New-Object System.Windows.Forms.ComboBox; $cmbIface.Location = New-Object System.Drawing.Point(100,120); $cmbIface.Size = New-Object System.Drawing.Size(360,24); $cmbIface.DropDownStyle = 'DropDownList'; $cmbIface.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbIface.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($cmbIface)
+$btnIface = New-Object System.Windows.Forms.Button; $btnIface.Text = "Refresh"; $btnIface.Location = New-Object System.Drawing.Point(466,118); $btnIface.Size = New-Object System.Drawing.Size(70,26); $btnIface.FlatStyle = 'Flat'; $btnIface.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnIface.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnIface)
+# Populate combo with human-readable "Id. Description" labels; keep raw objects for capture.
+$script:RefreshPcapIfaces = {
+    $cmbIface.Items.Clear(); $script:PcapIfaceList = @()
+    try { $script:PcapIfaceList = @(Get-TcpkCaptureInterface) } catch {}
+    foreach ($i in $script:PcapIfaceList) {
+        $label = if ($i.Desc) { "$($i.Id). $($i.Desc)" } else { "$($i.Id). $($i.Name)" }
+        [void]$cmbIface.Items.Add($label)
+    }
+    if ($cmbIface.Items.Count) { $cmbIface.SelectedIndex = 0 }
+}
+$btnIface.Add_Click({ & $script:RefreshPcapIfaces })
+$lblSecs = New-Object System.Windows.Forms.Label; $lblSecs.Text = "Secs:"; $lblSecs.ForeColor = [System.Drawing.Color]::White; $lblSecs.Location = New-Object System.Drawing.Point(548,123); $lblSecs.Size = New-Object System.Drawing.Size(40,18); $ctlP.Controls.Add($lblSecs)
+$numCapDur = New-Object System.Windows.Forms.NumericUpDown; $numCapDur.Location = New-Object System.Drawing.Point(590,120); $numCapDur.Size = New-Object System.Drawing.Size(56,24); $numCapDur.Minimum = 1; $numCapDur.Maximum = 120; $numCapDur.Value = 15; $numCapDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numCapDur.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($numCapDur)
+$btnCapGo = New-Object System.Windows.Forms.Button; $btnCapGo.Text = "Capture + analyse"; $btnCapGo.Location = New-Object System.Drawing.Point(652,118); $btnCapGo.Size = New-Object System.Drawing.Size(150,26); $btnCapGo.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCapGo.ForeColor = [System.Drawing.Color]::White; $btnCapGo.FlatStyle = 'Flat'; $ctlP.Controls.Add($btnCapGo)
+$lblCapHint = New-Object System.Windows.Forms.Label; $lblCapHint.Text = "needs Wireshark + npcap + admin (drives dumpcap)"; $lblCapHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblCapHint.Location = New-Object System.Drawing.Point(810,123); $lblCapHint.Size = New-Object System.Drawing.Size(300,18); $ctlP.Controls.Add($lblCapHint)
 $btnCapGo.Add_Click({
-    $iface = [string]$cmbIface.SelectedItem
-    if (-not $iface) { Write-IcptLine $txtOutP "`r`n[!] Pick a capture interface (Refresh first).`r`n" $icptWarn; return }
+    $selIdx = $cmbIface.SelectedIndex
+    if ($selIdx -lt 0) { Write-IcptLine $txtOutP "`r`n[!] Pick a capture interface (Refresh first).`r`n" $icptWarn; return }
+    $ifaceObj   = if ($script:PcapIfaceList -and $selIdx -lt $script:PcapIfaceList.Count) { $script:PcapIfaceList[$selIdx] } else { $null }
+    $iface      = if ($ifaceObj) { $ifaceObj.Name } else { [string]$cmbIface.SelectedItem }
+    $ifaceLabel = if ($ifaceObj -and $ifaceObj.Desc) { $ifaceObj.Desc } else { $iface }
     $sec = [int]$numCapDur.Value
     $p = @{ Interface = $iface; Seconds = $sec }
     if ($txtKeylog.Text.Trim()) { $p.KeylogFile = $txtKeylog.Text.Trim() }
     if ($txtRsa.Text.Trim())    { $p.RsaKeyFile = $txtRsa.Text.Trim() }
-    Invoke-IcptTool $txtOutP "Live capture on $iface (${sec}s)" { Invoke-TcpkPcapCapture @p }
+    Invoke-IcptTool $txtOutP "Live capture on $ifaceLabel (${sec}s)" { Invoke-TcpkPcapCapture @p }
 })
 # Active: replay / IDOR / JWT (gated) -- turn a captured request into an active backend check
 $gbActive = New-Object System.Windows.Forms.GroupBox
@@ -1325,6 +1339,8 @@ $txtOutP.ReadOnly = $true; $txtOutP.WordWrap = $false
 $txtOutP.Text = "Packet-capture analysis console.`r`n`r`nCapture traffic with Wireshark or dumpcap, then load the .pcap here. TCPK dissects it via tshark (ships with Wireshark) and lists the security-relevant findings: cleartext credentials, plaintext HTTP / FTP, obsolete TLS, DNS and endpoint inventory.`r`n`r`nComplements Intercept: this sees everything on the wire, including non-HTTP protocols. tshark must be installed (Wireshark). Findings stream here, severity-coloured."
 $tabPcap.Controls.Add($txtOutP)
 $txtOutP.BringToFront()
+# Auto-populate the interface list the first time the tab is opened.
+$tabPcap.Add_Enter({ if ($cmbIface.Items.Count -eq 0) { & $script:RefreshPcapIfaces } })
 
 # ================= TAB R: Replay / IDOR / JWT =================
 $tabIcptR = New-Object System.Windows.Forms.TabPage
