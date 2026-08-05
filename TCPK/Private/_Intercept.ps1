@@ -98,6 +98,42 @@ function Get-TcpkFreePort {
     $l.Start(); $p = ([System.Net.IPEndPoint]$l.LocalEndpoint).Port; $l.Stop(); return $p
 }
 
+# WinInet (HKCU) proxy helpers -- no admin needed; affect the current user only.
+# Windows thick clients read proxy settings from these registry keys, not from
+# HTTP_PROXY / HTTPS_PROXY env vars (those are Linux/cross-platform conventions).
+function Get-TcpkWinInetProxy {
+    $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+    $p = Get-ItemProperty -Path $key -ErrorAction SilentlyContinue
+    @{
+        ProxyEnable   = if ($null -ne $p.ProxyEnable) { [int]$p.ProxyEnable } else { 0 }
+        ProxyServer   = "$($p.ProxyServer)"
+        ProxyOverride = "$($p.ProxyOverride)"
+    }
+}
+
+function Set-TcpkWinInetProxy {
+    param([string]$ProxyServer)   # e.g. "127.0.0.1:8080"
+    $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+    Set-ItemProperty -Path $key -Name ProxyEnable -Value 1             -Type DWord -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path $key -Name ProxyServer -Value $ProxyServer              -ErrorAction SilentlyContinue
+    # Also set env vars so cross-platform runtimes (Node, Python, Go) pick it up.
+    $env:HTTP_PROXY  = "http://$ProxyServer"
+    $env:HTTPS_PROXY = "http://$ProxyServer"
+}
+
+function Restore-TcpkWinInetProxy {
+    param([hashtable]$Saved, [string]$PrevHttp, [string]$PrevHttps)
+    $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings'
+    Set-ItemProperty -Path $key -Name ProxyEnable -Value $Saved.ProxyEnable -Type DWord -ErrorAction SilentlyContinue
+    if ($Saved.ProxyServer) {
+        Set-ItemProperty -Path $key -Name ProxyServer -Value $Saved.ProxyServer -ErrorAction SilentlyContinue
+    } else {
+        Remove-ItemProperty -Path $key -Name ProxyServer -ErrorAction SilentlyContinue
+    }
+    $env:HTTP_PROXY  = $PrevHttp
+    $env:HTTPS_PROXY = $PrevHttps
+}
+
 # Luhn check -- keeps the payment-card (PAN) response-mining rule from firing on any
 # random 13-16 digit run. Returns $true only for a Luhn-valid digit string.
 function Test-TcpkLuhn {
