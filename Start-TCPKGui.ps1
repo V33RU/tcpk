@@ -1190,7 +1190,7 @@ $tabPcap.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabPcap)
 
 $ctlP = New-Object System.Windows.Forms.Panel
-$ctlP.Dock = 'Top'; $ctlP.Height = 118; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$ctlP.Dock = 'Top'; $ctlP.Height = 152; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 $lblPcap = New-Object System.Windows.Forms.Label
 $lblPcap.Text = "Packet capture (.pcap / .pcapng) -- analyse it via your installed Wireshark (tshark). Read-only, needs no admin."
 $lblPcap.ForeColor = [System.Drawing.Color]::White
@@ -1221,11 +1221,94 @@ $btnPcapGo.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnPcapGo.Fo
 $ctlP.Controls.Add($btnPcapGo)
 $btnPcapGo.Add_Click({
     $file = $txtPcap.Text.Trim()
-    if (-not $file) { Write-IcptLine $txtOutP "`r`n[!] Pick a .pcap / .pcapng file first.`r`n" $icptWarn; return }
+    if (-not $file -or -not (Test-Path -LiteralPath $file)) {
+        Write-IcptLine $txtOutP "`r`n[!] Pick a valid .pcap / .pcapng file first.`r`n" $icptWarn; return
+    }
     $p = @{ Path = $file }
     if ($txtKeylog.Text.Trim()) { $p.KeylogFile = $txtKeylog.Text.Trim() }
     if ($txtRsa.Text.Trim())    { $p.RsaKeyFile = $txtRsa.Text.Trim() }
-    Invoke-IcptTool $txtOutP "Analyse pcap: $file" { Invoke-TcpkPcapReview @p }
+
+    # Switch to Findings sub-tab and run main security analysis
+    $subPcapTabs.SelectedIndex = 0
+    Invoke-IcptTool $txtOutP "Analyse pcap: $(Split-Path $file -Leaf)" { Invoke-TcpkPcapReview @p }
+
+    # Populate Conversations tab
+    $lvConv.Items.Clear()
+    try {
+        $convParams = @{ Path=$file }
+        if ($txtKeylog.Text.Trim()) { $convParams.KeylogFile = $txtKeylog.Text.Trim() }
+        if ($txtRsa.Text.Trim())    { $convParams.RsaKeyFile = $txtRsa.Text.Trim() }
+        $convs = @(Get-TcpkPcapConversations @convParams -ErrorAction SilentlyContinue)
+        foreach ($c in $convs) {
+            $lvi = New-Object System.Windows.Forms.ListViewItem("$($c.SrcIP)")
+            [void]$lvi.SubItems.Add("$($c.SrcPort)")
+            [void]$lvi.SubItems.Add("$($c.DstIP)")
+            [void]$lvi.SubItems.Add("$($c.DstPort)")
+            [void]$lvi.SubItems.Add("$($c.Protocol)")
+            [void]$lvi.SubItems.Add("$($c.Packets)")
+            [void]$lvi.SubItems.Add("$($c.Bytes)")
+            [void]$lvi.SubItems.Add("$($c.SrcMAC)")
+            [void]$lvi.SubItems.Add("$($c.DstMAC)")
+            [void]$lvConv.Items.Add($lvi)
+        }
+    } catch { }
+    [System.Windows.Forms.Application]::DoEvents()
+
+    # Populate TLS Handshakes tree
+    $tvTls.Nodes.Clear()
+    try {
+        $tlsParams = @{ Path=$file }
+        if ($txtKeylog.Text.Trim()) { $tlsParams.KeylogFile = $txtKeylog.Text.Trim() }
+        if ($txtRsa.Text.Trim())    { $tlsParams.RsaKeyFile = $txtRsa.Text.Trim() }
+        $tlsSessions = Get-TcpkPcapTlsTree @tlsParams -ErrorAction SilentlyContinue
+        if ($tlsSessions -and $tlsSessions.Keys.Count) {
+            foreach ($sKey in $tlsSessions.Keys) {
+                $hs = $tlsSessions[$sKey]
+                $srvNode = New-Object System.Windows.Forms.TreeNode("Server  $sKey")
+                $srvNode.ForeColor = [System.Drawing.Color]::FromArgb(100,185,255)
+                foreach ($ch in $hs.ClientHellos) {
+                    $chNode = New-Object System.Windows.Forms.TreeNode("ClientHello  from $($ch.Client)")
+                    $chNode.ForeColor = [System.Drawing.Color]::FromArgb(110,200,110)
+                    if ($ch.SNI) { [void]$chNode.Nodes.Add("SNI: $($ch.SNI)") }
+                    $vn = New-Object System.Windows.Forms.TreeNode("Supported versions ($($ch.SupportedVersions.Count))")
+                    foreach ($v in $ch.SupportedVersions) { [void]$vn.Nodes.Add("$v") }
+                    [void]$chNode.Nodes.Add($vn)
+                    $cn = New-Object System.Windows.Forms.TreeNode("Offered ciphers ($($ch.OfferedCiphers.Count))")
+                    foreach ($c in ($ch.OfferedCiphers | Select-Object -First 30)) { [void]$cn.Nodes.Add("$c") }
+                    [void]$chNode.Nodes.Add($cn)
+                    [void]$srvNode.Nodes.Add($chNode)
+                }
+                foreach ($sh in $hs.ServerHellos) {
+                    $weakTag = if ($sh.WeakCipher) { "  [WEAK: $($sh.WeakCipher.Reason)]" } else { '' }
+                    $shLabel = "ServerHello  $($sh.NegotiatedVersion)  /  $($sh.SelectedCipher)$weakTag"
+                    $shNode  = New-Object System.Windows.Forms.TreeNode($shLabel)
+                    $shNode.ForeColor = if ($sh.WeakCipher) { [System.Drawing.Color]::FromArgb(255,90,90) } else { [System.Drawing.Color]::FromArgb(255,180,60) }
+                    if ($sh.KeyGroup) { [void]$shNode.Nodes.Add("Key exchange: $($sh.KeyGroup)") }
+                    [void]$srvNode.Nodes.Add($shNode)
+                }
+                [void]$tvTls.Nodes.Add($srvNode)
+                $srvNode.Expand()
+            }
+        } else {
+            [void]$tvTls.Nodes.Add('No TLS handshakes found in this capture.')
+        }
+    } catch { [void]$tvTls.Nodes.Add("TLS tree error: $($_.Exception.Message)") }
+    [System.Windows.Forms.Application]::DoEvents()
+
+    # Populate BT / Zigbee tab
+    $btFile = $file; $txtOutBt.Text = ''
+    Invoke-IcptTool $txtOutBt "BT/Zigbee: $(Split-Path $btFile -Leaf)" {
+        $btF = @(Get-TcpkPcapBtFindings    -Path $btFile -ErrorAction SilentlyContinue)
+        $zbF = @(Get-TcpkPcapZigbeeFindings -Path $btFile -ErrorAction SilentlyContinue)
+        $all = @($btF) + @($zbF) | Where-Object { $_ }
+        if ($all) { $all } else {
+            New-TcpkFinding -Module 'network' -RuleId 'pcap.no-bt-zigbee' -Severity 'INFO' -Confidence 'Inferred' `
+                -Title 'No Bluetooth or Zigbee traffic detected' `
+                -Evidence 'no btle/btl2cap/bthci_cmd/zbee_nwk frames in capture' `
+                -Description "This capture contains no Bluetooth or Zigbee frames.`r`nBluetooth: capture via HCI snoop log, Ubertooth One, or Wireshark Bluetooth interface.`r`nZigbee: capture via RZUSBSTICK, ApiMote, Sniffle, or any 802.15.4 sniffer (LINKTYPE_IEEE802_15_4)." `
+                -Fix ''
+        }
+    }
 })
 
 # Decrypt fields (optional): TLS keylog (all TLS incl 1.3) and/or server RSA private key (RSA kx only)
@@ -1238,6 +1321,62 @@ $txtRsa = New-Object System.Windows.Forms.TextBox; $txtRsa.Location = New-Object
 $btnRsa = New-Object System.Windows.Forms.Button; $btnRsa.Text = "..."; $btnRsa.Location = New-Object System.Drawing.Point(864,88); $btnRsa.Size = New-Object System.Drawing.Size(32,26); $btnRsa.FlatStyle = 'Flat'; $btnRsa.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRsa.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnRsa)
 $btnRsa.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtRsa.Text = $dlg.FileName } })
 $lblDecHint = New-Object System.Windows.Forms.Label; $lblDecHint.Text = "keylog: all TLS  |  RSA key: RSA-kx only"; $lblDecHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblDecHint.Location = New-Object System.Drawing.Point(902,93); $lblDecHint.Size = New-Object System.Drawing.Size(280,18); $ctlP.Controls.Add($lblDecHint)
+
+# Row 4 (y=122): string search across all frames
+$lblSearchStr = New-Object System.Windows.Forms.Label; $lblSearchStr.Text = "String search:"; $lblSearchStr.ForeColor = [System.Drawing.Color]::White; $lblSearchStr.Location = New-Object System.Drawing.Point(12,127); $lblSearchStr.Size = New-Object System.Drawing.Size(100,18); $ctlP.Controls.Add($lblSearchStr)
+$txtPcapSearch = New-Object System.Windows.Forms.TextBox; $txtPcapSearch.Location = New-Object System.Drawing.Point(116,124); $txtPcapSearch.Size = New-Object System.Drawing.Size(520,24); $txtPcapSearch.Font = New-Object System.Drawing.Font('Consolas', 9); $txtPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtPcapSearch)
+$chkSearchRegex = New-Object System.Windows.Forms.CheckBox; $chkSearchRegex.Text = "Regex"; $chkSearchRegex.ForeColor = [System.Drawing.Color]::White; $chkSearchRegex.Location = New-Object System.Drawing.Point(644,125); $chkSearchRegex.Size = New-Object System.Drawing.Size(60,20); $ctlP.Controls.Add($chkSearchRegex)
+$lblProtoFilter = New-Object System.Windows.Forms.Label; $lblProtoFilter.Text = "Protocol:"; $lblProtoFilter.ForeColor = [System.Drawing.Color]::White; $lblProtoFilter.Location = New-Object System.Drawing.Point(712,127); $lblProtoFilter.Size = New-Object System.Drawing.Size(66,18); $ctlP.Controls.Add($lblProtoFilter)
+$cmbProtoFilter = New-Object System.Windows.Forms.ComboBox; $cmbProtoFilter.Location = New-Object System.Drawing.Point(782,124); $cmbProtoFilter.Size = New-Object System.Drawing.Size(136,24); $cmbProtoFilter.DropDownStyle = 'DropDownList'; $cmbProtoFilter.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbProtoFilter.ForeColor = [System.Drawing.Color]::White; $cmbProtoFilter.FlatStyle = 'Flat'; foreach ($pv in @('All','http','dns','tls','smtp','ftp','ssh','btle','btl2cap','zbee_nwk','wpan')) { [void]$cmbProtoFilter.Items.Add($pv) }; $cmbProtoFilter.SelectedIndex = 0; $ctlP.Controls.Add($cmbProtoFilter)
+$btnPcapSearch = New-Object System.Windows.Forms.Button; $btnPcapSearch.Text = "Search"; $btnPcapSearch.Location = New-Object System.Drawing.Point(924,122); $btnPcapSearch.Size = New-Object System.Drawing.Size(74,26); $btnPcapSearch.FlatStyle = 'Flat'; $btnPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(50,60,100); $btnPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($btnPcapSearch)
+
+# SizeChanged: reposition all right-edge controls in the search row (avoids Anchor timing issues)
+$ctlP.Add_SizeChanged({
+    $w = $ctlP.ClientSize.Width
+    if ($w -lt 400) { return }
+    $btnPcapSearch.Left  = $w - 82
+    $cmbProtoFilter.Left = $btnPcapSearch.Left - 144
+    $lblProtoFilter.Left = $cmbProtoFilter.Left - 72
+    $chkSearchRegex.Left = $lblProtoFilter.Left - 68
+    $txtPcapSearch.Width = $chkSearchRegex.Left - $txtPcapSearch.Left - 6
+})
+
+$btnPcapSearch.Add_Click({
+    $file = $txtPcap.Text.Trim()
+    $term = $txtPcapSearch.Text.Trim()
+    if (-not $file -or -not (Test-Path -LiteralPath $file)) {
+        [System.Windows.Forms.MessageBox]::Show('Load a .pcap file first.', 'TCPK', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return
+    }
+    if (-not $term) {
+        [System.Windows.Forms.MessageBox]::Show('Enter a search string.', 'TCPK', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return
+    }
+    $lvSearch.Items.Clear()
+    $subPcapTabs.SelectedIndex = 3
+    try {
+        $sp = @{ Path=$file; Pattern=$term }
+        $pf = "$($cmbProtoFilter.SelectedItem)".Trim()
+        if ($pf -and $pf -ne 'All') { $sp.Protocol = $pf }
+        if ($chkSearchRegex.Checked) { $sp.Regex = $true }
+        if ($txtKeylog.Text.Trim()) { $sp.KeylogFile = $txtKeylog.Text.Trim() }
+        if ($txtRsa.Text.Trim())    { $sp.RsaKeyFile = $txtRsa.Text.Trim() }
+        $results = @(Search-TcpkPcapString @sp -ErrorAction SilentlyContinue)
+        if ($results.Count) {
+            foreach ($r in $results) {
+                $lvi = New-Object System.Windows.Forms.ListViewItem("$($r.'frame.number')")
+                [void]$lvi.SubItems.Add("$($r.'frame.time_relative')")
+                [void]$lvi.SubItems.Add("$($r.'ip.src')")
+                [void]$lvi.SubItems.Add("$($r.'ip.dst')")
+                [void]$lvi.SubItems.Add("$($r.'_ws.col.Protocol')")
+                [void]$lvi.SubItems.Add("$($r.'_ws.col.Info')")
+                [void]$lvSearch.Items.Add($lvi)
+            }
+        } else {
+            [void]$lvSearch.Items.Add(New-Object System.Windows.Forms.ListViewItem("(no frames matched '$term')"))
+        }
+    } catch {
+        [void]$lvSearch.Items.Add(New-Object System.Windows.Forms.ListViewItem("Error: $($_.Exception.Message)"))
+    }
+})
 
 # Active: replay / IDOR / JWT (gated) -- turn a captured request into an active backend check
 $gbActive = New-Object System.Windows.Forms.GroupBox
@@ -1300,13 +1439,70 @@ $btnJwtAttackP.Add_Click({
 })
 $tabPcap.Controls.Add($ctlP)
 
+# Sub-TabControl: Findings | Conversations | TLS Handshakes | Search Results | BT / Zigbee
+$subPcapTabs = New-Object System.Windows.Forms.TabControl
+$subPcapTabs.Dock = 'Fill'; $subPcapTabs.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
+$subPcapTabs.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+
+# --- Tab 1: Findings (existing console output) ---
+$subPcapFindings = New-Object System.Windows.Forms.TabPage; $subPcapFindings.Text = ' Findings '; $subPcapFindings.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
 $txtOutP = New-Object System.Windows.Forms.RichTextBox
 $txtOutP.Dock = 'Fill'; $txtOutP.Font = New-Object System.Drawing.Font('Consolas', 9.5)
 $txtOutP.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtOutP.ForeColor = [System.Drawing.Color]::White
 $txtOutP.ReadOnly = $true; $txtOutP.WordWrap = $false
-$txtOutP.Text = "Packet-capture analysis console.`r`n`r`nCapture traffic with Wireshark or dumpcap, then load the .pcap here. TCPK dissects it via tshark (ships with Wireshark) and lists the security-relevant findings: cleartext credentials, plaintext HTTP / FTP, obsolete TLS, DNS and endpoint inventory.`r`n`r`nComplements Intercept: this sees everything on the wire, including non-HTTP protocols. tshark must be installed (Wireshark). Findings stream here, severity-coloured."
-$tabPcap.Controls.Add($txtOutP)
-$txtOutP.BringToFront()
+$txtOutP.Text = "Packet-capture analysis console.`r`n`r`nLoad a .pcap/.pcapng and click 'Analyse capture'.`r`n`r`nTCPK dissects the file via tshark (ships with Wireshark) and surfaces:`r`n  * Cleartext credentials (HTTP Basic, FTP, SMTP AUTH)`r`n  * Plaintext HTTP transport`r`n  * Weak/obsolete TLS (SSL3 / TLS1.0 / TLS1.1 / weak ciphers)`r`n  * Credentials or tokens in URL query parameters`r`n  * Insecure cookie flags`r`n  * DNS query and endpoint inventory`r`n`r`nOther tabs: Conversations (src/dst flow table), TLS Handshakes (tree),`r`nSearch Results (string search), BT/Zigbee (Bluetooth and Zigbee findings)."
+$subPcapFindings.Controls.Add($txtOutP)
+[void]$subPcapTabs.TabPages.Add($subPcapFindings)
+
+# --- Tab 2: Conversations ---
+$subPcapConv = New-Object System.Windows.Forms.TabPage; $subPcapConv.Text = ' Conversations '; $subPcapConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
+$lvConv = New-Object System.Windows.Forms.ListView
+$lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $true
+$lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
+$lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+foreach ($colDef in @(@('Src IP',120),@('Src Port',72),@('Dst IP',120),@('Dst Port',72),@('Protocol',80),@('Packets',70),@('Bytes',80),@('Src MAC',130),@('Dst MAC',130))) {
+    $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
+}
+$subPcapConv.Controls.Add($lvConv)
+[void]$subPcapTabs.TabPages.Add($subPcapConv)
+
+# --- Tab 3: TLS Handshakes ---
+$subPcapTls = New-Object System.Windows.Forms.TabPage; $subPcapTls.Text = ' TLS Handshakes '; $subPcapTls.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
+$tvTls = New-Object System.Windows.Forms.TreeView
+$tvTls.Dock = 'Fill'; $tvTls.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
+$tvTls.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $tvTls.ForeColor = [System.Drawing.Color]::FromArgb(210,215,220)
+$tvTls.LineColor = [System.Drawing.Color]::FromArgb(80,80,90)
+[void]$tvTls.Nodes.Add('Load a capture and click Analyse to populate this tree.')
+[void]$tvTls.Nodes.Add('Each server:port node shows ClientHello (offered ciphers, SNI, supported TLS versions)')
+[void]$tvTls.Nodes.Add('and ServerHello (negotiated version, selected cipher). Weak ciphers are flagged [WEAK].')
+$subPcapTls.Controls.Add($tvTls)
+[void]$subPcapTabs.TabPages.Add($subPcapTls)
+
+# --- Tab 4: Search Results ---
+$subPcapSearch = New-Object System.Windows.Forms.TabPage; $subPcapSearch.Text = ' Search Results '; $subPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
+$lvSearch = New-Object System.Windows.Forms.ListView
+$lvSearch.Dock = 'Fill'; $lvSearch.View = 'Details'; $lvSearch.FullRowSelect = $true; $lvSearch.GridLines = $true
+$lvSearch.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvSearch.ForeColor = [System.Drawing.Color]::White
+$lvSearch.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+foreach ($colDef in @(@('#',60),@('Time',80),@('Src',130),@('Dst',130),@('Protocol',90),@('Info',600))) {
+    $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvSearch.Columns.Add($lvc)
+}
+[void]$lvSearch.Items.Add(New-Object System.Windows.Forms.ListViewItem('Use the "String search" bar above to find frames containing any string or regex across the entire capture.'))
+$subPcapSearch.Controls.Add($lvSearch)
+[void]$subPcapTabs.TabPages.Add($subPcapSearch)
+
+# --- Tab 5: BT / Zigbee ---
+$subPcapBt = New-Object System.Windows.Forms.TabPage; $subPcapBt.Text = ' BT / Zigbee '; $subPcapBt.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
+$txtOutBt = New-Object System.Windows.Forms.RichTextBox
+$txtOutBt.Dock = 'Fill'; $txtOutBt.Font = New-Object System.Drawing.Font('Consolas', 9.5)
+$txtOutBt.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtOutBt.ForeColor = [System.Drawing.Color]::White
+$txtOutBt.ReadOnly = $true; $txtOutBt.WordWrap = $false
+$txtOutBt.Text = "Bluetooth and Zigbee capture analysis.`r`n`r`nLoad a .pcap and click 'Analyse capture'. TCPK auto-detects Bluetooth and Zigbee frames`r`nand runs protocol-specific checks:`r`n`r`nBluetooth / BLE:`r`n  * BLE JustWorks pairing (no MITM protection)   [HIGH]`r`n  * GATT Write / Read operations in cleartext     [HIGH / MEDIUM]`r`n  * BLE advertisement device fingerprinting        [INFO]`r`n  * HCI trace presence (pairing state, link keys)  [INFO]`r`n`r`nZigbee / IEEE 802.15.4:`r`n  * Unencrypted NWK frames (AES-CCM* disabled)     [HIGH]`r`n  * Transport Key broadcast in the air              [CRITICAL]`r`n  * Frame inventory and security summary            [INFO]`r`n`r`nCapture sources:`r`n  BT:     HCI snoop log, Ubertooth One, Wireshark Bluetooth interface, Sniffle`r`n  Zigbee: RZUSBSTICK, ApiMote, Sniffle, any 802.15.4 sniffer (LINKTYPE_IEEE802_15_4)"
+$subPcapBt.Controls.Add($txtOutBt)
+[void]$subPcapTabs.TabPages.Add($subPcapBt)
+
+$tabPcap.Controls.Add($subPcapTabs)
+$subPcapTabs.BringToFront()
 
 # ================= TAB R: Replay / IDOR / JWT =================
 $tabIcptR = New-Object System.Windows.Forms.TabPage

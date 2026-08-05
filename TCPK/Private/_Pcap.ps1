@@ -277,6 +277,408 @@ function Get-TcpkPcapFindings {
             -Description 'Host:port pairs the client contacted. Review for unexpected or hardcoded backends.'))
     }
 
+    # 7. TLS cipher suite weakness (from ServerHello -- what was actually negotiated)
+    $cipherSeen = @{}
+    foreach ($r in (Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
+                        -Fields @('ip.src', 'tls.handshake.ciphersuite'))) {
+        $srv    = "$($r.'ip.src')"
+        $cipher = "$($r.'tls.handshake.ciphersuite')".Trim()
+        if (-not $cipher -or $cipherSeen.ContainsKey("$srv|$cipher")) { continue }
+        $cipherSeen["$srv|$cipher"] = $true
+        $weak = Test-TcpkCipherWeak $cipher
+        if (-not $weak) { continue }
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.weak-cipher' -Severity $weak.Severity `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-326', 'CWE-327') `
+            -Title "Weak TLS cipher negotiated with $srv -- $cipher" `
+            -Evidence "server $srv selected $cipher ($($weak.Reason))" `
+            -Description "The server negotiated a weak or broken cipher suite. Traffic in this TLS session is at elevated risk of decryption or forgery." `
+            -Fix "Remove $cipher from the server's cipher list. Permit only AES-GCM and ChaCha20-Poly1305 suites."))
+    }
+
+    # 8. Credential or secret in HTTP URL query parameters
+    $secretRx = '(?i)[?&](token|api[_-]?key|apikey|access[_-]?token|password|passwd|pwd|secret|auth|client[_-]?secret|refresh[_-]?token)=[^&\s]{1,}'
+    $secretSeen = @{}
+    foreach ($r in (Invoke-TcpkTsharkQuery @q -Filter 'http.request' `
+                        -Fields @('ip.dst', 'http.host', 'http.request.uri'))) {
+        $uri = "$($r.'http.request.uri')"
+        if ($uri -notmatch $secretRx) { continue }
+        $host_ = if ($r.'http.host') { $r.'http.host' } else { $r.'ip.dst' }
+        $paramKey = ($Matches[1] + '').ToLower()
+        $key = "$host_|$paramKey"
+        if ($secretSeen.ContainsKey($key)) { continue }
+        $secretSeen[$key] = $true
+        $truncated = $Matches[0] -replace '(=[^&]{4})[^&]*', '$1...'
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.secret-in-url' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-598', 'CWE-319') `
+            -Title "Credential or token in HTTP URL params sent to $host_" `
+            -Evidence "param $truncated in request to $host_" `
+            -Description "A sensitive parameter ($paramKey) was observed in the HTTP URL query string. URL params are logged by servers, proxies, load balancers, and browser history -- they are not a safe location for secrets." `
+            -Fix 'Move tokens and credentials to Authorization or custom request headers, or a POST body. Never embed them in the URL.'))
+    }
+
+    # 9. Cookie security flags (Secure / HttpOnly absent, or cookie set over cleartext HTTP)
+    $cookieSeen = @{}
+    foreach ($r in (Invoke-TcpkTsharkQuery @q -Filter 'http.set_cookie' `
+                        -Fields @('ip.src', 'tcp.srcport', 'http.set_cookie'))) {
+        $cookie   = "$($r.'http.set_cookie')"
+        $isHttps  = ($r.'tcp.srcport' -eq '443')
+        $name_    = if ($cookie -match '^([^=;]+)') { $Matches[1].Trim() } else { '?' }
+        $missSecure   = $cookie -notmatch '(?i)\bSecure\b'
+        $missHttpOnly = $cookie -notmatch '(?i)\bHttpOnly\b'
+        if ($isHttps -and -not $missSecure -and -not $missHttpOnly) { continue }
+        $key = "$($r.'ip.src')|$name_"
+        if ($cookieSeen.ContainsKey($key)) { continue }
+        $cookieSeen[$key] = $true
+        $flags = @()
+        if (-not $isHttps) { $flags += 'set over cleartext HTTP' }
+        if ($missSecure)   { $flags += 'Secure flag missing' }
+        if ($missHttpOnly) { $flags += 'HttpOnly flag missing' }
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.insecure-cookie' -Severity 'MEDIUM' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-614', 'CWE-1004') `
+            -Title "Insecure cookie '$name_' from $($r.'ip.src') ($($flags -join ', '))" `
+            -Evidence "Set-Cookie: $($cookie.Substring(0, [math]::Min(100, $cookie.Length)))..." `
+            -Description "Cookie '$name_' is set without adequate security flags. Missing Secure allows transmission over HTTP; missing HttpOnly allows JavaScript access (XSS pivot)." `
+            -Fix "Add Secure;HttpOnly to all session cookies. Add SameSite=Strict for sensitive sessions."))
+    }
+
+    # 10. SMTP cleartext authentication (AUTH LOGIN / AUTH PLAIN observed in cleartext)
+    $smtpSeen = @{}
+    foreach ($r in (Invoke-TcpkTsharkQuery @q -Filter 'smtp.req.command == "AUTH"' `
+                        -Fields @('ip.dst', 'smtp.req.parameter'))) {
+        $param = "$($r.'smtp.req.parameter')".ToUpper().Trim()
+        if ($param -notmatch '^(LOGIN|PLAIN|CRAM-MD5)') { continue }
+        $h = "$($r.'ip.dst')"
+        if ($smtpSeen.ContainsKey($h)) { continue }
+        $smtpSeen[$h] = $true
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.smtp-cleartext-auth' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319', 'CWE-522') `
+            -Title "SMTP AUTH credentials transmitted in cleartext to $h" `
+            -Evidence "SMTP AUTH $param to $h without TLS" `
+            -Description "SMTP AUTH $param credentials were observed on the wire without an enclosing TLS layer. Any path observer can recover them." `
+            -Fix 'Require STARTTLS (port 587) or implicit TLS (port 465) before any AUTH command. Reject AUTH on unencrypted connections.'))
+    }
+
+    return $out.ToArray()
+}
+
+# ─── cipher weakness helper ──────────────────────────────────────────────────────
+# Returns @{Severity; Reason} when the cipher name or hex/decimal code is known weak.
+# tshark outputs human-readable names (TLS_RSA_WITH_RC4_128_SHA), hex codes (0x0005),
+# or decimal (5) depending on version and whether the cipher is in its name table.
+function Test-TcpkCipherWeak {
+    param([string]$Name)
+    $n = "$Name".Trim().ToLower()
+    if (-not $n) { return $null }
+    # Name-pattern checks (tshark usually outputs the IANA name string)
+    if ($n -match 'null')                               { return @{Severity='CRITICAL'; Reason='NULL cipher -- no encryption'} }
+    if ($n -match '_anon_')                             { return @{Severity='CRITICAL'; Reason='anonymous (no server auth) -- MITM trivial'} }
+    if ($n -match 'export')                             { return @{Severity='HIGH';     Reason='export-grade (FREAK / Logjam)'} }
+    if ($n -match 'rc4')                                { return @{Severity='HIGH';     Reason='RC4 is cryptographically broken'} }
+    if ($n -match '3des')                               { return @{Severity='HIGH';     Reason='3DES Sweet32 (64-bit block collision)'} }
+    if ($n -match '_des_cbc' -and $n -notmatch '3des') { return @{Severity='HIGH';     Reason='DES 56-bit -- brute-forceable'} }
+    # Known-weak hex / decimal codes (fallback for tshark numeric output)
+    switch ($n) {
+        '0x0000' { return @{Severity='CRITICAL'; Reason='NULL cipher'} }
+        '0x0001' { return @{Severity='CRITICAL'; Reason='NULL cipher'} }
+        '0x0002' { return @{Severity='CRITICAL'; Reason='NULL cipher'} }
+        '0x003b' { return @{Severity='CRITICAL'; Reason='NULL cipher'} }
+        '0'      { return @{Severity='CRITICAL'; Reason='NULL cipher'} }
+        '1'      { return @{Severity='CRITICAL'; Reason='NULL cipher'} }
+        '2'      { return @{Severity='CRITICAL'; Reason='NULL cipher'} }
+        '59'     { return @{Severity='CRITICAL'; Reason='NULL cipher'} }
+        '0x0004' { return @{Severity='HIGH'; Reason='RC4'} }
+        '0x0005' { return @{Severity='HIGH'; Reason='RC4'} }
+        '4'      { return @{Severity='HIGH'; Reason='RC4'} }
+        '5'      { return @{Severity='HIGH'; Reason='RC4'} }
+        '0x000a' { return @{Severity='HIGH'; Reason='3DES Sweet32'} }
+        '10'     { return @{Severity='HIGH'; Reason='3DES Sweet32'} }
+        '0x0017' { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '0x0018' { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '0x001a' { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '23'     { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '24'     { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '26'     { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '0xc016' { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '0xc017' { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '0xc018' { return @{Severity='CRITICAL'; Reason='anonymous'} }
+        '0xc019' { return @{Severity='CRITICAL'; Reason='anonymous'} }
+    }
+    return $null
+}
+
+# ─── TLS handshake tree (ClientHello + ServerHello per server:port) ───────────────
+# Returns ordered dict keyed by "server_ip:port". Each value has:
+#   ClientHellos - list of {Client, SNI, OfferedCiphers[], SupportedVersions[]}
+#   ServerHellos - list of {NegotiatedVersion, SelectedCipher, KeyGroup, WeakCipher}
+function Get-TcpkTlsSessionTree {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap,
+          [string]$KeylogFile, [string]$RsaKeyFile)
+    $q  = @{ Tshark=$Tshark; Pcap=$Pcap }
+    if ($KeylogFile) { $q.KeylogFile=$KeylogFile }
+    if ($RsaKeyFile) { $q.RsaKeyFile=$RsaKeyFile }
+    $us = [char]0x1F
+
+    $clientHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
+        -Fields @('ip.src','ip.dst','tcp.dstport',
+                  'tls.handshake.extensions_server_name',
+                  'tls.handshake.ciphersuite',
+                  'tls.handshake.extensions.supported_versions.tls') `
+        -Occurrence 'a' -Aggregator "$us")
+
+    $serverHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
+        -Fields @('ip.src','ip.dst','tcp.srcport',
+                  'tls.handshake.version',
+                  'tls.handshake.ciphersuite',
+                  'tls.handshake.extensions.key_share.selected_group') `
+        -Occurrence 'a' -Aggregator "$us")
+
+    $sessions = [ordered]@{}
+
+    $ensureKey = {
+        param($K, $SrvIP, $Port)
+        if (-not $sessions.ContainsKey($K)) {
+            $sessions[$K] = [ordered]@{
+                ServerIP     = $SrvIP
+                Port         = $Port
+                ClientHellos = [System.Collections.Generic.List[object]]::new()
+                ServerHellos = [System.Collections.Generic.List[object]]::new()
+            }
+        }
+    }
+
+    foreach ($ch in $clientHellos) {
+        $dport = (("$($ch.'tcp.dstport')") -split $us)[0]
+        $key   = "$($ch.'ip.dst'):$dport"
+        & $ensureKey $key $ch.'ip.dst' $dport
+        $sni      = (("$($ch.'tls.handshake.extensions_server_name')") -split $us)[0]
+        $ciphers  = @("$($ch.'tls.handshake.ciphersuite')" -split $us | Where-Object {$_} | ForEach-Object {$_.Trim()} | Select-Object -Unique)
+        $versions = @("$($ch.'tls.handshake.extensions.supported_versions.tls')" -split $us | Where-Object {$_} | ForEach-Object {$_.Trim()} | Select-Object -Unique)
+        $sessions[$key].ClientHellos.Add([pscustomobject]@{
+            Client = "$($ch.'ip.src')"; SNI = $sni
+            OfferedCiphers = $ciphers; SupportedVersions = $versions
+        })
+    }
+
+    foreach ($sh in $serverHellos) {
+        $sport  = (("$($sh.'tcp.srcport')") -split $us)[0]
+        $key    = "$($sh.'ip.src'):$sport"
+        & $ensureKey $key $sh.'ip.src' $sport
+        $ver    = (("$($sh.'tls.handshake.version')") -split $us)[0]
+        $cipher = (("$($sh.'tls.handshake.ciphersuite')") -split $us)[0]
+        $kgrp   = (("$($sh.'tls.handshake.extensions.key_share.selected_group')") -split $us)[0]
+        $weak   = if ($cipher) { Test-TcpkCipherWeak $cipher } else { $null }
+        $sessions[$key].ServerHellos.Add([pscustomobject]@{
+            NegotiatedVersion = $ver; SelectedCipher = $cipher
+            KeyGroup = $kgrp; WeakCipher = $weak
+        })
+    }
+
+    return $sessions
+}
+
+# ─── conversation statistics ───────────────────────────────────────────────────────
+# Returns ordered dicts (sorted by bytes descending) with:
+#   SrcIP, SrcPort, SrcMAC, DstIP, DstPort, DstMAC, Protocol, Packets, Bytes
+function Get-TcpkConvStats {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap,
+          [string]$KeylogFile, [string]$RsaKeyFile, [int]$Max = 5000)
+    $q = @{ Tshark=$Tshark; Pcap=$Pcap }
+    if ($KeylogFile) { $q.KeylogFile=$KeylogFile }
+    if ($RsaKeyFile) { $q.RsaKeyFile=$RsaKeyFile }
+
+    $rows = Invoke-TcpkTsharkQuery @q -Max $Max `
+        -Fields @('ip.src','ip.dst','eth.src','eth.dst','_ws.col.Protocol','frame.len',
+                  'tcp.srcport','tcp.dstport','udp.srcport','udp.dstport')
+
+    $convs = [ordered]@{}
+    foreach ($r in @($rows)) {
+        $sip = "$($r.'ip.src')"; $dip = "$($r.'ip.dst')"
+        if (-not $sip -or -not $dip) { continue }
+        $sport = if ($r.'tcp.srcport') { $r.'tcp.srcport' } elseif ($r.'udp.srcport') { $r.'udp.srcport' } else { '' }
+        $dport = if ($r.'tcp.dstport') { $r.'tcp.dstport' } elseif ($r.'udp.dstport') { $r.'udp.dstport' } else { '' }
+        $proto = "$($r.'_ws.col.Protocol')"
+        $ck    = "${sip}:${sport}|${dip}:${dport}|${proto}"
+        if (-not $convs.ContainsKey($ck)) {
+            $convs[$ck] = [ordered]@{
+                SrcIP=$sip; SrcPort=$sport; SrcMAC="$($r.'eth.src')"
+                DstIP=$dip; DstPort=$dport; DstMAC="$($r.'eth.dst')"
+                Protocol=$proto; Packets=0; Bytes=0
+            }
+        }
+        $convs[$ck].Packets++
+        $len = 0; try { $len = [int]"$($r.'frame.len')" } catch {}
+        $convs[$ck].Bytes += $len
+    }
+    return @($convs.Values | Sort-Object { -($_.Bytes) })
+}
+
+# ─── packet string / regex search ─────────────────────────────────────────────────
+# Applies a tshark display filter "frame matches (?i)PATTERN" and returns matching rows.
+# If -Regex is set, $Pattern is used as a literal PCRE regex; otherwise it is escaped.
+# Protocol restricts to frames of that dissector (e.g. 'http', 'dns', 'btle').
+function Invoke-TcpkPcapStringSearch {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap,
+          [Parameter(Mandatory)][string]$Pattern,
+          [string]$Protocol,
+          [switch]$Regex,
+          [int]$Max = 500,
+          [string]$KeylogFile, [string]$RsaKeyFile)
+    $q = @{ Tshark=$Tshark; Pcap=$Pcap }
+    if ($KeylogFile) { $q.KeylogFile=$KeylogFile }
+    if ($RsaKeyFile) { $q.RsaKeyFile=$RsaKeyFile }
+
+    $escaped = if ($Regex) { $Pattern } else { [Regex]::Escape($Pattern) }
+    $mf = "frame matches `"(?i)$escaped`""
+    if ($Protocol -and $Protocol -ne 'All') { $mf = "$Protocol and ($mf)" }
+
+    @(Invoke-TcpkTsharkQuery @q -Filter $mf -Max $Max `
+        -Fields @('frame.number','frame.time_relative','ip.src','ip.dst','_ws.col.Protocol','_ws.col.Info'))
+}
+
+# ─── Bluetooth / BLE pcap analysis ────────────────────────────────────────────────
+# Returns TcpkFindings. Empty array if no BT frames are present.
+function Get-TcpkBtPcapFindings {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap)
+    $out = New-Object System.Collections.Generic.List[object]
+    $q   = @{ Tshark=$Tshark; Pcap=$Pcap }
+
+    # Guard: detect any Bluetooth frames at all
+    $probe = @(Invoke-TcpkTsharkQuery @q -Filter 'btle or btl2cap or bthci_cmd or bthci_evt' `
+                  -Fields @('_ws.col.Protocol') -Max 1)
+    if (-not $probe.Count) { return @() }
+
+    # JustWorks (NoInputNoOutput) pairing -- no MITM protection
+    $smps = @(Invoke-TcpkTsharkQuery @q -Filter 'btsmp.opcode == 0x01' `
+                  -Fields @('ip.src','ip.dst','btsmp.io_capability','btsmp.auth_req'))
+    foreach ($smp in $smps) {
+        $io = "$($smp.'btsmp.io_capability')".Trim()
+        if ($io -in '0x03','3','NoInputNoOutput') {
+            $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.bt-justworks' -Severity 'HIGH' `
+                -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-287', 'CWE-330') `
+                -Title 'BLE JustWorks pairing observed -- no MITM protection' `
+                -Evidence "SMP Pairing Request io_capability=NoInputNoOutput (0x03) -> JustWorks selected" `
+                -Description 'JustWorks pairing is used when the device has no input/output capability. It provides no MITM protection. An attacker present at pairing time can impersonate either peer.' `
+                -Fix 'Use Passkey Entry or Numeric Comparison pairing. Enable Secure Connections (SC bit in auth_req). Require Passkey Entry for sensitive operations.'))
+            break
+        }
+    }
+
+    # Unencrypted GATT writes visible in cleartext
+    $attWrites = @(Invoke-TcpkTsharkQuery @q `
+                      -Filter 'btatt.opcode == 0x52 or btatt.opcode == 0x12' `
+                      -Fields @('btatt.opcode','btatt.handle','btatt.value') -Max 5)
+    if ($attWrites.Count) {
+        $sample = "handle=0x$($attWrites[0].'btatt.handle') value=$($attWrites[0].'btatt.value')"
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.bt-gatt-cleartext' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319') `
+            -Title "GATT Write operations visible in cleartext ($($attWrites.Count) frame(s))" `
+            -Evidence "sample: $sample" `
+            -Description 'ATT/GATT Write frames are present in the capture without LE link-layer encryption. All GATT traffic (commands, responses, notifications) is exposed to any passive BLE observer.' `
+            -Fix 'Require LE link encryption before allowing GATT attribute access. Set Encrypt Read / Encrypt Write attribute permissions on all sensitive characteristics.'))
+    }
+
+    # Unencrypted ATT reads (handle value reads visible)
+    $attReads = @(Invoke-TcpkTsharkQuery @q `
+                     -Filter 'btatt.opcode == 0x0b' `
+                     -Fields @('btatt.handle','btatt.value') -Max 5)
+    if ($attReads.Count -and -not $attWrites.Count) {
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.bt-gatt-read-cleartext' -Severity 'MEDIUM' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319') `
+            -Title "GATT Read responses visible in cleartext ($($attReads.Count) frame(s))" `
+            -Evidence "handle=0x$($attReads[0].'btatt.handle') value=$($attReads[0].'btatt.value')" `
+            -Description 'ATT Read Response frames are visible without LE encryption. Characteristic values are exposed to passive observers.' `
+            -Fix 'Require LE link encryption. Set Encrypt Read permission on sensitive characteristics.'))
+    }
+
+    # BLE advertisements leaking device info
+    $advFrames = @(Invoke-TcpkTsharkQuery @q -Filter 'btle.advertising_header' `
+                      -Fields @('btle.advertising_header.pdu_type') -Max 50)
+    if ($advFrames.Count) {
+        $pdus = @($advFrames | ForEach-Object { "$($_.'btle.advertising_header.pdu_type')" } | Where-Object {$_} | Sort-Object -Unique)
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.bt-adv' -Severity 'INFO' `
+            -Confidence 'Confirmed (dynamic)' `
+            -Title "BLE advertisement frames captured ($($advFrames.Count) frames, PDU types: $($pdus -join ', '))" `
+            -Evidence "PDU types observed: $($pdus -join ', ')" `
+            -Description 'BLE advertisement frames expose device identity (local name, service UUIDs, manufacturer data) to any passive RF observer. Sensitive fields are a tracking and fingerprinting risk.' `
+            -Fix 'Rotate the BLE random address periodically (RPA). Do not include sensitive data in advertisement payloads.'))
+    }
+
+    # HCI-level capture (full Bluetooth classic / LE dual-mode trace)
+    $hciCmds = @(Invoke-TcpkTsharkQuery @q -Filter 'bthci_cmd' `
+                    -Fields @('bthci_cmd.opcode') -Max 10)
+    if ($hciCmds.Count) {
+        $opcodes = @($hciCmds | ForEach-Object { "$($_.'bthci_cmd.opcode')" } | Where-Object {$_} | Select-Object -Unique -First 6)
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.bt-hci' -Severity 'INFO' `
+            -Confidence 'Confirmed (dynamic)' `
+            -Title "Bluetooth HCI trace: $($hciCmds.Count)+ HCI command frames" `
+            -Evidence "opcodes: $($opcodes -join ', ')" `
+            -Description 'HCI-level capture includes all host-to-controller communication: link key negotiation, connection events, and encryption status. Useful for pairing analysis and encryption state tracing.' `
+            -Fix ''))
+    }
+
+    return $out.ToArray()
+}
+
+# ─── Zigbee / IEEE 802.15.4 pcap analysis ─────────────────────────────────────────
+# Returns TcpkFindings. Empty array if no Zigbee/802.15.4 frames are present.
+function Get-TcpkZigbeePcapFindings {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap)
+    $out = New-Object System.Collections.Generic.List[object]
+    $q   = @{ Tshark=$Tshark; Pcap=$Pcap }
+
+    # Guard: detect any Zigbee or IEEE 802.15.4 frames
+    $probe = @(Invoke-TcpkTsharkQuery @q -Filter 'zbee_nwk or wpan' `
+                  -Fields @('_ws.col.Protocol') -Max 1)
+    if (-not $probe.Count) { return @() }
+
+    # Total Zigbee NWK frame count
+    $allZb = @(Invoke-TcpkTsharkQuery @q -Filter 'zbee_nwk' -Fields @('frame.number') -Max 2000)
+    $total = $allZb.Count
+
+    # Unencrypted Zigbee Network frames
+    $unenc = @(Invoke-TcpkTsharkQuery @q `
+                  -Filter 'zbee_nwk and !zbee_nwk.fcf.security' `
+                  -Fields @('frame.number','zbee_nwk.src','zbee_nwk.dst') -Max 20)
+    if ($unenc.Count) {
+        $s = "frame $($unenc[0].'frame.number') src=$($unenc[0].'zbee_nwk.src') dst=$($unenc[0].'zbee_nwk.dst')"
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.zigbee-unencrypted' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319') `
+            -Title "Unencrypted Zigbee NWK frames: $($unenc.Count) observed" `
+            -Evidence "sample: $s" `
+            -Description 'Zigbee NWK frames with security bit clear are present. All payload data (commands, sensor readings, actuation) is visible to any 802.15.4 receiver in range of the network.' `
+            -Fix 'Enable Zigbee network-layer security (AES-128 CCM*). All NWK frames must carry zbee_nwk.fcf.security=1.'))
+    }
+
+    # APS Transport Key in the air (network key broadcast -- CRITICAL)
+    $tkeys = @(Invoke-TcpkTsharkQuery @q -Filter 'zbee_aps.cmd.id == 0x05' `
+                  -Fields @('frame.number','zbee_nwk.src','zbee_nwk.dst') -Max 5)
+    if ($tkeys.Count) {
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.zigbee-transport-key' -Severity 'CRITICAL' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-321', 'CWE-319') `
+            -Title 'Zigbee network key (Transport Key) broadcast captured -- entire network decryptable' `
+            -Evidence "frame $($tkeys[0].'frame.number'): APS Transport Key from $($tkeys[0].'zbee_nwk.src') to $($tkeys[0].'zbee_nwk.dst')" `
+            -Description "The Zigbee network key was distributed over the air via an APS Transport Key command. Any passive observer who captured this frame holds the network key and can decrypt all past and future Zigbee traffic in this network." `
+            -Fix 'Pre-provision the network key out-of-band (not over the air). If OTA key distribution is required, use CBKE (Certificate-Based Key Establishment) per Zigbee PRO spec. Rotate the network key after any suspected capture.'))
+    }
+
+    # IEEE 802.15.4 frames without MAC-layer security
+    $wpanUnsec = @(Invoke-TcpkTsharkQuery @q -Filter 'wpan and !wpan.fcf.security' `
+                      -Fields @('frame.number') -Max 5)
+
+    # Summary INFO finding (always emitted when Zigbee is present)
+    $detail = "zbee_nwk=$total; unencrypted=$($unenc.Count); transport-key=$($tkeys.Count); wpan-unsecured=$($wpanUnsec.Count)"
+    $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.zigbee-summary' -Severity 'INFO' `
+        -Confidence 'Confirmed (dynamic)' `
+        -Title "Zigbee / IEEE 802.15.4 traffic: $total NWK frames analysed" `
+        -Evidence $detail `
+        -Description 'Zigbee/IEEE 802.15.4 traffic was detected. See other Zigbee findings for security-relevant detections.' `
+        -Fix ''))
+
     return $out.ToArray()
 }
 
