@@ -4491,6 +4491,176 @@ $btnDepShowAll.Add_Click({ $script:DepRiskFilter = $false; Refresh-DepGrid })
 $btnDepRiskOnly.Add_Click({ $script:DepRiskFilter = $true; Refresh-DepGrid })
 $cmbDepFile.Add_KeyDown({ param($s,$e); if ($e.KeyCode -eq 'Return') { Build-DepTree } })
 
+# ---- Tab 21: Live Edit (real-time intercept + buffer modification) ----
+$tabLiveEdit = New-Object System.Windows.Forms.TabPage
+$tabLiveEdit.Text = ' Live Edit '
+$tabLiveEdit.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$tabs.TabPages.Add($tabLiveEdit)
+
+# Toolbar
+$leBar  = New-Object System.Windows.Forms.Panel; $leBar.Dock = 'Top'; $leBar.Height = 74
+$leBar.BackColor = [System.Drawing.Color]::FromArgb(35, 35, 35)
+
+$leRow1 = New-Object System.Windows.Forms.TableLayoutPanel
+$leRow1.Dock = 'Top'; $leRow1.Height = 37; $leRow1.ColumnCount = 4; $leRow1.RowCount = 1
+[void]$leRow1.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new('AutoSize'))
+[void]$leRow1.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new('AutoSize'))
+[void]$leRow1.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new('AutoSize'))
+[void]$leRow1.ColumnStyles.Add([System.Windows.Forms.ColumnStyle]::new('Percent', 100))
+
+$lblLeTitle = New-Object System.Windows.Forms.Label
+$lblLeTitle.Text = 'Intercept Mode  (pipe: \\.\pipe\tcpk_intercept)'; $lblLeTitle.ForeColor = [System.Drawing.Color]::Silver
+$lblLeTitle.AutoSize = $true; $lblLeTitle.Margin = [System.Windows.Forms.Padding]::new(8, 10, 8, 0)
+
+$btnLeStart = New-Object System.Windows.Forms.Button
+$btnLeStart.Text = 'Start Server'; $btnLeStart.Width = 100; $btnLeStart.Height = 26
+$btnLeStart.BackColor = [System.Drawing.Color]::FromArgb(0, 110, 55); $btnLeStart.ForeColor = [System.Drawing.Color]::White
+$btnLeStart.FlatStyle = 'Flat'; $btnLeStart.Margin = [System.Windows.Forms.Padding]::new(0, 5, 6, 5)
+
+$btnLeStop = New-Object System.Windows.Forms.Button
+$btnLeStop.Text = 'Stop Server'; $btnLeStop.Width = 100; $btnLeStop.Height = 26; $btnLeStop.Enabled = $false
+$btnLeStop.BackColor = [System.Drawing.Color]::FromArgb(90, 25, 25); $btnLeStop.ForeColor = [System.Drawing.Color]::White
+$btnLeStop.FlatStyle = 'Flat'; $btnLeStop.Margin = [System.Windows.Forms.Padding]::new(0, 5, 6, 5)
+
+$leRow1.Controls.Add($lblLeTitle, 0, 0); $leRow1.Controls.Add($btnLeStart, 1, 0); $leRow1.Controls.Add($btnLeStop, 2, 0)
+
+$leRow2 = New-Object System.Windows.Forms.Panel; $leRow2.Dock = 'Top'; $leRow2.Height = 28
+$leRow2.BackColor = [System.Drawing.Color]::FromArgb(35, 35, 35)
+$lblLeStatus = New-Object System.Windows.Forms.Label
+$lblLeStatus.Text = 'Pipe server not running. Click Start Server, then attach frida with tcpk_hook.js to the target process.'
+$lblLeStatus.ForeColor = [System.Drawing.Color]::Gray; $lblLeStatus.Dock = 'Fill'
+$lblLeStatus.TextAlign = 'MiddleLeft'; $lblLeStatus.Padding = [System.Windows.Forms.Padding]::new(8, 0, 0, 0)
+$leRow2.Controls.Add($lblLeStatus)
+
+$leBar.Controls.Add($leRow2); $leBar.Controls.Add($leRow1)
+$tabLiveEdit.Controls.Add($leBar)
+
+# Split: editor (top) + action bar (bottom)
+$leSplit = New-Object System.Windows.Forms.SplitContainer
+$leSplit.Dock = 'Fill'; $leSplit.Orientation = 'Horizontal'; $leSplit.SplitterDistance = 300
+$leSplit.Panel1MinSize = 80; $leSplit.Panel2MinSize = 44
+$leSplit.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+
+$leEdLabel = New-Object System.Windows.Forms.Label
+$leEdLabel.Text = 'Intercepted buffer (edit before forwarding):'; $leEdLabel.ForeColor = [System.Drawing.Color]::Gray
+$leEdLabel.Dock = 'Top'; $leEdLabel.Height = 20; $leEdLabel.Padding = [System.Windows.Forms.Padding]::new(6, 2, 0, 0)
+
+$txtLeEdit = New-Object System.Windows.Forms.RichTextBox
+$txtLeEdit.Dock = 'Fill'; $txtLeEdit.WordWrap = $false
+$txtLeEdit.Font = [System.Drawing.Font]::new('Consolas', 9.5)
+$txtLeEdit.BackColor = [System.Drawing.Color]::FromArgb(18, 20, 18); $txtLeEdit.ForeColor = [System.Drawing.Color]::FromArgb(200, 220, 200)
+$txtLeEdit.BorderStyle = 'None'; $txtLeEdit.Text = '(no packet intercepted yet)'
+
+$leSplit.Panel1.Controls.Add($txtLeEdit); $leSplit.Panel1.Controls.Add($leEdLabel)
+
+# Action bar
+$leActBar = New-Object System.Windows.Forms.FlowLayoutPanel
+$leActBar.Dock = 'Fill'; $leActBar.FlowDirection = 'LeftToRight'
+$leActBar.BackColor = [System.Drawing.Color]::FromArgb(35, 35, 35)
+$leActBar.Padding = [System.Windows.Forms.Padding]::new(6, 6, 0, 6)
+
+$btnLeForward = New-Object System.Windows.Forms.Button
+$btnLeForward.Text = 'Forward (modified)'; $btnLeForward.Width = 148; $btnLeForward.Height = 28; $btnLeForward.Enabled = $false
+$btnLeForward.BackColor = [System.Drawing.Color]::FromArgb(0, 90, 190); $btnLeForward.ForeColor = [System.Drawing.Color]::White
+$btnLeForward.FlatStyle = 'Flat'; $btnLeForward.Margin = [System.Windows.Forms.Padding]::new(0, 0, 8, 0)
+
+$btnLePass = New-Object System.Windows.Forms.Button
+$btnLePass.Text = 'Pass Through'; $btnLePass.Width = 110; $btnLePass.Height = 28; $btnLePass.Enabled = $false
+$btnLePass.BackColor = [System.Drawing.Color]::FromArgb(50, 70, 50); $btnLePass.ForeColor = [System.Drawing.Color]::White
+$btnLePass.FlatStyle = 'Flat'; $btnLePass.Margin = [System.Windows.Forms.Padding]::new(0, 0, 8, 0)
+
+$btnLeDrop = New-Object System.Windows.Forms.Button
+$btnLeDrop.Text = 'Drop'; $btnLeDrop.Width = 80; $btnLeDrop.Height = 28; $btnLeDrop.Enabled = $false
+$btnLeDrop.BackColor = [System.Drawing.Color]::FromArgb(110, 25, 25); $btnLeDrop.ForeColor = [System.Drawing.Color]::White
+$btnLeDrop.FlatStyle = 'Flat'; $btnLeDrop.Margin = [System.Windows.Forms.Padding]::new(0, 0, 8, 0)
+
+[void]$leActBar.Controls.Add($btnLeForward)
+[void]$leActBar.Controls.Add($btnLePass)
+[void]$leActBar.Controls.Add($btnLeDrop)
+$leSplit.Panel2.Controls.Add($leActBar)
+
+$tabLiveEdit.Controls.Add($leSplit); $leSplit.BringToFront()
+
+# Shared state
+$script:LeHandle  = $null   # pscustomobject returned by Start-TcpkInterceptPipe
+$script:LePending = $false  # $true when a packet is waiting for a decision
+
+# Poll timer: checks for incoming packets from the background pipe server
+$tmrLe = New-Object System.Windows.Forms.Timer; $tmrLe.Interval = 100
+
+$tmrLe.Add_Tick({
+    if ($null -eq $script:LeHandle) { return }
+    $st = $script:LeHandle.State
+    if (-not $script:LePending -and "$($st.Decision)" -eq 'PENDING') {
+        $script:LePending = $true
+        $raw = $st.PacketBytes
+        if ($null -ne $raw) {
+            $txtLeEdit.Text = [System.Text.Encoding]::Latin1.GetString($raw)
+            $lblLeStatus.Text = "PACKET INTERCEPTED -- $($raw.Length) bytes. Edit and click Forward, Pass Through, or Drop."
+            $lblLeStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 200, 60)
+        }
+        $btnLeForward.Enabled = $true; $btnLePass.Enabled = $true; $btnLeDrop.Enabled = $true
+    }
+    # Show connection status
+    if (-not $script:LePending -and $st.Connected -and "$($st.Decision)" -eq 'IDLE') {
+        if ($lblLeStatus.ForeColor.G -lt 150) {
+            $lblLeStatus.Text = 'Hook connected. Waiting for outbound traffic...'; $lblLeStatus.ForeColor = [System.Drawing.Color]::Silver
+        }
+    }
+})
+
+function _LeDecide {
+    param([string]$Decision, [byte[]]$ReplyBytes = $null)
+    if ($null -eq $script:LeHandle) { return }
+    $st = $script:LeHandle.State
+    $st.ReplyBytes  = $ReplyBytes
+    $st.Decision    = $Decision
+    $script:LePending = $false
+    $btnLeForward.Enabled = $false; $btnLePass.Enabled = $false; $btnLeDrop.Enabled = $false
+}
+
+$btnLeForward.Add_Click({
+    $bytes = [System.Text.Encoding]::Latin1.GetBytes($txtLeEdit.Text)
+    _LeDecide -Decision 'FORWARD' -ReplyBytes $bytes
+    $lblLeStatus.Text = "Forwarded modified ($($bytes.Length) bytes)"; $lblLeStatus.ForeColor = [System.Drawing.Color]::FromArgb(80, 200, 100)
+})
+
+$btnLePass.Add_Click({
+    _LeDecide -Decision 'PASSTHRU'
+    $lblLeStatus.Text = 'Passed through (original unchanged)'; $lblLeStatus.ForeColor = [System.Drawing.Color]::Silver
+})
+
+$btnLeDrop.Add_Click({
+    _LeDecide -Decision 'DROP'
+    $lblLeStatus.Text = 'Dropped (hook sends 0 bytes)'; $lblLeStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 90, 90)
+})
+
+$btnLeStart.Add_Click({
+    if ($null -ne $script:LeHandle) { return }
+    $mod = @(Get-Module TCPK)[0]
+    if (-not $mod) { $lblLeStatus.Text = 'TCPK module not loaded.'; return }
+    try {
+        $script:LeHandle = & $mod { Start-TcpkInterceptPipe }
+        $btnLeStart.Enabled = $false; $btnLeStop.Enabled = $true
+        $tmrLe.Start()
+        $lblLeStatus.Text = 'Pipe server running. Attach frida to the target process with tcpk_hook.js.'
+        $lblLeStatus.ForeColor = [System.Drawing.Color]::FromArgb(80, 200, 100)
+    } catch {
+        $lblLeStatus.Text = "Failed to start pipe server: $($_.Exception.Message)"; $lblLeStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 90, 90)
+    }
+})
+
+$btnLeStop.Add_Click({
+    if ($null -eq $script:LeHandle) { return }
+    $tmrLe.Stop()
+    $h = $script:LeHandle; $script:LeHandle = $null; $script:LePending = $false
+    $mod = @(Get-Module TCPK)[0]
+    if ($mod) { try { & $mod { param($hh) Stop-TcpkInterceptPipe -Handle $hh } $h } catch { } }
+    $btnLeStart.Enabled = $true; $btnLeStop.Enabled = $false
+    $btnLeForward.Enabled = $false; $btnLePass.Enabled = $false; $btnLeDrop.Enabled = $false
+    $lblLeStatus.Text = 'Pipe server stopped.'; $lblLeStatus.ForeColor = [System.Drawing.Color]::Gray
+})
+
 $btnGraphBuild.Add_Click({
     if (-not $script:CurrentOutDir) { $lblGraphStatus.Text = "No audit output -- run an audit first (Audit tab)."; return }
     $jsonPath = Join-Path $script:CurrentOutDir 'findings.json'

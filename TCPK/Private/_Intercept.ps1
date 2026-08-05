@@ -297,7 +297,7 @@ function ConvertFrom-TcpkHookCapture {
         $ix = "$line".IndexOf('TCPKHOOK ')
         if ($ix -lt 0) { continue }
         $rec = $null; try { $rec = ("$line".Substring($ix + 9)) | ConvertFrom-Json } catch { continue }
-        if ("$($rec.dir)" -eq 'meta') { continue }
+        if ("$($rec.dir)" -eq 'meta' -or "$($rec.dir)" -eq 'intercept') { continue }
         $data = "$($rec.data)"; if (-not $data) { continue }
         $func = "$($rec.func)"
         if ($tlsFuncs -contains $func) { $tlsSeen = $true }
@@ -365,4 +365,121 @@ function ConvertFrom-TcpkHookCapture {
             -Fix 'Recognize that client-side TLS / pinning does not defend against local code execution; minimize what the client can access and protect secrets at rest.'))
     }
     return $findings.ToArray()
+}
+
+# ---- Intercept edit pipe (Gap 2 fix: synchronous buffer modification) ----
+# The TCPK GUI calls Start-TcpkInterceptPipe to create \\.\pipe\tcpk_intercept.
+# The Frida hook (tcpk_hook.js) connects on its first send call and offers each
+# outbound buffer for modification before the OS call completes.
+#
+# State hashtable keys (synchronized -- safe to read/write from any thread):
+#   PacketBytes  - byte[] of the pending packet (set by server, read by GUI)
+#   Decision     - 'IDLE'|'PENDING'|'FORWARD'|'PASSTHRU'|'DROP'
+#   ReplyBytes   - byte[] of modified content (used when Decision = 'FORWARD')
+#   Connected    - $true once the Frida hook has connected to the pipe
+#   Stop         - set to $true to shut the server down
+
+function Start-TcpkInterceptPipe {
+    $state = [hashtable]::Synchronized(@{
+        PacketBytes = $null
+        Decision    = 'IDLE'
+        ReplyBytes  = $null
+        Connected   = $false
+        Stop        = $false
+    })
+
+    $rs = [runspacefactory]::CreateRunspace()
+    $rs.ApartmentState = 'MTA'
+    $rs.ThreadOptions  = 'UseNewThread'
+    $rs.Open()
+
+    $ps = [PowerShell]::Create()
+    $ps.Runspace = $rs
+    [void]$ps.AddScript({
+        param($State)
+        $pipe = $null
+        try {
+            $pipe = [System.IO.Pipes.NamedPipeServerStream]::new(
+                'tcpk_intercept',
+                [System.IO.Pipes.PipeDirection]::InOut,
+                1,
+                [System.IO.Pipes.PipeTransmissionMode]::Byte,
+                [System.IO.Pipes.PipeOptions]::Asynchronous)
+            # Non-blocking WaitForConnection so we can honour $State.Stop
+            $iar = $pipe.BeginWaitForConnection($null, $null)
+            while (-not $State.Stop) {
+                if ($iar.AsyncWaitHandle.WaitOne(500)) { $pipe.EndWaitForConnection($iar); break }
+            }
+            if ($State.Stop) { return }
+            $State.Connected = $true
+            $lenBuf = [byte[]]::new(4)
+            while (-not $State.Stop) {
+                # Read 4-byte LE length prefix
+                $rd = 0; $ok = $true
+                while ($rd -lt 4) {
+                    try { $n = $pipe.Read($lenBuf, $rd, 4 - $rd) } catch { $ok = $false; break }
+                    if ($n -eq 0) { $ok = $false; break }
+                    $rd += $n
+                }
+                if (-not $ok -or $State.Stop) { break }
+                $msgLen = [uint32][BitConverter]::ToUInt32($lenBuf, 0)
+                if ($msgLen -eq 0 -or $msgLen -gt 1048576) { continue }
+                # Read data
+                $data = [byte[]]::new([int]$msgLen); $rd2 = 0
+                while ($rd2 -lt [int]$msgLen) {
+                    try { $n = $pipe.Read($data, $rd2, [int]$msgLen - $rd2) } catch { break }
+                    if ($n -eq 0) { break }
+                    $rd2 += $n
+                }
+                if ($State.Stop) { break }
+                # Signal GUI: packet pending
+                $State.ReplyBytes  = $null
+                $State.PacketBytes = $data
+                $State.Decision    = 'PENDING'
+                # Wait for GUI to resolve (max 30 s, then pass through)
+                $deadline = [Environment]::TickCount + 30000
+                while ($State.Decision -eq 'PENDING' -and -not $State.Stop) {
+                    Start-Sleep -Milliseconds 50
+                    if (([Environment]::TickCount - $deadline) -gt 0) { $State.Decision = 'PASSTHRU' }
+                }
+                # Send reply to hook
+                switch ($State.Decision) {
+                    'DROP' {
+                        $rl = [BitConverter]::GetBytes([uint32]0)
+                        $pipe.Write($rl, 0, 4)
+                    }
+                    'FORWARD' {
+                        $rb = $State.ReplyBytes
+                        if ($null -eq $rb -or $rb.Length -eq 0) { $rb = $data }
+                        $rl = [BitConverter]::GetBytes([uint32]$rb.Length)
+                        $pipe.Write($rl, 0, 4); $pipe.Write($rb, 0, $rb.Length)
+                    }
+                    default {
+                        # PASSTHRU: echo original unchanged
+                        $rl = [BitConverter]::GetBytes([uint32]$data.Length)
+                        $pipe.Write($rl, 0, 4); $pipe.Write($data, 0, $data.Length)
+                    }
+                }
+                try { $pipe.Flush() } catch { }
+                $State.Decision = 'IDLE'
+            }
+        } catch { }
+        finally { if ($null -ne $pipe) { try { $pipe.Dispose() } catch { } } }
+    })
+    [void]$ps.AddParameter('State', $state)
+    [void]$ps.BeginInvoke()
+
+    return [pscustomobject]@{ Runspace = $rs; PowerShell = $ps; State = $state }
+}
+
+function Stop-TcpkInterceptPipe {
+    param([pscustomobject]$Handle)
+    if ($null -eq $Handle) { return }
+    try { $Handle.State.Stop     = $true     } catch { }
+    try { $Handle.State.Decision = 'PASSTHRU' } catch { }  # unblock any waiting server loop
+    Start-Sleep -Milliseconds 700
+    try { $Handle.PowerShell.Stop()    } catch { }
+    try { $Handle.PowerShell.Dispose() } catch { }
+    try { $Handle.Runspace.Close()     } catch { }
+    try { $Handle.Runspace.Dispose()   } catch { }
 }

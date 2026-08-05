@@ -46,15 +46,96 @@ function resolveExport(mod, name) {
     return null;
 }
 
+// ---- Intercept channel (synchronous buffer modification via named pipe) ----------
+// When the TCPK GUI starts the pipe server (\\.\pipe\tcpk_intercept), each outbound
+// buffer is offered for modification before the send call completes. No server running
+// -> falls back to read-only emit with zero overhead (pipe open fails, flag is set once).
+// Protocol: write [uint32 len LE][data bytes], read back [uint32 len LE][data bytes].
+// Reply len == 0 means drop; any other length means forward (possibly modified) content.
+
+var _iPipe = null;   // null = uninit, ptr(0) = unavailable, handle = connected
+var _iWF   = null;   // NativeFunction: WriteFile
+var _iRF   = null;   // NativeFunction: ReadFile
+var _iPeek = null;   // NativeFunction: PeekNamedPipe
+
+function _iPipeInit() {
+    if (_iPipe !== null) { return; }
+    try {
+        var k32 = 'kernel32.dll';
+        var aCFW = Module.findExportByName(k32, 'CreateFileW');
+        var aWF  = Module.findExportByName(k32, 'WriteFile');
+        var aRF  = Module.findExportByName(k32, 'ReadFile');
+        var aPNP = Module.findExportByName(k32, 'PeekNamedPipe');
+        if (!aCFW || !aWF || !aRF || !aPNP) { _iPipe = ptr(0); return; }
+        _iWF   = new NativeFunction(aWF,  'int', ['pointer','pointer','uint32','pointer','pointer']);
+        _iRF   = new NativeFunction(aRF,  'int', ['pointer','pointer','uint32','pointer','pointer']);
+        _iPeek = new NativeFunction(aPNP, 'int', ['pointer','pointer','uint32','pointer','pointer','pointer']);
+        var CFW = new NativeFunction(aCFW, 'pointer', ['pointer','uint32','uint32','pointer','uint32','uint32','pointer']);
+        var INVAL = ptr(Process.pointerSize === 8 ? '0xFFFFFFFFFFFFFFFF' : '0xFFFFFFFF');
+        var pn = Memory.allocUtf16String('\\\\.\\pipe\\tcpk_intercept');
+        var h  = CFW(pn, 0xC0000000, 0, ptr(0), 3, 0x80, ptr(0));
+        _iPipe = (!h.isNull() && !h.equals(INVAL)) ? h : ptr(0);
+    } catch (e) { _iPipe = ptr(0); }
+}
+
+// Offer a latin1 string to the intercept pipe. Returns null (no pipe / timeout),
+// '' (drop), or the modified latin1 string. timeoutMs caps how long the hook blocks.
+function _iPipeExchange(text, timeoutMs) {
+    _iPipeInit();
+    if (_iPipe.isNull() || _iPipe.equals(ptr(0))) { return null; }
+    try {
+        var bytes = new Uint8Array(text.length);
+        for (var i = 0; i < text.length; i++) { bytes[i] = text.charCodeAt(i) & 0xFF; }
+        var hdr = Memory.alloc(4); hdr.writeU32(bytes.length);
+        var dat = Memory.alloc(bytes.length + 1);
+        for (var j = 0; j < bytes.length; j++) { dat.add(j).writeU8(bytes[j]); }
+        var pW = Memory.alloc(4);
+        if (_iWF(_iPipe, hdr, 4, pW, ptr(0)) === 0) { _iPipe = ptr(0); return null; }
+        if (bytes.length > 0 && _iWF(_iPipe, dat, bytes.length, pW, ptr(0)) === 0) { _iPipe = ptr(0); return null; }
+        // Poll for reply: 50 ms steps up to timeoutMs
+        var pAvail = Memory.alloc(4); var rbuf = Memory.alloc(4); var pR = Memory.alloc(4);
+        var polls = Math.ceil(timeoutMs / 50);
+        for (var t = 0; t < polls; t++) {
+            pAvail.writeU32(0);
+            if (_iPeek(_iPipe, ptr(0), 0, ptr(0), pAvail, ptr(0)) && pAvail.readU32() >= 4) {
+                _iRF(_iPipe, rbuf, 4, pR, ptr(0));
+                var rLen = rbuf.readU32();
+                if (rLen === 0) { return ''; }
+                var rdat = Memory.alloc(rLen);
+                _iRF(_iPipe, rdat, rLen, pR, ptr(0));
+                var s = ''; for (var k = 0; k < rLen; k++) { s += String.fromCharCode(rdat.add(k).readU8()); }
+                return s;
+            }
+            Thread.sleep(0.05);
+        }
+    } catch (e) { _iPipe = ptr(0); }
+    return null;  // timeout: pass through
+}
+
 // Send-direction: buffer + length are available on entry (idxBuf, idxLen are arg indexes).
+// When the intercept pipe is connected, the buffer is offered for modification before
+// the call completes; falls back to read-only emit if no pipe server is running.
 function hookSend(mod, name, idxBuf, idxLen) {
     var addr = resolveExport(mod, name);
     if (!addr) { return; }
     try {
         Interceptor.attach(addr, {
             onEnter: function (args) {
-                var t = readText(args[idxBuf], args[idxLen].toInt32());
-                if (t) { emit({ dir: 'send', func: name, len: t.length, data: t }); }
+                var len = args[idxLen].toInt32();
+                var t = readText(args[idxBuf], len);
+                if (!t) { return; }
+                emit({ dir: 'send', func: name, len: t.length, data: t });
+                var m = _iPipeExchange(t, 2000);
+                if (m === null) { return; }  // no pipe or timeout: pass through unchanged
+                if (m.length === 0) {
+                    args[idxLen] = ptr(0);
+                    emit({ dir: 'intercept', func: name, len: 0, data: '[DROPPED]' });
+                } else {
+                    var wl = Math.min(m.length, len);
+                    for (var i = 0; i < wl; i++) { args[idxBuf].add(i).writeU8(m.charCodeAt(i) & 0xFF); }
+                    if (wl < len) { args[idxLen] = ptr(wl); }
+                    emit({ dir: 'intercept', func: name, len: wl, data: m.substring(0, wl) });
+                }
             }
         });
     } catch (e) { }
@@ -125,6 +206,71 @@ function readSecBuffers(pDesc, name, dir) {
     } catch (e) { }
 }
 
+// ---- WSASend / WSARecv (Gap 1 fix: .NET overlapped-I/O coverage) ----------------
+// .NET Socket uses WSASend/WSARecv (scatter-gather, overlapped) rather than send/recv.
+// WSABUF struct: { ULONG len [4B] + padding [(ptrSize-4)B] + CHAR* buf [ptrSize B] }
+// Stride = 2 * pointerSize (8 on x86, 16 on x64).
+// WSARecv: only synchronous completions (retval == 0) are captured; WSA_IO_PENDING
+// means async I/O -- the filled buffers land via the completion port and are not hooked.
+
+var _WBP = Process.pointerSize;
+var _WBS = 2 * _WBP;
+
+function _emitWSABufs(pBufs, nBufs, fname, fdir) {
+    try {
+        if (!pBufs || pBufs.isNull() || nBufs <= 0 || nBufs > 64) { return; }
+        for (var i = 0; i < nBufs; i++) {
+            var e = pBufs.add(i * _WBS);
+            var blen = e.readU32(); var bptr = e.add(_WBP).readPointer();
+            if (blen > 0 && bptr && !bptr.isNull()) {
+                var t = readText(bptr, blen); if (t) { emit({ dir: fdir, func: fname, len: t.length, data: t }); }
+            }
+        }
+    } catch (e2) { }
+}
+
+// WSASend(s, lpBuffers, dwBufferCount, lpNumberOfBytesSent, dwFlags, lpOverlapped, lpCompletion)
+function hookWSASend() {
+    var addr = resolveExport('ws2_32.dll', 'WSASend');
+    if (!addr) { return; }
+    try {
+        Interceptor.attach(addr, {
+            onEnter: function (args) { _emitWSABufs(args[1], args[2].toInt32(), 'WSASend', 'send'); }
+        });
+    } catch (e) { }
+}
+
+// WSARecv(s, lpBuffers, dwBufferCount, lpNumberOfBytesRecvd, lpFlags, lpOverlapped, lpCompletion)
+function hookWSARecv() {
+    var addr = resolveExport('ws2_32.dll', 'WSARecv');
+    if (!addr) { return; }
+    try {
+        Interceptor.attach(addr, {
+            onEnter: function (args) {
+                this.pBufs = args[1]; this.nBufs = args[2].toInt32(); this.pGot = args[3];
+            },
+            onLeave: function (retval) {
+                if (retval.toInt32() !== 0) { return; }  // async (WSA_IO_PENDING=997) or error
+                try {
+                    var got = (this.pGot && !this.pGot.isNull()) ? this.pGot.readU32() : 0;
+                    if (got <= 0 || !this.pBufs || this.pBufs.isNull()) { return; }
+                    var left = got;
+                    for (var i = 0; i < this.nBufs && left > 0; i++) {
+                        var e = this.pBufs.add(i * _WBS);
+                        var cap = e.readU32(); var buf = e.add(_WBP).readPointer();
+                        var n = Math.min(cap, left);
+                        if (n > 0 && buf && !buf.isNull()) {
+                            var t = readText(buf, n);
+                            if (t) { emit({ dir: 'recv', func: 'WSARecv', len: t.length, data: t }); }
+                            left -= n;
+                        }
+                    }
+                } catch (e2) { }
+            }
+        });
+    } catch (e) { }
+}
+
 // idxMsg = argument index of the PSecBufferDesc; decrypt reads it on return (post-decrypt).
 function hookSchannel(name, idxMsg, decrypt) {
     var addr = resolveExport('secur32.dll', name);
@@ -165,5 +311,8 @@ hookRecv(null, 'SSL_read', 1);
 hookSend(null, 'send', 1, 2);
 hookRecv(null, 'recv', 1);
 hookSend(null, 'write', 1, 2);
+// Gap 1 fix: WSA scatter-gather (.NET overlapped-I/O coverage)
+hookWSASend();
+hookWSARecv();
 
 emit({ dir: 'meta', func: 'init', len: 0, data: 'tcpk hook installed' });
