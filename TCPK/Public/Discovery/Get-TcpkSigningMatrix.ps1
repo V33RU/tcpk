@@ -40,6 +40,16 @@ function Get-TcpkSigningMatrix {
     $isMsixDir = $item.PSIsContainer -and (Test-Path -LiteralPath (Join-Path $item.FullName 'AppxManifest.xml'))
 
     $peAll = @(Get-TcpkPeFiles -Path $Path)
+
+    # Detect duplicate leaf names (e.g. 50+ locale copies of *.resources.dll).
+    # When a name appears more than once, the DLL column shows parentDir\name so
+    # every row is distinguishable without requiring the viewer to open the Path column.
+    $nameCounts = @{}
+    foreach ($pe in $peAll) {
+        if (-not $nameCounts.ContainsKey($pe.Name)) { $nameCounts[$pe.Name] = 0 }
+        $nameCounts[$pe.Name]++
+    }
+
     $mIdx = 0
     foreach ($pe in $peAll) {
         # Same CRL/OCSP exposure as Test-TcpkSignature: chain building can block per file.
@@ -92,8 +102,12 @@ function Get-TcpkSigningMatrix {
             $signed = 'CATALOG'; $status = 'CATALOG'
         }
 
+        $dllLabel = if ($nameCounts[$pe.Name] -gt 1) {
+            "$($pe.Directory.Name)\$($pe.Name)"
+        } else { $pe.Name }
+
         [pscustomobject]@{
-            DLL        = $pe.Name
+            DLL        = $dllLabel
             Signed     = $signed
             Status     = $status
             Signer     = $signer
