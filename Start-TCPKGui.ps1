@@ -2183,6 +2183,28 @@ function Get-GuiHexStrings([string]$path, [int]$min, [string]$filter, [string]$k
     $items = @($hits | Sort-Object offset)
     return @{ items = $items; total = $total; capped = [bool]($total -gt $items.Count) }
 }
+function _HexStrCat([string]$v) {
+    if ($v -match '(?i)https?://|ftp://') {
+        return @{ cat = 'URL';      fg = [System.Drawing.Color]::FromArgb(86,  182, 194) }
+    }
+    if ($v -match '(?i)HKEY_|HKLM\\|HKCU\\|HKLM/|HKCU/') {
+        return @{ cat = 'Registry'; fg = [System.Drawing.Color]::FromArgb(255, 200, 120) }
+    }
+    if ($v -match '(?i)(cmd(\.exe)?[\s/]|powershell|wscript|cscript|rundll32|regsvr32|mshta|certutil|bitsadmin)') {
+        return @{ cat = 'Exec';     fg = [System.Drawing.Color]::FromArgb(255, 140, 140) }
+    }
+    if ($v -match '(?i)^[A-Za-z]:\\|^\\\\[^\\]|\.(exe|dll|sys|ocx|bat|ps1|vbs|js)$') {
+        return @{ cat = 'Path/PE';  fg = [System.Drawing.Color]::FromArgb(255, 220,  80) }
+    }
+    if ($v -match '\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b') {
+        return @{ cat = 'IP';       fg = [System.Drawing.Color]::FromArgb(180, 230, 180) }
+    }
+    if ($v -match '(?i)\b(SELECT|INSERT|UPDATE|DELETE|DROP\s+TABLE|CREATE\s+TABLE)\b') {
+        return @{ cat = 'SQL';      fg = [System.Drawing.Color]::FromArgb(200, 160, 220) }
+    }
+    return @{ cat = '-';            fg = [System.Drawing.Color]::FromArgb(214, 220, 228) }
+}
+
 # Button handler: scan, fill the results list, show it.
 function Do-GuiHexStrings {
     $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHexSInfo.Text = 'load a file first'; return }
@@ -2194,8 +2216,10 @@ function Do-GuiHexStrings {
     if ($r.error) { $lblHexSInfo.Text = $r.error; return }
     $pnlStrWrap.Visible = $true; $lvHexStr.BeginUpdate(); $lvHexStr.Items.Clear()
     foreach ($x in $r.items) {
+        $cat = _HexStrCat $x.text
         $it = New-Object System.Windows.Forms.ListViewItem("0x$([Convert]::ToString([int64]$x.offset,16))")
-        [void]$it.SubItems.Add($x.kind); [void]$it.SubItems.Add($x.text); $it.Tag = [int64]$x.offset
+        [void]$it.SubItems.Add($x.kind); [void]$it.SubItems.Add($cat.cat); [void]$it.SubItems.Add($x.text)
+        $it.Tag = [int64]$x.offset; $it.ForeColor = $cat.fg
         [void]$lvHexStr.Items.Add($it)
     }
     $lvHexStr.EndUpdate()
@@ -2804,7 +2828,8 @@ $lvHexStr = New-Object System.Windows.Forms.ListView
 $lvHexStr.Dock = 'Fill'
 $lvHexStr.View = 'Details'; $lvHexStr.FullRowSelect = $true; $lvHexStr.GridLines = $false; $lvHexStr.HeaderStyle = 'Nonclickable'; $lvHexStr.MultiSelect = $false
 $lvHexStr.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexStr.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lvHexStr.Font = New-Object System.Drawing.Font('Consolas', 9)
-[void]$lvHexStr.Columns.Add('Offset', 90); [void]$lvHexStr.Columns.Add('K', 34); [void]$lvHexStr.Columns.Add('String (click to jump)', 1200)
+[void]$lvHexStr.Columns.Add('Offset', 90); [void]$lvHexStr.Columns.Add('K', 34)
+[void]$lvHexStr.Columns.Add('Category', 100); [void]$lvHexStr.Columns.Add('String (click to jump)', 1060)
 $pnlStrWrap.Controls.Add($lvHexStr); $lvHexStr.BringToFront()
 $hexCenter.Controls.Add($pnlStrWrap)
 # Entropy heatmap strip (whole-file minimap, click to jump)
@@ -2913,17 +2938,20 @@ $btnPdAnalyze.Add_Click({
 # PE overlay toggle
 $btnHexPe.Add_Click({
     $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblHex.Text = 'load a file first'; return }
+    # Toggle off: return to plain hex view
     if ($script:HexPeOverlay) {
         $script:HexPeOverlay = $false; $script:HexPeMap = $null
         $btnHexPe.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
         $cmbHexMode.SelectedIndex = 0; Load-GuiHex $script:HexOffset; return
     }
+    # Load PE section map for hex color overlay
     $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor; [System.Windows.Forms.Application]::DoEvents()
     $pm = Get-GuiPeMap $p
     $form.Cursor = [System.Windows.Forms.Cursors]::Default
     if (-not $pm) { $lblHex.Text = 'not a valid PE file'; return }
     $script:HexPeMap = $pm; $script:HexPeOverlay = $true
     $btnHexPe.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+    # Fill PE Map list (used by PE Map mode)
     $lvHexPe.BeginUpdate(); $lvHexPe.Items.Clear()
     $hit = New-Object System.Windows.Forms.ListViewItem('Headers')
     [void]$hit.SubItems.Add('0x0'); [void]$hit.SubItems.Add("0x$($pm.HeaderEnd.ToString('x'))"); [void]$hit.SubItems.Add('0x0')
@@ -2938,7 +2966,10 @@ $btnHexPe.Add_Click({
     $lvHexPeImp.BeginUpdate(); $lvHexPeImp.Items.Clear()
     foreach ($imp in $pm.Imports) { [void]$lvHexPeImp.Items.Add($imp) }
     $lvHexPeImp.EndUpdate()
-    $cmbHexMode.SelectedIndex = 1; Load-GuiHex $script:HexOffset
+    # Switch to PE Detail mode and run full analysis
+    $cmbHexMode.SelectedIndex = 5
+    Load-GuiHex $script:HexOffset
+    Load-PeInfo $p
 })
 # PE section click -> jump to that file offset
 $lvHexPe.Add_Click({
@@ -2986,6 +3017,7 @@ $btnHexStrTog.Add_Click({
         $pnlStrWrap.Visible = $false; $btnHexStrTog.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
     } else {
         $pnlStrWrap.Visible = $true; $btnHexStrTog.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+        Do-GuiHexStrings
     }
 })
 # Hash button: compute + copy to clipboard
