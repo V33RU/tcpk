@@ -84,7 +84,17 @@ $form.Size = New-Object System.Drawing.Size(1200, 800)
 $form.StartPosition = 'CenterScreen'
 $form.MinimumSize = New-Object System.Drawing.Size(1000, 640)
 $form.BackColor = [System.Drawing.Color]::FromArgb(250, 250, 250)
-$form.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+# Probe installed fonts inline so Cascadia Mono can be the default before any
+# controls are created (InstalledFontCollection is also loaded later for the picker).
+$script:DefaultFontName = try {
+    $_ifc = New-Object System.Drawing.Text.InstalledFontCollection
+    $_fns = $_ifc.Families | ForEach-Object { $_.Name }
+    $_ifc.Dispose()
+    if ($_fns -contains 'Cascadia Mono') { 'Cascadia Mono' }
+    elseif ($_fns -contains 'Cascadia Code') { 'Cascadia Code' }
+    else { 'Consolas' }
+} catch { 'Consolas' }
+$form.Font = New-Object System.Drawing.Font($script:DefaultFontName, 10)
 
 # Window / taskbar icon (assets\tcpk.ico). Replace that file to rebrand.
 $script:TcpkAssets = Join-Path $PSScriptRoot 'assets'
@@ -331,7 +341,12 @@ $cmbFont.Location = New-Object System.Drawing.Point(52, 108); $cmbFont.Size = Ne
 $cmbFont.DropDownStyle = 'DropDownList'
 $cmbFont.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbFont.ForeColor = [System.Drawing.Color]::White
 $codingFonts | ForEach-Object { [void]$cmbFont.Items.Add($_) }
-$cmbFont.SelectedItem = $(if ($codingFonts -contains 'Fira Code') { 'Fira Code' } elseif ($codingFonts -contains 'Cascadia Code') { 'Cascadia Code' } else { 'Consolas' })
+$cmbFont.SelectedItem = $(
+    if ($codingFonts -contains 'Cascadia Mono')  { 'Cascadia Mono' }
+    elseif ($codingFonts -contains 'Cascadia Code') { 'Cascadia Code' }
+    elseif ($codingFonts -contains 'Fira Code')  { 'Fira Code' }
+    else { 'Consolas' }
+)
 $cmbFont.Add_SelectedIndexChanged({ Apply-UiFont })
 $topPanel.Controls.Add($cmbFont)
 
@@ -1043,14 +1058,33 @@ $btnBrowseA.Text = "Browse..."; $btnBrowseA.Location = New-Object System.Drawing
 $btnBrowseA.FlatStyle = 'Flat'; $btnBrowseA.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnBrowseA.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $btnBrowseA.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $ctlA.Controls.Add($btnBrowseA)
-# Resize handler: keeps Browse button flush to the right, exe box fills the gap.
+# Single SizeChanged on $ctlA handles everything: Browse button, exe text box,
+# group box width, tamper bar, and both action buttons.
+# $ctlA is Dock=Top so its SizeChanged fires reliably when the form resizes.
+# $gbTraffic has no Right-anchor; its width is set explicitly here instead, which
+# avoids the WinForms bug where Anchor snapshots the wrong parent width at startup.
 $ctlA.Add_SizeChanged({
     $cw = $ctlA.ClientSize.Width
-    $bw = 88; $rm = 10
-    $bx = $cw - $bw - $rm
+    if ($cw -lt 200) { return }
+
+    # App exe row
+    $browsW = 88; $rm = 10
+    $bx = $cw - $browsW - $rm
     $btnBrowseA.Location = New-Object System.Drawing.Point($bx, 3)
     $tw = $bx - 8 - 336
     if ($tw -gt 60) { $txtExeA.Size = New-Object System.Drawing.Size($tw, 24) }
+
+    # Group box spans the full panel width
+    $gbw = $cw - 20
+    $gbTraffic.Size = New-Object System.Drawing.Size($gbw, 80)
+
+    # Tamper bar and stacked buttons inside the group box
+    $btnW = 156; $btnRm = 12
+    $bbx  = $gbw - $btnW - $btnRm
+    $btnCap.Location  = New-Object System.Drawing.Point($bbx, 16)
+    $btnLoad.Location = New-Object System.Drawing.Point($bbx, 48)
+    $ttw = $bbx - 8 - 350
+    if ($ttw -gt 60) { $txtTamper.Size = New-Object System.Drawing.Size($ttw, 24) }
 })
 $btnBrowseA.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog
@@ -1066,7 +1100,7 @@ $gbTraffic = New-Object System.Windows.Forms.GroupBox
 $gbTraffic.Text = "Traffic interception (mitmproxy)"; $gbTraffic.ForeColor = [System.Drawing.Color]::White
 $gbTraffic.Location = New-Object System.Drawing.Point(10,36)
 $gbTraffic.Size = New-Object System.Drawing.Size(600,80)
-$gbTraffic.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
+$gbTraffic.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $ctlA.Controls.Add($gbTraffic)
 
 $lblMode = New-Object System.Windows.Forms.Label; $lblMode.Text = "Mode:"; $lblMode.ForeColor = [System.Drawing.Color]::White; $lblMode.Location = New-Object System.Drawing.Point(10,26); $lblMode.Size = New-Object System.Drawing.Size(44,18); $gbTraffic.Controls.Add($lblMode)
@@ -1099,16 +1133,6 @@ $btnLoad.Size = New-Object System.Drawing.Size(156,28); $btnLoad.Location = New-
 $btnLoad.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $btnLoad.FlatStyle = 'Flat'; $btnLoad.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnLoad.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbTraffic.Controls.Add($btnLoad)
 
-# Resize handler: stacks buttons at right edge, tamper bar fills the gap.
-$gbTraffic.Add_SizeChanged({
-    $cw = $gbTraffic.ClientSize.Width
-    $bw = 156; $rm = 10
-    $bx = $cw - $bw - $rm
-    $btnCap.Location  = New-Object System.Drawing.Point($bx, 16)
-    $btnLoad.Location = New-Object System.Drawing.Point($bx, 48)
-    $tw = $bx - 8 - 350
-    if ($tw -gt 60) { $txtTamper.Size = New-Object System.Drawing.Size($tw, 24) }
-})
 $btnCap.Add_Click({
     if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
     $exe = $txtExeA.Text.Trim()
@@ -5920,27 +5944,21 @@ function Apply-ModernStyle {
 }
 
 function Apply-UiFont {
-    $name = "$($cmbFont.SelectedItem)"; if (-not $name) { $name = 'Consolas' }
+    $name = "$($cmbFont.SelectedItem)"; if (-not $name) { $name = $script:DefaultFontName }
+    if (-not $name) { $name = 'Cascadia Mono' }
     $size = try { [single]$cmbSize.SelectedItem } catch { 10 }
     if ($size -lt 7) { $size = 10 }
     $script:UiFontName = $name; $script:UiFontSize = $size
     try {
         $f = New-Object System.Drawing.Font($name, $size)
-        # All known monospace families -- any control currently using one of these
-        # gets the new selection.  Proportional-font controls (Segoe UI labels,
-        # buttons, etc.) are not touched.
-        $monoNames = [System.Collections.Generic.HashSet[string]]([System.StringComparer]::OrdinalIgnoreCase)
-        @('Consolas','Lucida Console','Courier New','Courier',
-          'Fira Code','FiraCode Nerd Font','Cascadia Code','Cascadia Mono',
-          'JetBrains Mono','JetBrainsMono Nerd Font','Hack','Hack Nerd Font',
-          'Source Code Pro','IBM Plex Mono','Inconsolata','Anonymous Pro',
-          'Ubuntu Mono','DejaVu Sans Mono','Meslo LG M','MesloLGM Nerd Font',
-          'Roboto Mono','Monaco','Menlo') | ForEach-Object { [void]$monoNames.Add($_) }
+        # Apply to every control in the tree -- "everywhere in the tool".
+        # $form.Font drives inherited controls; explicit-font controls are updated below.
+        $form.Font = $f
         $queue = [System.Collections.Generic.Queue[System.Windows.Forms.Control]]::new()
         $queue.Enqueue($form)
         while ($queue.Count -gt 0) {
             $ctl = $queue.Dequeue()
-            if ($ctl.Font -and $monoNames.Contains($ctl.Font.Name)) { $ctl.Font = $f }
+            $ctl.Font = $f
             foreach ($child in $ctl.Controls) { $queue.Enqueue($child) }
         }
     } catch { }
