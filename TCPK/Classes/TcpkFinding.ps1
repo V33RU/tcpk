@@ -29,6 +29,14 @@ class TcpkFinding {
     [string] $Cvss         # optional explicit CVSS v4.0 vector for THIS finding (e.g. a real NVD vector); else assigned by attack archetype at report time
     [string] $Fix          # one-line remediation suggestion
 
+    # --- reasoning audit trail ---
+    # Each entry is one line: "CAP{N}: {FROM}->{TO}; {evidence}" written by the
+    # scoring services (Resolve-TcpkImpact, Resolve-TcpkPreconditions, etc.).
+    # Silent suppression is as bad as a false positive; every downgrade is recorded.
+    [string[]] $AdjustmentLog = @()
+    # Rendered precondition states: "CONFIRMED|REFUTED|UNTESTED name: evidence"
+    [string[]] $Preconditions = @()
+
     # --- provenance ---
     [string] $Timestamp    # ISO-8601 UTC
 

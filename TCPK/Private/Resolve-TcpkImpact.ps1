@@ -33,6 +33,11 @@ function Resolve-TcpkImpact {
 .PARAMETER Candidate
     The proposed severity string (CRITICAL, HIGH, MEDIUM, LOW, INFO).
 
+.PARAMETER Log
+    Optional [ref] to a List[string] or ArrayList. Each downgrade appends one line:
+    "CAP1: {RuleId} {FROM}->{TO}; {reason}". Pass the same ref to accumulate entries
+    from multiple calls. Append to finding.AdjustmentLog after the call.
+
 .OUTPUTS
     [string] resolved severity
 #>
@@ -40,7 +45,8 @@ function Resolve-TcpkImpact {
     param(
         [Parameter(Mandatory)][string]$RuleId,
         [Parameter(Mandatory)][hashtable]$Facts,
-        [Parameter(Mandatory)][string]$Candidate
+        [Parameter(Mandatory)][string]$Candidate,
+        [ref]$Log
     )
 
     if ($Candidate -notin @('CRITICAL','HIGH','MEDIUM')) { return $Candidate }
@@ -95,14 +101,113 @@ function Resolve-TcpkImpact {
 
     if ($Candidate -in @('CRITICAL','HIGH') -and -not $supportsHigh) {
         $downgraded = 'MEDIUM'
-        Write-Verbose "[Resolve-TcpkImpact] $RuleId: $Candidate -> $downgraded (no measured high-impact fact)"
+        $reason = "no high-tier measured fact (facts supplied: $(($Facts.Keys | Sort-Object) -join ', '))"
+        Write-Verbose "[Resolve-TcpkImpact] $RuleId: $Candidate -> $downgraded; $reason"
+        if ($Log) { $Log.Value.Add("CAP1: $RuleId ${Candidate}->$downgraded; $reason") }
         return $downgraded
     }
     if ($Candidate -eq 'MEDIUM' -and -not $supportsMedium) {
-        Write-Verbose "[Resolve-TcpkImpact] $RuleId: MEDIUM -> INFO (no measured medium-impact fact)"
+        $reason = "no measured medium-impact fact"
+        Write-Verbose "[Resolve-TcpkImpact] $RuleId: MEDIUM -> INFO; $reason"
+        if ($Log) { $Log.Value.Add("CAP1: $RuleId MEDIUM->INFO; $reason") }
         return 'INFO'
     }
     return $Candidate
+}
+
+function Build-TcpkImpactSentences {
+<#
+.SYNOPSIS
+    Build only the impact sentences for facts that were actually measured.
+
+.DESCRIPTION
+    CAP1 - a finding must not name a thing it did not verify is present.
+    Pass the same facts hashtable from Resolve-TcpkImpact plus a template
+    map.  Only facts that are truthy (bool true, int > 0, non-empty string)
+    produce a sentence.  Facts with value 0 or $false are silently omitted -
+    their noun does not appear in the description.
+
+.PARAMETER Facts
+    The observed-facts hashtable (same one passed to Resolve-TcpkImpact).
+
+.PARAMETER Templates
+    Hashtable mapping fact key -> scriptblock: {param($v) "sentence for $v"}.
+    The scriptblock receives the measured value and returns a sentence string
+    (or empty string / $null to suppress even when the fact is truthy).
+
+.OUTPUTS
+    [string[]] - one sentence per truthy fact, in Templates iteration order.
+#>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][hashtable]$Facts,
+        [Parameter(Mandatory)][hashtable]$Templates
+    )
+    $out = [System.Collections.Generic.List[string]]::new()
+    foreach ($kv in $Templates.GetEnumerator()) {
+        $v = $Facts[$kv.Key]
+        if ($null -eq $v) { continue }
+        $truthy = ($v -is [bool] -and $v) -or
+                  ($v -is [int]  -and $v -gt 0) -or
+                  ($v -is [string] -and $v -ne '')
+        if (-not $truthy) { continue }
+        $sentence = & $kv.Value $v
+        if ($sentence) { $out.Add($sentence) }
+    }
+    return $out.ToArray()
+}
+
+function Get-TcpkSeverityAudit {
+<#
+.SYNOPSIS
+    Report raw vs. adjusted severity counts across a set of findings.
+
+.DESCRIPTION
+    Parses each finding's AdjustmentLog for "CAP*: {ID} {FROM}->{TO}" entries
+    to reconstruct the pre-adjustment severity.  Returns raw and adjusted counts
+    per severity level plus a flat list of all adjustment records.
+
+.OUTPUTS
+    [PSCustomObject] with RawCounts, AdjustedCounts, Adjustments, Total
+#>
+    [CmdletBinding()]
+    param([Parameter(Mandatory, ValueFromPipeline)][object[]]$Findings)
+
+    begin { $all = [System.Collections.Generic.List[object]]::new() }
+    process { foreach ($f in $Findings) { if ($f) { $all.Add($f) } } }
+    end {
+        $sevLevels = @('INFO','LOW','MEDIUM','HIGH','CRITICAL')
+        $raw = @{}; $adj = @{}
+        foreach ($s in $sevLevels) { $raw[$s] = 0; $adj[$s] = 0 }
+        $recs = [System.Collections.Generic.List[object]]::new()
+
+        foreach ($f in $all) {
+            $effective = "$($f.Severity)"
+            $adj[$effective]++
+            # Walk AdjustmentLog to find the FIRST (original) severity
+            $original = $effective
+            foreach ($entry in @($f.AdjustmentLog)) {
+                if ($entry -match 'CAP\d+: \S+ (\w+)->(\w+)') {
+                    $original = $Matches[1]  # first log entry = original proposed severity
+                    $recs.Add([pscustomobject]@{
+                        RuleId = "$($f.RuleId)"
+                        From   = $Matches[1]
+                        To     = $Matches[2]
+                        Entry  = $entry
+                    })
+                    break
+                }
+            }
+            $raw[$original]++
+        }
+
+        return [pscustomobject]@{
+            RawCounts      = $raw
+            AdjustedCounts = $adj
+            Adjustments    = $recs.ToArray()
+            Total          = $all.Count
+        }
+    }
 }
 
 function Get-TcpkImpactAudit {
