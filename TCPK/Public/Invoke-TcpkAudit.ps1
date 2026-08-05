@@ -717,6 +717,20 @@ function Invoke-TcpkAudit {
         }
     }
 
+    # --- Consistency check: suppress contradictory findings (CAP7) ---
+    # Detects pairs of findings whose claims cannot both hold (e.g. encryption
+    # is disabled but a finding claims DPAPI-encrypted exposure; or two rules
+    # disagree on signature status for the same binary). The finding with the
+    # stronger Basis survives; the weaker is suppressed and logged.
+    $beforeConsist = $all.Count
+    $consistent = @($all | Invoke-TcpkConsistencyCheck)
+    $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
+    foreach ($f in $consistent) { $all.Add($f) }
+    if ($all.Count -ne $beforeConsist) {
+        Write-Information -MessageData "  $beforeConsist -> $($all.Count) findings after consistency check" -InformationAction Continue
+        Write-TcpkLog -Level INFO -Component 'consistency' -Message "$beforeConsist -> $($all.Count) after consistency check" | Out-Null
+    }
+
     # --- CVE exposure: LIVE online lookup (OSV for NuGet/Electron, NVD for native). There is no
     #     offline catalog -- CVE matching runs only with -OnlineCve (needs network). Without it the
     #     step is skipped and the report states CVE data was not collected (never a false "clean"). ---

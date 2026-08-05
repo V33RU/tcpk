@@ -201,6 +201,6 @@ function Resolve-TcpkFindings {
         # 5) Redundancy correlation: fold IDENTICAL/CONTAINED/REFINED/DERIVED/COMPOSED
         #    findings (same subject, same dimension). Skipped when -NoCollapse.
         if ($NoAggregate) { foreach ($f in $uniq) { $f }; return }
-        _TcpkAggregate $uniq | Invoke-TcpkRedundancyCorrelation -NoCollapse:$NoCollapse
+        _TcpkAggregate $uniq | Invoke-TcpkRedundancyCorrelation -NoCollapse:$NoCollapse | Invoke-TcpkConsistencyCheck
     }
 }
