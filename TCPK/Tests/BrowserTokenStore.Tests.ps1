@@ -246,10 +246,10 @@ Describe 'BrowserTokenStore fixture matrix' {
         It 'emits at least one finding' {
             $script:findings_a | Should -Not -BeNullOrEmpty
         }
-        It 'cred-store finding severity is INFO or MEDIUM (locked, content unknown)' {
+        It 'cred-store finding severity is INFO (locked store; Resolve-TcpkImpact gates MEDIUM without measured facts)' {
             $f = $script:findings_a | Where-Object { $_.RuleId -eq 'browser.cred-store' }
             $f | Should -Not -BeNullOrEmpty
-            $f[0].Severity | Should -BeIn @('INFO','MEDIUM')
+            $f[0].Severity | Should -Be 'INFO'
         }
         It 'does not claim saved-password content from a locked or unqueried store' {
             $f = $script:findings_a | Where-Object { $_.RuleId -eq 'browser.cred-store' }
@@ -505,6 +505,65 @@ Describe 'BrowserTokenStore fixture matrix' {
             $storeFindigs = $script:findings_nc | Where-Object { $_.RuleId -eq 'browser.cred-store' }
             # Three store files were created (Cookies, Login Data, Web Data)
             $storeFindigs.Count | Should -BeGreaterOrEqual 3
+        }
+    }
+
+    # -------------------------------------------------------------------------
+    Context '(g) Cleartext JWT in Local Storage/leveldb - Test-TcpkChromiumCleartextStores' {
+    # -------------------------------------------------------------------------
+        BeforeAll {
+            $root   = Join-Path $env:TEMP "TcpkTest_$(New-Guid)"
+            $lsDir  = Join-Path $root 'FixtureG\Local Storage\leveldb'
+            New-Item -Path $lsDir -ItemType Directory -Force | Out-Null
+
+            # Write a .log file containing a realistic JWT token
+            $jwt = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.' +
+                   'eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IlRlc3RVc2VyIiwiaWF0IjoxNTE2MjM5MDIyfQ.' +
+                   'SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+            [System.IO.File]::WriteAllText(
+                (Join-Path $lsDir '000003.log'),
+                "some_key`0$jwt`0other_data"
+            )
+
+            $script:fx_g_root = $root
+            $origAppdata = $env:APPDATA
+            $env:APPDATA = $root
+            $script:findings_g = InModuleScope TCPK {
+                Mock Assert-TcpkWindows { return $true }
+                @(Test-TcpkChromiumCleartextStores -NameLike 'FixtureG')
+            }
+            $env:APPDATA = $origAppdata
+        }
+        AfterAll {
+            Remove-Item $script:fx_g_root -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'emits at least one chromium.cleartext-cred finding' {
+            $f = $script:findings_g | Where-Object { $_.RuleId -eq 'chromium.cleartext-cred' }
+            $f | Should -Not -BeNullOrEmpty
+        }
+        It 'JWT finding severity is HIGH (credential_match_count > 0 supports HIGH)' {
+            $f = $script:findings_g | Where-Object {
+                $_.RuleId -eq 'chromium.cleartext-cred' -and $_.Title -match 'JWT'
+            }
+            $f | Should -Not -BeNullOrEmpty
+            $f[0].Severity | Should -Be 'HIGH'
+        }
+        It 'JWT finding title identifies Local Storage store' {
+            $f = $script:findings_g | Where-Object { $_.RuleId -eq 'chromium.cleartext-cred' }
+            $f[0].Title | Should -Match '(?i)Local.Storage'
+        }
+        It 'JWT finding evidence contains match count' {
+            $f = $script:findings_g | Where-Object {
+                $_.RuleId -eq 'chromium.cleartext-cred' -and $_.Title -match 'JWT'
+            }
+            $f[0].Evidence | Should -Match 'matches='
+        }
+        It 'JWT finding confidence is Confirmed' {
+            $f = $script:findings_g | Where-Object {
+                $_.RuleId -eq 'chromium.cleartext-cred' -and $_.Title -match 'JWT'
+            }
+            $f[0].Confidence | Should -Be 'Confirmed'
         }
     }
 

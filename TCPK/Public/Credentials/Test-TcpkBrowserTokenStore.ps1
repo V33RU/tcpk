@@ -119,25 +119,43 @@ function Test-TcpkBrowserTokenStore {
             CookieRows    = -1
             LoginRows     = -1
             AutofillRows  = -1
+            TotalPages    = 0
+            FreePages     = 0
             Confidence    = 'Inferred'
         }
-        # Binary magic check -- never crashes, no lock needed
-        try {
-            $hdr = [byte[]]::new(16)
-            $fs = [System.IO.FileStream]::new(
-                $FilePath,
-                [System.IO.FileMode]::Open,
-                [System.IO.FileAccess]::Read,
-                [System.IO.FileShare]::ReadWrite)
-            $n = $fs.Read($hdr, 0, 16)
-            $fs.Dispose()
-            if ($n -eq 16) {
-                $magic = [System.Text.Encoding]::ASCII.GetString($hdr, 0, 15)
-                $r.IsValidSqlite = ($magic -eq 'SQLite format 3')
-            }
-        } catch { return $r }
-
-        if (-not $r.IsValidSqlite) { return $r }
+        # Read 36 bytes of SQLite header.
+        # Try FileShare.ReadWrite first (normal readable case), then FileShare.Read
+        # (covers files held with FILE_SHARE_READ by the target app -- SQLite uses
+        # byte-range locks, not file-sharing locks, so the 100-byte header region
+        # is usually accessible even when the target app is running).
+        $headerRead = $false
+        foreach ($share in @([System.IO.FileShare]::ReadWrite, [System.IO.FileShare]::Read)) {
+            try {
+                $hdr = [byte[]]::new(36)
+                $fs = [System.IO.FileStream]::new(
+                    $FilePath,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::Read,
+                    $share)
+                $n = $fs.Read($hdr, 0, 36)
+                $fs.Dispose()
+                if ($n -ge 16) {
+                    $magic = [System.Text.Encoding]::ASCII.GetString($hdr, 0, 15)
+                    $r.IsValidSqlite = ($magic -eq 'SQLite format 3')
+                }
+                if ($r.IsValidSqlite -and $n -ge 28) {
+                    $r.TotalPages = ([int]$hdr[24] -shl 24) -bor ([int]$hdr[25] -shl 16) -bor
+                                    ([int]$hdr[26] -shl 8)  -bor [int]$hdr[27]
+                }
+                if ($r.IsValidSqlite -and $n -ge 36) {
+                    $r.FreePages  = ([int]$hdr[32] -shl 24) -bor ([int]$hdr[33] -shl 16) -bor
+                                    ([int]$hdr[34] -shl 8)  -bor [int]$hdr[35]
+                }
+                $headerRead = $true
+                break
+            } catch { }
+        }
+        if (-not $headerRead -or -not $r.IsValidSqlite) { return $r }
 
         $conn = Open-SqliteConnection -FilePath $FilePath
         if (-not $conn) { return $r }
@@ -212,15 +230,16 @@ function Test-TcpkBrowserTokenStore {
                 $precondNote = if ($readState -eq 'readable') {
                     'Store was readable at scan time.'
                 } else {
-                    'Store was exclusively locked at scan time (target app may be running); ' +
-                    'readability confirmed by lock detection but content could not be queried.'
+                    'Store was exclusively locked at scan time (target app may be running). ' +
+                    'SQL row counts are unavailable; header bytes may still be readable.'
                 }
 
-                # Invariant 2: content-gated severity from row counts
+                # Invariant 2: content-gated severity from row counts.
+                # Measure-ChromiumStore is called for all non-absent states because
+                # it tries FileShare.ReadWrite then FileShare.Read and can read the
+                # SQLite header (page count + freelist) even for locked stores.
                 $metrics = $null
-                if ($readState -eq 'readable') {
-                    try { $metrics = Measure-ChromiumStore -FilePath $storePath } catch { }
-                }
+                try { $metrics = Measure-ChromiumStore -FilePath $storePath } catch { }
 
                 $storeTitle = switch ($m.Name) {
                     'Cookies'    { 'Cookies (session tokens)' }
@@ -234,19 +253,23 @@ function Test-TcpkBrowserTokenStore {
                 $afRows     = if ($metrics) { $metrics.AutofillRows } else { -1 }
                 $isMeasured = $metrics -and ($metrics.Confidence -eq 'Confirmed')
 
-                $hasLogins     = ($loginRows  -gt 0) -or ($afRows -gt 0)
-                $hasCookies    = $cookieRows  -gt 0
-                $isEmpty       = $isMeasured -and -not $hasLogins -and -not $hasCookies
+                $hasLogins  = ($loginRows  -gt 0) -or ($afRows -gt 0)
+                $hasCookies = $cookieRows  -gt 0
+                $isEmpty    = $isMeasured -and -not $hasLogins -and -not $hasCookies
 
-                $sev = if ($isEmpty) { 'INFO' }
-                    elseif ($hasLogins) { 'HIGH' }
-                    elseif ($hasCookies) { 'MEDIUM' }
-                    elseif ($readState -eq 'locked') {
-                        # Cannot query locked store; use structural estimate
-                        if ($m.Name -eq 'Login Data') { 'HIGH' } else { 'MEDIUM' }
-                    }
-                    elseif ($metrics -and -not $metrics.IsValidSqlite) { 'INFO' }
-                    else { 'INFO' }
+                # Severity is only HIGH/MEDIUM when row counts were measured and are
+                # positive. Locked stores and no-driver stores always fall to INFO/Inferred.
+                # Resolve-TcpkImpact enforces this: it refuses HIGH/CRITICAL without a
+                # measured impact fact (row_count > 0 or gcm_verified) and refuses MEDIUM
+                # without at least one measured fact (row_count >= 0).
+                $impactFacts = @{
+                    cookie_row_count   = $cookieRows
+                    login_row_count    = $loginRows
+                    autofill_row_count = $afRows
+                }
+                $candidateSev = if ($hasLogins) { 'HIGH' } elseif ($hasCookies) { 'MEDIUM' } else { 'INFO' }
+                $sev = Resolve-TcpkImpact -RuleId 'browser.cred-store' `
+                    -Facts $impactFacts -Candidate $candidateSev
 
                 $confidenceStore = if ($isMeasured) { 'Confirmed' } else { 'Inferred' }
                 $titleSuffix     = if ($isEmpty) { ' (empty)' } else { '' }
@@ -256,15 +279,25 @@ function Test-TcpkBrowserTokenStore {
                 if ($cookieRows -ge 0) { $rowParts += "cookies=$cookieRows" }
                 if ($loginRows  -ge 0) { $rowParts += "logins=$loginRows" }
                 if ($afRows     -ge 0) { $rowParts += "autofill/cards=$afRows" }
+                $netPages   = if ($metrics) { $metrics.TotalPages - $metrics.FreePages } else { 0 }
+                $pageDetail = if ($metrics -and $metrics.IsValidSqlite -and $metrics.TotalPages -gt 0) {
+                    "page_count=$($metrics.TotalPages); free_pages=$($metrics.FreePages)"
+                } else { $null }
                 $rowSummary = if ($rowParts) { $rowParts -join '; ' }
-                    elseif ($readState -eq 'locked') { 'row counts unavailable (store locked)' }
-                    elseif ($metrics -and $metrics.IsValidSqlite) { 'row counts unavailable (SQLite driver not loaded)' }
+                    elseif ($readState -eq 'locked' -and $pageDetail) { "locked; $pageDetail" }
+                    elseif ($readState -eq 'locked') { 'locked; header unreadable' }
+                    elseif ($metrics -and $metrics.IsValidSqlite -and $pageDetail) { "SQLite valid; $pageDetail; no SQL driver" }
+                    elseif ($metrics -and $metrics.IsValidSqlite) { 'SQLite valid; no SQL driver; page count unavailable' }
                     else { 'store is not a valid SQLite or is unreadable' }
 
                 $descContent = if ($isMeasured) {
                     "Measured content: $rowSummary."
+                } elseif ($readState -eq 'locked') {
+                    'Store was locked; row counts could not be measured. ' +
+                    $(if ($pageDetail) { "Header readable: $pageDetail. " } else { 'Header also unreadable. ' }) +
+                    'Re-run with the app stopped for accurate content classification.'
                 } elseif ($metrics -and $metrics.IsValidSqlite) {
-                    "Valid SQLite confirmed; $rowSummary."
+                    "Valid SQLite ($pageDetail); row counts unavailable (SQL driver not loaded)."
                 } else {
                     "Content not queried ($readState)."
                 }
