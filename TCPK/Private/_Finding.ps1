@@ -91,7 +91,18 @@ function New-TcpkFinding {
         [string[]] $Cwe = @(),
         [string]   $Impact,
         [string]   $Cvss,
-        [string]   $Fix
+        [string]   $Fix,
+
+        # SDVB observation contract.
+        # Rules that set these fields enable the redundancy classifier.
+        # Rules that omit them remain fully functional; their findings
+        # cannot be correlated and are treated as INDEPENDENT by construction.
+        [string]   $Subject    = '',     # normalized canonical identity of what was examined
+        [string]   $Dimension  = '',     # the QUESTION asked (not the rule that asked it)
+        [string]   $ObsValue   = '',     # measured result as JSON: set, count, enum, bitfield
+        [ValidateSet('','Measured','Inferred','Composed')]
+        [string]   $Basis      = '',
+        [string[]] $BasisInputs = @()    # Composed only: RuleIds of input findings
     )
 
     $f = [TcpkFinding]::new()
@@ -107,6 +118,11 @@ function New-TcpkFinding {
     $f.Impact      = $Impact
     $f.Cvss        = $Cvss
     $f.Fix         = $Fix
+    $f.Subject     = $Subject
+    $f.Dimension   = $Dimension
+    $f.ObsValue    = $ObsValue
+    $f.Basis       = $Basis
+    $f.BasisInputs = $BasisInputs
     $f.Timestamp   = (Get-Date).ToUniversalTime().ToString('o')
     return $f
 }

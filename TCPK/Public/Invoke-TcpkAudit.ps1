@@ -101,7 +101,10 @@ function Invoke-TcpkAudit {
         # (minimized) so the bucket-E live-process checks have something to observe, then stop
         # it at the end. Requires -Acknowledge (it runs the target binary); authorized/lab use
         # only. An already-running instance or an explicit -ProcessName is observed instead.
-        [switch]$LaunchTarget
+        [switch]$LaunchTarget,
+        # Skip the redundancy correlation pass after aggregation.
+        # Use this to reproduce a past report exactly.
+        [switch]$NoCollapse
     )
 
     # --- preflight ---
@@ -698,6 +701,20 @@ function Invoke-TcpkAudit {
     if ($all.Count -ne $beforeAgg) {
         Write-Information -MessageData "  $beforeAgg -> $($all.Count) findings after aggregating identical rules" -InformationAction Continue
         Write-TcpkLog -Level INFO -Component 'aggregate' -Message "$beforeAgg -> $($all.Count) after aggregation" | Out-Null
+    }
+
+    # --- Redundancy correlation: fold IDENTICAL/CONTAINED/REFINED/DERIVED/COMPOSED ---
+    # Run once, over the full aggregated finding set. Skipped with -NoCollapse so past
+    # reports stay reproducible. Raw vs distinct counts are logged for transparency.
+    if (-not $NoCollapse) {
+        $beforeCorr = $all.Count
+        $correlated = @($all | Invoke-TcpkRedundancyCorrelation)
+        $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
+        foreach ($f in $correlated) { $all.Add($f) }
+        if ($all.Count -ne $beforeCorr) {
+            Write-Information -MessageData "  $beforeCorr -> $($all.Count) distinct findings after redundancy correlation" -InformationAction Continue
+            Write-TcpkLog -Level INFO -Component 'redundancy' -Message "$beforeCorr -> $($all.Count) after correlation" | Out-Null
+        }
     }
 
     # --- CVE exposure: LIVE online lookup (OSV for NuGet/Electron, NVD for native). There is no

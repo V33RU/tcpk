@@ -33,7 +33,11 @@ function Resolve-TcpkFindings {
         # Internal: skip dedupe/demote/correlate and ONLY aggregate (the caller already
         # triaged). Invoke-TcpkAudit uses this so the LLM pass can judge each occurrence's
         # IL on its own file BEFORE identical findings are collapsed into one.
-        [switch]$AggregateOnly
+        [switch]$AggregateOnly,
+        # Skip the redundancy correlation pass (Invoke-TcpkRedundancyCorrelation).
+        # Use this to reproduce a past report exactly, or when piping into a tool that
+        # expects the raw (pre-collapse) stream.
+        [switch]$NoCollapse
     )
 
     begin { $all = New-Object 'System.Collections.Generic.List[TcpkFinding]' }
@@ -194,7 +198,9 @@ function Resolve-TcpkFindings {
 
         # 4) Aggregate identical findings (unless disabled): collapse same RuleId +
         # Severity + Confidence into ONE finding whose Affected[] lists every occurrence.
+        # 5) Redundancy correlation: fold IDENTICAL/CONTAINED/REFINED/DERIVED/COMPOSED
+        #    findings (same subject, same dimension). Skipped when -NoCollapse.
         if ($NoAggregate) { foreach ($f in $uniq) { $f }; return }
-        _TcpkAggregate $uniq
+        _TcpkAggregate $uniq | Invoke-TcpkRedundancyCorrelation -NoCollapse:$NoCollapse
     }
 }

@@ -29,6 +29,29 @@ class TcpkFinding {
     [string] $Cvss         # optional explicit CVSS v4.0 vector for THIS finding (e.g. a real NVD vector); else assigned by attack archetype at report time
     [string] $Fix          # one-line remediation suggestion
 
+    # --- observation contract (SDVB) ---
+    # Every finding is a claim about an observation.  Rules that set these fields
+    # enable the redundancy classifier (Invoke-TcpkRedundancyCorrelation) to derive
+    # relationships between findings without hardcoded rule pairs.
+    #
+    # Subject  - what was examined, normalized (see Get-TcpkNormalizedSubject):
+    #            file path | process image path | registry key | cert store path | host
+    # Dimension- which PROPERTY of the subject was measured; the QUESTION asked,
+    #            not the rule that asked it:
+    #            signature-status | memory-protection | trust-chain-validity |
+    #            import-set | key-encryption-mode | fuse-config | dacl | ...
+    # ObsValue - the measured result as structured JSON:
+    #            set: '["A","B"]'  count: '42'  bitfield: '{"nx":true,"aslr":false}'
+    #            enum: '"expired"'
+    #            Never flatten to prose before correlation -- sets stay as sets.
+    # Basis    - how it was established: Measured | Inferred | Composed
+    # BasisInputs - for Composed findings: RuleIds of the findings consumed as input
+    [string]   $Subject     = ''
+    [string]   $Dimension   = ''
+    [string]   $ObsValue    = ''
+    [string]   $Basis       = ''
+    [string[]] $BasisInputs = @()
+
     # --- reasoning audit trail ---
     # Each entry is one line: "CAP{N}: {FROM}->{TO}; {evidence}" written by the
     # scoring services (Resolve-TcpkImpact, Resolve-TcpkPreconditions, etc.).
