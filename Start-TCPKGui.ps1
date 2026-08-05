@@ -2193,6 +2193,24 @@ function _HexStrCat([string]$v) {
     if ($v -match '(?i)(cmd(\.exe)?[\s/]|powershell|wscript|cscript|rundll32|regsvr32|mshta|certutil|bitsadmin)') {
         return @{ cat = 'Exec';     fg = [System.Drawing.Color]::FromArgb(255, 140, 140) }
     }
+    if ($v -match '(?i)\\.*\.pdb$|\.pdb$') {
+        return @{ cat = 'PDB';      fg = [System.Drawing.Color]::FromArgb(255, 160, 220) }
+    }
+    if ($v -match '(?i)\b(connect|socket|recv|send|bind|listen|WSA|inet_|gethost|gethostbyname|URLDownload|WinHttp|HttpOpen|InternetOpen)\b') {
+        return @{ cat = 'Network';  fg = [System.Drawing.Color]::FromArgb(100, 210, 255) }
+    }
+    if ($v -match '(?i)\b(AES|RSA|SHA|MD5|HMAC|encrypt|decrypt|CryptAcquire|BCrypt|NCrypt|CertOpen)\b') {
+        return @{ cat = 'Crypto';   fg = [System.Drawing.Color]::FromArgb(180, 120, 255) }
+    }
+    if ($v -match '(?i)\b(error|failed|exception|warning|assert|fatal|critical|abort|crash)\b') {
+        return @{ cat = 'Error';    fg = [System.Drawing.Color]::FromArgb(255, 110,  90) }
+    }
+    if ($v -match '(?i)\b(debug|trace|verbose|log(ger|ging)?|printf|OutputDebugString)\b') {
+        return @{ cat = 'Debug';    fg = [System.Drawing.Color]::FromArgb(160, 160, 160) }
+    }
+    if ($v -match '%[sdixXuocfeEgGp]|%\d+[sdixX]') {
+        return @{ cat = 'Format';   fg = [System.Drawing.Color]::FromArgb(200, 220, 140) }
+    }
     if ($v -match '(?i)^[A-Za-z]:\\|^\\\\[^\\]|\.(exe|dll|sys|ocx|bat|ps1|vbs|js)$') {
         return @{ cat = 'Path/PE';  fg = [System.Drawing.Color]::FromArgb(255, 220,  80) }
     }
@@ -2201,6 +2219,9 @@ function _HexStrCat([string]$v) {
     }
     if ($v -match '(?i)\b(SELECT|INSERT|UPDATE|DELETE|DROP\s+TABLE|CREATE\s+TABLE)\b') {
         return @{ cat = 'SQL';      fg = [System.Drawing.Color]::FromArgb(200, 160, 220) }
+    }
+    if ($v -match '^\d+\.\d+\.\d+(\.\d+)?$') {
+        return @{ cat = 'Version';  fg = [System.Drawing.Color]::FromArgb(140, 200, 140) }
     }
     return @{ cat = '-';            fg = [System.Drawing.Color]::FromArgb(214, 220, 228) }
 }
@@ -2792,7 +2813,7 @@ $hexCenter = New-Object System.Windows.Forms.Panel
 $hexCenter.Dock = 'Fill'
 # Strings wrapper: toggle-able bottom panel with its own toolbar + results list
 $pnlStrWrap = New-Object System.Windows.Forms.Panel
-$pnlStrWrap.Dock = 'Bottom'; $pnlStrWrap.Height = 220; $pnlStrWrap.Visible = $false
+$pnlStrWrap.Dock = 'Bottom'; $pnlStrWrap.Height = 350; $pnlStrWrap.Visible = $false
 $strBar = New-Object System.Windows.Forms.Panel
 $strBar.Dock = 'Top'; $strBar.Height = 32; $strBar.BackColor = [System.Drawing.Color]::FromArgb(38, 38, 38)
 $lblHexSMinL = New-Object System.Windows.Forms.Label
@@ -2832,6 +2853,10 @@ $lvHexStr.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexStr.Fo
 [void]$lvHexStr.Columns.Add('Category', 100); [void]$lvHexStr.Columns.Add('String (click to jump)', 1060)
 $pnlStrWrap.Controls.Add($lvHexStr); $lvHexStr.BringToFront()
 $hexCenter.Controls.Add($pnlStrWrap)
+$splStrWrap = New-Object System.Windows.Forms.Splitter
+$splStrWrap.Dock = 'Bottom'; $splStrWrap.Height = 5
+$splStrWrap.BackColor = [System.Drawing.Color]::FromArgb(55, 55, 55)
+$hexCenter.Controls.Add($splStrWrap)
 # Entropy heatmap strip (whole-file minimap, click to jump)
 $pnlEntropy = New-Object System.Windows.Forms.Panel
 $pnlEntropy.Dock = 'Left'; $pnlEntropy.Width = 20; $pnlEntropy.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18)
