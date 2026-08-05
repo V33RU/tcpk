@@ -1198,15 +1198,15 @@ $lblPcap.Location = New-Object System.Drawing.Point(12,6); $lblPcap.Size = New-O
 $ctlP.Controls.Add($lblPcap)
 $lblPcapF = New-Object System.Windows.Forms.Label
 $lblPcapF.Text = "Capture file:"; $lblPcapF.ForeColor = [System.Drawing.Color]::White
-$lblPcapF.Location = New-Object System.Drawing.Point(12,33); $lblPcapF.Size = New-Object System.Drawing.Size(84,18)
+$lblPcapF.Location = New-Object System.Drawing.Point(12,33); $lblPcapF.Size = New-Object System.Drawing.Size(110,18)
 $ctlP.Controls.Add($lblPcapF)
 $txtPcap = New-Object System.Windows.Forms.TextBox
-$txtPcap.Location = New-Object System.Drawing.Point(100,30); $txtPcap.Size = New-Object System.Drawing.Size(760,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtPcap.Location = New-Object System.Drawing.Point(126,30); $txtPcap.Size = New-Object System.Drawing.Size(736,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtPcap.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtPcap.ForeColor = [System.Drawing.Color]::White
 $txtPcap.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlP.Controls.Add($txtPcap)
 $btnPcapBrowse = New-Object System.Windows.Forms.Button
-$btnPcapBrowse.Text = "Browse..."; $btnPcapBrowse.Location = New-Object System.Drawing.Point(868,28); $btnPcapBrowse.Size = New-Object System.Drawing.Size(84,26)
+$btnPcapBrowse.Text = "Browse..."; $btnPcapBrowse.Location = New-Object System.Drawing.Point(868,28); $btnPcapBrowse.Size = New-Object System.Drawing.Size(90,26)
 $btnPcapBrowse.FlatStyle = 'Flat'; $btnPcapBrowse.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnPcapBrowse.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $btnPcapBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlP.Controls.Add($btnPcapBrowse)
@@ -1216,7 +1216,7 @@ $btnPcapBrowse.Add_Click({
     if ($dlg.ShowDialog() -eq 'OK') { $txtPcap.Text = $dlg.FileName }
 })
 $btnPcapGo = New-Object System.Windows.Forms.Button
-$btnPcapGo.Text = "Analyse capture"; $btnPcapGo.Location = New-Object System.Drawing.Point(100,58); $btnPcapGo.Size = New-Object System.Drawing.Size(150,26)
+$btnPcapGo.Text = "Analyse capture"; $btnPcapGo.Location = New-Object System.Drawing.Point(126,58); $btnPcapGo.Size = New-Object System.Drawing.Size(162,26)
 $btnPcapGo.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnPcapGo.ForeColor = [System.Drawing.Color]::White; $btnPcapGo.FlatStyle = 'Flat'
 $ctlP.Controls.Add($btnPcapGo)
 $btnPcapGo.Add_Click({
@@ -1229,21 +1229,21 @@ $btnPcapGo.Add_Click({
 })
 
 # Decrypt fields (optional): TLS keylog (all TLS incl 1.3) and/or server RSA private key (RSA kx only)
-$lblKeylog = New-Object System.Windows.Forms.Label; $lblKeylog.Text = "TLS keylog:"; $lblKeylog.ForeColor = [System.Drawing.Color]::White; $lblKeylog.Location = New-Object System.Drawing.Point(12,93); $lblKeylog.Size = New-Object System.Drawing.Size(84,18); $ctlP.Controls.Add($lblKeylog)
-$txtKeylog = New-Object System.Windows.Forms.TextBox; $txtKeylog.Location = New-Object System.Drawing.Point(100,90); $txtKeylog.Size = New-Object System.Drawing.Size(340,24); $txtKeylog.Font = New-Object System.Drawing.Font('Consolas', 9); $txtKeylog.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtKeylog.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtKeylog)
-$btnKeylog = New-Object System.Windows.Forms.Button; $btnKeylog.Text = "..."; $btnKeylog.Location = New-Object System.Drawing.Point(444,88); $btnKeylog.Size = New-Object System.Drawing.Size(32,26); $btnKeylog.FlatStyle = 'Flat'; $btnKeylog.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnKeylog.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnKeylog)
+$lblKeylog = New-Object System.Windows.Forms.Label; $lblKeylog.Text = "TLS keylog:"; $lblKeylog.ForeColor = [System.Drawing.Color]::White; $lblKeylog.Location = New-Object System.Drawing.Point(12,93); $lblKeylog.Size = New-Object System.Drawing.Size(96,18); $ctlP.Controls.Add($lblKeylog)
+$txtKeylog = New-Object System.Windows.Forms.TextBox; $txtKeylog.Location = New-Object System.Drawing.Point(112,90); $txtKeylog.Size = New-Object System.Drawing.Size(336,24); $txtKeylog.Font = New-Object System.Drawing.Font('Consolas', 9); $txtKeylog.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtKeylog.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtKeylog)
+$btnKeylog = New-Object System.Windows.Forms.Button; $btnKeylog.Text = "..."; $btnKeylog.Location = New-Object System.Drawing.Point(452,88); $btnKeylog.Size = New-Object System.Drawing.Size(32,26); $btnKeylog.FlatStyle = 'Flat'; $btnKeylog.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnKeylog.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnKeylog)
 $btnKeylog.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtKeylog.Text = $dlg.FileName } })
-$lblRsa = New-Object System.Windows.Forms.Label; $lblRsa.Text = "RSA key:"; $lblRsa.ForeColor = [System.Drawing.Color]::White; $lblRsa.Location = New-Object System.Drawing.Point(492,93); $lblRsa.Size = New-Object System.Drawing.Size(64,18); $ctlP.Controls.Add($lblRsa)
-$txtRsa = New-Object System.Windows.Forms.TextBox; $txtRsa.Location = New-Object System.Drawing.Point(560,90); $txtRsa.Size = New-Object System.Drawing.Size(300,24); $txtRsa.Font = New-Object System.Drawing.Font('Consolas', 9); $txtRsa.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtRsa.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtRsa)
+$lblRsa = New-Object System.Windows.Forms.Label; $lblRsa.Text = "RSA key:"; $lblRsa.ForeColor = [System.Drawing.Color]::White; $lblRsa.Location = New-Object System.Drawing.Point(498,93); $lblRsa.Size = New-Object System.Drawing.Size(72,18); $ctlP.Controls.Add($lblRsa)
+$txtRsa = New-Object System.Windows.Forms.TextBox; $txtRsa.Location = New-Object System.Drawing.Point(574,90); $txtRsa.Size = New-Object System.Drawing.Size(286,24); $txtRsa.Font = New-Object System.Drawing.Font('Consolas', 9); $txtRsa.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtRsa.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtRsa)
 $btnRsa = New-Object System.Windows.Forms.Button; $btnRsa.Text = "..."; $btnRsa.Location = New-Object System.Drawing.Point(864,88); $btnRsa.Size = New-Object System.Drawing.Size(32,26); $btnRsa.FlatStyle = 'Flat'; $btnRsa.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRsa.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnRsa)
 $btnRsa.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtRsa.Text = $dlg.FileName } })
-$lblDecHint = New-Object System.Windows.Forms.Label; $lblDecHint.Text = "keylog: all TLS; RSA key: RSA-kx only"; $lblDecHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblDecHint.Location = New-Object System.Drawing.Point(902,93); $lblDecHint.Size = New-Object System.Drawing.Size(260,18); $ctlP.Controls.Add($lblDecHint)
+$lblDecHint = New-Object System.Windows.Forms.Label; $lblDecHint.Text = "keylog: all TLS  |  RSA key: RSA-kx only"; $lblDecHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblDecHint.Location = New-Object System.Drawing.Point(902,93); $lblDecHint.Size = New-Object System.Drawing.Size(280,18); $ctlP.Controls.Add($lblDecHint)
 
 # Live capture (drives the operator's dumpcap; needs a capture driver + admin)
-$lblIface = New-Object System.Windows.Forms.Label; $lblIface.Text = "Live capture:"; $lblIface.ForeColor = [System.Drawing.Color]::White; $lblIface.Location = New-Object System.Drawing.Point(12,123); $lblIface.Size = New-Object System.Drawing.Size(84,18); $ctlP.Controls.Add($lblIface)
+$lblIface = New-Object System.Windows.Forms.Label; $lblIface.Text = "Live capture:"; $lblIface.ForeColor = [System.Drawing.Color]::White; $lblIface.Location = New-Object System.Drawing.Point(12,123); $lblIface.Size = New-Object System.Drawing.Size(110,18); $ctlP.Controls.Add($lblIface)
 $script:PcapIfaceList = @()
-$cmbIface = New-Object System.Windows.Forms.ComboBox; $cmbIface.Location = New-Object System.Drawing.Point(100,120); $cmbIface.Size = New-Object System.Drawing.Size(360,24); $cmbIface.DropDownStyle = 'DropDownList'; $cmbIface.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbIface.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($cmbIface)
-$btnIface = New-Object System.Windows.Forms.Button; $btnIface.Text = "Refresh"; $btnIface.Location = New-Object System.Drawing.Point(466,118); $btnIface.Size = New-Object System.Drawing.Size(70,26); $btnIface.FlatStyle = 'Flat'; $btnIface.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnIface.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnIface)
+$cmbIface = New-Object System.Windows.Forms.ComboBox; $cmbIface.Location = New-Object System.Drawing.Point(126,120); $cmbIface.Size = New-Object System.Drawing.Size(340,24); $cmbIface.DropDownStyle = 'DropDownList'; $cmbIface.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbIface.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($cmbIface)
+$btnIface = New-Object System.Windows.Forms.Button; $btnIface.Text = "Refresh"; $btnIface.Location = New-Object System.Drawing.Point(472,118); $btnIface.Size = New-Object System.Drawing.Size(84,26); $btnIface.FlatStyle = 'Flat'; $btnIface.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnIface.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnIface)
 # Populate combo with human-readable "Id. Description" labels; keep raw objects for capture.
 $script:RefreshPcapIfaces = {
     $cmbIface.Items.Clear(); $script:PcapIfaceList = @()
@@ -1255,10 +1255,10 @@ $script:RefreshPcapIfaces = {
     if ($cmbIface.Items.Count) { $cmbIface.SelectedIndex = 0 }
 }
 $btnIface.Add_Click({ & $script:RefreshPcapIfaces })
-$lblSecs = New-Object System.Windows.Forms.Label; $lblSecs.Text = "Secs:"; $lblSecs.ForeColor = [System.Drawing.Color]::White; $lblSecs.Location = New-Object System.Drawing.Point(548,123); $lblSecs.Size = New-Object System.Drawing.Size(40,18); $ctlP.Controls.Add($lblSecs)
-$numCapDur = New-Object System.Windows.Forms.NumericUpDown; $numCapDur.Location = New-Object System.Drawing.Point(590,120); $numCapDur.Size = New-Object System.Drawing.Size(56,24); $numCapDur.Minimum = 1; $numCapDur.Maximum = 120; $numCapDur.Value = 15; $numCapDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numCapDur.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($numCapDur)
-$btnCapGo = New-Object System.Windows.Forms.Button; $btnCapGo.Text = "Capture + analyse"; $btnCapGo.Location = New-Object System.Drawing.Point(652,118); $btnCapGo.Size = New-Object System.Drawing.Size(150,26); $btnCapGo.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCapGo.ForeColor = [System.Drawing.Color]::White; $btnCapGo.FlatStyle = 'Flat'; $ctlP.Controls.Add($btnCapGo)
-$lblCapHint = New-Object System.Windows.Forms.Label; $lblCapHint.Text = "needs Wireshark + npcap + admin (drives dumpcap)"; $lblCapHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblCapHint.Location = New-Object System.Drawing.Point(810,123); $lblCapHint.Size = New-Object System.Drawing.Size(300,18); $ctlP.Controls.Add($lblCapHint)
+$lblSecs = New-Object System.Windows.Forms.Label; $lblSecs.Text = "Secs:"; $lblSecs.ForeColor = [System.Drawing.Color]::White; $lblSecs.Location = New-Object System.Drawing.Point(564,123); $lblSecs.Size = New-Object System.Drawing.Size(46,18); $ctlP.Controls.Add($lblSecs)
+$numCapDur = New-Object System.Windows.Forms.NumericUpDown; $numCapDur.Location = New-Object System.Drawing.Point(612,120); $numCapDur.Size = New-Object System.Drawing.Size(56,24); $numCapDur.Minimum = 1; $numCapDur.Maximum = 120; $numCapDur.Value = 15; $numCapDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numCapDur.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($numCapDur)
+$btnCapGo = New-Object System.Windows.Forms.Button; $btnCapGo.Text = "Capture + analyse"; $btnCapGo.Location = New-Object System.Drawing.Point(674,118); $btnCapGo.Size = New-Object System.Drawing.Size(168,26); $btnCapGo.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCapGo.ForeColor = [System.Drawing.Color]::White; $btnCapGo.FlatStyle = 'Flat'; $ctlP.Controls.Add($btnCapGo)
+$lblCapHint = New-Object System.Windows.Forms.Label; $lblCapHint.Text = "needs Wireshark + npcap + admin (drives dumpcap)"; $lblCapHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblCapHint.Location = New-Object System.Drawing.Point(850,123); $lblCapHint.Size = New-Object System.Drawing.Size(360,18); $ctlP.Controls.Add($lblCapHint)
 $btnCapGo.Add_Click({
     $selIdx = $cmbIface.SelectedIndex
     if ($selIdx -lt 0) { Write-IcptLine $txtOutP "`r`n[!] Pick a capture interface (Refresh first).`r`n" $icptWarn; return }
