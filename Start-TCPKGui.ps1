@@ -1371,10 +1371,12 @@ $btnPcapSearch.Add_Click({
                 [void]$lvSearch.Items.Add($lvi)
             }
         } else {
-            [void]$lvSearch.Items.Add(New-Object System.Windows.Forms.ListViewItem("(no frames matched '$term')"))
+            $noMatchLvi = New-Object System.Windows.Forms.ListViewItem("(no frames matched '$term')")
+            [void]$lvSearch.Items.Add($noMatchLvi)
         }
     } catch {
-        [void]$lvSearch.Items.Add(New-Object System.Windows.Forms.ListViewItem("Error: $($_.Exception.Message)"))
+        $errLvi = New-Object System.Windows.Forms.ListViewItem("Error: $($_.Exception.Message)")
+        [void]$lvSearch.Items.Add($errLvi)
     }
 })
 
@@ -1487,7 +1489,8 @@ $lvSearch.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
 foreach ($colDef in @(@('#',60),@('Time',80),@('Src',130),@('Dst',130),@('Protocol',90),@('Info',600))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvSearch.Columns.Add($lvc)
 }
-[void]$lvSearch.Items.Add(New-Object System.Windows.Forms.ListViewItem('Use the "String search" bar above to find frames containing any string or regex across the entire capture.'))
+$searchHintLvi = New-Object System.Windows.Forms.ListViewItem('Use the "String search" bar above to find frames containing any string or regex across the entire capture.')
+[void]$lvSearch.Items.Add($searchHintLvi)
 $subPcapSearch.Controls.Add($lvSearch)
 [void]$subPcapTabs.TabPages.Add($subPcapSearch)
 
