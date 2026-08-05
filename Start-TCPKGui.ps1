@@ -2546,7 +2546,7 @@ $cmbHexMode = New-Object System.Windows.Forms.ComboBox
 $cmbHexMode.Location = New-Object System.Drawing.Point(8, 4); $cmbHexMode.Size = New-Object System.Drawing.Size(140, 22)
 $cmbHexMode.DropDownStyle = 'DropDownList'; $cmbHexMode.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48)
 $cmbHexMode.ForeColor = [System.Drawing.Color]::FromArgb(200, 205, 210); $cmbHexMode.FlatStyle = 'Flat'
-@('Data Inspector', 'PE Map', 'XOR Decode', 'Byte Freq', 'Bookmarks') | ForEach-Object { [void]$cmbHexMode.Items.Add($_) }; $cmbHexMode.SelectedIndex = 0
+@('Data Inspector', 'PE Map', 'XOR Decode', 'Byte Freq', 'Bookmarks', 'PE Detail') | ForEach-Object { [void]$cmbHexMode.Items.Add($_) }; $cmbHexMode.SelectedIndex = 0
 $hexInsHdr.Controls.Add($cmbHexMode)
 $hexInsPanel.Controls.Add($hexInsHdr)
 # Mode A: Data Inspector (default)
@@ -2670,6 +2670,98 @@ $lvHexBmk.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexBmk.Fo
 [void]$lvHexBmk.Columns.Add('Offset', 90); [void]$lvHexBmk.Columns.Add('Note', 190)
 $pnlBmkMode.Controls.Add($lvHexBmk); $lvHexBmk.BringToFront()
 $hexInsPanel.Controls.Add($pnlBmkMode)
+# Mode F: PE Detail (CFF Explorer-equivalent deep analysis, widened to 440 px when active)
+$piDark  = [System.Drawing.Color]::FromArgb(24, 24, 24)
+$piWhite = [System.Drawing.Color]::White
+$piMuted = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$piCyan  = [System.Drawing.Color]::FromArgb(86, 182, 194)
+$piGray  = [System.Drawing.Color]::FromArgb(140, 140, 140)
+$piRedBg = [System.Drawing.Color]::FromArgb(80, 30, 30);  $piRedFg = [System.Drawing.Color]::FromArgb(255, 140, 140)
+$piOrgBg = [System.Drawing.Color]::FromArgb(70, 50, 20);  $piOrgFg = [System.Drawing.Color]::FromArgb(255, 200, 120)
+$piYelBg = [System.Drawing.Color]::FromArgb(50, 50, 20);  $piYelFg = [System.Drawing.Color]::FromArgb(255, 220, 80)
+
+$pnlPdMode = New-Object System.Windows.Forms.Panel
+$pnlPdMode.Dock = 'Fill'; $pnlPdMode.BackColor = $piDark; $pnlPdMode.Visible = $false
+
+$pdToolbar = New-Object System.Windows.Forms.Panel
+$pdToolbar.Dock = 'Top'; $pdToolbar.Height = 28; $pdToolbar.BackColor = [System.Drawing.Color]::FromArgb(25, 25, 25)
+$btnPdAnalyze = New-Object System.Windows.Forms.Button
+$btnPdAnalyze.Text = 'Analyze'; $btnPdAnalyze.Location = New-Object System.Drawing.Point(4, 3); $btnPdAnalyze.Size = New-Object System.Drawing.Size(72, 22)
+$btnPdAnalyze.FlatStyle = 'Flat'; $btnPdAnalyze.BackColor = [System.Drawing.Color]::FromArgb(0, 90, 120); $btnPdAnalyze.ForeColor = [System.Drawing.Color]::White
+$pdToolbar.Controls.Add($btnPdAnalyze)
+$lblPdNote = New-Object System.Windows.Forms.Label
+$lblPdNote.Text = 'uses file loaded in Hex view'; $lblPdNote.Location = New-Object System.Drawing.Point(82, 7)
+$lblPdNote.Size = New-Object System.Drawing.Size(220, 16); $lblPdNote.ForeColor = [System.Drawing.Color]::FromArgb(100, 100, 100)
+$lblPdNote.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+$pdToolbar.Controls.Add($lblPdNote)
+$pnlPdMode.Controls.Add($pdToolbar)
+
+$lblPdStatus = New-Object System.Windows.Forms.Label
+$lblPdStatus.Dock = 'Top'; $lblPdStatus.Height = 18
+$lblPdStatus.Text = 'Click Analyze to inspect the file loaded in the Hex view.'
+$lblPdStatus.ForeColor = [System.Drawing.Color]::FromArgb(140, 140, 140)
+$lblPdStatus.Padding = New-Object System.Windows.Forms.Padding(4, 1, 0, 0)
+$lblPdStatus.Font = New-Object System.Drawing.Font('Segoe UI', 7.5)
+$pnlPdMode.Controls.Add($lblPdStatus)
+
+$pdMain = New-Object System.Windows.Forms.TabControl
+$pdMain.Dock = 'Fill'; $pdMain.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
+
+$pdTabSum = New-Object System.Windows.Forms.TabPage; $pdTabSum.Text = 'Sum'; $pdTabSum.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$pdMain.TabPages.Add($pdTabSum)
+$txtPiSum = New-Object System.Windows.Forms.RichTextBox
+$txtPiSum.Dock = 'Fill'; $txtPiSum.ReadOnly = $true; $txtPiSum.WordWrap = $false
+$txtPiSum.Font = New-Object System.Drawing.Font('Consolas', 8.5); $txtPiSum.BackColor = $piDark; $txtPiSum.ForeColor = $piWhite
+$txtPiSum.Text = 'Click Analyze.'; $pdTabSum.Controls.Add($txtPiSum)
+
+$pdTabSec = New-Object System.Windows.Forms.TabPage; $pdTabSec.Text = 'Secs'; $pdTabSec.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$pdMain.TabPages.Add($pdTabSec)
+$lvPiSec = New-Object System.Windows.Forms.ListView
+$lvPiSec.Dock = 'Fill'; $lvPiSec.View = 'Details'; $lvPiSec.FullRowSelect = $true; $lvPiSec.GridLines = $true
+$lvPiSec.HeaderStyle = 'Nonclickable'; $lvPiSec.Font = New-Object System.Drawing.Font('Consolas', 8.5)
+$lvPiSec.BackColor = $piDark; $lvPiSec.ForeColor = $piWhite
+[void]$lvPiSec.Columns.Add('Name', 65); [void]$lvPiSec.Columns.Add('VirtAddr', 82)
+[void]$lvPiSec.Columns.Add('VirtSize', 70); [void]$lvPiSec.Columns.Add('RawOff', 82)
+[void]$lvPiSec.Columns.Add('RawSz', 65); [void]$lvPiSec.Columns.Add('Entropy', 58)
+[void]$lvPiSec.Columns.Add('Flag', 95); [void]$lvPiSec.Columns.Add('Chars', 130)
+$pdTabSec.Controls.Add($lvPiSec); $lvPiSec.BringToFront()
+
+$pdTabExp = New-Object System.Windows.Forms.TabPage; $pdTabExp.Text = 'Exp'; $pdTabExp.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$pdMain.TabPages.Add($pdTabExp)
+$lvPiExp = New-Object System.Windows.Forms.ListView
+$lvPiExp.Dock = 'Fill'; $lvPiExp.View = 'Details'; $lvPiExp.FullRowSelect = $true; $lvPiExp.GridLines = $true
+$lvPiExp.HeaderStyle = 'Nonclickable'; $lvPiExp.Font = New-Object System.Drawing.Font('Consolas', 8.5)
+$lvPiExp.BackColor = $piDark; $lvPiExp.ForeColor = $piWhite
+[void]$lvPiExp.Columns.Add('Name', 165); [void]$lvPiExp.Columns.Add('Ord', 48)
+[void]$lvPiExp.Columns.Add('RVA', 72); [void]$lvPiExp.Columns.Add('Fwd', 48)
+[void]$lvPiExp.Columns.Add('Forward Target', 230)
+$pdTabExp.Controls.Add($lvPiExp); $lvPiExp.BringToFront()
+
+$pdTabRich = New-Object System.Windows.Forms.TabPage; $pdTabRich.Text = 'Rich'; $pdTabRich.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$pdMain.TabPages.Add($pdTabRich)
+$pdRichHdr = New-Object System.Windows.Forms.Panel; $pdRichHdr.Dock = 'Top'; $pdRichHdr.Height = 24; $pdRichHdr.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+$lblPiRichHint = New-Object System.Windows.Forms.Label; $lblPiRichHint.Dock = 'Fill'; $lblPiRichHint.TextAlign = 'MiddleLeft'
+$lblPiRichHint.Padding = New-Object System.Windows.Forms.Padding(4, 0, 0, 0); $lblPiRichHint.ForeColor = $piMuted
+$lblPiRichHint.Text = 'Compiler/linker fingerprint in the DOS stub (XOR-encoded).'
+$lblPiRichHint.Font = New-Object System.Drawing.Font('Segoe UI', 7.5); $pdRichHdr.Controls.Add($lblPiRichHint)
+$pdTabRich.Controls.Add($pdRichHdr)
+$lvPiRich = New-Object System.Windows.Forms.ListView
+$lvPiRich.Dock = 'Fill'; $lvPiRich.View = 'Details'; $lvPiRich.FullRowSelect = $true; $lvPiRich.GridLines = $true
+$lvPiRich.HeaderStyle = 'Nonclickable'; $lvPiRich.Font = New-Object System.Drawing.Font('Consolas', 8.5)
+$lvPiRich.BackColor = $piDark; $lvPiRich.ForeColor = $piWhite
+[void]$lvPiRich.Columns.Add('ToolId', 52); [void]$lvPiRich.Columns.Add('Tool', 135)
+[void]$lvPiRich.Columns.Add('Build#', 60); [void]$lvPiRich.Columns.Add('Cnt', 52)
+$pdTabRich.Controls.Add($lvPiRich); $lvPiRich.BringToFront()
+
+$pdTabVer = New-Object System.Windows.Forms.TabPage; $pdTabVer.Text = 'Ver'; $pdTabVer.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+[void]$pdMain.TabPages.Add($pdTabVer)
+$txtPiVer = New-Object System.Windows.Forms.RichTextBox
+$txtPiVer.Dock = 'Fill'; $txtPiVer.ReadOnly = $true; $txtPiVer.WordWrap = $false
+$txtPiVer.Font = New-Object System.Drawing.Font('Consolas', 8.5); $txtPiVer.BackColor = $piDark; $txtPiVer.ForeColor = $piWhite
+$txtPiVer.Text = 'Click Analyze.'; $pdTabVer.Controls.Add($txtPiVer)
+
+$pnlPdMode.Controls.Add($pdMain); $pdMain.BringToFront()
+$hexInsPanel.Controls.Add($pnlPdMode)
 $hexBody.Controls.Add($hexInsPanel)
 # --- Center column: entropy strip + hex view + strings panel ---
 $hexCenter = New-Object System.Windows.Forms.Panel
@@ -2807,9 +2899,16 @@ $lvHexStr.Add_Click({ if ($lvHexStr.SelectedItems.Count -and $null -ne $lvHexStr
 $cmbHexMode.Add_SelectedIndexChanged({
     $mi = $cmbHexMode.SelectedIndex
     $pnlInsMode.Visible = ($mi -eq 0); $pnlPeMode.Visible = ($mi -eq 1); $pnlXorMode.Visible = ($mi -eq 2)
-    $pnlFreqMode.Visible = ($mi -eq 3); $pnlBmkMode.Visible = ($mi -eq 4)
-    $modePnls = @($pnlInsMode, $pnlPeMode, $pnlXorMode, $pnlFreqMode, $pnlBmkMode)
+    $pnlFreqMode.Visible = ($mi -eq 3); $pnlBmkMode.Visible = ($mi -eq 4); $pnlPdMode.Visible = ($mi -eq 5)
+    $modePnls = @($pnlInsMode, $pnlPeMode, $pnlXorMode, $pnlFreqMode, $pnlBmkMode, $pnlPdMode)
     if ($mi -ge 0 -and $mi -lt $modePnls.Count) { $modePnls[$mi].BringToFront() }
+    # PE Detail needs more horizontal space for its multi-column ListViews
+    $hexInsPanel.Width = if ($mi -eq 5) { 440 } else { 300 }
+})
+$btnPdAnalyze.Add_Click({
+    $p = "$($txtHexPath.Text)".Trim()
+    if (-not $p) { $lblPdStatus.Text = 'Load a file in the Hex view first, then click Analyze.'; return }
+    Load-PeInfo $p
 })
 # PE overlay toggle
 $btnHexPe.Add_Click({
@@ -4071,146 +4170,22 @@ $txtMermaid.BringToFront()
 $tabGraph.Controls.Add($splitGraph)
 $splitGraph.BringToFront()
 
-# ================= TAB: PE Info (CFF Explorer equivalent) =================
-$tabPeInfo = New-Object System.Windows.Forms.TabPage
-$tabPeInfo.Text = ' PE Info '
-$tabPeInfo.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-[void]$tabs.TabPages.Add($tabPeInfo)
 
-$piBar = New-Object System.Windows.Forms.Panel
-$piBar.Dock = 'Top'; $piBar.Height = 74; $piBar.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-$tabPeInfo.Controls.Add($piBar)
-
-$piRow1 = New-Object System.Windows.Forms.TableLayoutPanel
-$piRow1.Dock = 'Top'; $piRow1.Height = 38; $piRow1.ColumnCount = 5; $piRow1.RowCount = 1
-[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 42)))
-[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100)))
-[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 90)))
-[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 110)))
-[void]$piRow1.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 82)))
-$lblPiFile = New-Object System.Windows.Forms.Label
-$lblPiFile.Text = 'File:'; $lblPiFile.Dock = 'Fill'; $lblPiFile.TextAlign = 'MiddleLeft'
-$lblPiFile.Margin = New-Object System.Windows.Forms.Padding(6, 0, 0, 0); $lblPiFile.ForeColor = [System.Drawing.Color]::White
-$piRow1.Controls.Add($lblPiFile, 0, 0)
-$cmbPiFile = New-Object System.Windows.Forms.ComboBox
-$cmbPiFile.DropDownStyle = 'DropDown'; $cmbPiFile.Anchor = $anchLR; $cmbPiFile.Margin = New-Object System.Windows.Forms.Padding(2, 8, 6, 0)
-$cmbPiFile.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbPiFile.ForeColor = [System.Drawing.Color]::White
-$piRow1.Controls.Add($cmbPiFile, 1, 0)
-$btnPiBrowse = New-Object System.Windows.Forms.Button
-$btnPiBrowse.Text = 'Browse...'; $btnPiBrowse.Dock = 'Fill'; $btnPiBrowse.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
-$piRow1.Controls.Add($btnPiBrowse, 2, 0)
-$btnPiScan = New-Object System.Windows.Forms.Button
-$btnPiScan.Text = 'Scan target'; $btnPiScan.Dock = 'Fill'; $btnPiScan.Margin = New-Object System.Windows.Forms.Padding(2, 6, 2, 6)
-$piRow1.Controls.Add($btnPiScan, 3, 0)
-$btnPiAnalyze = New-Object System.Windows.Forms.Button
-$btnPiAnalyze.Text = 'Analyze'; $btnPiAnalyze.Dock = 'Fill'; $btnPiAnalyze.Margin = New-Object System.Windows.Forms.Padding(2, 6, 6, 6)
-$btnPiAnalyze.BackColor = [System.Drawing.Color]::FromArgb(0, 90, 120); $btnPiAnalyze.ForeColor = [System.Drawing.Color]::White; $btnPiAnalyze.FlatStyle = 'Flat'
-$piRow1.Controls.Add($btnPiAnalyze, 4, 0)
-
-$piRow2 = New-Object System.Windows.Forms.Panel
-$piRow2.Dock = 'Top'; $piRow2.Height = 32
-$lblPiStatus = New-Object System.Windows.Forms.Label
-$lblPiStatus.Dock = 'Fill'; $lblPiStatus.TextAlign = 'MiddleLeft'; $lblPiStatus.Padding = New-Object System.Windows.Forms.Padding(8, 0, 0, 0)
-$lblPiStatus.ForeColor = [System.Drawing.Color]::FromArgb(140, 140, 140)
-$lblPiStatus.Text = 'Browse or type a PE path, then click Analyze.  Red sections = entropy > 7.0 (packed/encrypted).  Yellow exports = forwarded.'
-$piRow2.Controls.Add($lblPiStatus)
-
-$piBar.Controls.Add($piRow2)
-$piBar.Controls.Add($piRow1)
-
-$piMain = New-Object System.Windows.Forms.TabControl
-$piMain.Dock = 'Fill'; $piMain.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$tabPeInfo.Controls.Add($piMain)
-$piMain.BringToFront()
-
-$piDark    = [System.Drawing.Color]::FromArgb(24, 24, 24)
-$piWhite   = [System.Drawing.Color]::White
-$piMuted   = [System.Drawing.Color]::FromArgb(180, 185, 190)
-$piCyan    = [System.Drawing.Color]::FromArgb(86, 182, 194)
-$piGray    = [System.Drawing.Color]::FromArgb(140, 140, 140)
-$piRedBg   = [System.Drawing.Color]::FromArgb(80, 30, 30)
-$piRedFg   = [System.Drawing.Color]::FromArgb(255, 140, 140)
-$piOrgBg   = [System.Drawing.Color]::FromArgb(70, 50, 20)
-$piOrgFg   = [System.Drawing.Color]::FromArgb(255, 200, 120)
-$piYelBg   = [System.Drawing.Color]::FromArgb(50, 50, 20)
-$piYelFg   = [System.Drawing.Color]::FromArgb(255, 220, 80)
-
-# Sub-tab: Summary
-$piTabSum = New-Object System.Windows.Forms.TabPage; $piTabSum.Text = 'Summary'; $piTabSum.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-[void]$piMain.TabPages.Add($piTabSum)
-$txtPiSum = New-Object System.Windows.Forms.RichTextBox
-$txtPiSum.Dock = 'Fill'; $txtPiSum.ReadOnly = $true; $txtPiSum.WordWrap = $false
-$txtPiSum.Font = New-Object System.Drawing.Font('Consolas', 9.5)
-$txtPiSum.BackColor = $piDark; $txtPiSum.ForeColor = $piWhite
-$txtPiSum.Text = 'Load a PE file to see the summary.'
-$piTabSum.Controls.Add($txtPiSum)
-
-# Sub-tab: Sections
-$piTabSec = New-Object System.Windows.Forms.TabPage; $piTabSec.Text = 'Sections'; $piTabSec.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-[void]$piMain.TabPages.Add($piTabSec)
-$lvPiSec = New-Object System.Windows.Forms.ListView
-$lvPiSec.Dock = 'Fill'; $lvPiSec.View = 'Details'; $lvPiSec.FullRowSelect = $true; $lvPiSec.GridLines = $true
-$lvPiSec.HeaderStyle = 'Nonclickable'; $lvPiSec.Font = New-Object System.Drawing.Font('Consolas', 9)
-$lvPiSec.BackColor = $piDark; $lvPiSec.ForeColor = $piWhite
-[void]$lvPiSec.Columns.Add('Name', 80); [void]$lvPiSec.Columns.Add('VirtAddr', 95)
-[void]$lvPiSec.Columns.Add('VirtSize', 80); [void]$lvPiSec.Columns.Add('RawOffset', 95)
-[void]$lvPiSec.Columns.Add('RawSize', 75); [void]$lvPiSec.Columns.Add('Entropy', 68)
-[void]$lvPiSec.Columns.Add('EntropyFlag', 190); [void]$lvPiSec.Columns.Add('Chars', 150)
-$piTabSec.Controls.Add($lvPiSec); $lvPiSec.BringToFront()
-
-# Sub-tab: Exports
-$piTabExp = New-Object System.Windows.Forms.TabPage; $piTabExp.Text = 'Exports'; $piTabExp.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-[void]$piMain.TabPages.Add($piTabExp)
-$lvPiExp = New-Object System.Windows.Forms.ListView
-$lvPiExp.Dock = 'Fill'; $lvPiExp.View = 'Details'; $lvPiExp.FullRowSelect = $true; $lvPiExp.GridLines = $true
-$lvPiExp.HeaderStyle = 'Nonclickable'; $lvPiExp.Font = New-Object System.Drawing.Font('Consolas', 9)
-$lvPiExp.BackColor = $piDark; $lvPiExp.ForeColor = $piWhite
-[void]$lvPiExp.Columns.Add('Name', 220); [void]$lvPiExp.Columns.Add('Ordinal', 65)
-[void]$lvPiExp.Columns.Add('RVA', 90); [void]$lvPiExp.Columns.Add('Forwarded', 70)
-[void]$lvPiExp.Columns.Add('Forward Target', 300)
-$piTabExp.Controls.Add($lvPiExp); $lvPiExp.BringToFront()
-
-# Sub-tab: Rich Header
-$piTabRich = New-Object System.Windows.Forms.TabPage; $piTabRich.Text = 'Rich Header'; $piTabRich.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-[void]$piMain.TabPages.Add($piTabRich)
-$piRichHdr = New-Object System.Windows.Forms.Panel; $piRichHdr.Dock = 'Top'; $piRichHdr.Height = 28; $piRichHdr.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-$lblPiRichHint = New-Object System.Windows.Forms.Label; $lblPiRichHint.Dock = 'Fill'; $lblPiRichHint.TextAlign = 'MiddleLeft'
-$lblPiRichHint.Padding = New-Object System.Windows.Forms.Padding(8, 0, 0, 0); $lblPiRichHint.ForeColor = $piMuted
-$lblPiRichHint.Text = 'Compiler/linker version fingerprint in the DOS stub (XOR-encoded). Identifies the exact VS toolset used to link the binary.'
-$piRichHdr.Controls.Add($lblPiRichHint)
-$piTabRich.Controls.Add($piRichHdr)
-$lvPiRich = New-Object System.Windows.Forms.ListView
-$lvPiRich.Dock = 'Fill'; $lvPiRich.View = 'Details'; $lvPiRich.FullRowSelect = $true; $lvPiRich.GridLines = $true
-$lvPiRich.HeaderStyle = 'Nonclickable'; $lvPiRich.Font = New-Object System.Drawing.Font('Consolas', 9)
-$lvPiRich.BackColor = $piDark; $lvPiRich.ForeColor = $piWhite
-[void]$lvPiRich.Columns.Add('ToolId', 70); [void]$lvPiRich.Columns.Add('Tool', 150)
-[void]$lvPiRich.Columns.Add('Build#', 75); [void]$lvPiRich.Columns.Add('UseCount', 75)
-$piTabRich.Controls.Add($lvPiRich); $lvPiRich.BringToFront()
-
-# Sub-tab: Version Info
-$piTabVer = New-Object System.Windows.Forms.TabPage; $piTabVer.Text = 'Version Info'; $piTabVer.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
-[void]$piMain.TabPages.Add($piTabVer)
-$txtPiVer = New-Object System.Windows.Forms.RichTextBox
-$txtPiVer.Dock = 'Fill'; $txtPiVer.ReadOnly = $true; $txtPiVer.WordWrap = $false
-$txtPiVer.Font = New-Object System.Drawing.Font('Consolas', 9.5)
-$txtPiVer.BackColor = $piDark; $txtPiVer.ForeColor = $piWhite
-$txtPiVer.Text = 'Load a PE file to see version resource strings and manifest fields.'
-$piTabVer.Controls.Add($txtPiVer)
 
 # --- PE Info logic ---
 function Load-PeInfo([string]$filePath) {
     if (-not $filePath -or -not [IO.File]::Exists($filePath)) {
-        $lblPiStatus.Text = "File not found: $filePath"; return
+        $lblPdStatus.Text = "File not found: $filePath"; return
     }
-    $lblPiStatus.Text = "Analyzing $([IO.Path]::GetFileName($filePath)) ..."
+    $lblPdStatus.Text = "Analyzing $([IO.Path]::GetFileName($filePath)) ..."
     [System.Windows.Forms.Application]::DoEvents()
     $pi = $null
     try {
         $mod = @(Get-Module TCPK)[0]
-        if (-not $mod) { $lblPiStatus.Text = 'TCPK module not loaded.'; return }
+        if (-not $mod) { $lblPdStatus.Text = 'TCPK module not loaded.'; return }
         $pi = & $mod { param($p) Get-TcpkPeInfo -Path $p } $filePath
-    } catch { $lblPiStatus.Text = "Error: $($_.Exception.Message)"; return }
-    if (-not $pi) { $lblPiStatus.Text = 'Not a valid PE or no data returned.'; return }
+    } catch { $lblPdStatus.Text = "Error: $($_.Exception.Message)"; return }
+    if (-not $pi) { $lblPdStatus.Text = 'Not a valid PE or no data returned.'; return }
 
     # Summary
     $txtPiSum.Clear()
@@ -4309,35 +4284,9 @@ function Load-PeInfo([string]$filePath) {
     _VerLine 'ExecutionLevel:'   $(if ($pi.ExecutionLevel) { $pi.ExecutionLevel } else { '(not found)' })
     $txtPiVer.SelectionStart = 0; $txtPiVer.ScrollToCaret()
 
-    $lblPiStatus.Text = "Loaded: $($pi.Name)  |  $($pi.Arch)  |  $($pi.Compiler)  |  $($pi.NumberOfSections) sections  |  $($pi.ExportCount) exports  |  overlay: $($pi.OverlaySize) bytes"
+    $lblPdStatus.Text = "Loaded: $($pi.Name)  |  $($pi.Arch)  |  $($pi.Compiler)  |  $($pi.NumberOfSections) sections  |  $($pi.ExportCount) exports  |  overlay: $($pi.OverlaySize) bytes"
 }
 
-$btnPiBrowse.Add_Click({
-    $ofd = New-Object System.Windows.Forms.OpenFileDialog
-    $ofd.Filter = 'PE Files (*.exe;*.dll;*.sys;*.ocx)|*.exe;*.dll;*.sys;*.ocx|All files (*.*)|*.*'
-    $ofd.Title = 'Select a PE file to inspect'
-    if ($ofd.ShowDialog() -eq 'OK') {
-        if ($cmbPiFile.Items -notcontains $ofd.FileName) { [void]$cmbPiFile.Items.Add($ofd.FileName) }
-        $cmbPiFile.Text = $ofd.FileName
-    }
-    $ofd.Dispose()
-})
-
-$btnPiScan.Add_Click({
-    $base = "$($txtTarget.Text)".Trim()
-    if (-not $base) { $lblPiStatus.Text = 'Set an audit target first (top toolbar).'; return }
-    $lblPiStatus.Text = "Scanning $base ..."
-    [System.Windows.Forms.Application]::DoEvents()
-    $pfs = @(Get-ChildItem -Path $base -Recurse -Include '*.exe','*.dll','*.sys','*.ocx' -File -ErrorAction SilentlyContinue | Select-Object -First 100)
-    $cmbPiFile.BeginUpdate(); $cmbPiFile.Items.Clear()
-    foreach ($pf in $pfs) { [void]$cmbPiFile.Items.Add($pf.FullName) }
-    $cmbPiFile.EndUpdate()
-    if ($cmbPiFile.Items.Count -gt 0) { $cmbPiFile.SelectedIndex = 0; $lblPiStatus.Text = "$($cmbPiFile.Items.Count) PE files found. Select one and click Analyze." }
-    else { $lblPiStatus.Text = 'No PE files found in the target directory.' }
-})
-
-$btnPiAnalyze.Add_Click({ Load-PeInfo "$($cmbPiFile.Text)".Trim() })
-$cmbPiFile.Add_KeyDown({ param($s, $e); if ($e.KeyCode -eq 'Return') { Load-PeInfo "$($cmbPiFile.Text)".Trim() } })
 
 # ================= TAB: Dependencies (Dependency Walker equivalent) =================
 $tabDep = New-Object System.Windows.Forms.TabPage
