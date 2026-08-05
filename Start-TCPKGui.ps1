@@ -1025,20 +1025,33 @@ $ctlA = New-Object System.Windows.Forms.Panel
 $ctlA.Dock = 'Top'; $ctlA.Height = 120; $ctlA.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 
 # App exe row
+# Right-edge controls (Browse button + exe text box) are positioned by a SizeChanged
+# handler rather than WinForms Anchor.  Anchor snapshots the "distance from right" at
+# control-add time, but at that point the parent panel hasn't been given its real width
+# yet (form not shown), so the snapshot is wrong and buttons end up off-screen.
 $lblExeA = New-Object System.Windows.Forms.Label
 $lblExeA.Text = "App exe (.exe to launch through the proxy):"; $lblExeA.ForeColor = [System.Drawing.Color]::White
 $lblExeA.Location = New-Object System.Drawing.Point(12,8); $lblExeA.Size = New-Object System.Drawing.Size(320,18)
 $ctlA.Controls.Add($lblExeA)
 $txtExeA = New-Object System.Windows.Forms.TextBox
-$txtExeA.Location = New-Object System.Drawing.Point(336,5); $txtExeA.Size = New-Object System.Drawing.Size(730,24); $txtExeA.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtExeA.Location = New-Object System.Drawing.Point(336,5); $txtExeA.Size = New-Object System.Drawing.Size(500,24); $txtExeA.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtExeA.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtExeA.ForeColor = [System.Drawing.Color]::White
-$txtExeA.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$txtExeA.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $ctlA.Controls.Add($txtExeA)
 $btnBrowseA = New-Object System.Windows.Forms.Button
-$btnBrowseA.Text = "Browse..."; $btnBrowseA.Location = New-Object System.Drawing.Point(1074,3); $btnBrowseA.Size = New-Object System.Drawing.Size(88,26)
+$btnBrowseA.Text = "Browse..."; $btnBrowseA.Location = New-Object System.Drawing.Point(840,3); $btnBrowseA.Size = New-Object System.Drawing.Size(88,26)
 $btnBrowseA.FlatStyle = 'Flat'; $btnBrowseA.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnBrowseA.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
-$btnBrowseA.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$btnBrowseA.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $ctlA.Controls.Add($btnBrowseA)
+# Resize handler: keeps Browse button flush to the right, exe box fills the gap.
+$ctlA.Add_SizeChanged({
+    $cw = $ctlA.ClientSize.Width
+    $bw = 88; $rm = 10
+    $bx = $cw - $bw - $rm
+    $btnBrowseA.Location = New-Object System.Drawing.Point($bx, 3)
+    $tw = $bx - 8 - 336
+    if ($tw -gt 60) { $txtExeA.Size = New-Object System.Drawing.Size($tw, 24) }
+})
 $btnBrowseA.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog
     $dlg.Filter = "Executables (*.exe)|*.exe|All files (*.*)|*.*"
@@ -1048,11 +1061,12 @@ $btnBrowseA.Add_Click({
 # Traffic interception group -- single compact row:
 #   Mode | Duration | Tamper bar (stretches) | [Launch + capture]
 #                                             | [Load capture...  ]  <- stacked below
+# Same reason as above: use SizeChanged instead of Anchor for right-edge items.
 $gbTraffic = New-Object System.Windows.Forms.GroupBox
 $gbTraffic.Text = "Traffic interception (mitmproxy)"; $gbTraffic.ForeColor = [System.Drawing.Color]::White
 $gbTraffic.Location = New-Object System.Drawing.Point(10,36)
-$gbTraffic.Size = New-Object System.Drawing.Size(1080,80)
-$gbTraffic.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$gbTraffic.Size = New-Object System.Drawing.Size(600,80)
+$gbTraffic.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right
 $ctlA.Controls.Add($gbTraffic)
 
 $lblMode = New-Object System.Windows.Forms.Label; $lblMode.Text = "Mode:"; $lblMode.ForeColor = [System.Drawing.Color]::White; $lblMode.Location = New-Object System.Drawing.Point(10,26); $lblMode.Size = New-Object System.Drawing.Size(44,18); $gbTraffic.Controls.Add($lblMode)
@@ -1065,29 +1079,36 @@ $numDur = New-Object System.Windows.Forms.NumericUpDown; $numDur.Location = New-
 $numDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numDur.ForeColor = [System.Drawing.Color]::White; $gbTraffic.Controls.Add($numDur)
 
 $lblTam = New-Object System.Windows.Forms.Label; $lblTam.Text = "Tamper:"; $lblTam.ForeColor = [System.Drawing.Color]::White; $lblTam.Location = New-Object System.Drawing.Point(292,26); $lblTam.Size = New-Object System.Drawing.Size(56,18); $gbTraffic.Controls.Add($lblTam)
-$txtTamper = New-Object System.Windows.Forms.TextBox; $txtTamper.Location = New-Object System.Drawing.Point(350,22); $txtTamper.Size = New-Object System.Drawing.Size(560,24)
+$txtTamper = New-Object System.Windows.Forms.TextBox; $txtTamper.Location = New-Object System.Drawing.Point(350,22); $txtTamper.Size = New-Object System.Drawing.Size(200,24)
 $txtTamper.Multiline = $false; $txtTamper.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtTamper.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTamper.ForeColor = [System.Drawing.Color]::White
-$txtTamper.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$txtTamper.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $gbTraffic.Controls.Add($txtTamper)
 
 $tipTam = New-Object System.Windows.Forms.ToolTip
 $tipTam.SetToolTip($txtTamper, "Tamper rules: find=>replace, one per line. Active in Tamper mode only.")
 $tipTam.SetToolTip($lblTam,    "Tamper rules: find=>replace, one per line. Active in Tamper mode only.")
 
-# Launch + capture -- top-right of the group box
 $btnCap = New-Object System.Windows.Forms.Button; $btnCap.Text = "Launch + capture"
-$btnCap.Size = New-Object System.Drawing.Size(156,28)
-$btnCap.Location = New-Object System.Drawing.Point(914,16)
-$btnCap.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$btnCap.Size = New-Object System.Drawing.Size(156,28); $btnCap.Location = New-Object System.Drawing.Point(430,16)
+$btnCap.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $btnCap.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCap.ForeColor = [System.Drawing.Color]::White; $btnCap.FlatStyle = 'Flat'; $gbTraffic.Controls.Add($btnCap)
 
-# Load capture file -- stacked below Launch + capture, same right edge
 $btnLoad = New-Object System.Windows.Forms.Button; $btnLoad.Text = "Load capture file..."
-$btnLoad.Size = New-Object System.Drawing.Size(156,28)
-$btnLoad.Location = New-Object System.Drawing.Point(914,48)
-$btnLoad.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$btnLoad.Size = New-Object System.Drawing.Size(156,28); $btnLoad.Location = New-Object System.Drawing.Point(430,48)
+$btnLoad.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $btnLoad.FlatStyle = 'Flat'; $btnLoad.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnLoad.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbTraffic.Controls.Add($btnLoad)
+
+# Resize handler: stacks buttons at right edge, tamper bar fills the gap.
+$gbTraffic.Add_SizeChanged({
+    $cw = $gbTraffic.ClientSize.Width
+    $bw = 156; $rm = 10
+    $bx = $cw - $bw - $rm
+    $btnCap.Location  = New-Object System.Drawing.Point($bx, 16)
+    $btnLoad.Location = New-Object System.Drawing.Point($bx, 48)
+    $tw = $bx - 8 - 350
+    if ($tw -gt 60) { $txtTamper.Size = New-Object System.Drawing.Size($tw, 24) }
+})
 $btnCap.Add_Click({
     if (-not (Test-IcptGate $chkGateA $txtOutA)) { return }
     $exe = $txtExeA.Text.Trim()
