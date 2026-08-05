@@ -69,7 +69,7 @@ function Test-TcpkOAuthState {
         for ($i = 0; $i -lt $lineCount; $i++) {
             $line = $lines[$i]
             # Skip comment lines
-            if ($line.TrimStart() -match '^(?://|#|/\*|\*|''')') { continue }
+            if ($line.TrimStart() -match '^(?://|#|/\*|\*|'')') { continue }
 
             # 1. Implicit flow
             if ($line -match $implicitRx) {

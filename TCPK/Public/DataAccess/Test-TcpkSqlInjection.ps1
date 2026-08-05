@@ -105,7 +105,7 @@ function Test-TcpkSqlInjection {
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $line = $lines[$i]
             # Skip pure comment lines
-            if ($line.TrimStart() -match '^(?://|#|/\*|\*|''')') { continue }
+            if ($line.TrimStart() -match '^(?://|#|/\*|\*|'')') { continue }
 
             foreach ($pat in $patterns) {
                 if ($line -notmatch $pat.Rx) { continue }

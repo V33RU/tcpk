@@ -110,7 +110,7 @@ function Test-TcpkTempFileToctou {
 
         for ($i = 0; $i -lt $lineCount; $i++) {
             $line = $lines[$i]
-            if ($line.TrimStart() -match '^(?://|#|/\*|\*|''')') { continue }
+            if ($line.TrimStart() -match '^(?://|#|/\*|\*|'')') { continue }
 
             # ---- Pattern 1: GetTempPath + path construction ----
             if ($line -match $getTempPathLineRx) {
