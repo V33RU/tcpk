@@ -984,8 +984,12 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
             if (-not $f) { continue }
             $n++
             $c = $script:SevColour[[string]$f.Severity]; if (-not $c) { $c = [System.Drawing.Color]::White }
-            Write-IcptLine $box ("[{0}] [{1}] {2}`r`n" -f $f.Severity, $f.Confidence, $f.Title) $c
-            if ($f.Evidence) { Write-IcptLine $box ("      {0}`r`n" -f $f.Evidence) ([System.Drawing.Color]::FromArgb(150,150,150)) }
+            Write-IcptLine $box ("[{0}] {1}`r`n" -f $f.Severity, $f.Title) $c
+            Write-IcptLine $box ("      Confidence: {0}`r`n" -f $f.Confidence) ([System.Drawing.Color]::FromArgb(95,100,110))
+            if ($f.Cwe -and $f.Cwe.Count) { Write-IcptLine $box ("      CWE:        {0}`r`n" -f ($f.Cwe -join ', ')) ([System.Drawing.Color]::FromArgb(210,190,55)) }
+            if ($f.Evidence)  { Write-IcptLine $box ("      Evidence:   {0}`r`n" -f $f.Evidence) ([System.Drawing.Color]::FromArgb(155,160,165)) }
+            if ($f.Fix)       { Write-IcptLine $box ("      Fix:        {0}`r`n" -f $f.Fix)      ([System.Drawing.Color]::FromArgb(80,190,85)) }
+            Write-IcptLine $box "`r`n" ([System.Drawing.Color]::White)
         }
         if ($n -eq 0) { Write-IcptLine $box "(no findings returned)`r`n" ([System.Drawing.Color]::FromArgb(150,150,150)) }
         else {
@@ -1261,6 +1265,15 @@ $btnPcapGo.Add_Click({
             [void]$lvi.SubItems.Add("$($c.Bytes)")
             [void]$lvi.SubItems.Add("$($c.SrcMAC)")
             [void]$lvi.SubItems.Add("$($c.DstMAC)")
+            $prl = "$($c.Protocol)".ToLower()
+            $lvi.ForeColor = if     ($prl -match 'https|tls|ssl')  { [System.Drawing.Color]::FromArgb(90,175,255) }
+                             elseif ($prl -match 'http')            { [System.Drawing.Color]::FromArgb(255,150,55) }
+                             elseif ($prl -match 'dns')             { [System.Drawing.Color]::FromArgb(205,215,50) }
+                             elseif ($prl -match 'smtp|pop|imap')   { [System.Drawing.Color]::FromArgb(240,80,65) }
+                             elseif ($prl -match 'ftp')             { [System.Drawing.Color]::FromArgb(235,145,50) }
+                             elseif ($prl -match 'ssh')             { [System.Drawing.Color]::FromArgb(65,200,95) }
+                             elseif ($prl -match 'udp')             { [System.Drawing.Color]::FromArgb(165,100,235) }
+                             else                                   { [System.Drawing.Color]::FromArgb(170,178,188) }
             [void]$lvConv.Items.Add($lvi)
         }
         # Build network graph data (circular layout, up to 200 conversations)
@@ -1545,12 +1558,25 @@ $pbGraph.Add_Paint({
         $g.DrawString('Analyse a capture to build the IP network graph.', $hfn, $hbr, 24, 24)
         $hbr.Dispose(); $hfn.Dispose(); return
     }
+    # Protocol-to-RGB helper (inline scriptblock so no function name collision)
+    $protoRgb = { param($pr)
+        $p = "$pr".ToLower()
+        if     ($p -match 'https|tls|ssl')  { 60,145,230 }
+        elseif ($p -match 'http')            { 235,130,40 }
+        elseif ($p -match 'dns')             { 205,220,45 }
+        elseif ($p -match 'smtp|pop|imap')   { 235,70,60 }
+        elseif ($p -match 'ftp')             { 235,148,40 }
+        elseif ($p -match 'ssh')             { 55,205,90 }
+        elseif ($p -match 'udp')             { 165,95,235 }
+        else                                 { 80,140,200 }
+    }
     foreach ($c in $script:graphConvs) {
         $ps = $script:graphPositions["$($c.SrcIP)"]; $pd = $script:graphPositions["$($c.DstIP)"]
         if (-not $ps -or -not $pd) { continue }
         $al = [int][Math]::Min(200, [Math]::Max(35, 55 + [Math]::Log([double]$c.Bytes + 2) * 9))
         $tk = [float][Math]::Max(0.6, [Math]::Min(4.0, [Math]::Log([double]$c.Bytes + 2) / 3.5))
-        $ep = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb($al, 80, 140, 200), $tk)
+        $rgb = & $protoRgb $c.Protocol
+        $ep = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb($al, $rgb[0], $rgb[1], $rgb[2]), $tk)
         $g.DrawLine($ep, [float]$ps.X, [float]$ps.Y, [float]$pd.X, [float]$pd.Y); $ep.Dispose()
     }
     $nb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(90,185,255))
@@ -1562,6 +1588,24 @@ $pbGraph.Add_Paint({
         $g.DrawString($ip, $fn, $lb, $nx + 8, $ny - 7)
     }
     $nb.Dispose(); $lb.Dispose(); $fn.Dispose()
+    # Protocol legend (top-left)
+    $seenP = @($script:graphConvs | ForEach-Object { "$($_.Protocol)".ToLower() } | Sort-Object -Unique | Select-Object -First 9)
+    if ($seenP.Count -gt 0) {
+        $lfn = New-Object System.Drawing.Font('Consolas', 7.5)
+        $lbg = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(180,22,22,26))
+        $g.FillRectangle($lbg, 8, 8, 145, 14 + $seenP.Count * 14); $lbg.Dispose()
+        $lhdr = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(130,135,142))
+        $g.DrawString('Protocol', $lfn, $lhdr, 13, 10); $lhdr.Dispose()
+        $ly = 22
+        foreach ($lp in $seenP) {
+            $lrgb = & $protoRgb $lp
+            $lsb = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(210,$lrgb[0],$lrgb[1],$lrgb[2]))
+            $g.FillRectangle($lsb, 13, $ly + 2, 10, 8)
+            $g.DrawString($lp, $lfn, $lsb, 28, $ly)
+            $lsb.Dispose(); $ly += 14
+        }
+        $lfn.Dispose()
+    }
 })
 $pbGraph.Add_Resize({
     if ($script:graphConvs.Count -eq 0) { return }
