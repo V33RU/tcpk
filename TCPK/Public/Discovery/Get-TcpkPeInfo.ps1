@@ -28,9 +28,14 @@ function Get-TcpkPeInfo {
       Name, Ordinal, RVA, IsForwarded (forwarded exports show the target "DLL.Function")
       ForwardTarget string when IsForwarded = true
 
+    File identity (CFF Explorer top panel):
+      FileType string, FileSizeKb, Created/Modified/Accessed (filesystem timestamps),
+      MD5, SHA1, SHA256 hashes
+
     VersionInfo resource strings (UTF-16LE wide-string scan):
       FileVersion, ProductVersion, CompanyName, ProductName,
-      OriginalFilename, FileDescription, InternalName
+      OriginalFilename, FileDescription, InternalName,
+      LegalCopyright, LegalTrademarks, Comments
 
     Manifest:
       ExecutionLevel extracted: asInvoker / requireAdministrator / highestAvailable
@@ -442,7 +447,8 @@ function Get-TcpkPeInfo {
             # VersionInfo strings: UTF-16LE wide-string scan.
             # Read the resource section first (if present), else scan the whole file.
             $verKeys  = @('FileVersion','ProductVersion','CompanyName','ProductName',
-                          'OriginalFilename','FileDescription','InternalName','LegalCopyright')
+                          'OriginalFilename','FileDescription','InternalName',
+                          'LegalCopyright','LegalTrademarks','Comments')
             $verInfo  = @{}
             foreach ($vk in $verKeys) { $verInfo[$vk] = '' }
 
@@ -482,6 +488,11 @@ function Get-TcpkPeInfo {
                 $executionLevel = $matches[1]
             }
 
+            # File hashes
+            $md5Hash    = (Get-FileHash -LiteralPath $peFile.FullName -Algorithm MD5).Hash
+            $sha1Hash   = (Get-FileHash -LiteralPath $peFile.FullName -Algorithm SHA1).Hash
+            $sha256Hash = (Get-FileHash -LiteralPath $peFile.FullName -Algorithm SHA256).Hash
+
             # Compiler hint from import table strings + Rich Header
             $importText = Read-TcpkAllText -Path $peFile.FullName
             $isManaged  = $importText -and $importText.Contains('BSJB')
@@ -505,11 +516,22 @@ function Get-TcpkPeInfo {
                 } catch { '?' }
             } else { 'zeroed (reproducible build)' }
 
+            $fileType = if ($isPE32Plus) { 'Portable Executable 64-bit' } else { 'Portable Executable 32-bit' }
+            if ($isManaged) { $fileType += ' .NET Assembly' }
+
             [pscustomobject]@{
-                # File identity
+                # File identity and properties (CFF Explorer top panel)
                 Name             = $peFile.Name
                 FullPath         = $peFile.FullName
+                FileType         = $fileType
                 FileSize         = $peFile.Length
+                FileSizeKb       = '{0:N2} KB ({1} bytes)' -f ($peFile.Length / 1KB), $peFile.Length
+                Created          = $peFile.CreationTime.ToString('dddd dd MMMM yyyy, HH.mm.ss')
+                Modified         = $peFile.LastWriteTime.ToString('dddd dd MMMM yyyy, HH.mm.ss')
+                Accessed         = $peFile.LastAccessTime.ToString('dddd dd MMMM yyyy, HH.mm.ss')
+                MD5              = $md5Hash
+                SHA1             = $sha1Hash
+                SHA256           = $sha256Hash
 
                 # Architecture and type
                 Arch             = switch ($machine) {
@@ -563,6 +585,8 @@ function Get-TcpkPeInfo {
                 FileDescription  = $verInfo['FileDescription']
                 InternalName     = $verInfo['InternalName']
                 LegalCopyright   = $verInfo['LegalCopyright']
+                LegalTrademarks  = $verInfo['LegalTrademarks']
+                Comments         = $verInfo['Comments']
 
                 # Embedded manifest
                 ExecutionLevel   = $executionLevel
