@@ -93,6 +93,17 @@ function New-TcpkFinding {
         [string]   $Cvss,
         [string]   $Fix,
 
+        # C8 - Attribution.
+        # Establishes that the TARGET (not the OS/environment) created this condition.
+        # 'established-code'          - target code/installer can create this condition
+        # 'established-footprint'     - artifact is inside the target's install/data footprint
+        # 'established-baseline-diff' - condition differs from the host baseline
+        # 'name-match-only'           - only evidence is a name/string match (NOT attribution)
+        # 'unproven'                  - no attribution evidence; Invoke-TcpkAttributionFilter demotes
+        # ''                          - un-migrated rule; filter warns on ambient surfaces only
+        [ValidateSet('','established-code','established-footprint','established-baseline-diff','name-match-only','unproven')]
+        [string]   $AttributionBasis = '',
+
         # SDVB observation contract.
         # Rules that set these fields enable the redundancy classifier.
         # Rules that omit them remain fully functional; their findings
@@ -118,6 +129,7 @@ function New-TcpkFinding {
     $f.Impact      = $Impact
     $f.Cvss        = $Cvss
     $f.Fix         = $Fix
+    $f.AttributionBasis = $AttributionBasis
     $f.Subject     = $Subject
     $f.Dimension   = $Dimension
     $f.ObsValue    = $ObsValue

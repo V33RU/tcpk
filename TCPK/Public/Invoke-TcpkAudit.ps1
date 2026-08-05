@@ -731,6 +731,20 @@ function Invoke-TcpkAudit {
         Write-TcpkLog -Level INFO -Component 'consistency' -Message "$beforeConsist -> $($all.Count) after consistency check" | Out-Null
     }
 
+    # --- Attribution filter (C8): demote findings with unproven attribution ---
+    # name-match-only or unproven -> INFO/Unverified + "AMBIENT:" prefix.
+    # Un-migrated rules (empty AttributionBasis) get a warning only if their subject
+    # is a known ambient OS surface. Counts are reported only when demotion occurs.
+    $beforeAttrib = $all.Count
+    $attributed = @($all | Invoke-TcpkAttributionFilter)
+    $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
+    foreach ($f in $attributed) { $all.Add($f) }
+    $demoted = @($all | Where-Object { "$($_.AdjustmentLog)" -match 'CAP8:.*->INFO' }).Count
+    if ($demoted -gt 0) {
+        Write-Information -MessageData "  C8 attribution: $demoted finding(s) demoted to INFO (unproven attribution; marked AMBIENT)" -InformationAction Continue
+        Write-TcpkLog -Level INFO -Component 'attribution' -Message "$demoted demoted to INFO by attribution filter" | Out-Null
+    }
+
     # --- CVE exposure: LIVE online lookup (OSV for NuGet/Electron, NVD for native). There is no
     #     offline catalog -- CVE matching runs only with -OnlineCve (needs network). Without it the
     #     step is skipped and the report states CVE data was not collected (never a false "clean"). ---

@@ -29,6 +29,13 @@ class TcpkFinding {
     [string] $Cvss         # optional explicit CVSS v4.0 vector for THIS finding (e.g. a real NVD vector); else assigned by attack archetype at report time
     [string] $Fix          # one-line remediation suggestion
 
+    # --- C8 attribution ---
+    # Did the tool establish that the TARGET (not the environment) created this condition?
+    # Values: 'established-code' | 'established-footprint' | 'established-baseline-diff'
+    #         'name-match-only'  | 'unproven' | '' (not yet migrated)
+    # Empty = un-migrated rule; Invoke-TcpkAttributionFilter warns on ambient surfaces.
+    [string] $AttributionBasis = ''
+
     # --- observation contract (SDVB) ---
     # Every finding is a claim about an observation.  Rules that set these fields
     # enable the redundancy classifier (Invoke-TcpkRedundancyCorrelation) to derive
