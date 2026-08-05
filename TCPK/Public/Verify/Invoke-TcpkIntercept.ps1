@@ -115,12 +115,13 @@ function Invoke-TcpkIntercept {
         $env:TCPK_TAMPER_OUT = $log
         $mp = $null; $tp = $null; $ph = $env:HTTP_PROXY; $ps = $env:HTTPS_PROXY
         $savedProxy = Get-TcpkWinInetProxy
+        $launchArgs = Add-TcpkElectronProxyArgs -Target $Target -ExtraArgs $ExtraArgs -Port $Port
         try {
             Write-TcpkInfo "[intercept] tamper mitmdump on 127.0.0.1:$Port ($(@($TamperRules).Count) rule(s)); launching $(Split-Path $Target -Leaf) (~${DurationSec}s)"
             $mp = Start-Process -FilePath $mitm -ArgumentList @('--listen-host', '127.0.0.1', '-p', "$Port", '-s', "$tamperAddon", '-q') -PassThru -WindowStyle Minimized -ErrorAction Stop
             Start-Sleep -Seconds 2
             Set-TcpkWinInetProxy -ProxyServer "127.0.0.1:$Port"
-            $tp = if (@($ExtraArgs).Count) { Start-Process -FilePath $Target -ArgumentList $ExtraArgs -PassThru -WindowStyle Minimized -ErrorAction Stop } else { Start-Process -FilePath $Target -PassThru -WindowStyle Minimized -ErrorAction Stop }
+            $tp = if (@($launchArgs).Count) { Start-Process -FilePath $Target -ArgumentList $launchArgs -PassThru -WindowStyle Minimized -ErrorAction Stop } else { Start-Process -FilePath $Target -PassThru -WindowStyle Minimized -ErrorAction Stop }
             $deadline = (Get-Date).AddSeconds($DurationSec)
             while ((Get-Date) -lt $deadline -and $tp -and -not $tp.HasExited) { Start-Sleep -Milliseconds 500 }
         } finally {
@@ -144,13 +145,14 @@ function Invoke-TcpkIntercept {
     $env:TCPK_INTERCEPT_OUT = $out
     $mp = $null; $tp = $null; $prevHttp = $env:HTTP_PROXY; $prevHttps = $env:HTTPS_PROXY
     $savedProxy = Get-TcpkWinInetProxy
+    $launchArgs = Add-TcpkElectronProxyArgs -Target $Target -ExtraArgs $ExtraArgs -Port $Port
     try {
         Write-TcpkInfo "[intercept] starting mitmdump on 127.0.0.1:$Port (capture -> $out)"
         $mp = Start-Process -FilePath $mitm -ArgumentList @('--listen-host', '127.0.0.1', '-p', "$Port", '-s', "$addon", '-q') -PassThru -WindowStyle Minimized -ErrorAction Stop
         Start-Sleep -Seconds 2
         Set-TcpkWinInetProxy -ProxyServer "127.0.0.1:$Port"
         Write-TcpkInfo "[intercept] launching $(Split-Path $Target -Leaf) via proxy (~${DurationSec}s). Trust the mitmproxy CA if TLS does not intercept."
-        $tp = if (@($ExtraArgs).Count) { Start-Process -FilePath $Target -ArgumentList $ExtraArgs -PassThru -WindowStyle Minimized -ErrorAction Stop } else { Start-Process -FilePath $Target -PassThru -WindowStyle Minimized -ErrorAction Stop }
+        $tp = if (@($launchArgs).Count) { Start-Process -FilePath $Target -ArgumentList $launchArgs -PassThru -WindowStyle Minimized -ErrorAction Stop } else { Start-Process -FilePath $Target -PassThru -WindowStyle Minimized -ErrorAction Stop }
         $deadline = (Get-Date).AddSeconds($DurationSec)
         while ((Get-Date) -lt $deadline -and $tp -and -not $tp.HasExited) { Start-Sleep -Milliseconds 500 }
     } finally {

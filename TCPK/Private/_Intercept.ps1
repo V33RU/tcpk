@@ -134,6 +134,22 @@ function Restore-TcpkWinInetProxy {
     $env:HTTPS_PROXY = $PrevHttps
 }
 
+# Detect Electron apps by the presence of resources/app.asar or resources/electron.asar
+# next to the exe. Electron uses Chromium's own network stack and ignores WinInet/registry
+# proxy settings. The only reliable way to route an Electron app through a proxy is to
+# pass --proxy-server=host:port on the command line. Returns the ExtraArgs array with the
+# proxy flag prepended when the target is Electron; returns ExtraArgs unchanged otherwise.
+function Add-TcpkElectronProxyArgs {
+    param([string]$Target, [string[]]$ExtraArgs, [int]$Port)
+    $dir = Split-Path $Target -Parent
+    $isElectron = (Test-Path (Join-Path $dir 'resources/app.asar'))      -or
+                  (Test-Path (Join-Path $dir 'resources/electron.asar'))  -or
+                  (Test-Path (Join-Path $dir 'resources/default_app.asar'))
+    if (-not $isElectron) { return $ExtraArgs }
+    Write-TcpkInfo "[intercept] Electron app detected -- injecting --proxy-server=127.0.0.1:$Port into launch args"
+    return @("--proxy-server=127.0.0.1:$Port") + @($ExtraArgs)
+}
+
 # Luhn check -- keeps the payment-card (PAN) response-mining rule from firing on any
 # random 13-16 digit run. Returns $true only for a Luhn-valid digit string.
 function Test-TcpkLuhn {
