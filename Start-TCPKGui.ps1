@@ -774,7 +774,7 @@ $expBanner.Controls.Add($lblExpWarn)
 $chkExpEnable = New-Object System.Windows.Forms.CheckBox
 $chkExpEnable.Text = "I am authorized to test this target -- enable exploit modules"
 $chkExpEnable.ForeColor = [System.Drawing.Color]::White
-$chkExpEnable.Location = New-Object System.Drawing.Point(12, 30); $chkExpEnable.Size = New-Object System.Drawing.Size(460, 22)
+$chkExpEnable.Location = New-Object System.Drawing.Point(12, 30); $chkExpEnable.Size = New-Object System.Drawing.Size(500, 22)
 $expBanner.Controls.Add($chkExpEnable)
 $tabExploit.Controls.Add($expBanner)
 
@@ -1051,7 +1051,7 @@ $bannerA.Controls.Add($lblWarnA)
 $chkGateA = New-Object System.Windows.Forms.CheckBox
 $chkGateA.Text = "I am authorized to test this target -- enable active tools"
 $chkGateA.ForeColor = [System.Drawing.Color]::White
-$chkGateA.Location = New-Object System.Drawing.Point(12,26); $chkGateA.Size = New-Object System.Drawing.Size(460,22)
+$chkGateA.Location = New-Object System.Drawing.Point(12,26); $chkGateA.Size = New-Object System.Drawing.Size(470,22)
 $bannerA.Controls.Add($chkGateA)
 $tabIcptA.Controls.Add($bannerA)
 
@@ -1066,10 +1066,10 @@ $ctlA.Dock = 'Top'; $ctlA.Height = 120; $ctlA.BackColor = [System.Drawing.Color]
 # yet (form not shown), so the snapshot is wrong and buttons end up off-screen.
 $lblExeA = New-Object System.Windows.Forms.Label
 $lblExeA.Text = "App exe (.exe to launch through the proxy):"; $lblExeA.ForeColor = [System.Drawing.Color]::White
-$lblExeA.Location = New-Object System.Drawing.Point(12,8); $lblExeA.Size = New-Object System.Drawing.Size(320,18)
+$lblExeA.Location = New-Object System.Drawing.Point(12,8); $lblExeA.Size = New-Object System.Drawing.Size(336,18)
 $ctlA.Controls.Add($lblExeA)
 $txtExeA = New-Object System.Windows.Forms.TextBox
-$txtExeA.Location = New-Object System.Drawing.Point(336,5); $txtExeA.Size = New-Object System.Drawing.Size(500,24); $txtExeA.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtExeA.Location = New-Object System.Drawing.Point(352,5); $txtExeA.Size = New-Object System.Drawing.Size(500,24); $txtExeA.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtExeA.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtExeA.ForeColor = [System.Drawing.Color]::White
 $txtExeA.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $ctlA.Controls.Add($txtExeA)
@@ -1091,7 +1091,7 @@ $ctlA.Add_SizeChanged({
     $browsW = 88; $rm = 10
     $bx = $cw - $browsW - $rm
     $btnBrowseA.Location = New-Object System.Drawing.Point($bx, 5)
-    $tw = $bx - 8 - 336
+    $tw = $bx - 8 - 352
     if ($tw -gt 60) { $txtExeA.Size = New-Object System.Drawing.Size($tw, 24) }
 
     # Group box spans the full panel width
@@ -1099,11 +1099,11 @@ $ctlA.Add_SizeChanged({
     $gbTraffic.Size = New-Object System.Drawing.Size($gbw, 80)
 
     # Tamper bar and stacked buttons inside the group box
-    $btnW = 156; $btnRm = 12
+    $btnW = 168; $btnRm = 12
     $bbx  = $gbw - $btnW - $btnRm
     $btnCap.Location  = New-Object System.Drawing.Point($bbx, 16)
     $btnLoad.Location = New-Object System.Drawing.Point($bbx, 48)
-    $ttw = $bbx - 8 - 350
+    $ttw = $bbx - 8 - 386
     if ($ttw -gt 60) { $txtTamper.Size = New-Object System.Drawing.Size($ttw, 24) }
 })
 $btnBrowseA.Add_Click({
@@ -1128,12 +1128,12 @@ $cmbMode = New-Object System.Windows.Forms.ComboBox; $cmbMode.Location = New-Obj
 $cmbMode.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbMode.ForeColor = [System.Drawing.Color]::White
 @('Proxy','Tamper') | ForEach-Object { [void]$cmbMode.Items.Add($_) }; $cmbMode.SelectedIndex = 0; $gbTraffic.Controls.Add($cmbMode)
 
-$lblDur = New-Object System.Windows.Forms.Label; $lblDur.Text = "Duration(s):"; $lblDur.ForeColor = [System.Drawing.Color]::White; $lblDur.Location = New-Object System.Drawing.Point(154,25); $lblDur.Size = New-Object System.Drawing.Size(72,18); $gbTraffic.Controls.Add($lblDur)
-$numDur = New-Object System.Windows.Forms.NumericUpDown; $numDur.Location = New-Object System.Drawing.Point(228,22); $numDur.Size = New-Object System.Drawing.Size(56,24); $numDur.Minimum = 3; $numDur.Maximum = 600; $numDur.Value = 20
+$lblDur = New-Object System.Windows.Forms.Label; $lblDur.Text = "Duration(s):"; $lblDur.ForeColor = [System.Drawing.Color]::White; $lblDur.Location = New-Object System.Drawing.Point(154,25); $lblDur.Size = New-Object System.Drawing.Size(100,18); $gbTraffic.Controls.Add($lblDur)
+$numDur = New-Object System.Windows.Forms.NumericUpDown; $numDur.Location = New-Object System.Drawing.Point(258,22); $numDur.Size = New-Object System.Drawing.Size(56,24); $numDur.Minimum = 3; $numDur.Maximum = 600; $numDur.Value = 20
 $numDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numDur.ForeColor = [System.Drawing.Color]::White; $gbTraffic.Controls.Add($numDur)
 
-$lblTam = New-Object System.Windows.Forms.Label; $lblTam.Text = "Tamper:"; $lblTam.ForeColor = [System.Drawing.Color]::White; $lblTam.Location = New-Object System.Drawing.Point(292,25); $lblTam.Size = New-Object System.Drawing.Size(56,18); $gbTraffic.Controls.Add($lblTam)
-$txtTamper = New-Object System.Windows.Forms.TextBox; $txtTamper.Location = New-Object System.Drawing.Point(350,22); $txtTamper.Size = New-Object System.Drawing.Size(200,24)
+$lblTam = New-Object System.Windows.Forms.Label; $lblTam.Text = "Tamper:"; $lblTam.ForeColor = [System.Drawing.Color]::White; $lblTam.Location = New-Object System.Drawing.Point(318,25); $lblTam.Size = New-Object System.Drawing.Size(64,18); $gbTraffic.Controls.Add($lblTam)
+$txtTamper = New-Object System.Windows.Forms.TextBox; $txtTamper.Location = New-Object System.Drawing.Point(386,22); $txtTamper.Size = New-Object System.Drawing.Size(200,24)
 $txtTamper.Multiline = $false; $txtTamper.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtTamper.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTamper.ForeColor = [System.Drawing.Color]::White
 $txtTamper.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
@@ -1144,12 +1144,12 @@ $tipTam.SetToolTip($txtTamper, "Tamper rules: find=>replace, one per line. Activ
 $tipTam.SetToolTip($lblTam,    "Tamper rules: find=>replace, one per line. Active in Tamper mode only.")
 
 $btnCap = New-Object System.Windows.Forms.Button; $btnCap.Text = "Launch + capture"
-$btnCap.Size = New-Object System.Drawing.Size(156,28); $btnCap.Location = New-Object System.Drawing.Point(430,16)
+$btnCap.Size = New-Object System.Drawing.Size(168,28); $btnCap.Location = New-Object System.Drawing.Point(430,16)
 $btnCap.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $btnCap.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnCap.ForeColor = [System.Drawing.Color]::White; $btnCap.FlatStyle = 'Flat'; $gbTraffic.Controls.Add($btnCap)
 
 $btnLoad = New-Object System.Windows.Forms.Button; $btnLoad.Text = "Load capture file..."
-$btnLoad.Size = New-Object System.Drawing.Size(156,28); $btnLoad.Location = New-Object System.Drawing.Point(430,48)
+$btnLoad.Size = New-Object System.Drawing.Size(168,28); $btnLoad.Location = New-Object System.Drawing.Point(430,48)
 $btnLoad.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $btnLoad.FlatStyle = 'Flat'; $btnLoad.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnLoad.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbTraffic.Controls.Add($btnLoad)
 
@@ -1354,19 +1354,19 @@ $btnPcapGo.Add_Click({
 # Decrypt fields (optional): TLS keylog (all TLS incl 1.3) and/or server RSA private key (RSA kx only)
 $lblKeylog = New-Object System.Windows.Forms.Label; $lblKeylog.Text = "TLS keylog:"; $lblKeylog.ForeColor = [System.Drawing.Color]::White; $lblKeylog.Location = New-Object System.Drawing.Point(12,66); $lblKeylog.Size = New-Object System.Drawing.Size(96,18); $ctlP.Controls.Add($lblKeylog)
 $txtKeylog = New-Object System.Windows.Forms.TextBox; $txtKeylog.Location = New-Object System.Drawing.Point(112,63); $txtKeylog.Size = New-Object System.Drawing.Size(296,24); $txtKeylog.Font = New-Object System.Drawing.Font('Consolas', 9); $txtKeylog.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtKeylog.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtKeylog)
-$btnKeylog = New-Object System.Windows.Forms.Button; $btnKeylog.Text = ".."; $btnKeylog.Location = New-Object System.Drawing.Point(414,63); $btnKeylog.Size = New-Object System.Drawing.Size(28,24); $btnKeylog.FlatStyle = 'Flat'; $btnKeylog.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnKeylog.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnKeylog)
+$btnKeylog = New-Object System.Windows.Forms.Button; $btnKeylog.Text = ".."; $btnKeylog.Location = New-Object System.Drawing.Point(414,63); $btnKeylog.Size = New-Object System.Drawing.Size(32,24); $btnKeylog.FlatStyle = 'Flat'; $btnKeylog.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnKeylog.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnKeylog)
 $btnKeylog.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtKeylog.Text = $dlg.FileName } })
 $lblRsa = New-Object System.Windows.Forms.Label; $lblRsa.Text = "RSA key:"; $lblRsa.ForeColor = [System.Drawing.Color]::White; $lblRsa.Location = New-Object System.Drawing.Point(452,66); $lblRsa.Size = New-Object System.Drawing.Size(66,18); $ctlP.Controls.Add($lblRsa)
 $txtRsa = New-Object System.Windows.Forms.TextBox; $txtRsa.Location = New-Object System.Drawing.Point(522,63); $txtRsa.Size = New-Object System.Drawing.Size(248,24); $txtRsa.Font = New-Object System.Drawing.Font('Consolas', 9); $txtRsa.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtRsa.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtRsa)
-$btnRsa = New-Object System.Windows.Forms.Button; $btnRsa.Text = ".."; $btnRsa.Location = New-Object System.Drawing.Point(776,63); $btnRsa.Size = New-Object System.Drawing.Size(28,24); $btnRsa.FlatStyle = 'Flat'; $btnRsa.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRsa.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnRsa)
+$btnRsa = New-Object System.Windows.Forms.Button; $btnRsa.Text = ".."; $btnRsa.Location = New-Object System.Drawing.Point(776,63); $btnRsa.Size = New-Object System.Drawing.Size(32,24); $btnRsa.FlatStyle = 'Flat'; $btnRsa.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRsa.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnRsa)
 $btnRsa.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtRsa.Text = $dlg.FileName } })
 $lblDecHint = New-Object System.Windows.Forms.Label; $lblDecHint.Text = "keylog: all TLS  |  RSA key: RSA-kx only"; $lblDecHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblDecHint.Location = New-Object System.Drawing.Point(812,66); $lblDecHint.Size = New-Object System.Drawing.Size(360,18); $ctlP.Controls.Add($lblDecHint)
 
 # Row 3 (y=95): string search across all frames
-$lblSearchStr = New-Object System.Windows.Forms.Label; $lblSearchStr.Text = "String search:"; $lblSearchStr.ForeColor = [System.Drawing.Color]::White; $lblSearchStr.Location = New-Object System.Drawing.Point(12,98); $lblSearchStr.Size = New-Object System.Drawing.Size(100,18); $ctlP.Controls.Add($lblSearchStr)
-$txtPcapSearch = New-Object System.Windows.Forms.TextBox; $txtPcapSearch.Location = New-Object System.Drawing.Point(116,95); $txtPcapSearch.Size = New-Object System.Drawing.Size(520,24); $txtPcapSearch.Font = New-Object System.Drawing.Font('Consolas', 9); $txtPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtPcapSearch)
+$lblSearchStr = New-Object System.Windows.Forms.Label; $lblSearchStr.Text = "String search:"; $lblSearchStr.ForeColor = [System.Drawing.Color]::White; $lblSearchStr.Location = New-Object System.Drawing.Point(12,98); $lblSearchStr.Size = New-Object System.Drawing.Size(118,18); $ctlP.Controls.Add($lblSearchStr)
+$txtPcapSearch = New-Object System.Windows.Forms.TextBox; $txtPcapSearch.Location = New-Object System.Drawing.Point(132,95); $txtPcapSearch.Size = New-Object System.Drawing.Size(504,24); $txtPcapSearch.Font = New-Object System.Drawing.Font('Consolas', 9); $txtPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtPcapSearch)
 $chkSearchRegex = New-Object System.Windows.Forms.CheckBox; $chkSearchRegex.Text = "Regex"; $chkSearchRegex.ForeColor = [System.Drawing.Color]::White; $chkSearchRegex.Location = New-Object System.Drawing.Point(644,97); $chkSearchRegex.Size = New-Object System.Drawing.Size(60,20); $ctlP.Controls.Add($chkSearchRegex)
-$lblProtoFilter = New-Object System.Windows.Forms.Label; $lblProtoFilter.Text = "Protocol:"; $lblProtoFilter.ForeColor = [System.Drawing.Color]::White; $lblProtoFilter.Location = New-Object System.Drawing.Point(712,98); $lblProtoFilter.Size = New-Object System.Drawing.Size(66,18); $ctlP.Controls.Add($lblProtoFilter)
+$lblProtoFilter = New-Object System.Windows.Forms.Label; $lblProtoFilter.Text = "Protocol:"; $lblProtoFilter.ForeColor = [System.Drawing.Color]::White; $lblProtoFilter.Location = New-Object System.Drawing.Point(712,98); $lblProtoFilter.Size = New-Object System.Drawing.Size(80,18); $ctlP.Controls.Add($lblProtoFilter)
 $cmbProtoFilter = New-Object System.Windows.Forms.ComboBox; $cmbProtoFilter.Location = New-Object System.Drawing.Point(782,95); $cmbProtoFilter.Size = New-Object System.Drawing.Size(136,24); $cmbProtoFilter.DropDownStyle = 'DropDownList'; $cmbProtoFilter.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbProtoFilter.ForeColor = [System.Drawing.Color]::White; $cmbProtoFilter.FlatStyle = 'Flat'; foreach ($pv in @('All','http','dns','tls','smtp','ftp','ssh','btle','btl2cap','zbee_nwk','wpan')) { [void]$cmbProtoFilter.Items.Add($pv) }; $cmbProtoFilter.SelectedIndex = 0; $ctlP.Controls.Add($cmbProtoFilter)
 $btnPcapSearch = New-Object System.Windows.Forms.Button; $btnPcapSearch.Text = "Search"; $btnPcapSearch.Location = New-Object System.Drawing.Point(924,95); $btnPcapSearch.Size = New-Object System.Drawing.Size(74,24); $btnPcapSearch.FlatStyle = 'Flat'; $btnPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(50,60,100); $btnPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($btnPcapSearch)
 
@@ -1376,7 +1376,7 @@ $ctlP.Add_SizeChanged({
     if ($w -lt 400) { return }
     $btnPcapSearch.Left  = $w - 82
     $cmbProtoFilter.Left = $btnPcapSearch.Left - 144
-    $lblProtoFilter.Left = $cmbProtoFilter.Left - 72
+    $lblProtoFilter.Left = $cmbProtoFilter.Left - 86
     $chkSearchRegex.Left = $lblProtoFilter.Left - 68
     $txtPcapSearch.Width = $chkSearchRegex.Left - $txtPcapSearch.Left - 6
 })
@@ -1425,29 +1425,29 @@ $gbActive = New-Object System.Windows.Forms.GroupBox
 $gbActive.Text = "Active: replay / IDOR / JWT (gated -- authorized targets only)"; $gbActive.ForeColor = [System.Drawing.Color]::White
 $gbActive.Location = New-Object System.Drawing.Point(10,8); $gbActive.Size = New-Object System.Drawing.Size(1150,214)
 $gbActive.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
-$lblReqP = New-Object System.Windows.Forms.Label; $lblReqP.Text = "Raw HTTP request (identity A, requesting A's own object):"; $lblReqP.ForeColor = [System.Drawing.Color]::White; $lblReqP.Location = New-Object System.Drawing.Point(12,22); $lblReqP.Size = New-Object System.Drawing.Size(420,18); $gbActive.Controls.Add($lblReqP)
+$lblReqP = New-Object System.Windows.Forms.Label; $lblReqP.Text = "Raw HTTP request (identity A, requesting A's own object):"; $lblReqP.ForeColor = [System.Drawing.Color]::White; $lblReqP.Location = New-Object System.Drawing.Point(12,22); $lblReqP.Size = New-Object System.Drawing.Size(450,18); $gbActive.Controls.Add($lblReqP)
 $txtReqP = New-Object System.Windows.Forms.TextBox; $txtReqP.Multiline = $true; $txtReqP.ScrollBars = 'Vertical'; $txtReqP.Location = New-Object System.Drawing.Point(12,40); $txtReqP.Size = New-Object System.Drawing.Size(700,50); $txtReqP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtReqP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtReqP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtReqP)
-$lblTgtP = New-Object System.Windows.Forms.Label; $lblTgtP.Text = "Target host/URL:"; $lblTgtP.ForeColor = [System.Drawing.Color]::White; $lblTgtP.Location = New-Object System.Drawing.Point(12,98); $lblTgtP.Size = New-Object System.Drawing.Size(100,18); $gbActive.Controls.Add($lblTgtP)
-$txtTargetP = New-Object System.Windows.Forms.TextBox; $txtTargetP.Location = New-Object System.Drawing.Point(114,95); $txtTargetP.Size = New-Object System.Drawing.Size(300,24); $txtTargetP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtTargetP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTargetP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtTargetP)
-$chkConfirmP = New-Object System.Windows.Forms.CheckBox; $chkConfirmP.Text = "confirm (send)"; $chkConfirmP.ForeColor = [System.Drawing.Color]::White; $chkConfirmP.Location = New-Object System.Drawing.Point(430,97); $chkConfirmP.Size = New-Object System.Drawing.Size(120,20); $gbActive.Controls.Add($chkConfirmP)
-$chkUnsafeP = New-Object System.Windows.Forms.CheckBox; $chkUnsafeP.Text = "allow unsafe verbs"; $chkUnsafeP.ForeColor = [System.Drawing.Color]::White; $chkUnsafeP.Location = New-Object System.Drawing.Point(556,97); $chkUnsafeP.Size = New-Object System.Drawing.Size(150,20); $gbActive.Controls.Add($chkUnsafeP)
-$lblSwapP = New-Object System.Windows.Forms.Label; $lblSwapP.Text = "IDOR swap id:"; $lblSwapP.ForeColor = [System.Drawing.Color]::White; $lblSwapP.Location = New-Object System.Drawing.Point(12,126); $lblSwapP.Size = New-Object System.Drawing.Size(90,18); $gbActive.Controls.Add($lblSwapP)
-$txtSwapP = New-Object System.Windows.Forms.TextBox; $txtSwapP.Location = New-Object System.Drawing.Point(102,123); $txtSwapP.Size = New-Object System.Drawing.Size(90,24); $txtSwapP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSwapP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSwapP)
-$lblSecondP = New-Object System.Windows.Forms.Label; $lblSecondP.Text = "B token:"; $lblSecondP.ForeColor = [System.Drawing.Color]::White; $lblSecondP.Location = New-Object System.Drawing.Point(202,126); $lblSecondP.Size = New-Object System.Drawing.Size(56,18); $gbActive.Controls.Add($lblSecondP)
-$txtSecondP = New-Object System.Windows.Forms.TextBox; $txtSecondP.Location = New-Object System.Drawing.Point(260,123); $txtSecondP.Size = New-Object System.Drawing.Size(200,24); $txtSecondP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSecondP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSecondP)
-$lblLocP = New-Object System.Windows.Forms.Label; $lblLocP.Text = "id loc:"; $lblLocP.ForeColor = [System.Drawing.Color]::White; $lblLocP.Location = New-Object System.Drawing.Point(470,126); $lblLocP.Size = New-Object System.Drawing.Size(44,18); $gbActive.Controls.Add($lblLocP)
-$txtLocP = New-Object System.Windows.Forms.TextBox; $txtLocP.Location = New-Object System.Drawing.Point(514,123); $txtLocP.Size = New-Object System.Drawing.Size(90,24); $txtLocP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLocP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtLocP)
+$lblTgtP = New-Object System.Windows.Forms.Label; $lblTgtP.Text = "Target host/URL:"; $lblTgtP.ForeColor = [System.Drawing.Color]::White; $lblTgtP.Location = New-Object System.Drawing.Point(12,98); $lblTgtP.Size = New-Object System.Drawing.Size(130,18); $gbActive.Controls.Add($lblTgtP)
+$txtTargetP = New-Object System.Windows.Forms.TextBox; $txtTargetP.Location = New-Object System.Drawing.Point(144,95); $txtTargetP.Size = New-Object System.Drawing.Size(270,24); $txtTargetP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtTargetP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTargetP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtTargetP)
+$chkConfirmP = New-Object System.Windows.Forms.CheckBox; $chkConfirmP.Text = "confirm (send)"; $chkConfirmP.ForeColor = [System.Drawing.Color]::White; $chkConfirmP.Location = New-Object System.Drawing.Point(430,97); $chkConfirmP.Size = New-Object System.Drawing.Size(132,20); $gbActive.Controls.Add($chkConfirmP)
+$chkUnsafeP = New-Object System.Windows.Forms.CheckBox; $chkUnsafeP.Text = "allow unsafe verbs"; $chkUnsafeP.ForeColor = [System.Drawing.Color]::White; $chkUnsafeP.Location = New-Object System.Drawing.Point(566,97); $chkUnsafeP.Size = New-Object System.Drawing.Size(162,20); $gbActive.Controls.Add($chkUnsafeP)
+$lblSwapP = New-Object System.Windows.Forms.Label; $lblSwapP.Text = "IDOR swap id:"; $lblSwapP.ForeColor = [System.Drawing.Color]::White; $lblSwapP.Location = New-Object System.Drawing.Point(12,126); $lblSwapP.Size = New-Object System.Drawing.Size(106,18); $gbActive.Controls.Add($lblSwapP)
+$txtSwapP = New-Object System.Windows.Forms.TextBox; $txtSwapP.Location = New-Object System.Drawing.Point(120,123); $txtSwapP.Size = New-Object System.Drawing.Size(82,24); $txtSwapP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSwapP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSwapP)
+$lblSecondP = New-Object System.Windows.Forms.Label; $lblSecondP.Text = "B token:"; $lblSecondP.ForeColor = [System.Drawing.Color]::White; $lblSecondP.Location = New-Object System.Drawing.Point(206,126); $lblSecondP.Size = New-Object System.Drawing.Size(68,18); $gbActive.Controls.Add($lblSecondP)
+$txtSecondP = New-Object System.Windows.Forms.TextBox; $txtSecondP.Location = New-Object System.Drawing.Point(278,123); $txtSecondP.Size = New-Object System.Drawing.Size(190,24); $txtSecondP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSecondP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSecondP)
+$lblLocP = New-Object System.Windows.Forms.Label; $lblLocP.Text = "id loc:"; $lblLocP.ForeColor = [System.Drawing.Color]::White; $lblLocP.Location = New-Object System.Drawing.Point(470,126); $lblLocP.Size = New-Object System.Drawing.Size(62,18); $gbActive.Controls.Add($lblLocP)
+$txtLocP = New-Object System.Windows.Forms.TextBox; $txtLocP.Location = New-Object System.Drawing.Point(536,123); $txtLocP.Size = New-Object System.Drawing.Size(68,24); $txtLocP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLocP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtLocP)
 $chkMutateP = New-Object System.Windows.Forms.CheckBox; $chkMutateP.Text = "auto-mutate"; $chkMutateP.ForeColor = [System.Drawing.Color]::White; $chkMutateP.Location = New-Object System.Drawing.Point(614,125); $chkMutateP.Size = New-Object System.Drawing.Size(110,20); $gbActive.Controls.Add($chkMutateP)
 $lblJwtP = New-Object System.Windows.Forms.Label; $lblJwtP.Text = "JWT:"; $lblJwtP.ForeColor = [System.Drawing.Color]::White; $lblJwtP.Location = New-Object System.Drawing.Point(12,154); $lblJwtP.Size = New-Object System.Drawing.Size(40,18); $gbActive.Controls.Add($lblJwtP)
 $txtJwtP = New-Object System.Windows.Forms.TextBox; $txtJwtP.Location = New-Object System.Drawing.Point(54,151); $txtJwtP.Size = New-Object System.Drawing.Size(406,24); $txtJwtP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtJwtP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtJwtP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtJwtP)
-$lblSecretP = New-Object System.Windows.Forms.Label; $lblSecretP.Text = "secret:"; $lblSecretP.ForeColor = [System.Drawing.Color]::White; $lblSecretP.Location = New-Object System.Drawing.Point(470,154); $lblSecretP.Size = New-Object System.Drawing.Size(50,18); $gbActive.Controls.Add($lblSecretP)
-$txtSecretP = New-Object System.Windows.Forms.TextBox; $txtSecretP.Location = New-Object System.Drawing.Point(522,151); $txtSecretP.Size = New-Object System.Drawing.Size(180,24); $txtSecretP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSecretP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSecretP)
-$btnCandP = New-Object System.Windows.Forms.Button; $btnCandP.Text = "ID candidates"; $btnCandP.Location = New-Object System.Drawing.Point(12,180); $btnCandP.Size = New-Object System.Drawing.Size(110,26); $btnCandP.FlatStyle = 'Flat'; $btnCandP.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnCandP.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbActive.Controls.Add($btnCandP)
-$btnReplayP = New-Object System.Windows.Forms.Button; $btnReplayP.Text = "Replay"; $btnReplayP.Location = New-Object System.Drawing.Point(128,180); $btnReplayP.Size = New-Object System.Drawing.Size(90,26); $btnReplayP.FlatStyle = 'Flat'; $btnReplayP.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnReplayP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnReplayP)
+$lblSecretP = New-Object System.Windows.Forms.Label; $lblSecretP.Text = "secret:"; $lblSecretP.ForeColor = [System.Drawing.Color]::White; $lblSecretP.Location = New-Object System.Drawing.Point(470,154); $lblSecretP.Size = New-Object System.Drawing.Size(62,18); $gbActive.Controls.Add($lblSecretP)
+$txtSecretP = New-Object System.Windows.Forms.TextBox; $txtSecretP.Location = New-Object System.Drawing.Point(536,151); $txtSecretP.Size = New-Object System.Drawing.Size(168,24); $txtSecretP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSecretP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSecretP)
+$btnCandP = New-Object System.Windows.Forms.Button; $btnCandP.Text = "ID candidates"; $btnCandP.Location = New-Object System.Drawing.Point(12,180); $btnCandP.Size = New-Object System.Drawing.Size(118,26); $btnCandP.FlatStyle = 'Flat'; $btnCandP.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnCandP.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbActive.Controls.Add($btnCandP)
+$btnReplayP = New-Object System.Windows.Forms.Button; $btnReplayP.Text = "Replay"; $btnReplayP.Location = New-Object System.Drawing.Point(136,180); $btnReplayP.Size = New-Object System.Drawing.Size(90,26); $btnReplayP.FlatStyle = 'Flat'; $btnReplayP.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnReplayP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnReplayP)
 $btnIdorP = New-Object System.Windows.Forms.Button; $btnIdorP.Text = "IDOR probe"; $btnIdorP.Location = New-Object System.Drawing.Point(224,180); $btnIdorP.Size = New-Object System.Drawing.Size(100,26); $btnIdorP.FlatStyle = 'Flat'; $btnIdorP.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnIdorP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnIdorP)
 $btnJwtCrackP = New-Object System.Windows.Forms.Button; $btnJwtCrackP.Text = "JWT crack"; $btnJwtCrackP.Location = New-Object System.Drawing.Point(330,180); $btnJwtCrackP.Size = New-Object System.Drawing.Size(100,26); $btnJwtCrackP.FlatStyle = 'Flat'; $btnJwtCrackP.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnJwtCrackP.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $gbActive.Controls.Add($btnJwtCrackP)
 $btnJwtAttackP = New-Object System.Windows.Forms.Button; $btnJwtAttackP.Text = "JWT attack"; $btnJwtAttackP.Location = New-Object System.Drawing.Point(436,180); $btnJwtAttackP.Size = New-Object System.Drawing.Size(100,26); $btnJwtAttackP.FlatStyle = 'Flat'; $btnJwtAttackP.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnJwtAttackP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnJwtAttackP)
-$lblActHint = New-Object System.Windows.Forms.Label; $lblActHint.Text = "acceptance is decided by response-body comparison, never status alone; findings stream to the console below"; $lblActHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblActHint.Location = New-Object System.Drawing.Point(548,186); $lblActHint.Size = New-Object System.Drawing.Size(580,18); $gbActive.Controls.Add($lblActHint)
+$lblActHint = New-Object System.Windows.Forms.Label; $lblActHint.Text = "acceptance is decided by response-body comparison, never status alone; findings stream to the console below"; $lblActHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblActHint.Location = New-Object System.Drawing.Point(548,186); $lblActHint.Size = New-Object System.Drawing.Size(600,18); $gbActive.Controls.Add($lblActHint)
 $btnCandP.Add_Click({ Invoke-IcptTool $txtOutR "ID candidates" { Get-TcpkRequestIdCandidates -RequestText $txtReqP.Text } })
 $btnReplayP.Add_Click({
     if (-not (Test-IcptGate $chkGateR $txtOutR)) { return }
@@ -1634,7 +1634,7 @@ $tabIcptR.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $lblWarnR = New-Object System.Windows.Forms.Label
 $lblWarnR.Text = "ACTIVE -- sends live HTTP requests. LAB / AUTHORIZED targets only."
 $lblWarnR.ForeColor = $icptWarn
-$lblWarnR.Location = New-Object System.Drawing.Point(720,24); $lblWarnR.Size = New-Object System.Drawing.Size(418,36)
+$lblWarnR.Location = New-Object System.Drawing.Point(720,24); $lblWarnR.Size = New-Object System.Drawing.Size(460,36)
 $gbActive.Controls.Add($lblWarnR)
 $chkGateR = New-Object System.Windows.Forms.CheckBox
 $chkGateR.Text = "I am authorized -- enable active tools"
@@ -1672,7 +1672,7 @@ $bannerB.Controls.Add($lblWarnB)
 $chkGateB = New-Object System.Windows.Forms.CheckBox
 $chkGateB.Text = "I am authorized to test this target -- enable active tools"
 $chkGateB.ForeColor = [System.Drawing.Color]::White
-$chkGateB.Location = New-Object System.Drawing.Point(12,26); $chkGateB.Size = New-Object System.Drawing.Size(460,22)
+$chkGateB.Location = New-Object System.Drawing.Point(12,26); $chkGateB.Size = New-Object System.Drawing.Size(470,22)
 $bannerB.Controls.Add($chkGateB)
 $tabIcptB.Controls.Add($bannerB)
 
@@ -1691,7 +1691,7 @@ $txtExeB.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtExeB.ForeCo
 $txtExeB.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlB.Controls.Add($txtExeB)
 $btnBrowseB = New-Object System.Windows.Forms.Button
-$btnBrowseB.Text = "Browse..."; $btnBrowseB.Location = New-Object System.Drawing.Point(1002,5); $btnBrowseB.Size = New-Object System.Drawing.Size(84,24)
+$btnBrowseB.Text = "Browse..."; $btnBrowseB.Location = New-Object System.Drawing.Point(1002,5); $btnBrowseB.Size = New-Object System.Drawing.Size(90,24)
 $btnBrowseB.FlatStyle = 'Flat'; $btnBrowseB.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnBrowseB.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $btnBrowseB.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlB.Controls.Add($btnBrowseB)
@@ -1706,19 +1706,19 @@ $gbHook = New-Object System.Windows.Forms.GroupBox
 $gbHook.Text = "Native hook bypass (frida)"; $gbHook.ForeColor = [System.Drawing.Color]::White
 $gbHook.Location = New-Object System.Drawing.Point(10,36); $gbHook.Size = New-Object System.Drawing.Size(578,150)
 $ctlB.Controls.Add($gbHook)
-$lblHFn = New-Object System.Windows.Forms.Label; $lblHFn.Text = "Function (native export):"; $lblHFn.ForeColor = [System.Drawing.Color]::White; $lblHFn.Location = New-Object System.Drawing.Point(12,26); $lblHFn.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHFn)
-$txtHookFn = New-Object System.Windows.Forms.TextBox; $txtHookFn.Location = New-Object System.Drawing.Point(170,23); $txtHookFn.Size = New-Object System.Drawing.Size(200,24)
+$lblHFn = New-Object System.Windows.Forms.Label; $lblHFn.Text = "Function (native export):"; $lblHFn.ForeColor = [System.Drawing.Color]::White; $lblHFn.Location = New-Object System.Drawing.Point(12,26); $lblHFn.Size = New-Object System.Drawing.Size(200,18); $gbHook.Controls.Add($lblHFn)
+$txtHookFn = New-Object System.Windows.Forms.TextBox; $txtHookFn.Location = New-Object System.Drawing.Point(216,23); $txtHookFn.Size = New-Object System.Drawing.Size(200,24)
 $txtHookFn.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtHookFn.ForeColor = [System.Drawing.Color]::White
 $txtHookFn.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbHook.Controls.Add($txtHookFn)
 $lblHMod = New-Object System.Windows.Forms.Label; $lblHMod.Text = "Module (optional):"; $lblHMod.ForeColor = [System.Drawing.Color]::White; $lblHMod.Location = New-Object System.Drawing.Point(12,54); $lblHMod.Size = New-Object System.Drawing.Size(150,18); $gbHook.Controls.Add($lblHMod)
 $txtHookMod = New-Object System.Windows.Forms.TextBox; $txtHookMod.Location = New-Object System.Drawing.Point(170,51); $txtHookMod.Size = New-Object System.Drawing.Size(200,24)
 $txtHookMod.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtHookMod.ForeColor = [System.Drawing.Color]::White
 $txtHookMod.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbHook.Controls.Add($txtHookMod)
-$lblHRet = New-Object System.Windows.Forms.Label; $lblHRet.Text = "Return value:"; $lblHRet.ForeColor = [System.Drawing.Color]::White; $lblHRet.Location = New-Object System.Drawing.Point(12,82); $lblHRet.Size = New-Object System.Drawing.Size(90,18); $gbHook.Controls.Add($lblHRet)
-$numHookRet = New-Object System.Windows.Forms.NumericUpDown; $numHookRet.Location = New-Object System.Drawing.Point(104,79); $numHookRet.Size = New-Object System.Drawing.Size(70,24); $numHookRet.Minimum = 0; $numHookRet.Maximum = 2147483647; $numHookRet.Value = 1
+$lblHRet = New-Object System.Windows.Forms.Label; $lblHRet.Text = "Return value:"; $lblHRet.ForeColor = [System.Drawing.Color]::White; $lblHRet.Location = New-Object System.Drawing.Point(12,82); $lblHRet.Size = New-Object System.Drawing.Size(108,18); $gbHook.Controls.Add($lblHRet)
+$numHookRet = New-Object System.Windows.Forms.NumericUpDown; $numHookRet.Location = New-Object System.Drawing.Point(122,79); $numHookRet.Size = New-Object System.Drawing.Size(70,24); $numHookRet.Minimum = 0; $numHookRet.Maximum = 2147483647; $numHookRet.Value = 1
 $numHookRet.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numHookRet.ForeColor = [System.Drawing.Color]::White; $gbHook.Controls.Add($numHookRet)
-$chkHookSkip = New-Object System.Windows.Forms.CheckBox; $chkHookSkip.Text = "Skip body"; $chkHookSkip.ForeColor = [System.Drawing.Color]::White; $chkHookSkip.Location = New-Object System.Drawing.Point(190,81); $chkHookSkip.Size = New-Object System.Drawing.Size(90,20); $gbHook.Controls.Add($chkHookSkip)
-$btnHookRun = New-Object System.Windows.Forms.Button; $btnHookRun.Text = "Force return (bypass check)"; $btnHookRun.Location = New-Object System.Drawing.Point(12,112); $btnHookRun.Size = New-Object System.Drawing.Size(220,28)
+$chkHookSkip = New-Object System.Windows.Forms.CheckBox; $chkHookSkip.Text = "Skip body"; $chkHookSkip.ForeColor = [System.Drawing.Color]::White; $chkHookSkip.Location = New-Object System.Drawing.Point(196,81); $chkHookSkip.Size = New-Object System.Drawing.Size(90,20); $gbHook.Controls.Add($chkHookSkip)
+$btnHookRun = New-Object System.Windows.Forms.Button; $btnHookRun.Text = "Force return (bypass check)"; $btnHookRun.Location = New-Object System.Drawing.Point(12,112); $btnHookRun.Size = New-Object System.Drawing.Size(228,28)
 $btnHookRun.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnHookRun.ForeColor = [System.Drawing.Color]::White; $btnHookRun.FlatStyle = 'Flat'; $gbHook.Controls.Add($btnHookRun)
 $btnHookRun.Add_Click({
     if (-not (Test-IcptGate $chkGateB $txtOutB)) { return }
@@ -1742,8 +1742,8 @@ $gbCred = New-Object System.Windows.Forms.GroupBox
 $gbCred.Text = "Windows stored credentials (Credential Manager)"; $gbCred.ForeColor = [System.Drawing.Color]::White
 $gbCred.Location = New-Object System.Drawing.Point(598,36); $gbCred.Size = New-Object System.Drawing.Size(578,150)
 $ctlB.Controls.Add($gbCred)
-$lblCFilt = New-Object System.Windows.Forms.Label; $lblCFilt.Text = "Filter (optional target substring):"; $lblCFilt.ForeColor = [System.Drawing.Color]::White; $lblCFilt.Location = New-Object System.Drawing.Point(12,28); $lblCFilt.Size = New-Object System.Drawing.Size(190,18); $gbCred.Controls.Add($lblCFilt)
-$txtCredFilter = New-Object System.Windows.Forms.TextBox; $txtCredFilter.Location = New-Object System.Drawing.Point(206,25); $txtCredFilter.Size = New-Object System.Drawing.Size(200,24)
+$lblCFilt = New-Object System.Windows.Forms.Label; $lblCFilt.Text = "Filter (optional target substring):"; $lblCFilt.ForeColor = [System.Drawing.Color]::White; $lblCFilt.Location = New-Object System.Drawing.Point(12,28); $lblCFilt.Size = New-Object System.Drawing.Size(278,18); $gbCred.Controls.Add($lblCFilt)
+$txtCredFilter = New-Object System.Windows.Forms.TextBox; $txtCredFilter.Location = New-Object System.Drawing.Point(294,25); $txtCredFilter.Size = New-Object System.Drawing.Size(170,24)
 $txtCredFilter.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtCredFilter.ForeColor = [System.Drawing.Color]::White
 $txtCredFilter.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbCred.Controls.Add($txtCredFilter)
 $chkCredReveal = New-Object System.Windows.Forms.CheckBox; $chkCredReveal.Text = "Reveal secrets (default masks)"; $chkCredReveal.ForeColor = [System.Drawing.Color]::White; $chkCredReveal.Location = New-Object System.Drawing.Point(12,54); $chkCredReveal.Size = New-Object System.Drawing.Size(260,20); $gbCred.Controls.Add($chkCredReveal)
@@ -1766,22 +1766,22 @@ $gbLive = New-Object System.Windows.Forms.GroupBox
 $gbLive.Text = "Credential liveness (replay a recovered credential against a live service)"; $gbLive.ForeColor = [System.Drawing.Color]::White
 $gbLive.Location = New-Object System.Drawing.Point(10,192); $gbLive.Size = New-Object System.Drawing.Size(1166,118)
 $ctlB.Controls.Add($gbLive)
-$lblLProto = New-Object System.Windows.Forms.Label; $lblLProto.Text = "Protocol:"; $lblLProto.ForeColor = [System.Drawing.Color]::White; $lblLProto.Location = New-Object System.Drawing.Point(12,26); $lblLProto.Size = New-Object System.Drawing.Size(58,18); $gbLive.Controls.Add($lblLProto)
-$cmbLiveProto = New-Object System.Windows.Forms.ComboBox; $cmbLiveProto.Location = New-Object System.Drawing.Point(72,23); $cmbLiveProto.Size = New-Object System.Drawing.Size(72,24); $cmbLiveProto.DropDownStyle = 'DropDownList'
+$lblLProto = New-Object System.Windows.Forms.Label; $lblLProto.Text = "Protocol:"; $lblLProto.ForeColor = [System.Drawing.Color]::White; $lblLProto.Location = New-Object System.Drawing.Point(12,26); $lblLProto.Size = New-Object System.Drawing.Size(76,18); $gbLive.Controls.Add($lblLProto)
+$cmbLiveProto = New-Object System.Windows.Forms.ComboBox; $cmbLiveProto.Location = New-Object System.Drawing.Point(92,23); $cmbLiveProto.Size = New-Object System.Drawing.Size(72,24); $cmbLiveProto.DropDownStyle = 'DropDownList'
 $cmbLiveProto.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbLiveProto.ForeColor = [System.Drawing.Color]::White
 @('http','sql','ftp') | ForEach-Object { [void]$cmbLiveProto.Items.Add($_) }; $cmbLiveProto.SelectedIndex = 0; $gbLive.Controls.Add($cmbLiveProto)
-$lblLTgt = New-Object System.Windows.Forms.Label; $lblLTgt.Text = "Target (URL / host / ftp://):"; $lblLTgt.ForeColor = [System.Drawing.Color]::White; $lblLTgt.Location = New-Object System.Drawing.Point(160,26); $lblLTgt.Size = New-Object System.Drawing.Size(160,18); $gbLive.Controls.Add($lblLTgt)
-$txtLiveTarget = New-Object System.Windows.Forms.TextBox; $txtLiveTarget.Location = New-Object System.Drawing.Point(322,23); $txtLiveTarget.Size = New-Object System.Drawing.Size(820,24); $txtLiveTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
+$lblLTgt = New-Object System.Windows.Forms.Label; $lblLTgt.Text = "Target (URL / host / ftp://):"; $lblLTgt.ForeColor = [System.Drawing.Color]::White; $lblLTgt.Location = New-Object System.Drawing.Point(168,26); $lblLTgt.Size = New-Object System.Drawing.Size(230,18); $gbLive.Controls.Add($lblLTgt)
+$txtLiveTarget = New-Object System.Windows.Forms.TextBox; $txtLiveTarget.Location = New-Object System.Drawing.Point(402,23); $txtLiveTarget.Size = New-Object System.Drawing.Size(740,24); $txtLiveTarget.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtLiveTarget.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLiveTarget.ForeColor = [System.Drawing.Color]::White
 $txtLiveTarget.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right); $gbLive.Controls.Add($txtLiveTarget)
-$lblLUser = New-Object System.Windows.Forms.Label; $lblLUser.Text = "User:"; $lblLUser.ForeColor = [System.Drawing.Color]::White; $lblLUser.Location = New-Object System.Drawing.Point(12,56); $lblLUser.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLUser)
-$txtLiveUser = New-Object System.Windows.Forms.TextBox; $txtLiveUser.Location = New-Object System.Drawing.Point(54,53); $txtLiveUser.Size = New-Object System.Drawing.Size(150,24)
+$lblLUser = New-Object System.Windows.Forms.Label; $lblLUser.Text = "User:"; $lblLUser.ForeColor = [System.Drawing.Color]::White; $lblLUser.Location = New-Object System.Drawing.Point(12,56); $lblLUser.Size = New-Object System.Drawing.Size(46,18); $gbLive.Controls.Add($lblLUser)
+$txtLiveUser = New-Object System.Windows.Forms.TextBox; $txtLiveUser.Location = New-Object System.Drawing.Point(62,53); $txtLiveUser.Size = New-Object System.Drawing.Size(142,24)
 $txtLiveUser.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLiveUser.ForeColor = [System.Drawing.Color]::White; $gbLive.Controls.Add($txtLiveUser)
-$lblLPass = New-Object System.Windows.Forms.Label; $lblLPass.Text = "Pass:"; $lblLPass.ForeColor = [System.Drawing.Color]::White; $lblLPass.Location = New-Object System.Drawing.Point(216,56); $lblLPass.Size = New-Object System.Drawing.Size(40,18); $gbLive.Controls.Add($lblLPass)
-$txtLivePass = New-Object System.Windows.Forms.TextBox; $txtLivePass.Location = New-Object System.Drawing.Point(258,53); $txtLivePass.Size = New-Object System.Drawing.Size(150,24); $txtLivePass.UseSystemPasswordChar = $true
+$lblLPass = New-Object System.Windows.Forms.Label; $lblLPass.Text = "Pass:"; $lblLPass.ForeColor = [System.Drawing.Color]::White; $lblLPass.Location = New-Object System.Drawing.Point(216,56); $lblLPass.Size = New-Object System.Drawing.Size(46,18); $gbLive.Controls.Add($lblLPass)
+$txtLivePass = New-Object System.Windows.Forms.TextBox; $txtLivePass.Location = New-Object System.Drawing.Point(266,53); $txtLivePass.Size = New-Object System.Drawing.Size(148,24); $txtLivePass.UseSystemPasswordChar = $true
 $txtLivePass.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLivePass.ForeColor = [System.Drawing.Color]::White; $gbLive.Controls.Add($txtLivePass)
-$lblLExtra = New-Object System.Windows.Forms.Label; $lblLExtra.Text = "Bearer / DB:"; $lblLExtra.ForeColor = [System.Drawing.Color]::White; $lblLExtra.Location = New-Object System.Drawing.Point(420,56); $lblLExtra.Size = New-Object System.Drawing.Size(78,18); $gbLive.Controls.Add($lblLExtra)
-$txtLiveExtra = New-Object System.Windows.Forms.TextBox; $txtLiveExtra.Location = New-Object System.Drawing.Point(500,53); $txtLiveExtra.Size = New-Object System.Drawing.Size(150,24)
+$lblLExtra = New-Object System.Windows.Forms.Label; $lblLExtra.Text = "Bearer / DB:"; $lblLExtra.ForeColor = [System.Drawing.Color]::White; $lblLExtra.Location = New-Object System.Drawing.Point(420,56); $lblLExtra.Size = New-Object System.Drawing.Size(100,18); $gbLive.Controls.Add($lblLExtra)
+$txtLiveExtra = New-Object System.Windows.Forms.TextBox; $txtLiveExtra.Location = New-Object System.Drawing.Point(524,53); $txtLiveExtra.Size = New-Object System.Drawing.Size(126,24)
 $txtLiveExtra.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtLiveExtra.ForeColor = [System.Drawing.Color]::White; $gbLive.Controls.Add($txtLiveExtra)
 $btnLiveRun = New-Object System.Windows.Forms.Button; $btnLiveRun.Text = "Test auth (replay)"; $btnLiveRun.Location = New-Object System.Drawing.Point(672,51); $btnLiveRun.Size = New-Object System.Drawing.Size(180,28)
 $btnLiveRun.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnLiveRun.ForeColor = [System.Drawing.Color]::White; $btnLiveRun.FlatStyle = 'Flat'; $gbLive.Controls.Add($btnLiveRun)
@@ -1949,10 +1949,10 @@ $rtTop = New-Object System.Windows.Forms.Panel
 $rtTop.Dock = 'Top'; $rtTop.Height = 182; $rtTop.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 $lblRtProc = New-Object System.Windows.Forms.Label
 $lblRtProc.Text = "Process:"; $lblRtProc.ForeColor = [System.Drawing.Color]::White
-$lblRtProc.Location = New-Object System.Drawing.Point(12,10); $lblRtProc.Size = New-Object System.Drawing.Size(56,18)
+$lblRtProc.Location = New-Object System.Drawing.Point(12,10); $lblRtProc.Size = New-Object System.Drawing.Size(68,18)
 $rtTop.Controls.Add($lblRtProc)
 $txtRtProc = New-Object System.Windows.Forms.ComboBox
-$txtRtProc.Location = New-Object System.Drawing.Point(70,7); $txtRtProc.Size = New-Object System.Drawing.Size(220,24); $txtRtProc.DropDownStyle = 'DropDown'
+$txtRtProc.Location = New-Object System.Drawing.Point(82,7); $txtRtProc.Size = New-Object System.Drawing.Size(210,24); $txtRtProc.DropDownStyle = 'DropDown'
 $txtRtProc.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtRtProc.ForeColor = [System.Drawing.Color]::White
 $rtTop.Controls.Add($txtRtProc)
 $btnRtRefresh = New-Object System.Windows.Forms.Button
@@ -1967,25 +1967,25 @@ $btnRtRefresh.Add_Click({
 })
 $lblRtSec = New-Object System.Windows.Forms.Label
 $lblRtSec.Text = "Trace (s):"; $lblRtSec.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
-$lblRtSec.Location = New-Object System.Drawing.Point(384,10); $lblRtSec.Size = New-Object System.Drawing.Size(64,18)
+$lblRtSec.Location = New-Object System.Drawing.Point(384,10); $lblRtSec.Size = New-Object System.Drawing.Size(84,18)
 $rtTop.Controls.Add($lblRtSec)
 $numRtSec = New-Object System.Windows.Forms.NumericUpDown
-$numRtSec.Location = New-Object System.Drawing.Point(450,7); $numRtSec.Size = New-Object System.Drawing.Size(54,24); $numRtSec.Minimum = 5; $numRtSec.Maximum = 300; $numRtSec.Value = 30
+$numRtSec.Location = New-Object System.Drawing.Point(470,7); $numRtSec.Size = New-Object System.Drawing.Size(54,24); $numRtSec.Minimum = 5; $numRtSec.Maximum = 300; $numRtSec.Value = 30
 $numRtSec.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numRtSec.ForeColor = [System.Drawing.Color]::White
 $rtTop.Controls.Add($numRtSec)
 $lblRtHint = New-Object System.Windows.Forms.Label
 $lblRtHint.Text = "Grey=process  Amber=trace  Blue=system  Green=target-path  Teal=clipboard  Red=gated"
-$lblRtHint.Location = New-Object System.Drawing.Point(516,10); $lblRtHint.Size = New-Object System.Drawing.Size(560,18)
+$lblRtHint.Location = New-Object System.Drawing.Point(528,10); $lblRtHint.Size = New-Object System.Drawing.Size(660,18)
 $lblRtHint.ForeColor = [System.Drawing.Color]::FromArgb(120,130,140)
 $lblRtHint.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $rtTop.Controls.Add($lblRtHint)
 $chkRtGate = New-Object System.Windows.Forms.CheckBox
 $chkRtGate.Text = "I am authorized -- enable gated tools (red buttons)"
 $chkRtGate.ForeColor = [System.Drawing.Color]::FromArgb(255,180,180)
-$chkRtGate.Location = New-Object System.Drawing.Point(12,40); $chkRtGate.Size = New-Object System.Drawing.Size(400,20)
+$chkRtGate.Location = New-Object System.Drawing.Point(12,40); $chkRtGate.Size = New-Object System.Drawing.Size(420,20)
 $rtTop.Controls.Add($chkRtGate)
 $btnRtRunAll = New-Object System.Windows.Forms.Button
-$btnRtRunAll.Text = "Run All"; $btnRtRunAll.Location = New-Object System.Drawing.Point(424,37); $btnRtRunAll.Size = New-Object System.Drawing.Size(80,26)
+$btnRtRunAll.Text = "Run All"; $btnRtRunAll.Location = New-Object System.Drawing.Point(434,37); $btnRtRunAll.Size = New-Object System.Drawing.Size(80,26)
 $btnRtRunAll.FlatStyle = 'Flat'; $btnRtRunAll.BackColor = [System.Drawing.Color]::FromArgb(40,116,166); $btnRtRunAll.ForeColor = [System.Drawing.Color]::White
 $btnRtRunAll.Add_Click({ Invoke-RtCheck '' 'run-all' })
 $rtTop.Controls.Add($btnRtRunAll)
@@ -1997,11 +1997,11 @@ $chkRtClearRun = New-Object System.Windows.Forms.CheckBox
 $chkRtClearRun.Text = "Clear on run"
 $chkRtClearRun.Checked = $true
 $chkRtClearRun.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
-$chkRtClearRun.Location = New-Object System.Drawing.Point(652,40); $chkRtClearRun.Size = New-Object System.Drawing.Size(110,20)
+$chkRtClearRun.Location = New-Object System.Drawing.Point(652,40); $chkRtClearRun.Size = New-Object System.Drawing.Size(114,20)
 $rtTop.Controls.Add($chkRtClearRun)
 
 $btnRtCopy = New-Object System.Windows.Forms.Button
-$btnRtCopy.Text = "Copy"; $btnRtCopy.Location = New-Object System.Drawing.Point(510,37); $btnRtCopy.Size = New-Object System.Drawing.Size(64,26)
+$btnRtCopy.Text = "Copy"; $btnRtCopy.Location = New-Object System.Drawing.Point(518,37); $btnRtCopy.Size = New-Object System.Drawing.Size(64,26)
 $btnRtCopy.FlatStyle = 'Flat'; $btnRtCopy.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRtCopy.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $btnRtCopy.Add_Click({
     if ($txtRt.Text.Length -gt 0) { [System.Windows.Forms.Clipboard]::SetText($txtRt.Text); Update-Status "Output copied to clipboard." }
@@ -2009,7 +2009,7 @@ $btnRtCopy.Add_Click({
 })
 $rtTop.Controls.Add($btnRtCopy)
 $btnRtClear = New-Object System.Windows.Forms.Button
-$btnRtClear.Text = "Clear"; $btnRtClear.Location = New-Object System.Drawing.Point(580,37); $btnRtClear.Size = New-Object System.Drawing.Size(64,26)
+$btnRtClear.Text = "Clear"; $btnRtClear.Location = New-Object System.Drawing.Point(586,37); $btnRtClear.Size = New-Object System.Drawing.Size(64,26)
 $btnRtClear.FlatStyle = 'Flat'; $btnRtClear.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRtClear.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $rtTop.Controls.Add($btnRtClear)
 
@@ -2889,18 +2889,18 @@ $tabHex.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $hexTop = New-Object System.Windows.Forms.Panel
 $hexTop.Dock = 'Top'; $hexTop.Height = 90; $hexTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $lblHexT = New-Object System.Windows.Forms.Label
-$lblHexT.Text = "File:"; $lblHexT.ForeColor = [System.Drawing.Color]::White; $lblHexT.Location = New-Object System.Drawing.Point(12, 14); $lblHexT.Size = New-Object System.Drawing.Size(40, 18)
+$lblHexT.Text = "File:"; $lblHexT.ForeColor = [System.Drawing.Color]::White; $lblHexT.Location = New-Object System.Drawing.Point(12, 14); $lblHexT.Size = New-Object System.Drawing.Size(46, 18)
 $hexTop.Controls.Add($lblHexT)
 $txtHexPath = New-Object System.Windows.Forms.TextBox
-$txtHexPath.Location = New-Object System.Drawing.Point(54, 11); $txtHexPath.Size = New-Object System.Drawing.Size(600, 24); $txtHexPath.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexPath.Location = New-Object System.Drawing.Point(60, 11); $txtHexPath.Size = New-Object System.Drawing.Size(594, 24); $txtHexPath.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtHexPath.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexPath.ForeColor = [System.Drawing.Color]::White
 $hexTop.Controls.Add($txtHexPath)
 $btnHexBrowse = New-Object System.Windows.Forms.Button
-$btnHexBrowse.Text = "Browse..."; $btnHexBrowse.Location = New-Object System.Drawing.Point(662, 10); $btnHexBrowse.Size = New-Object System.Drawing.Size(80, 26)
+$btnHexBrowse.Text = "Browse..."; $btnHexBrowse.Location = New-Object System.Drawing.Point(662, 10); $btnHexBrowse.Size = New-Object System.Drawing.Size(88, 26)
 $btnHexBrowse.FlatStyle = 'Flat'; $btnHexBrowse.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexBrowse.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexBrowse)
 $btnHexLoad = New-Object System.Windows.Forms.Button
-$btnHexLoad.Text = "Load"; $btnHexLoad.Location = New-Object System.Drawing.Point(748, 10); $btnHexLoad.Size = New-Object System.Drawing.Size(64, 26)
+$btnHexLoad.Text = "Load"; $btnHexLoad.Location = New-Object System.Drawing.Point(754, 10); $btnHexLoad.Size = New-Object System.Drawing.Size(64, 26)
 $btnHexLoad.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnHexLoad.ForeColor = [System.Drawing.Color]::White; $btnHexLoad.FlatStyle = 'Flat'
 $hexTop.Controls.Add($btnHexLoad)
 $btnHexPe = New-Object System.Windows.Forms.Button
@@ -2909,15 +2909,15 @@ $btnHexPe.FlatStyle = 'Flat'; $btnHexPe.BackColor = [System.Drawing.Color]::From
 $btnHexPe.Font = New-Object System.Drawing.Font('Segoe UI', 8, [System.Drawing.FontStyle]::Bold)
 $hexTop.Controls.Add($btnHexPe)
 $btnHexDiff = New-Object System.Windows.Forms.Button
-$btnHexDiff.Text = "Diff..."; $btnHexDiff.Location = New-Object System.Drawing.Point(872, 10); $btnHexDiff.Size = New-Object System.Drawing.Size(64, 26)
+$btnHexDiff.Text = "Diff..."; $btnHexDiff.Location = New-Object System.Drawing.Point(872, 10); $btnHexDiff.Size = New-Object System.Drawing.Size(72, 26)
 $btnHexDiff.FlatStyle = 'Flat'; $btnHexDiff.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexDiff.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexDiff)
 $btnHexStrTog = New-Object System.Windows.Forms.Button
-$btnHexStrTog.Text = "Strings"; $btnHexStrTog.Location = New-Object System.Drawing.Point(944, 10); $btnHexStrTog.Size = New-Object System.Drawing.Size(64, 26)
+$btnHexStrTog.Text = "Strings"; $btnHexStrTog.Location = New-Object System.Drawing.Point(948, 10); $btnHexStrTog.Size = New-Object System.Drawing.Size(72, 26)
 $btnHexStrTog.FlatStyle = 'Flat'; $btnHexStrTog.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexStrTog.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexStrTog)
 $btnHexHash = New-Object System.Windows.Forms.Button
-$btnHexHash.Text = "Hash"; $btnHexHash.Location = New-Object System.Drawing.Point(1014, 10); $btnHexHash.Size = New-Object System.Drawing.Size(52, 26)
+$btnHexHash.Text = "Hash"; $btnHexHash.Location = New-Object System.Drawing.Point(1024, 10); $btnHexHash.Size = New-Object System.Drawing.Size(52, 26)
 $btnHexHash.FlatStyle = 'Flat'; $btnHexHash.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexHash.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexHash)
 # Row 2 (y=42): paging + go-to + find
@@ -2930,30 +2930,30 @@ $btnHexNext.Text = "Next >"; $btnHexNext.Location = New-Object System.Drawing.Po
 $btnHexNext.FlatStyle = 'Flat'; $btnHexNext.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexNext.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexNext)
 $lblHexGoto = New-Object System.Windows.Forms.Label
-$lblHexGoto.Text = "go to (hex):"; $lblHexGoto.ForeColor = [System.Drawing.Color]::White; $lblHexGoto.Location = New-Object System.Drawing.Point(158, 47); $lblHexGoto.Size = New-Object System.Drawing.Size(74, 18)
+$lblHexGoto.Text = "go to (hex):"; $lblHexGoto.ForeColor = [System.Drawing.Color]::White; $lblHexGoto.Location = New-Object System.Drawing.Point(158, 47); $lblHexGoto.Size = New-Object System.Drawing.Size(100, 18)
 $hexTop.Controls.Add($lblHexGoto)
 $txtHexGoto = New-Object System.Windows.Forms.TextBox
-$txtHexGoto.Location = New-Object System.Drawing.Point(232, 44); $txtHexGoto.Size = New-Object System.Drawing.Size(90, 22); $txtHexGoto.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexGoto.Location = New-Object System.Drawing.Point(262, 44); $txtHexGoto.Size = New-Object System.Drawing.Size(90, 22); $txtHexGoto.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtHexGoto.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexGoto.ForeColor = [System.Drawing.Color]::White
 $hexTop.Controls.Add($txtHexGoto)
 $btnHexGo = New-Object System.Windows.Forms.Button
-$btnHexGo.Text = "Go"; $btnHexGo.Location = New-Object System.Drawing.Point(326, 42); $btnHexGo.Size = New-Object System.Drawing.Size(50, 26)
+$btnHexGo.Text = "Go"; $btnHexGo.Location = New-Object System.Drawing.Point(358, 42); $btnHexGo.Size = New-Object System.Drawing.Size(50, 26)
 $btnHexGo.FlatStyle = 'Flat'; $btnHexGo.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexGo.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexGo)
 $lblHexFind = New-Object System.Windows.Forms.Label
-$lblHexFind.Text = "find:"; $lblHexFind.ForeColor = [System.Drawing.Color]::White; $lblHexFind.Location = New-Object System.Drawing.Point(392, 47); $lblHexFind.Size = New-Object System.Drawing.Size(34, 18)
+$lblHexFind.Text = "find:"; $lblHexFind.ForeColor = [System.Drawing.Color]::White; $lblHexFind.Location = New-Object System.Drawing.Point(412, 47); $lblHexFind.Size = New-Object System.Drawing.Size(46, 18)
 $hexTop.Controls.Add($lblHexFind)
 $txtHexFind = New-Object System.Windows.Forms.TextBox
-$txtHexFind.Location = New-Object System.Drawing.Point(426, 44); $txtHexFind.Size = New-Object System.Drawing.Size(160, 22); $txtHexFind.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexFind.Location = New-Object System.Drawing.Point(462, 44); $txtHexFind.Size = New-Object System.Drawing.Size(150, 22); $txtHexFind.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtHexFind.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexFind.ForeColor = [System.Drawing.Color]::White
 $hexTop.Controls.Add($txtHexFind)
 $cmbHexKind = New-Object System.Windows.Forms.ComboBox
-$cmbHexKind.Location = New-Object System.Drawing.Point(592, 44); $cmbHexKind.Size = New-Object System.Drawing.Size(70, 24); $cmbHexKind.DropDownStyle = 'DropDownList'
+$cmbHexKind.Location = New-Object System.Drawing.Point(618, 44); $cmbHexKind.Size = New-Object System.Drawing.Size(70, 24); $cmbHexKind.DropDownStyle = 'DropDownList'
 $cmbHexKind.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbHexKind.ForeColor = [System.Drawing.Color]::White
 @('ascii', 'hex') | ForEach-Object { [void]$cmbHexKind.Items.Add($_) }; $cmbHexKind.SelectedIndex = 0
 $hexTop.Controls.Add($cmbHexKind)
 $btnHexFind = New-Object System.Windows.Forms.Button
-$btnHexFind.Text = "Find next"; $btnHexFind.Location = New-Object System.Drawing.Point(668, 42); $btnHexFind.Size = New-Object System.Drawing.Size(84, 26)
+$btnHexFind.Text = "Find next"; $btnHexFind.Location = New-Object System.Drawing.Point(694, 42); $btnHexFind.Size = New-Object System.Drawing.Size(86, 26)
 $btnHexFind.FlatStyle = 'Flat'; $btnHexFind.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexFind.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexFind)
 $lblHex = New-Object System.Windows.Forms.Label
@@ -2987,14 +2987,14 @@ $lblHexInsOff = New-Object System.Windows.Forms.Label
 $lblHexInsOff.Text = "offset 0x0"; $lblHexInsOff.Location = New-Object System.Drawing.Point(8, 6); $lblHexInsOff.Size = New-Object System.Drawing.Size(260, 16); $lblHexInsOff.ForeColor = [System.Drawing.Color]::FromArgb(78, 201, 176)
 $hexInsTop2.Controls.Add($lblHexInsOff)
 $lblHexInsIn2 = New-Object System.Windows.Forms.Label
-$lblHexInsIn2.Text = "offset (hex):"; $lblHexInsIn2.Location = New-Object System.Drawing.Point(8, 30); $lblHexInsIn2.Size = New-Object System.Drawing.Size(80, 16); $lblHexInsIn2.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$lblHexInsIn2.Text = "offset (hex):"; $lblHexInsIn2.Location = New-Object System.Drawing.Point(8, 30); $lblHexInsIn2.Size = New-Object System.Drawing.Size(108, 16); $lblHexInsIn2.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexInsTop2.Controls.Add($lblHexInsIn2)
 $txtHexInsIn = New-Object System.Windows.Forms.TextBox
-$txtHexInsIn.Location = New-Object System.Drawing.Point(90, 27); $txtHexInsIn.Size = New-Object System.Drawing.Size(90, 22); $txtHexInsIn.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexInsIn.Location = New-Object System.Drawing.Point(120, 27); $txtHexInsIn.Size = New-Object System.Drawing.Size(80, 22); $txtHexInsIn.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtHexInsIn.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexInsIn.ForeColor = [System.Drawing.Color]::White; $txtHexInsIn.BorderStyle = 'FixedSingle'
 $hexInsTop2.Controls.Add($txtHexInsIn)
 $btnHexInspect = New-Object System.Windows.Forms.Button
-$btnHexInspect.Text = "Inspect"; $btnHexInspect.Location = New-Object System.Drawing.Point(188, 26); $btnHexInspect.Size = New-Object System.Drawing.Size(84, 24)
+$btnHexInspect.Text = "Inspect"; $btnHexInspect.Location = New-Object System.Drawing.Point(204, 26); $btnHexInspect.Size = New-Object System.Drawing.Size(84, 24)
 $btnHexInspect.FlatStyle = 'Flat'; $btnHexInspect.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230)
 $hexInsTop2.Controls.Add($btnHexInspect)
 $pnlInsMode.Controls.Add($hexInsTop2)
@@ -3033,7 +3033,7 @@ $lblXorRange.Text = "Scans 64 KB from current offset"; $lblXorRange.Location = N
 $lblXorRange.Size = New-Object System.Drawing.Size(260, 16); $lblXorRange.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexXorTop.Controls.Add($lblXorRange)
 $btnXorScan = New-Object System.Windows.Forms.Button
-$btnXorScan.Text = "Brute-force"; $btnXorScan.Location = New-Object System.Drawing.Point(8, 26); $btnXorScan.Size = New-Object System.Drawing.Size(100, 24)
+$btnXorScan.Text = "Brute-force"; $btnXorScan.Location = New-Object System.Drawing.Point(8, 26); $btnXorScan.Size = New-Object System.Drawing.Size(106, 24)
 $btnXorScan.FlatStyle = 'Flat'; $btnXorScan.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnXorScan.ForeColor = [System.Drawing.Color]::White
 $hexXorTop.Controls.Add($btnXorScan)
 $lblXorInfo = New-Object System.Windows.Forms.Label
@@ -3073,11 +3073,11 @@ $pnlBmkMode.Dock = 'Fill'; $pnlBmkMode.BackColor = [System.Drawing.Color]::FromA
 $hexBmkTop = New-Object System.Windows.Forms.Panel
 $hexBmkTop.Dock = 'Top'; $hexBmkTop.Height = 60; $hexBmkTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $lblBmkNote = New-Object System.Windows.Forms.Label
-$lblBmkNote.Text = "note:"; $lblBmkNote.Location = New-Object System.Drawing.Point(8, 7); $lblBmkNote.Size = New-Object System.Drawing.Size(36, 16)
+$lblBmkNote.Text = "note:"; $lblBmkNote.Location = New-Object System.Drawing.Point(8, 7); $lblBmkNote.Size = New-Object System.Drawing.Size(46, 16)
 $lblBmkNote.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexBmkTop.Controls.Add($lblBmkNote)
 $txtBmkNote = New-Object System.Windows.Forms.TextBox
-$txtBmkNote.Location = New-Object System.Drawing.Point(46, 4); $txtBmkNote.Size = New-Object System.Drawing.Size(128, 22); $txtBmkNote.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtBmkNote.Location = New-Object System.Drawing.Point(56, 4); $txtBmkNote.Size = New-Object System.Drawing.Size(118, 22); $txtBmkNote.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtBmkNote.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtBmkNote.ForeColor = [System.Drawing.Color]::White; $txtBmkNote.BorderStyle = 'FixedSingle'
 $hexBmkTop.Controls.Add($txtBmkNote)
 $btnBmkAdd = New-Object System.Windows.Forms.Button
@@ -3085,7 +3085,7 @@ $btnBmkAdd.Text = "Add"; $btnBmkAdd.Location = New-Object System.Drawing.Point(1
 $btnBmkAdd.FlatStyle = 'Flat'; $btnBmkAdd.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnBmkAdd.ForeColor = [System.Drawing.Color]::White
 $hexBmkTop.Controls.Add($btnBmkAdd)
 $btnBmkClear = New-Object System.Windows.Forms.Button
-$btnBmkClear.Text = "Clear"; $btnBmkClear.Location = New-Object System.Drawing.Point(238, 3); $btnBmkClear.Size = New-Object System.Drawing.Size(52, 24)
+$btnBmkClear.Text = "Clear"; $btnBmkClear.Location = New-Object System.Drawing.Point(238, 3); $btnBmkClear.Size = New-Object System.Drawing.Size(58, 24)
 $btnBmkClear.FlatStyle = 'Flat'; $btnBmkClear.BackColor = [System.Drawing.Color]::FromArgb(230, 230, 230)
 $hexBmkTop.Controls.Add($btnBmkClear)
 $lblBmkInfo = New-Object System.Windows.Forms.Label
@@ -3201,23 +3201,23 @@ $pnlStrWrap.Dock = 'Bottom'; $pnlStrWrap.Height = 350; $pnlStrWrap.Visible = $fa
 $strBar = New-Object System.Windows.Forms.Panel
 $strBar.Dock = 'Top'; $strBar.Height = 32; $strBar.BackColor = [System.Drawing.Color]::FromArgb(38, 38, 38)
 $lblHexSMinL = New-Object System.Windows.Forms.Label
-$lblHexSMinL.Text = "min:"; $lblHexSMinL.Location = New-Object System.Drawing.Point(8, 8); $lblHexSMinL.Size = New-Object System.Drawing.Size(32, 16)
+$lblHexSMinL.Text = "min:"; $lblHexSMinL.Location = New-Object System.Drawing.Point(8, 8); $lblHexSMinL.Size = New-Object System.Drawing.Size(38, 16)
 $lblHexSMinL.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $strBar.Controls.Add($lblHexSMinL)
 $txtHexSMin = New-Object System.Windows.Forms.TextBox
-$txtHexSMin.Text = "4"; $txtHexSMin.Location = New-Object System.Drawing.Point(42, 5); $txtHexSMin.Size = New-Object System.Drawing.Size(36, 22); $txtHexSMin.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexSMin.Text = "4"; $txtHexSMin.Location = New-Object System.Drawing.Point(48, 5); $txtHexSMin.Size = New-Object System.Drawing.Size(36, 22); $txtHexSMin.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtHexSMin.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexSMin.ForeColor = [System.Drawing.Color]::White; $txtHexSMin.BorderStyle = 'FixedSingle'
 $strBar.Controls.Add($txtHexSMin)
 $lblHexSFilterL = New-Object System.Windows.Forms.Label
-$lblHexSFilterL.Text = "filter:"; $lblHexSFilterL.Location = New-Object System.Drawing.Point(86, 8); $lblHexSFilterL.Size = New-Object System.Drawing.Size(36, 16)
+$lblHexSFilterL.Text = "filter:"; $lblHexSFilterL.Location = New-Object System.Drawing.Point(86, 8); $lblHexSFilterL.Size = New-Object System.Drawing.Size(62, 16)
 $lblHexSFilterL.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $strBar.Controls.Add($lblHexSFilterL)
 $txtHexSFilter = New-Object System.Windows.Forms.TextBox
-$txtHexSFilter.Location = New-Object System.Drawing.Point(124, 5); $txtHexSFilter.Size = New-Object System.Drawing.Size(140, 22); $txtHexSFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtHexSFilter.Location = New-Object System.Drawing.Point(152, 5); $txtHexSFilter.Size = New-Object System.Drawing.Size(120, 22); $txtHexSFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtHexSFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexSFilter.ForeColor = [System.Drawing.Color]::White; $txtHexSFilter.BorderStyle = 'FixedSingle'
 $strBar.Controls.Add($txtHexSFilter)
 $cmbHexSKind = New-Object System.Windows.Forms.ComboBox
-$cmbHexSKind.Location = New-Object System.Drawing.Point(272, 5); $cmbHexSKind.Size = New-Object System.Drawing.Size(96, 22); $cmbHexSKind.DropDownStyle = 'DropDownList'
+$cmbHexSKind.Location = New-Object System.Drawing.Point(276, 5); $cmbHexSKind.Size = New-Object System.Drawing.Size(96, 22); $cmbHexSKind.DropDownStyle = 'DropDownList'
 $cmbHexSKind.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbHexSKind.ForeColor = [System.Drawing.Color]::FromArgb(200, 205, 210); $cmbHexSKind.FlatStyle = 'Flat'
 @('ascii+wide', 'ascii', 'wide') | ForEach-Object { [void]$cmbHexSKind.Items.Add($_) }; $cmbHexSKind.SelectedIndex = 0
 $strBar.Controls.Add($cmbHexSKind)
@@ -3660,7 +3660,7 @@ $btnDecIl = New-Object System.Windows.Forms.Button; $btnDecIl.Text = 'IL'; $btnD
 $btnDecCs = New-Object System.Windows.Forms.Button; $btnDecCs.Text = 'Decompile C#'; $btnDecCs.Location = New-Object System.Drawing.Point(66, 2); $btnDecCs.Size = New-Object System.Drawing.Size(120, 24)
 $btnDecHex = New-Object System.Windows.Forms.Button; $btnDecHex.Text = 'Open in Hex'; $btnDecHex.Location = New-Object System.Drawing.Point(192, 2); $btnDecHex.Size = New-Object System.Drawing.Size(104, 24); $btnDecHex.Enabled = $false
 $chkDecWrap = New-Object System.Windows.Forms.CheckBox; $chkDecWrap.Text = 'Wrap'; $chkDecWrap.Checked = $true; $chkDecWrap.Location = New-Object System.Drawing.Point(304, 5); $chkDecWrap.Size = New-Object System.Drawing.Size(60, 20)
-$lblDecCodeHint = New-Object System.Windows.Forms.Label; $lblDecCodeHint.Text = 'IL via Mono.Cecil (always); C# needs ilspycmd on PATH. Native PE shows analysis, not IL.'; $lblDecCodeHint.Location = New-Object System.Drawing.Point(372, 2); $lblDecCodeHint.Size = New-Object System.Drawing.Size(520, 24); $lblDecCodeHint.TextAlign = 'MiddleLeft'
+$lblDecCodeHint = New-Object System.Windows.Forms.Label; $lblDecCodeHint.Text = 'IL via Mono.Cecil (always); C# needs ilspycmd on PATH. Native PE shows analysis, not IL.'; $lblDecCodeHint.Location = New-Object System.Drawing.Point(372, 2); $lblDecCodeHint.Size = New-Object System.Drawing.Size(700, 24); $lblDecCodeHint.TextAlign = 'MiddleLeft'
 $decCodeBar.Controls.Add($btnDecIl); $decCodeBar.Controls.Add($btnDecCs); $decCodeBar.Controls.Add($btnDecHex); $decCodeBar.Controls.Add($chkDecWrap); $decCodeBar.Controls.Add($lblDecCodeHint)
 # Staged by Load-DecAssembly when the selection turns out to be native, so the operator can
 # go straight to the bytes instead of retyping the path into the Hex tab.
@@ -4131,14 +4131,14 @@ $btnPmLive.Text = "Live watch"; $btnPmLive.Location = New-Object System.Drawing.
 $btnPmLive.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmLive.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmLive)
 $btnPmCap = New-Object System.Windows.Forms.Button
-$btnPmCap.Text = "Activity capture"; $btnPmCap.Location = New-Object System.Drawing.Point(126, 10); $btnPmCap.Size = New-Object System.Drawing.Size(130, 28); $btnPmCap.FlatStyle = 'Flat'
+$btnPmCap.Text = "Activity capture"; $btnPmCap.Location = New-Object System.Drawing.Point(126, 10); $btnPmCap.Size = New-Object System.Drawing.Size(142, 28); $btnPmCap.FlatStyle = 'Flat'
 $btnPmCap.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmCap.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmCap)
 $lblPmProc = New-Object System.Windows.Forms.Label
-$lblPmProc.Text = "Process:"; $lblPmProc.ForeColor = [System.Drawing.Color]::White; $lblPmProc.Location = New-Object System.Drawing.Point(284, 16); $lblPmProc.Size = New-Object System.Drawing.Size(56, 18)
+$lblPmProc.Text = "Process:"; $lblPmProc.ForeColor = [System.Drawing.Color]::White; $lblPmProc.Location = New-Object System.Drawing.Point(284, 16); $lblPmProc.Size = New-Object System.Drawing.Size(68, 18)
 $pmonTop.Controls.Add($lblPmProc)
 $cmbPmProc = New-Object System.Windows.Forms.ComboBox
-$cmbPmProc.Location = New-Object System.Drawing.Point(340, 12); $cmbPmProc.Size = New-Object System.Drawing.Size(260, 24); $cmbPmProc.DropDownStyle = 'DropDown'
+$cmbPmProc.Location = New-Object System.Drawing.Point(356, 12); $cmbPmProc.Size = New-Object System.Drawing.Size(244, 24); $cmbPmProc.DropDownStyle = 'DropDown'
 $cmbPmProc.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbPmProc.ForeColor = [System.Drawing.Color]::White
 $pmonTop.Controls.Add($cmbPmProc)
 $btnPmRefresh = New-Object System.Windows.Forms.Button
@@ -4146,10 +4146,10 @@ $btnPmRefresh.Text = "Refresh"; $btnPmRefresh.Location = New-Object System.Drawi
 $btnPmRefresh.FlatStyle = 'Flat'; $btnPmRefresh.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnPmRefresh.ForeColor = [System.Drawing.Color]::White
 $pmonTop.Controls.Add($btnPmRefresh)
 $lblPmFilter = New-Object System.Windows.Forms.Label
-$lblPmFilter.Text = "Module filter:"; $lblPmFilter.ForeColor = [System.Drawing.Color]::White; $lblPmFilter.Location = New-Object System.Drawing.Point(694, 16); $lblPmFilter.Size = New-Object System.Drawing.Size(82, 18)
+$lblPmFilter.Text = "Module filter:"; $lblPmFilter.ForeColor = [System.Drawing.Color]::White; $lblPmFilter.Location = New-Object System.Drawing.Point(694, 16); $lblPmFilter.Size = New-Object System.Drawing.Size(116, 18)
 $pmonTop.Controls.Add($lblPmFilter)
 $txtPmonFilter = New-Object System.Windows.Forms.TextBox
-$txtPmonFilter.Location = New-Object System.Drawing.Point(778, 12); $txtPmonFilter.Size = New-Object System.Drawing.Size(180, 24); $txtPmonFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtPmonFilter.Location = New-Object System.Drawing.Point(814, 12); $txtPmonFilter.Size = New-Object System.Drawing.Size(164, 24); $txtPmonFilter.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtPmonFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtPmonFilter.ForeColor = [System.Drawing.Color]::White
 $pmonTop.Controls.Add($txtPmonFilter)
 # Row 2: interval / duration + start + stop + status
@@ -4169,11 +4169,11 @@ $btnPmStop.Text = "Stop"; $btnPmStop.Location = New-Object System.Drawing.Point(
 $btnPmStop.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmStop.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmStop)
 $btnPmSave = New-Object System.Windows.Forms.Button
-$btnPmSave.Text = "Save output..."; $btnPmSave.Location = New-Object System.Drawing.Point(470, 47); $btnPmSave.Size = New-Object System.Drawing.Size(104, 28); $btnPmSave.FlatStyle = 'Flat'
+$btnPmSave.Text = "Save output..."; $btnPmSave.Location = New-Object System.Drawing.Point(470, 47); $btnPmSave.Size = New-Object System.Drawing.Size(126, 28); $btnPmSave.FlatStyle = 'Flat'
 $btnPmSave.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmSave.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmSave)
 $lblPmStatus = New-Object System.Windows.Forms.Label
-$lblPmStatus.Location = New-Object System.Drawing.Point(584, 52); $lblPmStatus.Size = New-Object System.Drawing.Size(540, 18); $lblPmStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblPmStatus.Location = New-Object System.Drawing.Point(600, 52); $lblPmStatus.Size = New-Object System.Drawing.Size(580, 18); $lblPmStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
 $lblPmStatus.Text = "Pick a mode, choose a process (Refresh), set the interval / duration, then Start."
 $pmonTop.Controls.Add($lblPmStatus)
 # Row 3: capture extras -- DLL trace option (ETW, admin) and what the enhanced capture now tracks.
@@ -4181,7 +4181,7 @@ $pmonTop.Controls.Add($lblPmStatus)
 $chkPmDllTrace = New-Object System.Windows.Forms.CheckBox
 $chkPmDllTrace.Text = 'DLL search trace during capture (requires admin -- shows every phantom-DLL probe in real time)'
 $chkPmDllTrace.Location = New-Object System.Drawing.Point(12, 88)
-$chkPmDllTrace.Size = New-Object System.Drawing.Size(700, 18)
+$chkPmDllTrace.Size = New-Object System.Drawing.Size(748, 18)
 $chkPmDllTrace.ForeColor = [System.Drawing.Color]::FromArgb(214, 137, 16)
 $chkPmDllTrace.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 $chkPmDllTrace.FlatStyle = 'Flat'
@@ -4789,11 +4789,11 @@ $btnDepShowAll.Text = 'Show All'; $btnDepShowAll.Location = New-Object System.Dr
 $btnDepShowAll.FlatStyle = 'Flat'; $btnDepShowAll.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnDepShowAll.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $depBottom.Controls.Add($btnDepShowAll)
 $btnDepRiskOnly = New-Object System.Windows.Forms.Button
-$btnDepRiskOnly.Text = 'Hijack Risk Only'; $btnDepRiskOnly.Location = New-Object System.Drawing.Point(98, 3); $btnDepRiskOnly.Size = New-Object System.Drawing.Size(130, 24)
+$btnDepRiskOnly.Text = 'Hijack Risk Only'; $btnDepRiskOnly.Location = New-Object System.Drawing.Point(98, 3); $btnDepRiskOnly.Size = New-Object System.Drawing.Size(142, 24)
 $btnDepRiskOnly.FlatStyle = 'Flat'; $btnDepRiskOnly.BackColor = [System.Drawing.Color]::FromArgb(80, 20, 20); $btnDepRiskOnly.ForeColor = [System.Drawing.Color]::FromArgb(255, 140, 140)
 $depBottom.Controls.Add($btnDepRiskOnly)
 $lblDepSummary = New-Object System.Windows.Forms.Label
-$lblDepSummary.Location = New-Object System.Drawing.Point(238, 6); $lblDepSummary.Size = New-Object System.Drawing.Size(900, 20)
+$lblDepSummary.Location = New-Object System.Drawing.Point(244, 6); $lblDepSummary.Size = New-Object System.Drawing.Size(894, 20)
 $lblDepSummary.ForeColor = [System.Drawing.Color]::FromArgb(140, 140, 140)
 $depBottom.Controls.Add($lblDepSummary)
 
