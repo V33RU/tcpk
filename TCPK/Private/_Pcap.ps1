@@ -637,7 +637,7 @@ function Get-TcpkTlsSessionTree {
 
     $ensureKey = {
         param($K, $SrvIP, $Port)
-        if (-not $sessions.ContainsKey($K)) {
+        if (-not $sessions.Contains($K)) {
             $sessions[$K] = [ordered]@{
                 ServerIP     = $SrvIP
                 Port         = $Port

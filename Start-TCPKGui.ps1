@@ -1255,6 +1255,7 @@ $btnPcapGo.Add_Click({
     $p = @{ Path = $file }
     if ($txtKeylog.Text.Trim()) { $p.KeylogFile = $txtKeylog.Text.Trim() }
     if ($txtRsa.Text.Trim())    { $p.RsaKeyFile = $txtRsa.Text.Trim() }
+    $script:_tshark = try { (Get-Command tshark -ErrorAction Stop).Source } catch { $null }
 
     # Clear output, switch to Findings sub-tab, then run main security analysis
     $txtOutP.Clear()
@@ -1276,27 +1277,12 @@ $btnPcapGo.Add_Click({
         if ($txtKeylog.Text.Trim()) { $convParams.KeylogFile = $txtKeylog.Text.Trim() }
         if ($txtRsa.Text.Trim())    { $convParams.RsaKeyFile = $txtRsa.Text.Trim() }
         $convs = @(Get-TcpkPcapConversations @convParams -ErrorAction Stop)
-        foreach ($c in $convs) {
-            $lvi = New-Object System.Windows.Forms.ListViewItem("$($c.SrcIP)")
-            [void]$lvi.SubItems.Add("$($c.SrcPort)")
-            [void]$lvi.SubItems.Add("$($c.DstIP)")
-            [void]$lvi.SubItems.Add("$($c.DstPort)")
-            [void]$lvi.SubItems.Add("$($c.Protocol)")
-            [void]$lvi.SubItems.Add("$($c.Packets)")
-            [void]$lvi.SubItems.Add("$($c.Bytes)")
-            [void]$lvi.SubItems.Add("$($c.SrcMAC)")
-            [void]$lvi.SubItems.Add("$($c.DstMAC)")
-            $prl = "$($c.Protocol)".ToLower()
-            $lvi.ForeColor = if     ($prl -match 'https|tls|ssl')  { [System.Drawing.Color]::FromArgb(90,175,255) }
-                             elseif ($prl -match 'http')            { [System.Drawing.Color]::FromArgb(255,150,55) }
-                             elseif ($prl -match 'dns')             { [System.Drawing.Color]::FromArgb(205,215,50) }
-                             elseif ($prl -match 'smtp|pop|imap')   { [System.Drawing.Color]::FromArgb(240,80,65) }
-                             elseif ($prl -match 'ftp')             { [System.Drawing.Color]::FromArgb(235,145,50) }
-                             elseif ($prl -match 'ssh')             { [System.Drawing.Color]::FromArgb(65,200,95) }
-                             elseif ($prl -match 'udp')             { [System.Drawing.Color]::FromArgb(165,100,235) }
-                             else                                   { [System.Drawing.Color]::FromArgb(170,178,188) }
-            [void]$lvConv.Items.Add($lvi)
-        }
+        $script:_allConvs = $convs
+        $script:_convReady = $false
+        $cmbConvProtoF.Items.Clear(); [void]$cmbConvProtoF.Items.Add('All')
+        @($convs | ForEach-Object { "$($_.Protocol)" } | Where-Object { $_ } | Sort-Object -Unique) | ForEach-Object { [void]$cmbConvProtoF.Items.Add($_) }
+        $cmbConvProtoF.SelectedIndex = 0; $txtConvIpF.Text = ''; $txtConvPortF.Text = ''
+        $script:_convReady = $true; & $script:_applyConvFilter
         # Build network graph data (circular layout, up to 200 conversations)
         $script:graphConvs = @($convs | Where-Object { $_.SrcIP -and $_.DstIP } | Select-Object -First 200)
         $gNodes = @($script:graphConvs | ForEach-Object { $_.SrcIP, $_.DstIP } | Where-Object { $_ } | Sort-Object -Unique)
@@ -1567,6 +1553,24 @@ $subPcapFindings.Controls.Add($txtOutP)
 
 # --- Tab 2: Conversations ---
 $subPcapConv = New-Object System.Windows.Forms.TabPage; $subPcapConv.Text = ' Conversations '; $subPcapConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
+# Filter bar (Dock=Top)
+$pnlConvFilter = New-Object System.Windows.Forms.Panel; $pnlConvFilter.Dock = 'Top'; $pnlConvFilter.Height = 30; $pnlConvFilter.BackColor = [System.Drawing.Color]::FromArgb(28,28,32)
+$lblConvIpF = New-Object System.Windows.Forms.Label; $lblConvIpF.Text = 'IP:'; $lblConvIpF.ForeColor = [System.Drawing.Color]::FromArgb(170,175,180); $lblConvIpF.Location = New-Object System.Drawing.Point(4,7); $lblConvIpF.Size = New-Object System.Drawing.Size(24,18); $pnlConvFilter.Controls.Add($lblConvIpF)
+$txtConvIpF = New-Object System.Windows.Forms.TextBox; $txtConvIpF.Location = New-Object System.Drawing.Point(30,5); $txtConvIpF.Size = New-Object System.Drawing.Size(148,20); $txtConvIpF.Font = New-Object System.Drawing.Font('Consolas',8.5); $txtConvIpF.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtConvIpF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($txtConvIpF)
+$lblConvPortF = New-Object System.Windows.Forms.Label; $lblConvPortF.Text = 'Port:'; $lblConvPortF.ForeColor = [System.Drawing.Color]::FromArgb(170,175,180); $lblConvPortF.Location = New-Object System.Drawing.Point(186,7); $lblConvPortF.Size = New-Object System.Drawing.Size(38,18); $pnlConvFilter.Controls.Add($lblConvPortF)
+$txtConvPortF = New-Object System.Windows.Forms.TextBox; $txtConvPortF.Location = New-Object System.Drawing.Point(226,5); $txtConvPortF.Size = New-Object System.Drawing.Size(72,20); $txtConvPortF.Font = New-Object System.Drawing.Font('Consolas',8.5); $txtConvPortF.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtConvPortF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($txtConvPortF)
+$lblConvProtoF = New-Object System.Windows.Forms.Label; $lblConvProtoF.Text = 'Protocol:'; $lblConvProtoF.ForeColor = [System.Drawing.Color]::FromArgb(170,175,180); $lblConvProtoF.Location = New-Object System.Drawing.Point(308,7); $lblConvProtoF.Size = New-Object System.Drawing.Size(64,18); $pnlConvFilter.Controls.Add($lblConvProtoF)
+$cmbConvProtoF = New-Object System.Windows.Forms.ComboBox; $cmbConvProtoF.Location = New-Object System.Drawing.Point(374,4); $cmbConvProtoF.Size = New-Object System.Drawing.Size(130,22); $cmbConvProtoF.DropDownStyle = 'DropDownList'; $cmbConvProtoF.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbConvProtoF.ForeColor = [System.Drawing.Color]::White; $cmbConvProtoF.FlatStyle = 'Flat'; [void]$cmbConvProtoF.Items.Add('All'); $cmbConvProtoF.SelectedIndex = 0; $pnlConvFilter.Controls.Add($cmbConvProtoF)
+$btnConvClearF = New-Object System.Windows.Forms.Button; $btnConvClearF.Text = 'Clear'; $btnConvClearF.Location = New-Object System.Drawing.Point(512,4); $btnConvClearF.Size = New-Object System.Drawing.Size(52,22); $btnConvClearF.FlatStyle = 'Flat'; $btnConvClearF.BackColor = [System.Drawing.Color]::FromArgb(55,55,58); $btnConvClearF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($btnConvClearF)
+$lblConvCount = New-Object System.Windows.Forms.Label; $lblConvCount.Text = 'No capture loaded'; $lblConvCount.ForeColor = [System.Drawing.Color]::FromArgb(120,125,130); $lblConvCount.Location = New-Object System.Drawing.Point(572,7); $lblConvCount.Size = New-Object System.Drawing.Size(300,18); $pnlConvFilter.Controls.Add($lblConvCount)
+# Packet detail pane (Dock=Bottom) -- shown when a conversation row is selected
+$pnlConvDetail = New-Object System.Windows.Forms.Panel; $pnlConvDetail.Dock = 'Bottom'; $pnlConvDetail.Height = 162; $pnlConvDetail.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+$pnlConvDetailHdr = New-Object System.Windows.Forms.Panel; $pnlConvDetailHdr.Dock = 'Top'; $pnlConvDetailHdr.Height = 20; $pnlConvDetailHdr.BackColor = [System.Drawing.Color]::FromArgb(28,30,38)
+$lblConvDetailHdr = New-Object System.Windows.Forms.Label; $lblConvDetailHdr.Dock = 'Fill'; $lblConvDetailHdr.Text = 'Select a conversation row to see its individual frames'; $lblConvDetailHdr.ForeColor = [System.Drawing.Color]::FromArgb(130,135,142); $lblConvDetailHdr.Font = New-Object System.Drawing.Font('Cascadia Mono',8); $pnlConvDetailHdr.Controls.Add($lblConvDetailHdr)
+$lvConvPkts = New-Object System.Windows.Forms.ListView; $lvConvPkts.Dock = 'Fill'; $lvConvPkts.View = 'Details'; $lvConvPkts.FullRowSelect = $true; $lvConvPkts.GridLines = $true; $lvConvPkts.BackColor = [System.Drawing.Color]::FromArgb(20,20,24); $lvConvPkts.ForeColor = [System.Drawing.Color]::FromArgb(210,215,220); $lvConvPkts.Font = New-Object System.Drawing.Font('Cascadia Mono',8)
+foreach ($__pc in @(@('Frame#',60),@('Time',86),@('Src IP',130),@('Dst IP',130),@('Protocol',88),@('Len',56),@('Info',400))) { $__ph = New-Object System.Windows.Forms.ColumnHeader; $__ph.Text = $__pc[0]; $__ph.Width = $__pc[1]; [void]$lvConvPkts.Columns.Add($__ph) }
+$pnlConvDetail.Controls.Add($lvConvPkts); $pnlConvDetail.Controls.Add($pnlConvDetailHdr)
+# Conversations ListView (Dock=Fill)
 $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $true
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
@@ -1574,7 +1578,8 @@ $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
 foreach ($colDef in @(@('Src IP',120),@('Src Port',72),@('Dst IP',120),@('Dst Port',72),@('Protocol',80),@('Packets',70),@('Bytes',80),@('Src MAC',130),@('Dst MAC',130))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
-$subPcapConv.Controls.Add($lvConv)
+# Dock order: Top, Bottom, Fill
+$subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($pnlConvDetail); $subPcapConv.Controls.Add($lvConv)
 [void]$subPcapTabs.TabPages.Add($subPcapConv)
 
 # --- Tab 3: TLS Handshakes ---
@@ -1588,6 +1593,78 @@ $tvTls.LineColor = [System.Drawing.Color]::FromArgb(80,80,90)
 [void]$tvTls.Nodes.Add('and ServerHello (negotiated version, selected cipher). Weak ciphers are flagged [WEAK].')
 $subPcapTls.Controls.Add($tvTls)
 [void]$subPcapTabs.TabPages.Add($subPcapTls)
+
+# Conversations tab: filter scriptblock + events + packet-detail row handler
+$script:_allConvs = @(); $script:_convReady = $false; $script:_tshark = $null
+$script:_applyConvFilter = {
+    if (-not $script:_convReady) { return }
+    $ipF    = $txtConvIpF.Text.Trim()
+    $portF  = $txtConvPortF.Text.Trim()
+    $protoF = if ($cmbConvProtoF.SelectedIndex -le 0) { '' } else { "$($cmbConvProtoF.SelectedItem)" }
+    $lvConv.BeginUpdate(); $lvConv.Items.Clear(); $shown = 0
+    foreach ($c in $script:_allConvs) {
+        if ($ipF   -and "$($c.SrcIP)" -notmatch [Regex]::Escape($ipF) -and "$($c.DstIP)" -notmatch [Regex]::Escape($ipF)) { continue }
+        if ($portF -and "$($c.SrcPort)" -ne $portF -and "$($c.DstPort)" -ne $portF) { continue }
+        if ($protoF -and "$($c.Protocol)" -ne $protoF) { continue }
+        $lvi = New-Object System.Windows.Forms.ListViewItem("$($c.SrcIP)")
+        [void]$lvi.SubItems.Add("$($c.SrcPort)"); [void]$lvi.SubItems.Add("$($c.DstIP)")
+        [void]$lvi.SubItems.Add("$($c.DstPort)"); [void]$lvi.SubItems.Add("$($c.Protocol)")
+        [void]$lvi.SubItems.Add("$($c.Packets)"); [void]$lvi.SubItems.Add("$($c.Bytes)")
+        [void]$lvi.SubItems.Add("$($c.SrcMAC)"); [void]$lvi.SubItems.Add("$($c.DstMAC)")
+        $prl = "$($c.Protocol)".ToLower()
+        $lvi.ForeColor = if     ($prl -match 'https|tls|ssl')  { [System.Drawing.Color]::FromArgb(90,175,255) }
+                         elseif ($prl -match 'http')            { [System.Drawing.Color]::FromArgb(255,150,55) }
+                         elseif ($prl -match 'dns')             { [System.Drawing.Color]::FromArgb(205,215,50) }
+                         elseif ($prl -match 'smtp|pop|imap')   { [System.Drawing.Color]::FromArgb(240,80,65) }
+                         elseif ($prl -match 'ftp')             { [System.Drawing.Color]::FromArgb(235,145,50) }
+                         elseif ($prl -match 'ssh')             { [System.Drawing.Color]::FromArgb(65,200,95) }
+                         elseif ($prl -match 'udp')             { [System.Drawing.Color]::FromArgb(165,100,235) }
+                         else                                   { [System.Drawing.Color]::FromArgb(170,178,188) }
+        [void]$lvConv.Items.Add($lvi); $shown++
+    }
+    $lvConv.EndUpdate()
+    $lblConvCount.Text = "Showing $shown of $($script:_allConvs.Count) flow(s)"
+    $lvConvPkts.Items.Clear(); $lblConvDetailHdr.Text = 'Select a conversation row to see its individual frames'
+}
+$txtConvIpF.Add_TextChanged({ & $script:_applyConvFilter })
+$txtConvPortF.Add_TextChanged({ & $script:_applyConvFilter })
+$cmbConvProtoF.Add_SelectedIndexChanged({ & $script:_applyConvFilter })
+$btnConvClearF.Add_Click({ $txtConvIpF.Text = ''; $txtConvPortF.Text = ''; $cmbConvProtoF.SelectedIndex = 0 })
+$lvConv.Add_SelectedIndexChanged({
+    if ($lvConv.SelectedItems.Count -eq 0) { return }
+    $tsharkBin = if ($script:_tshark) { $script:_tshark } else { try { (Get-Command tshark -ErrorAction Stop).Source } catch { $null } }
+    $pcapPath  = if ($script:_pcapRunParams.Path) { $script:_pcapRunParams.Path } else { $null }
+    if (-not $tsharkBin -or -not $pcapPath -or -not (Test-Path -LiteralPath $pcapPath)) { return }
+    $sel   = $lvConv.SelectedItems[0]
+    $sip   = $sel.Text
+    $sport = $sel.SubItems[1].Text
+    $dip   = $sel.SubItems[2].Text
+    $dport = $sel.SubItems[3].Text
+    $proto = $sel.SubItems[4].Text
+    $protoL = $proto.ToLower()
+    $txProto = if     ($protoL -match 'tcp|tls|ssl|https|http|ssh|ftp|smtp|pop|imap|rdp|telnet') { 'tcp' }
+               elseif ($protoL -match 'udp|dns|quic|snmp|ntp|dhcp|mdns|ssdp|stun')              { 'udp' }
+               else { '' }
+    $hasPorts = ($sport -ne '') -and ($dport -ne '')
+    $filter = if ($hasPorts -and $txProto) {
+        "($txProto.srcport==$sport and ip.src==$sip and ip.dst==$dip and $txProto.dstport==$dport) or ($txProto.srcport==$dport and ip.src==$dip and ip.dst==$sip and $txProto.dstport==$sport)"
+    } elseif ($sip -and $dip) {
+        "(ip.src==$sip and ip.dst==$dip) or (ip.src==$dip and ip.dst==$sip)"
+    } else { return }
+    $lblConvDetailHdr.Text = "Loading frames: $sip:$sport -> $dip:$dport  [$proto] ..."
+    [System.Windows.Forms.Application]::DoEvents()
+    $lvConvPkts.BeginUpdate(); $lvConvPkts.Items.Clear()
+    $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $filter -T fields '-E' "separator=`t" -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info -c 500 2>$null)
+    foreach ($pr in $pktRows) {
+        if (-not "$pr") { continue }
+        $parts = "$pr" -split "`t", 7
+        $pli = New-Object System.Windows.Forms.ListViewItem(if ($parts.Count -gt 0) { $parts[0] } else { '' })
+        for ($pi = 1; $pi -lt 7; $pi++) { [void]$pli.SubItems.Add(if ($pi -lt $parts.Count) { $parts[$pi] } else { '' }) }
+        [void]$lvConvPkts.Items.Add($pli)
+    }
+    $lvConvPkts.EndUpdate()
+    $lblConvDetailHdr.Text = "$sip:$sport <-> $dip:$dport  [$proto]  --  $($lvConvPkts.Items.Count) frame(s)  (max 500 shown)"
+})
 
 # --- Tab 4: Search Results ---
 $subPcapSearch = New-Object System.Windows.Forms.TabPage; $subPcapSearch.Text = ' Search Results '; $subPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
