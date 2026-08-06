@@ -619,23 +619,26 @@ function Get-TcpkTlsSessionTree {
     if ($RsaKeyFile) { $q.RsaKeyFile=$RsaKeyFile }
     $us = [char]0x1F
 
-    # ClientHello -- core fields only (ONE bad field name kills the entire query; keep proven names here)
-    # tls.handshake.version = legacy_version inside the Hello message (0x0303 for TLS 1.2+)
-    # tls.record.version    = record layer version (often 0x0301 for compat; always safe across versions)
+    # ClientHello -- core fields only. ONE unrecognized field name silently kills the entire
+    # tshark -T fields query, returning zero rows. Only include fields present in Wireshark 2.0+.
+    # tls.handshake.version = legacy_version inside the Hello (0x0303 for TLS 1.2+)
+    # tls.record.version    = record layer version (often 0x0301 for compat)
     $clientHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
         -Fields @('ip.src','ip.dst','tcp.dstport','frame.number','frame.time_relative',
                   'tls.record.version',
                   'tls.handshake.version',
                   'tls.handshake.extensions_server_name',
                   'tls.handshake.ciphersuite',
-                  'tls.handshake.extensions.supported_versions.tls',
                   'tls.handshake.session_id') `
         -Occurrence 'a' -Aggregator "$us")
 
-    # ClientHello extended -- ALPN / groups / sig-algs (field names vary by tshark version; fail silently)
+    # ClientHello extended -- supported_versions / ALPN / groups / sig-algs.
+    # tls.handshake.extensions.supported_versions.tls is TLS 1.3-era and may not exist in
+    # older tshark builds, so it goes here (fail silently) rather than in the core query.
     $chExtMap = @{}
     $chExt = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
         -Fields @('frame.number',
+                  'tls.handshake.extensions.supported_versions.tls',
                   'tls.handshake.extensions_alpn_str',
                   'tls.handshake.extensions_elliptic_curve',
                   'tls.handshake.sig_alg') `
@@ -654,19 +657,20 @@ function Get-TcpkTlsSessionTree {
         -Occurrence 'a' -Aggregator "$us")
     foreach ($ex in $chExtInvRows) { $chExtInv["$($ex.'frame.number')"] = $ex }
 
-    # ServerHello -- core fields
+    # ServerHello -- core fields only (same rule: one bad field kills the entire query)
     $serverHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
         -Fields @('ip.src','ip.dst','tcp.srcport','frame.number','frame.time_relative',
                   'tls.handshake.version',
                   'tls.handshake.ciphersuite',
-                  'tls.handshake.extensions.key_share.selected_group',
                   'tls.handshake.session_id') `
         -Occurrence 'a' -Aggregator "$us")
 
-    # ServerHello extended -- ALPN selected
+    # ServerHello extended -- ALPN + TLS 1.3 key_share group (may be absent in older tshark)
     $shExtMap = @{}
     $shExt = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
-        -Fields @('frame.number','tls.handshake.extensions_alpn_str') `
+        -Fields @('frame.number',
+                  'tls.handshake.extensions_alpn_str',
+                  'tls.handshake.extensions.key_share.selected_group') `
         -Occurrence 'a' -Aggregator "$us")
     foreach ($ex in $shExt) { $shExtMap["$($ex.'frame.number')"] = $ex }
 
@@ -877,7 +881,7 @@ function Get-TcpkTlsSessionTree {
                                       if ($compMethodNames.ContainsKey($cm)) { "$($compMethodNames[$cm]) ($cm)" } else { $cm }
                                   } | Where-Object { $_ }) } else { @() }
             OfferedCiphers      = @(& $splitField $ch.'tls.handshake.ciphersuite' | ForEach-Object { & $resolveCipher $_ } | Where-Object { $_ })
-            SupportedVersions   = @(& $splitField $ch.'tls.handshake.extensions.supported_versions.tls' | ForEach-Object { & $resolveVersion $_ } | Where-Object { $_ })
+            SupportedVersions   = if ($ext) { @(& $splitField $ext.'tls.handshake.extensions.supported_versions.tls' | ForEach-Object { & $resolveVersion $_ } | Where-Object { $_ }) } else { @() }
             ALPN                = if ($ext) { & $splitField $ext.'tls.handshake.extensions_alpn_str' } else { @() }
             SupportedGroups     = if ($ext) { @(& $splitField $ext.'tls.handshake.extensions_elliptic_curve' | ForEach-Object { & $resolveRaw $_ $groupNames } | Where-Object { $_ }) } else { @() }
             SignatureAlgorithms  = if ($ext) { @(& $splitField $ext.'tls.handshake.sig_alg' | ForEach-Object { & $resolveRaw $_ $sigAlgNames } | Where-Object { $_ }) } else { @() }
@@ -893,7 +897,7 @@ function Get-TcpkTlsSessionTree {
         $cipher = (("$($sh.'tls.handshake.ciphersuite')") -split $us)[0]
         $fn     = "$($sh.'frame.number')"
         $ext    = if ($shExtMap.ContainsKey($fn)) { $shExtMap[$fn] } else { $null }
-        $rawKG  = (("$($sh.'tls.handshake.extensions.key_share.selected_group')") -split $us)[0]
+        $rawKG  = if ($ext) { (("$($ext.'tls.handshake.extensions.key_share.selected_group')") -split $us)[0] } else { '' }
         $sessions[$key].ServerHellos.Add([pscustomobject]@{
             Frame                = $fn
             TimeRel              = "$($sh.'frame.time_relative')"
