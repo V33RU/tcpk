@@ -1318,16 +1318,16 @@ $btnPcapGo.Add_Click({
     }
     Write-IcptLine $txtOutP ("   Conversations: {0} flows | Network Graph: {1} node(s) -- see tabs`r`n" -f $convs.Count, $gNodes.Count) ([System.Drawing.Color]::FromArgb(100,110,120))
     if ($convs.Count -eq 0) {
-        $tsharkBin = try { Get-TcpkTshark } catch { $null }
+        $tsharkBin = try { (Get-Command tshark -ErrorAction Stop).Source } catch { $null }
         if ($tsharkBin) {
             $diagRows = @(& $tsharkBin -r $file -n -T fields '-E' "separator=`t" -e ip.src -e ip.dst -c 3 2>$null)
             if ($diagRows.Count -gt 0) {
                 Write-IcptLine $txtOutP ("   [DIAG] tshark ip.src sample: {0}`r`n" -f "$($diagRows[0])") ([System.Drawing.Color]::FromArgb(140,140,140))
             } else {
-                Write-IcptLine $txtOutP "   [DIAG] tshark returned no ip.src/ip.dst rows -- may be non-IP capture (ARP-only, Bluetooth, etc.)`r`n" ([System.Drawing.Color]::FromArgb(255,180,60))
+                Write-IcptLine $txtOutP "   [DIAG] tshark returned no ip.src/ip.dst rows -- capture may be non-IP (ARP-only, BT, etc.)`r`n" ([System.Drawing.Color]::FromArgb(255,180,60))
             }
         } else {
-            Write-IcptLine $txtOutP "   [DIAG] Get-TcpkTshark returned null -- tshark may not be installed or not in PATH`r`n" ([System.Drawing.Color]::FromArgb(255,180,60))
+            Write-IcptLine $txtOutP "   [DIAG] tshark not found in PATH -- install Wireshark and ensure tshark.exe is on PATH`r`n" ([System.Drawing.Color]::FromArgb(255,180,60))
         }
     }
     [System.Windows.Forms.Application]::DoEvents()

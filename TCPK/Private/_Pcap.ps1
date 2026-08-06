@@ -700,7 +700,7 @@ function Get-TcpkConvStats {
         $dport = if ($r.'tcp.dstport') { $r.'tcp.dstport' } elseif ($r.'udp.dstport') { $r.'udp.dstport' } else { '' }
         $proto = "$($r.'_ws.col.Protocol')"
         $ck    = "${sip}:${sport}|${dip}:${dport}|${proto}"
-        if (-not $convs.ContainsKey($ck)) {
+        if (-not $convs.Contains($ck)) {
             $convs[$ck] = [ordered]@{
                 SrcIP=$sip; SrcPort=$sport; SrcMAC="$($r.'eth.src')"
                 DstIP=$dip; DstPort=$dport; DstMAC="$($r.'eth.dst')"
