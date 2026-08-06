@@ -1729,13 +1729,23 @@ $btnConvClearF = New-Object System.Windows.Forms.Button; $btnConvClearF.Text = '
 $lblConvCount = New-Object System.Windows.Forms.Label; $lblConvCount.Text = 'No capture loaded'; $lblConvCount.ForeColor = [System.Drawing.Color]::FromArgb(120,125,130); $lblConvCount.Location = New-Object System.Drawing.Point(572,7); $lblConvCount.Size = New-Object System.Drawing.Size(300,18); $pnlConvFilter.Controls.Add($lblConvCount)
 # Conversations ListView (Dock=Fill, full width -- packet detail opens in popup via right-click)
 $lvConv = New-Object System.Windows.Forms.ListView
-$lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false
+$lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false; $lvConv.HeaderStyle = [System.Windows.Forms.ColumnHeaderStyle]::None
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
 $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
 foreach ($colDef in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('Dst IP',118),@('Dst Port',66),@('Protocol',78),@('Packets',60),@('Bytes',66),@('Info',220),@('Src MAC',120),@('Dst MAC',120))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
-$subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($lvConv)
+# Column header row -- ListView system headers are invisible on dark themes
+$pnlConvHdr = New-Object System.Windows.Forms.Panel
+$pnlConvHdr.Dock = 'Top'; $pnlConvHdr.Height = 22; $pnlConvHdr.BackColor = [System.Drawing.Color]::FromArgb(36,36,44)
+$_xOff = 0
+foreach ($cd in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('Dst IP',118),@('Dst Port',66),@('Protocol',78),@('Packets',60),@('Bytes',66),@('Info',220),@('Src MAC',120),@('Dst MAC',120))) {
+    $lh = New-Object System.Windows.Forms.Label; $lh.Text = $cd[0]; $lh.TextAlign = 'MiddleLeft'
+    $lh.Location = New-Object System.Drawing.Point(($_xOff + 3), 0); $lh.Size = New-Object System.Drawing.Size(($cd[1] - 4), 22)
+    $lh.ForeColor = [System.Drawing.Color]::FromArgb(155,165,178); $lh.Font = New-Object System.Drawing.Font('Cascadia Mono', 8)
+    $pnlConvHdr.Controls.Add($lh); $_xOff += $cd[1]
+}
+$subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($pnlConvHdr); $subPcapConv.Controls.Add($lvConv)
 [void]$subPcapTabs.TabPages.Add($subPcapConv)
 
 # --- Tab 3: TLS Handshakes ---
