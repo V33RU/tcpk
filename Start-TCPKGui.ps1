@@ -1651,19 +1651,20 @@ $lvConv.Add_SelectedIndexChanged({
     } elseif ($sip -and $dip) {
         "(ip.src==$sip and ip.dst==$dip) or (ip.src==$dip and ip.dst==$sip)"
     } else { return }
-    $lblConvDetailHdr.Text = "Loading frames: $sip:$sport -> $dip:$dport  [$proto] ..."
+    $lblConvDetailHdr.Text = "Loading frames: ${sip}:${sport} -> ${dip}:${dport}  [$proto] ..."
     [System.Windows.Forms.Application]::DoEvents()
     $lvConvPkts.BeginUpdate(); $lvConvPkts.Items.Clear()
     $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $filter -T fields '-E' "separator=`t" -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info -c 500 2>$null)
     foreach ($pr in $pktRows) {
         if (-not "$pr") { continue }
         $parts = "$pr" -split "`t", 7
-        $pli = New-Object System.Windows.Forms.ListViewItem(if ($parts.Count -gt 0) { $parts[0] } else { '' })
-        for ($pi = 1; $pi -lt 7; $pi++) { [void]$pli.SubItems.Add(if ($pi -lt $parts.Count) { $parts[$pi] } else { '' }) }
+        while ($parts.Count -lt 7) { $parts += '' }
+        $pli = New-Object System.Windows.Forms.ListViewItem($parts[0])
+        for ($pi = 1; $pi -lt 7; $pi++) { [void]$pli.SubItems.Add($parts[$pi]) }
         [void]$lvConvPkts.Items.Add($pli)
     }
     $lvConvPkts.EndUpdate()
-    $lblConvDetailHdr.Text = "$sip:$sport <-> $dip:$dport  [$proto]  --  $($lvConvPkts.Items.Count) frame(s)  (max 500 shown)"
+    $lblConvDetailHdr.Text = "${sip}:${sport} <-> ${dip}:${dport}  [$proto]  --  $($lvConvPkts.Items.Count) frame(s)  (max 500 shown)"
 })
 
 # --- Tab 4: Search Results ---
