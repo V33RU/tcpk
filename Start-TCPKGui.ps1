@@ -1563,7 +1563,7 @@ $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $true
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
 $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
-foreach ($colDef in @(@('Src IP',120),@('Src Port',72),@('Dst IP',120),@('Dst Port',72),@('Protocol',80),@('Packets',70),@('Bytes',80),@('Src MAC',130),@('Dst MAC',130))) {
+foreach ($colDef in @(@('Date',90),@('Time',72),@('Src IP',120),@('Src Port',72),@('Dst IP',120),@('Dst Port',72),@('Protocol',80),@('Packets',70),@('Bytes',80),@('Src MAC',130),@('Dst MAC',130))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
 # Dock order: filter bar Top, detail panel Right, conversation list Fill
@@ -1594,7 +1594,8 @@ $script:_applyConvFilter = {
         if ($ipF   -and "$($c.SrcIP)" -notmatch [Regex]::Escape($ipF) -and "$($c.DstIP)" -notmatch [Regex]::Escape($ipF)) { continue }
         if ($portF -and "$($c.SrcPort)" -ne $portF -and "$($c.DstPort)" -ne $portF) { continue }
         if ($protoF -and "$($c.Protocol)" -ne $protoF) { continue }
-        $lvi = New-Object System.Windows.Forms.ListViewItem("$($c.SrcIP)")
+        $lvi = New-Object System.Windows.Forms.ListViewItem("$($c.Date)")
+        [void]$lvi.SubItems.Add("$($c.Time)"); [void]$lvi.SubItems.Add("$($c.SrcIP)")
         [void]$lvi.SubItems.Add("$($c.SrcPort)"); [void]$lvi.SubItems.Add("$($c.DstIP)")
         [void]$lvi.SubItems.Add("$($c.DstPort)"); [void]$lvi.SubItems.Add("$($c.Protocol)")
         [void]$lvi.SubItems.Add("$($c.Packets)"); [void]$lvi.SubItems.Add("$($c.Bytes)")
@@ -1624,15 +1625,15 @@ $lvConv.Add_SelectedIndexChanged({
     $pcapPath  = if ($script:_pcapRunParams.Path) { $script:_pcapRunParams.Path } else { $null }
     if (-not $tsharkBin -or -not $pcapPath -or -not (Test-Path -LiteralPath $pcapPath)) { return }
     $sel   = $lvConv.SelectedItems[0]
-    $sip   = $sel.Text
-    $sport = $sel.SubItems[1].Text
-    $dip   = $sel.SubItems[2].Text
-    $dport = $sel.SubItems[3].Text
-    $proto = $sel.SubItems[4].Text
-    $pkts  = $sel.SubItems[5].Text
-    $bytes = $sel.SubItems[6].Text
-    $smac  = $sel.SubItems[7].Text
-    $dmac  = $sel.SubItems[8].Text
+    $sip   = $sel.SubItems[2].Text
+    $sport = $sel.SubItems[3].Text
+    $dip   = $sel.SubItems[4].Text
+    $dport = $sel.SubItems[5].Text
+    $proto = $sel.SubItems[6].Text
+    $pkts  = $sel.SubItems[7].Text
+    $bytes = $sel.SubItems[8].Text
+    $smac  = $sel.SubItems[9].Text
+    $dmac  = $sel.SubItems[10].Text
     $protoL = $proto.ToLower()
     $txProto = if     ($protoL -match 'tcp|tls|ssl|https|http|ssh|ftp|smtp|pop|imap|rdp|telnet') { 'tcp' }
                elseif ($protoL -match 'udp|dns|quic|snmp|ntp|dhcp|mdns|ssdp|stun')              { 'udp' }

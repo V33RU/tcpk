@@ -679,7 +679,7 @@ function Get-TcpkTlsSessionTree {
 
 # ─── conversation statistics ───────────────────────────────────────────────────────
 # Returns ordered dicts (sorted by bytes descending) with:
-#   SrcIP, SrcPort, SrcMAC, DstIP, DstPort, DstMAC, Protocol, Packets, Bytes
+#   Date, Time, SrcIP, SrcPort, SrcMAC, DstIP, DstPort, DstMAC, Protocol, Packets, Bytes
 function Get-TcpkConvStats {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap,
@@ -690,7 +690,7 @@ function Get-TcpkConvStats {
 
     $rows = Invoke-TcpkTsharkQuery @q -Max $Max `
         -Fields @('ip.src','ip.dst','eth.src','eth.dst','_ws.col.Protocol','frame.len',
-                  'tcp.srcport','tcp.dstport','udp.srcport','udp.dstport')
+                  'tcp.srcport','tcp.dstport','udp.srcport','udp.dstport','frame.time_epoch')
 
     $convs = [ordered]@{}
     foreach ($r in @($rows)) {
@@ -701,7 +701,15 @@ function Get-TcpkConvStats {
         $proto = "$($r.'_ws.col.Protocol')"
         $ck    = "${sip}:${sport}|${dip}:${dport}|${proto}"
         if (-not $convs.Contains($ck)) {
+            $dateStr = ''; $timeStr = ''
+            try {
+                $epoch = [double]"$($r.'frame.time_epoch')"
+                $dt = [System.DateTimeOffset]::FromUnixTimeMilliseconds([long]($epoch * 1000)).LocalDateTime
+                $dateStr = $dt.ToString('yyyy-MM-dd')
+                $timeStr = $dt.ToString('HH:mm:ss')
+            } catch {}
             $convs[$ck] = [ordered]@{
+                Date=$dateStr; Time=$timeStr
                 SrcIP=$sip; SrcPort=$sport; SrcMAC="$($r.'eth.src')"
                 DstIP=$dip; DstPort=$dport; DstMAC="$($r.'eth.dst')"
                 Protocol=$proto; Packets=0; Bytes=0
