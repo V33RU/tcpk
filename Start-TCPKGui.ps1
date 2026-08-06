@@ -1552,7 +1552,7 @@ $cmbConvProtoF = New-Object System.Windows.Forms.ComboBox; $cmbConvProtoF.Locati
 $btnConvClearF = New-Object System.Windows.Forms.Button; $btnConvClearF.Text = 'Clear'; $btnConvClearF.Location = New-Object System.Drawing.Point(512,4); $btnConvClearF.Size = New-Object System.Drawing.Size(52,22); $btnConvClearF.FlatStyle = 'Flat'; $btnConvClearF.BackColor = [System.Drawing.Color]::FromArgb(55,55,58); $btnConvClearF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($btnConvClearF)
 $lblConvCount = New-Object System.Windows.Forms.Label; $lblConvCount.Text = 'No capture loaded'; $lblConvCount.ForeColor = [System.Drawing.Color]::FromArgb(120,125,130); $lblConvCount.Location = New-Object System.Drawing.Point(572,7); $lblConvCount.Size = New-Object System.Drawing.Size(300,18); $pnlConvFilter.Controls.Add($lblConvCount)
 # Right panel: plain RichTextBox, no headers, no grid lines
-$pnlConvRight = New-Object System.Windows.Forms.Panel; $pnlConvRight.Dock = 'Right'; $pnlConvRight.Width = 480; $pnlConvRight.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+$pnlConvRight = New-Object System.Windows.Forms.Panel; $pnlConvRight.Dock = 'Right'; $pnlConvRight.Width = 420; $pnlConvRight.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
 $rtbConvDetail = New-Object System.Windows.Forms.RichTextBox; $rtbConvDetail.Dock = 'Fill'; $rtbConvDetail.ReadOnly = $true; $rtbConvDetail.WordWrap = $false
 $rtbConvDetail.BackColor = [System.Drawing.Color]::FromArgb(18,18,22); $rtbConvDetail.ForeColor = [System.Drawing.Color]::FromArgb(205,210,218)
 $rtbConvDetail.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5); $rtbConvDetail.BorderStyle = 'None'
@@ -1563,7 +1563,7 @@ $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $true
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
 $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
-foreach ($colDef in @(@('Date',90),@('Time',72),@('Src IP',120),@('Src Port',72),@('Dst IP',120),@('Dst Port',72),@('Protocol',80),@('Packets',70),@('Bytes',80),@('Src MAC',130),@('Dst MAC',130))) {
+foreach ($colDef in @(@('Date',88),@('Time',68),@('Src IP',112),@('Src Port',64),@('Dst IP',112),@('Dst Port',64),@('Protocol',76),@('Packets',60),@('Bytes',64),@('Src MAC',110),@('Dst MAC',110))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
 # Dock order: filter bar Top, detail panel Right, conversation list Fill

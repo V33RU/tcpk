@@ -704,7 +704,7 @@ function Get-TcpkConvStats {
             $dateStr = ''; $timeStr = ''
             try {
                 $epoch = [double]"$($r.'frame.time_epoch')"
-                $dt = [System.DateTimeOffset]::FromUnixTimeMilliseconds([long]($epoch * 1000)).LocalDateTime
+                $dt = ([DateTime]'1970-01-01 00:00:00Z').ToUniversalTime().AddSeconds($epoch).ToLocalTime()
                 $dateStr = $dt.ToString('yyyy-MM-dd')
                 $timeStr = $dt.ToString('HH:mm:ss')
             } catch {}
