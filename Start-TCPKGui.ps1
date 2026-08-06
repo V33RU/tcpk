@@ -124,7 +124,7 @@ if (Test-Path $badgePath) {
     $picLogo = New-Object System.Windows.Forms.PictureBox
     $picLogo.SizeMode = 'Zoom'
     $picLogo.Size = New-Object System.Drawing.Size(168, 148)
-    $picLogo.Location = New-Object System.Drawing.Point(1008, 4)
+    $picLogo.Location = New-Object System.Drawing.Point(1024, 4)
     $picLogo.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
     $picLogo.BackColor = [System.Drawing.Color]::Transparent
     try { $picLogo.Image = [System.Drawing.Image]::FromFile($badgePath) } catch {}
@@ -133,9 +133,9 @@ if (Test-Path $badgePath) {
 }
 
 $lblTarget = New-Object System.Windows.Forms.Label
-$lblTarget.Text = "Target (MSIX file or install folder):"; $lblTarget.ForeColor = [System.Drawing.Color]::White
+$lblTarget.Text = "Target (MSIX or folder):"; $lblTarget.ForeColor = [System.Drawing.Color]::White
 $lblTarget.Location = New-Object System.Drawing.Point(14, 11)
-$lblTarget.Size = New-Object System.Drawing.Size(224, 18)
+$lblTarget.Size = New-Object System.Drawing.Size(200, 18)
 $topPanel.Controls.Add($lblTarget)
 
 $txtTarget = New-Object System.Windows.Forms.TextBox
@@ -156,8 +156,8 @@ $topPanel.Controls.Add($btnBrowse)
 
 $btnAutoDetect = New-Object System.Windows.Forms.Button
 $btnAutoDetect.Text = "Auto-Detect"
-$btnAutoDetect.Location = New-Object System.Drawing.Point(916, 8)
-$btnAutoDetect.Size = New-Object System.Drawing.Size(90, 24)
+$btnAutoDetect.Location = New-Object System.Drawing.Point(914, 8)
+$btnAutoDetect.Size = New-Object System.Drawing.Size(106, 24)
 $btnAutoDetect.FlatStyle = 'Flat'; $btnAutoDetect.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnAutoDetect.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $btnAutoDetect.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnAutoDetect)
@@ -177,11 +177,11 @@ $topPanel.Controls.Add($lblIdent)
 $lblProfile = New-Object System.Windows.Forms.Label
 $lblProfile.Text = "Profile:"; $lblProfile.ForeColor = [System.Drawing.Color]::White
 $lblProfile.Location = New-Object System.Drawing.Point(14, 43)
-$lblProfile.Size = New-Object System.Drawing.Size(60, 18)
+$lblProfile.Size = New-Object System.Drawing.Size(70, 18)
 $topPanel.Controls.Add($lblProfile)
 
 $cmbProfile = New-Object System.Windows.Forms.ComboBox
-$cmbProfile.Location = New-Object System.Drawing.Point(80, 40)
+$cmbProfile.Location = New-Object System.Drawing.Point(88, 40)
 $cmbProfile.Size = New-Object System.Drawing.Size(120, 24)
 $cmbProfile.DropDownStyle = 'DropDownList'
 $cmbProfile.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbProfile.ForeColor = [System.Drawing.Color]::White
@@ -192,24 +192,24 @@ $topPanel.Controls.Add($cmbProfile)
 $lblPkg = New-Object System.Windows.Forms.Label
 $lblPkg.Text = "PackageName:"; $lblPkg.ForeColor = [System.Drawing.Color]::White
 $lblPkg.Location = New-Object System.Drawing.Point(220, 43)
-$lblPkg.Size = New-Object System.Drawing.Size(90, 18)
+$lblPkg.Size = New-Object System.Drawing.Size(100, 18)
 $topPanel.Controls.Add($lblPkg)
 
 $txtPkg = New-Object System.Windows.Forms.TextBox
-$txtPkg.Location = New-Object System.Drawing.Point(310, 40)
-$txtPkg.Size = New-Object System.Drawing.Size(140, 24)
+$txtPkg.Location = New-Object System.Drawing.Point(324, 40)
+$txtPkg.Size = New-Object System.Drawing.Size(126, 24)
 $txtPkg.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtPkg.ForeColor = [System.Drawing.Color]::White
 $topPanel.Controls.Add($txtPkg)
 
 $lblProc = New-Object System.Windows.Forms.Label
 $lblProc.Text = "ProcessName:"; $lblProc.ForeColor = [System.Drawing.Color]::White
 $lblProc.Location = New-Object System.Drawing.Point(460, 43)
-$lblProc.Size = New-Object System.Drawing.Size(90, 18)
+$lblProc.Size = New-Object System.Drawing.Size(100, 18)
 $topPanel.Controls.Add($lblProc)
 
 $txtProc = New-Object System.Windows.Forms.TextBox
-$txtProc.Location = New-Object System.Drawing.Point(550, 40)
-$txtProc.Size = New-Object System.Drawing.Size(140, 24)
+$txtProc.Location = New-Object System.Drawing.Point(564, 40)
+$txtProc.Size = New-Object System.Drawing.Size(126, 24)
 $txtProc.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtProc.ForeColor = [System.Drawing.Color]::White
 $topPanel.Controls.Add($txtProc)
 
@@ -262,18 +262,18 @@ $ttOnlineCve.SetToolTip($chkOnlineCve, "Live CVE lookup: OSV (NuGet/Electron) + 
 $chkAi = New-Object System.Windows.Forms.CheckBox
 $chkAi.Text = "AI-verify findings"; $chkAi.ForeColor = [System.Drawing.Color]::White
 $chkAi.Location = New-Object System.Drawing.Point(14, 75)
-$chkAi.Size = New-Object System.Drawing.Size(130, 22)
+$chkAi.Size = New-Object System.Drawing.Size(148, 22)
 $chkAi.Checked = $false   # unchecked by default -- let the operator opt in
 $topPanel.Controls.Add($chkAi)
 
 $lblAi = New-Object System.Windows.Forms.Label
 $lblAi.Text = "Model:"; $lblAi.ForeColor = [System.Drawing.Color]::White
-$lblAi.Location = New-Object System.Drawing.Point(150, 77)
-$lblAi.Size = New-Object System.Drawing.Size(44, 18)
+$lblAi.Location = New-Object System.Drawing.Point(166, 77)
+$lblAi.Size = New-Object System.Drawing.Size(50, 18)
 $topPanel.Controls.Add($lblAi)
 
 $cmbAi = New-Object System.Windows.Forms.ComboBox
-$cmbAi.Location = New-Object System.Drawing.Point(196, 74)
+$cmbAi.Location = New-Object System.Drawing.Point(220, 74)
 $cmbAi.Size = New-Object System.Drawing.Size(120, 24)
 $cmbAi.DropDownStyle = 'DropDownList'
 $cmbAi.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbAi.ForeColor = [System.Drawing.Color]::White
@@ -286,8 +286,8 @@ $topPanel.Controls.Add($cmbAi)
 # A sensible default is pre-filled per provider; click "Test AI" to load the live
 # list from your key (Get-TcpkLlmModels) into the dropdown for convenience.
 $txtAiModel = New-Object System.Windows.Forms.ComboBox
-$txtAiModel.Location = New-Object System.Drawing.Point(322, 74)
-$txtAiModel.Size = New-Object System.Drawing.Size(170, 24)
+$txtAiModel.Location = New-Object System.Drawing.Point(344, 74)
+$txtAiModel.Size = New-Object System.Drawing.Size(148, 24)
 $txtAiModel.DropDownStyle = 'DropDown'
 $txtAiModel.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiModel.ForeColor = [System.Drawing.Color]::White
 $txtAiModel.Text = 'qwen2.5-coder:7b'   # default for ollama (provider[0]); overtype with anything
@@ -295,13 +295,13 @@ $topPanel.Controls.Add($txtAiModel)
 
 $lblKey = New-Object System.Windows.Forms.Label
 $lblKey.Text = "API key:"; $lblKey.ForeColor = [System.Drawing.Color]::White
-$lblKey.Location = New-Object System.Drawing.Point(500, 77)
-$lblKey.Size = New-Object System.Drawing.Size(52, 18)
+$lblKey.Location = New-Object System.Drawing.Point(496, 77)
+$lblKey.Size = New-Object System.Drawing.Size(68, 18)
 $topPanel.Controls.Add($lblKey)
 
 $txtAiKey = New-Object System.Windows.Forms.TextBox
-$txtAiKey.Location = New-Object System.Drawing.Point(554, 74)
-$txtAiKey.Size = New-Object System.Drawing.Size(180, 24)
+$txtAiKey.Location = New-Object System.Drawing.Point(568, 74)
+$txtAiKey.Size = New-Object System.Drawing.Size(164, 24)
 $txtAiKey.UseSystemPasswordChar = $true
 $txtAiKey.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiKey.ForeColor = [System.Drawing.Color]::White
 $txtAiKey.Enabled = $false   # disabled for local ollama
@@ -309,8 +309,8 @@ $topPanel.Controls.Add($txtAiKey)
 
 $btnTestAi = New-Object System.Windows.Forms.Button
 $btnTestAi.Text = "Test AI"
-$btnTestAi.Location = New-Object System.Drawing.Point(744, 74)
-$btnTestAi.Size = New-Object System.Drawing.Size(70, 24)
+$btnTestAi.Location = New-Object System.Drawing.Point(740, 74)
+$btnTestAi.Size = New-Object System.Drawing.Size(74, 24)
 $btnTestAi.FlatStyle = 'Flat'; $btnTestAi.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnTestAi.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $topPanel.Controls.Add($btnTestAi)
 
@@ -333,11 +333,11 @@ $codingFonts = @($wishFonts | Where-Object { $installedFonts -contains $_ })
 if (-not ($codingFonts -contains 'Consolas')) { $codingFonts += 'Consolas' }
 
 $lblFont = New-Object System.Windows.Forms.Label
-$lblFont.Text = "Font:"; $lblFont.ForeColor = [System.Drawing.Color]::White; $lblFont.Location = New-Object System.Drawing.Point(14, 111); $lblFont.Size = New-Object System.Drawing.Size(36, 18)
+$lblFont.Text = "Font:"; $lblFont.ForeColor = [System.Drawing.Color]::White; $lblFont.Location = New-Object System.Drawing.Point(14, 111); $lblFont.Size = New-Object System.Drawing.Size(42, 18)
 $topPanel.Controls.Add($lblFont)
 
 $cmbFont = New-Object System.Windows.Forms.ComboBox
-$cmbFont.Location = New-Object System.Drawing.Point(52, 108); $cmbFont.Size = New-Object System.Drawing.Size(160, 24)
+$cmbFont.Location = New-Object System.Drawing.Point(60, 108); $cmbFont.Size = New-Object System.Drawing.Size(160, 24)
 $cmbFont.DropDownStyle = 'DropDownList'
 $cmbFont.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbFont.ForeColor = [System.Drawing.Color]::White
 $codingFonts | ForEach-Object { [void]$cmbFont.Items.Add($_) }
@@ -351,11 +351,11 @@ $cmbFont.Add_SelectedIndexChanged({ Apply-UiFont })
 $topPanel.Controls.Add($cmbFont)
 
 $lblSize = New-Object System.Windows.Forms.Label
-$lblSize.Text = "Size:"; $lblSize.ForeColor = [System.Drawing.Color]::White; $lblSize.Location = New-Object System.Drawing.Point(224, 111); $lblSize.Size = New-Object System.Drawing.Size(34, 18)
+$lblSize.Text = "Size:"; $lblSize.ForeColor = [System.Drawing.Color]::White; $lblSize.Location = New-Object System.Drawing.Point(224, 111); $lblSize.Size = New-Object System.Drawing.Size(42, 18)
 $topPanel.Controls.Add($lblSize)
 
 $cmbSize = New-Object System.Windows.Forms.ComboBox
-$cmbSize.Location = New-Object System.Drawing.Point(258, 108); $cmbSize.Size = New-Object System.Drawing.Size(56, 24)
+$cmbSize.Location = New-Object System.Drawing.Point(270, 108); $cmbSize.Size = New-Object System.Drawing.Size(56, 24)
 $cmbSize.DropDownStyle = 'DropDownList'
 $cmbSize.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbSize.ForeColor = [System.Drawing.Color]::White
 @(8, 9, 10, 11, 12, 14, 16) | ForEach-Object { [void]$cmbSize.Items.Add($_) }
