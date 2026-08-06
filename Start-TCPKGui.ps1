@@ -1340,39 +1340,67 @@ $btnPcapGo.Add_Click({
                     }
                     if ($ch.SupportedGroups.Count -gt 0) {
                         $gn = New-Object System.Windows.Forms.TreeNode("Supported groups / curves ($($ch.SupportedGroups.Count))")
-                        foreach ($g in $ch.SupportedGroups) { [void]$gn.Nodes.Add("$g") }
-                        [void]$chNode.Nodes.Add($gn)
+                        $gn.ForeColor = [System.Drawing.Color]::FromArgb(160,220,180)
+                        foreach ($g in $ch.SupportedGroups) {
+                            $gi = New-Object System.Windows.Forms.TreeNode("$g")
+                            $gi.ForeColor = [System.Drawing.Color]::FromArgb(140,200,160)
+                            [void]$gn.Nodes.Add($gi)
+                        }
+                        $gn.Expand(); [void]$chNode.Nodes.Add($gn)
                     }
                     if ($ch.SignatureAlgorithms.Count -gt 0) {
                         $sgn = New-Object System.Windows.Forms.TreeNode("Signature algorithms ($($ch.SignatureAlgorithms.Count))")
-                        foreach ($sg in $ch.SignatureAlgorithms) { [void]$sgn.Nodes.Add("$sg") }
+                        $sgn.ForeColor = [System.Drawing.Color]::FromArgb(180,180,220)
+                        foreach ($sg in $ch.SignatureAlgorithms) {
+                            $sgi = New-Object System.Windows.Forms.TreeNode("$sg")
+                            $sgi.ForeColor = [System.Drawing.Color]::FromArgb(160,160,200)
+                            [void]$sgn.Nodes.Add($sgi)
+                        }
                         [void]$chNode.Nodes.Add($sgn)
                     }
                     if ($ch.OfferedCiphers.Count -gt 0) {
-                        $cn = New-Object System.Windows.Forms.TreeNode("Offered cipher suites ($($ch.OfferedCiphers.Count))")
+                        # Count non-GREASE ciphers separately so the label is informative
+                        $realCnt  = @($ch.OfferedCiphers | Where-Object { -not $_.IsGrease }).Count
+                        $greaseCnt = $ch.OfferedCiphers.Count - $realCnt
+                        $cnLabel = "Offered cipher suites ($realCnt"
+                        if ($greaseCnt -gt 0) { $cnLabel += " + $greaseCnt GREASE" }
+                        $cnLabel += ')'
+                        $cn = New-Object System.Windows.Forms.TreeNode($cnLabel)
                         $cn.ForeColor = [System.Drawing.Color]::FromArgb(200,200,200)
                         foreach ($c in $ch.OfferedCiphers) {
-                            $weak = Test-TcpkCipherWeak $c
-                            $tag  = if ($weak) { "  [WEAK: $($weak.Reason)]" } else { '' }
-                            $ci   = New-Object System.Windows.Forms.TreeNode("$c$tag")
-                            $ci.ForeColor = if ($weak) { [System.Drawing.Color]::FromArgb(255,90,90) } else { [System.Drawing.Color]::FromArgb(180,180,180) }
+                            # $c is [pscustomobject]@{Raw; Display; IsGrease; Weak} -- resolved inside module
+                            $label = $c.Display
+                            if ($c.IsGrease) {
+                                $label += '  [GREASE - RFC 8701 compatibility probe]'
+                                $ci = New-Object System.Windows.Forms.TreeNode($label)
+                                $ci.ForeColor = [System.Drawing.Color]::FromArgb(100,100,100)
+                            } elseif ($c.Weak) {
+                                $label += "  [WEAK: $($c.Weak.Reason)]"
+                                $ci = New-Object System.Windows.Forms.TreeNode($label)
+                                $ci.ForeColor = [System.Drawing.Color]::FromArgb(255,90,90)
+                            } else {
+                                $ci = New-Object System.Windows.Forms.TreeNode($label)
+                                $ci.ForeColor = [System.Drawing.Color]::FromArgb(180,180,180)
+                            }
                             [void]$cn.Nodes.Add($ci)
                         }
-                        [void]$chNode.Nodes.Add($cn)
+                        $cn.Expand(); [void]$chNode.Nodes.Add($cn)
                     }
                     [void]$srvNode.Nodes.Add($chNode)
                     $chNode.Expand()
                 }
 
                 foreach ($sh in $hs.ServerHellos) {
-                    $weakTag = if ($sh.WeakCipher) { "  [WEAK: $($sh.WeakCipher.Reason)]" } else { '' }
-                    $shLabel = "ServerHello  [frame $($sh.Frame)]  $($sh.NegotiatedVersion)  /  $($sh.SelectedCipher)$weakTag"
-                    $shNode  = New-Object System.Windows.Forms.TreeNode($shLabel)
+                    $cipherLabel = if ($sh.SelectedCipherDisplay) { "$($sh.SelectedCipherDisplay)" } else { "$($sh.SelectedCipher)" }
+                    $weakTag  = if ($sh.WeakCipher) { "  [WEAK: $($sh.WeakCipher.Reason)]" } else { '' }
+                    $shLabel  = "ServerHello  [frame $($sh.Frame)]  $($sh.NegotiatedVersion)  /  $cipherLabel$weakTag"
+                    $shNode   = New-Object System.Windows.Forms.TreeNode($shLabel)
                     $shNode.ForeColor = if ($sh.WeakCipher) { [System.Drawing.Color]::FromArgb(255,90,90) } else { [System.Drawing.Color]::FromArgb(255,180,60) }
-                    if ($sh.KeyGroup)  { [void]$shNode.Nodes.Add("Key exchange group: $($sh.KeyGroup)") }
+                    $kgLabel = if ($sh.KeyGroupDisplay -and "$($sh.KeyGroupDisplay)" -ne "$($sh.KeyGroup)") { "$($sh.KeyGroupDisplay)" } elseif ($sh.KeyGroup) { "$($sh.KeyGroup)" } else { '' }
+                    if ($kgLabel)      { [void]$shNode.Nodes.Add("Key exchange group: $kgLabel") }
                     if ($sh.ALPN)      { [void]$shNode.Nodes.Add("ALPN selected: $($sh.ALPN)") }
                     if ($sh.SessionID) { [void]$shNode.Nodes.Add("Session ID: $($sh.SessionID)") }
-                    if ($sh.WeakCipher){ [void]$shNode.Nodes.Add("WEAK cipher reason: $($sh.WeakCipher.Reason)") }
+                    if ($sh.WeakCipher){ [void]$shNode.Nodes.Add("WEAK cipher: $($sh.WeakCipher.Reason)") }
                     [void]$srvNode.Nodes.Add($shNode)
                     $shNode.Expand()
                 }

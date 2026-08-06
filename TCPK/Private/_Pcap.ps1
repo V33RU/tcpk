@@ -694,6 +694,109 @@ function Get-TcpkTlsSessionTree {
 
     $splitField = { param($raw) @("$raw" -split $us | Where-Object {$_} | ForEach-Object {$_.Trim()} | Select-Object -Unique) }
 
+    # ── IANA cipher suite registry (hex lowercase 4-digit -> name) ──────────────
+    $cipherNames = @{
+        '0x1301'='TLS_AES_128_GCM_SHA256'; '0x1302'='TLS_AES_256_GCM_SHA384'
+        '0x1303'='TLS_CHACHA20_POLY1305_SHA256'; '0x1304'='TLS_AES_128_CCM_SHA256'
+        '0x1305'='TLS_AES_128_CCM_8_SHA256'
+        '0x0000'='TLS_NULL_WITH_NULL_NULL'; '0x0001'='TLS_RSA_WITH_NULL_MD5'
+        '0x0002'='TLS_RSA_WITH_NULL_SHA'; '0x003b'='TLS_RSA_WITH_NULL_SHA256'
+        '0x0004'='TLS_RSA_WITH_RC4_128_MD5'; '0x0005'='TLS_RSA_WITH_RC4_128_SHA'
+        '0x000a'='TLS_RSA_WITH_3DES_EDE_CBC_SHA'
+        '0x002f'='TLS_RSA_WITH_AES_128_CBC_SHA'; '0x0035'='TLS_RSA_WITH_AES_256_CBC_SHA'
+        '0x003c'='TLS_RSA_WITH_AES_128_CBC_SHA256'; '0x003d'='TLS_RSA_WITH_AES_256_CBC_SHA256'
+        '0x009c'='TLS_RSA_WITH_AES_128_GCM_SHA256'; '0x009d'='TLS_RSA_WITH_AES_256_GCM_SHA384'
+        '0x0033'='TLS_DHE_RSA_WITH_AES_128_CBC_SHA'; '0x0039'='TLS_DHE_RSA_WITH_AES_256_CBC_SHA'
+        '0x0067'='TLS_DHE_RSA_WITH_AES_128_CBC_SHA256'; '0x006b'='TLS_DHE_RSA_WITH_AES_256_CBC_SHA256'
+        '0x009e'='TLS_DHE_RSA_WITH_AES_128_GCM_SHA256'; '0x009f'='TLS_DHE_RSA_WITH_AES_256_GCM_SHA384'
+        '0x0017'='TLS_DH_anon_WITH_RC4_128_MD5'; '0x001a'='TLS_DH_anon_WITH_DES_CBC_SHA'
+        '0x001b'='TLS_DH_anon_WITH_3DES_EDE_CBC_SHA'
+        '0xc002'='TLS_ECDH_ECDSA_WITH_RC4_128_SHA'; '0xc003'='TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA'
+        '0xc004'='TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA'; '0xc005'='TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA'
+        '0xc007'='TLS_ECDHE_ECDSA_WITH_RC4_128_SHA'; '0xc008'='TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA'
+        '0xc009'='TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA'; '0xc00a'='TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA'
+        '0xc00b'='TLS_ECDH_RSA_WITH_RC4_128_SHA'; '0xc00c'='TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA'
+        '0xc00d'='TLS_ECDH_RSA_WITH_AES_128_CBC_SHA'; '0xc00e'='TLS_ECDH_RSA_WITH_AES_256_CBC_SHA'
+        '0xc011'='TLS_ECDHE_RSA_WITH_RC4_128_SHA'; '0xc012'='TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA'
+        '0xc013'='TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA'; '0xc014'='TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA'
+        '0xc016'='TLS_ECDH_anon_WITH_RC4_128_SHA'; '0xc017'='TLS_ECDH_anon_WITH_3DES_EDE_CBC_SHA'
+        '0xc018'='TLS_ECDH_anon_WITH_AES_128_CBC_SHA'; '0xc019'='TLS_ECDH_anon_WITH_AES_256_CBC_SHA'
+        '0xc023'='TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256'; '0xc024'='TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384'
+        '0xc025'='TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256'; '0xc026'='TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384'
+        '0xc027'='TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256'; '0xc028'='TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384'
+        '0xc029'='TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256'; '0xc02a'='TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384'
+        '0xc02b'='TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256'; '0xc02c'='TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384'
+        '0xc02d'='TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256'; '0xc02e'='TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384'
+        '0xc02f'='TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256'; '0xc030'='TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384'
+        '0xc031'='TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256'; '0xc032'='TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384'
+        '0xcca8'='TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256'
+        '0xcca9'='TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256'
+        '0xccaa'='TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256'
+        '0xccab'='TLS_PSK_WITH_CHACHA20_POLY1305_SHA256'; '0xccac'='TLS_ECDHE_PSK_WITH_CHACHA20_POLY1305_SHA256'
+        '0xccad'='TLS_DHE_PSK_WITH_CHACHA20_POLY1305_SHA256'; '0xccae'='TLS_RSA_PSK_WITH_CHACHA20_POLY1305_SHA256'
+        '0xc09c'='TLS_RSA_WITH_AES_128_CCM'; '0xc09d'='TLS_RSA_WITH_AES_256_CCM'
+        '0xc0a0'='TLS_RSA_WITH_AES_128_CCM_8'; '0xc0a1'='TLS_RSA_WITH_AES_256_CCM_8'
+        '0xc0ac'='TLS_ECDHE_ECDSA_WITH_AES_128_CCM'; '0xc0ad'='TLS_ECDHE_ECDSA_WITH_AES_256_CCM'
+        '0xc0ae'='TLS_ECDHE_ECDSA_WITH_AES_128_CCM_8'; '0xc0af'='TLS_ECDHE_ECDSA_WITH_AES_256_CCM_8'
+    }
+    # GREASE cipher/group/version values (RFC 8701) - intentional middlebox-compatibility probes
+    $greaseValues = @('0x0a0a','0x1a1a','0x2a2a','0x3a3a','0x4a4a','0x5a5a','0x6a6a',
+                      '0x7a7a','0x8a8a','0x9a9a','0xaaaa','0xbaba','0xcaca','0xdada','0xeaea','0xfafa')
+    # Supported groups / named curves (RFC 4492, RFC 7919, RFC 8446)
+    $groupNames = @{
+        '0x0017'='secp256r1 (P-256)'; '0x0018'='secp384r1 (P-384)'; '0x0019'='secp521r1 (P-521)'
+        '0x001d'='x25519'; '0x001e'='x448'
+        '0x0100'='ffdhe2048'; '0x0101'='ffdhe3072'; '0x0102'='ffdhe4096'
+        '0x0103'='ffdhe6144'; '0x0104'='ffdhe8192'
+        '0x0016'='secp256k1'; '0x0015'='secp224r1'; '0x0014'='secp224k1'
+        '0x0013'='secp192r1'; '0x001a'='brainpoolP256r1'
+        '0x001b'='brainpoolP384r1'; '0x001c'='brainpoolP512r1'
+    }
+    # Signature algorithms (RFC 8446 section 4.2.3)
+    $sigAlgNames = @{
+        '0x0201'='rsa_pkcs1_sha1 (legacy)'; '0x0203'='ecdsa_sha1 (legacy)'
+        '0x0401'='rsa_pkcs1_sha256'; '0x0403'='ecdsa_secp256r1_sha256'
+        '0x0501'='rsa_pkcs1_sha384'; '0x0503'='ecdsa_secp384r1_sha384'
+        '0x0601'='rsa_pkcs1_sha512'; '0x0603'='ecdsa_secp521r1_sha512'
+        '0x0804'='rsa_pss_rsae_sha256'; '0x0805'='rsa_pss_rsae_sha384'; '0x0806'='rsa_pss_rsae_sha512'
+        '0x0807'='ed25519'; '0x0808'='ed448'
+        '0x0809'='rsa_pss_pss_sha256'; '0x080a'='rsa_pss_pss_sha384'; '0x080b'='rsa_pss_pss_sha512'
+    }
+
+    # Normalize a raw tshark value (named string / hex 0xNNNN / decimal) against a lookup table.
+    # Returns the named string if found, otherwise the raw value unchanged.
+    $resolveRaw = {
+        param($rawVal, $lookup)
+        $r = "$rawVal".Trim()
+        if (-not $r) { return '' }
+        # Already a named string (TLS_AES_... / x25519 / rsa_pss_... etc.) - return as-is
+        if ($r -notmatch '^0x[0-9a-fA-F]+$' -and $r -notmatch '^\d+$') { return $r }
+        # Normalize to 0x + 4 hex digits
+        $hk = ''
+        if ($r -match '^0x([0-9a-fA-F]+)$') { $hk = '0x' + $Matches[1].ToLower().PadLeft(4,'0') }
+        elseif ($r -match '^\d+$') { try { $hk = '0x{0:x4}' -f [int]$r } catch { return $r } }
+        if ($hk -and $lookup.ContainsKey($hk)) { return "$($lookup[$hk]) ($hk)" }
+        return $r
+    }
+
+    # Resolve a cipher suite value to a structured object with Display name, GREASE flag, and Weak info.
+    # Called inside the module where Test-TcpkCipherWeak is accessible.
+    $resolveCipher = {
+        param($rawVal)
+        $r = "$rawVal".Trim(); if (-not $r) { return $null }
+        $hk = ''
+        if ($r -match '^0x([0-9a-fA-F]+)$') { $hk = '0x' + $Matches[1].ToLower().PadLeft(4,'0') }
+        elseif ($r -match '^\d+$') { try { $hk = '0x{0:x4}' -f [int]$r } catch {} }
+        $isGrease = $hk -and ($greaseValues -contains $hk)
+        $display  = & $resolveRaw $r $cipherNames
+        if (-not $display) { $display = $r }
+        if ($isGrease -and $display -eq $r) { $display = "GREASE ($hk)" }
+        # Use the resolved name for pattern-matching in Test-TcpkCipherWeak (better than hex)
+        $weakInput = if ($display -match '^TLS_|^SSL_') { $display } else { $r }
+        $weak = if (-not $isGrease) { Test-TcpkCipherWeak $weakInput } else { $null }
+        [pscustomobject]@{ Raw=$r; Display=$display; IsGrease=$isGrease; Weak=$weak }
+    }
+
     foreach ($ch in $clientHellos) {
         $dport = (("$($ch.'tcp.dstport')") -split $us)[0]
         $key   = "$($ch.'ip.dst'):$dport"
@@ -707,11 +810,11 @@ function Get-TcpkTlsSessionTree {
             RecordVersion      = (("$($ch.'tls.record.version')") -split $us)[0]
             SNI                = (("$($ch.'tls.handshake.extensions_server_name')") -split $us)[0]
             SessionID          = (("$($ch.'tls.handshake.session_id')") -split $us)[0]
-            OfferedCiphers     = & $splitField $ch.'tls.handshake.ciphersuite'
+            OfferedCiphers     = @(& $splitField $ch.'tls.handshake.ciphersuite' | ForEach-Object { & $resolveCipher $_ } | Where-Object { $_ })
             SupportedVersions  = & $splitField $ch.'tls.handshake.extensions.supported_versions.tls'
             ALPN               = if ($ext) { & $splitField $ext.'tls.handshake.extensions_alpn_str' } else { @() }
-            SupportedGroups    = if ($ext) { & $splitField $ext.'tls.handshake.extensions_elliptic_curve' } else { @() }
-            SignatureAlgorithms = if ($ext) { & $splitField $ext.'tls.handshake.sig_alg' } else { @() }
+            SupportedGroups    = if ($ext) { @(& $splitField $ext.'tls.handshake.extensions_elliptic_curve' | ForEach-Object { & $resolveRaw $_ $groupNames } | Where-Object { $_ }) } else { @() }
+            SignatureAlgorithms = if ($ext) { @(& $splitField $ext.'tls.handshake.sig_alg' | ForEach-Object { & $resolveRaw $_ $sigAlgNames } | Where-Object { $_ }) } else { @() }
         })
     }
 
@@ -722,15 +825,18 @@ function Get-TcpkTlsSessionTree {
         $cipher = (("$($sh.'tls.handshake.ciphersuite')") -split $us)[0]
         $fn     = "$($sh.'frame.number')"
         $ext    = if ($shExtMap.ContainsKey($fn)) { $shExtMap[$fn] } else { $null }
+        $rawKG  = (("$($sh.'tls.handshake.extensions.key_share.selected_group')") -split $us)[0]
         $sessions[$key].ServerHellos.Add([pscustomobject]@{
-            Frame             = $fn
-            TimeRel           = "$($sh.'frame.time_relative')"
-            NegotiatedVersion = (("$($sh.'tls.handshake.version')") -split $us)[0]
-            SelectedCipher    = $cipher
-            KeyGroup          = (("$($sh.'tls.handshake.extensions.key_share.selected_group')") -split $us)[0]
-            ALPN              = if ($ext) { (("$($ext.'tls.handshake.extensions_alpn_str')") -split $us)[0] } else { '' }
-            SessionID         = (("$($sh.'tls.handshake.session_id')") -split $us)[0]
-            WeakCipher        = if ($cipher) { Test-TcpkCipherWeak $cipher } else { $null }
+            Frame                = $fn
+            TimeRel              = "$($sh.'frame.time_relative')"
+            NegotiatedVersion    = (("$($sh.'tls.handshake.version')") -split $us)[0]
+            SelectedCipher       = $cipher
+            SelectedCipherDisplay = & $resolveRaw $cipher $cipherNames
+            KeyGroup             = $rawKG
+            KeyGroupDisplay      = & $resolveRaw $rawKG $groupNames
+            ALPN                 = if ($ext) { (("$($ext.'tls.handshake.extensions_alpn_str')") -split $us)[0] } else { '' }
+            SessionID            = (("$($sh.'tls.handshake.session_id')") -split $us)[0]
+            WeakCipher           = if ($cipher) { Test-TcpkCipherWeak $cipher } else { $null }
         })
     }
 
