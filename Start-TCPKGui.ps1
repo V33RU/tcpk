@@ -1727,14 +1727,7 @@ $lblConvProtoF = New-Object System.Windows.Forms.Label; $lblConvProtoF.Text = 'P
 $cmbConvProtoF = New-Object System.Windows.Forms.ComboBox; $cmbConvProtoF.Location = New-Object System.Drawing.Point(374,4); $cmbConvProtoF.Size = New-Object System.Drawing.Size(130,22); $cmbConvProtoF.DropDownStyle = 'DropDownList'; $cmbConvProtoF.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbConvProtoF.ForeColor = [System.Drawing.Color]::White; $cmbConvProtoF.FlatStyle = 'Flat'; [void]$cmbConvProtoF.Items.Add('All'); $cmbConvProtoF.SelectedIndex = 0; $pnlConvFilter.Controls.Add($cmbConvProtoF)
 $btnConvClearF = New-Object System.Windows.Forms.Button; $btnConvClearF.Text = 'Clear'; $btnConvClearF.Location = New-Object System.Drawing.Point(512,4); $btnConvClearF.Size = New-Object System.Drawing.Size(52,22); $btnConvClearF.FlatStyle = 'Flat'; $btnConvClearF.BackColor = [System.Drawing.Color]::FromArgb(55,55,58); $btnConvClearF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($btnConvClearF)
 $lblConvCount = New-Object System.Windows.Forms.Label; $lblConvCount.Text = 'No capture loaded'; $lblConvCount.ForeColor = [System.Drawing.Color]::FromArgb(120,125,130); $lblConvCount.Location = New-Object System.Drawing.Point(572,7); $lblConvCount.Size = New-Object System.Drawing.Size(300,18); $pnlConvFilter.Controls.Add($lblConvCount)
-# Right panel: plain RichTextBox, no headers, no grid lines
-$pnlConvRight = New-Object System.Windows.Forms.Panel; $pnlConvRight.Dock = 'Right'; $pnlConvRight.Width = 420; $pnlConvRight.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
-$rtbConvDetail = New-Object System.Windows.Forms.RichTextBox; $rtbConvDetail.Dock = 'Fill'; $rtbConvDetail.ReadOnly = $true; $rtbConvDetail.WordWrap = $false
-$rtbConvDetail.BackColor = [System.Drawing.Color]::FromArgb(18,18,22); $rtbConvDetail.ForeColor = [System.Drawing.Color]::FromArgb(205,210,218)
-$rtbConvDetail.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5); $rtbConvDetail.BorderStyle = 'None'
-$rtbConvDetail.Text = 'Click a conversation row to see its frames and Wireshark Info here.'
-$pnlConvRight.Controls.Add($rtbConvDetail)
-# Conversations ListView (Dock=Fill, sits left of the right panel)
+# Conversations ListView (Dock=Fill, full width -- packet detail opens in popup via right-click)
 $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
@@ -1742,8 +1735,7 @@ $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
 foreach ($colDef in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('Dst IP',118),@('Dst Port',66),@('Protocol',78),@('Packets',60),@('Bytes',66),@('Info',220),@('Src MAC',120),@('Dst MAC',120))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
-# Dock order: filter bar Top, detail panel Right, conversation list Fill
-$subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($pnlConvRight); $subPcapConv.Controls.Add($lvConv)
+$subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($lvConv)
 [void]$subPcapTabs.TabPages.Add($subPcapConv)
 
 # --- Tab 3: TLS Handshakes ---
@@ -1789,27 +1781,22 @@ $script:_applyConvFilter = {
     }
     $lvConv.EndUpdate()
     $lblConvCount.Text = "Showing $shown of $($script:_allConvs.Count) flow(s)"
-    $rtbConvDetail.Text = 'Click a conversation row to see its frames and Wireshark Info here.'
 }
 $txtConvIpF.Add_TextChanged({ & $script:_applyConvFilter })
 $txtConvPortF.Add_TextChanged({ & $script:_applyConvFilter })
 $cmbConvProtoF.Add_SelectedIndexChanged({ & $script:_applyConvFilter })
 $btnConvClearF.Add_Click({ $txtConvIpF.Text = ''; $txtConvPortF.Text = ''; $cmbConvProtoF.SelectedIndex = 0 })
-$lvConv.Add_SelectedIndexChanged({
-    if ($lvConv.SelectedItems.Count -eq 0) { return }
+
+# Shared helper: query tshark for the selected flow and open a popup window with full packet detail
+$script:_showConvDetail = {
+    param($sel)
     $tsharkBin = if ($script:_tshark) { $script:_tshark } else { try { (Get-Command tshark -ErrorAction Stop).Source } catch { $null } }
     $pcapPath  = if ($script:_pcapRunParams.Path) { $script:_pcapRunParams.Path } else { $null }
     if (-not $tsharkBin -or -not $pcapPath -or -not (Test-Path -LiteralPath $pcapPath)) { return }
-    $sel   = $lvConv.SelectedItems[0]
-    $sip   = $sel.SubItems[2].Text
-    $sport = $sel.SubItems[3].Text
-    $dip   = $sel.SubItems[4].Text
-    $dport = $sel.SubItems[5].Text
-    $proto = $sel.SubItems[6].Text
-    $pkts  = $sel.SubItems[7].Text
-    $bytes = $sel.SubItems[8].Text
-    $smac  = $sel.SubItems[10].Text
-    $dmac  = $sel.SubItems[11].Text
+    $sip   = $sel.SubItems[2].Text;  $sport = $sel.SubItems[3].Text
+    $dip   = $sel.SubItems[4].Text;  $dport = $sel.SubItems[5].Text
+    $proto = $sel.SubItems[6].Text;  $pkts  = $sel.SubItems[7].Text
+    $bytes = $sel.SubItems[8].Text;  $smac  = $sel.SubItems[10].Text; $dmac = $sel.SubItems[11].Text
     $protoL = $proto.ToLower()
     $txProto = if     ($protoL -match 'tcp|tls|ssl|https|http|ssh|ftp|smtp|pop|imap|rdp|telnet') { 'tcp' }
                elseif ($protoL -match 'udp|dns|quic|snmp|ntp|dhcp|mdns|ssdp|stun')              { 'udp' }
@@ -1817,15 +1804,13 @@ $lvConv.Add_SelectedIndexChanged({
     $hasPorts = ($sport -ne '') -and ($dport -ne '')
     $filter = if ($hasPorts -and $txProto) {
         "($txProto.srcport==$sport and ip.src==$sip and ip.dst==$dip and $txProto.dstport==$dport) or ($txProto.srcport==$dport and ip.src==$dip and ip.dst==$sip and $txProto.dstport==$sport)"
-    } elseif ($sip -and $dip) {
-        "(ip.src==$sip and ip.dst==$dip) or (ip.src==$dip and ip.dst==$sip)"
-    } else { return }
-    $rtbConvDetail.Text = 'Loading...'; [System.Windows.Forms.Application]::DoEvents()
-    $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $filter -T fields '-E' "separator=`t" -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info 2>$null | Select-Object -First 500)
+    } elseif ($sip -and $dip) { "(ip.src==$sip and ip.dst==$dip) or (ip.src==$dip and ip.dst==$sip)" } else { return }
+    $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $filter -T fields '-E' "separator=`t" `
+        -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info `
+        2>$null | Select-Object -First 500)
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine("${sip}:${sport}  <->  ${dip}:${dport}")
-    [void]$sb.AppendLine("Protocol : $proto")
-    [void]$sb.AppendLine("Packets  : $pkts   Bytes: $bytes")
+    [void]$sb.AppendLine("Protocol : $proto    Packets : $pkts    Bytes : $bytes")
     [void]$sb.AppendLine("Src MAC  : $smac")
     [void]$sb.AppendLine("Dst MAC  : $dmac")
     [void]$sb.AppendLine('')
@@ -1835,18 +1820,37 @@ $lvConv.Add_SelectedIndexChanged({
         if (-not "$pr") { continue }
         $parts = "$pr" -split "`t", 7
         while ($parts.Count -lt 7) { $parts += '' }
-        $fn     = $parts[0].PadLeft(6)
-        $ts     = $parts[1]
-        $fsrc   = $parts[2]
-        $fdst   = $parts[3]
-        $fproto = $parts[4]
-        $flen   = $parts[5]
-        $finfo  = $parts[6]
-        [void]$sb.AppendLine("[$fn]  ${ts}s  $fsrc -> $fdst  $fproto  ${flen}B  $finfo")
+        [void]$sb.AppendLine("[$(($parts[0]).PadLeft(6))]  $($parts[1])s  $($parts[2]) -> $($parts[3])  $($parts[4])  $($parts[5])B  $($parts[6])")
     }
-    $rtbConvDetail.Text = $sb.ToString()
-    try { $rtbConvDetail.SelectionStart = 0; $rtbConvDetail.ScrollToCaret() } catch {}
-})
+    $popForm = New-Object System.Windows.Forms.Form
+    $popForm.Text          = "Packet Detail  --  ${sip}:${sport} <-> ${dip}:${dport}  [$proto]"
+    $popForm.Size          = New-Object System.Drawing.Size(1050, 660)
+    $popForm.StartPosition = 'CenterParent'
+    $popForm.BackColor     = [System.Drawing.Color]::FromArgb(18,18,22)
+    $popForm.ForeColor     = [System.Drawing.Color]::White
+    try { $popForm.Icon = $form.Icon } catch {}
+    $popRtb = New-Object System.Windows.Forms.RichTextBox
+    $popRtb.Dock = 'Fill'; $popRtb.ReadOnly = $true; $popRtb.WordWrap = $false
+    $popRtb.BackColor    = [System.Drawing.Color]::FromArgb(18,18,22)
+    $popRtb.ForeColor    = [System.Drawing.Color]::FromArgb(205,210,218)
+    $popRtb.Font         = New-Object System.Drawing.Font('Cascadia Mono', 9)
+    $popRtb.BorderStyle  = 'None'
+    $popRtb.Text         = $sb.ToString()
+    try { $popRtb.SelectionStart = 0; $popRtb.ScrollToCaret() } catch {}
+    $popForm.Controls.Add($popRtb)
+    $popForm.Show()
+}
+
+# Right-click context menu
+$ctxConv = New-Object System.Windows.Forms.ContextMenuStrip
+$ctxConv.BackColor = [System.Drawing.Color]::FromArgb(40,40,44); $ctxConv.ForeColor = [System.Drawing.Color]::White
+$mnuConvOpen = New-Object System.Windows.Forms.ToolStripMenuItem 'Open packet detail...'
+$mnuConvOpen.ForeColor = [System.Drawing.Color]::FromArgb(100,185,255)
+[void]$ctxConv.Items.Add($mnuConvOpen)
+$lvConv.ContextMenuStrip = $ctxConv
+$mnuConvOpen.Add_Click({ if ($lvConv.SelectedItems.Count -eq 0) { return }; & $script:_showConvDetail $lvConv.SelectedItems[0] })
+# Double-click also opens the popup
+$lvConv.Add_MouseDoubleClick({ if ($lvConv.SelectedItems.Count -eq 0) { return }; & $script:_showConvDetail $lvConv.SelectedItems[0] })
 
 # --- Tab 4: Search Results ---
 $subPcapSearch = New-Object System.Windows.Forms.TabPage; $subPcapSearch.Text = ' Search Results '; $subPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
