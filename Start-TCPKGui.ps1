@@ -1324,54 +1324,27 @@ $btnPcapGo.Add_Click({
                 foreach ($ch in $hs.ClientHellos) {
                     $chNode = New-Object System.Windows.Forms.TreeNode("ClientHello  [frame $($ch.Frame)  +$($ch.TimeRel)s]  from $($ch.Client)")
                     $chNode.ForeColor = [System.Drawing.Color]::FromArgb(110,200,110)
-                    if ($ch.SNI)           { [void]$chNode.Nodes.Add("SNI (server name): $($ch.SNI)") }
-                    if ($ch.RecordVersion) { [void]$chNode.Nodes.Add("Record layer version: $($ch.RecordVersion)") }
-                    if ($ch.SessionID)     { [void]$chNode.Nodes.Add("Session ID: $($ch.SessionID)") }
 
-                    if ($ch.SupportedVersions.Count -gt 0) {
-                        $vn = New-Object System.Windows.Forms.TreeNode("Supported TLS versions ($($ch.SupportedVersions.Count))")
-                        foreach ($v in $ch.SupportedVersions) { [void]$vn.Nodes.Add("$v") }
-                        [void]$chNode.Nodes.Add($vn)
-                    }
-                    if ($ch.ALPN.Count -gt 0) {
-                        $an = New-Object System.Windows.Forms.TreeNode("ALPN protocols offered ($($ch.ALPN.Count))")
-                        foreach ($a in $ch.ALPN) { [void]$an.Nodes.Add("$a") }
-                        [void]$chNode.Nodes.Add($an)
-                    }
-                    if ($ch.SupportedGroups.Count -gt 0) {
-                        $gn = New-Object System.Windows.Forms.TreeNode("Supported groups / curves ($($ch.SupportedGroups.Count))")
-                        $gn.ForeColor = [System.Drawing.Color]::FromArgb(160,220,180)
-                        foreach ($g in $ch.SupportedGroups) {
-                            $gi = New-Object System.Windows.Forms.TreeNode("$g")
-                            $gi.ForeColor = [System.Drawing.Color]::FromArgb(140,200,160)
-                            [void]$gn.Nodes.Add($gi)
-                        }
-                        $gn.Expand(); [void]$chNode.Nodes.Add($gn)
-                    }
-                    if ($ch.SignatureAlgorithms.Count -gt 0) {
-                        $sgn = New-Object System.Windows.Forms.TreeNode("Signature algorithms ($($ch.SignatureAlgorithms.Count))")
-                        $sgn.ForeColor = [System.Drawing.Color]::FromArgb(180,180,220)
-                        foreach ($sg in $ch.SignatureAlgorithms) {
-                            $sgi = New-Object System.Windows.Forms.TreeNode("$sg")
-                            $sgi.ForeColor = [System.Drawing.Color]::FromArgb(160,160,200)
-                            [void]$sgn.Nodes.Add($sgi)
-                        }
-                        [void]$chNode.Nodes.Add($sgn)
-                    }
+                    # ── Record / handshake layer metadata ────────────────────────────────
+                    if ($ch.RecordVersion)    { [void]$chNode.Nodes.Add("Record layer version:   $($ch.RecordVersion)") }
+                    if ($ch.HandshakeVersion) { [void]$chNode.Nodes.Add("Handshake version:      $($ch.HandshakeVersion)") }
+                    if ($ch.Random)           { [void]$chNode.Nodes.Add("Random:                 $($ch.Random)") }
+                    if ($ch.SessionID) { [void]$chNode.Nodes.Add("Session ID: $($ch.SessionID)") }
+                    if ($ch.SNI)       { [void]$chNode.Nodes.Add("SNI (server name): $($ch.SNI)") }
+
+                    # ── Cipher suites offered ────────────────────────────────────────────
                     if ($ch.OfferedCiphers.Count -gt 0) {
-                        # Count non-GREASE ciphers separately so the label is informative
-                        $realCnt  = @($ch.OfferedCiphers | Where-Object { -not $_.IsGrease }).Count
+                        $realCnt   = @($ch.OfferedCiphers | Where-Object { -not $_.IsGrease }).Count
                         $greaseCnt = $ch.OfferedCiphers.Count - $realCnt
-                        $cnLabel = "Offered cipher suites ($realCnt"
+                        $cnLabel   = "Cipher suites offered ($realCnt"
                         if ($greaseCnt -gt 0) { $cnLabel += " + $greaseCnt GREASE" }
-                        $cnLabel += ')'
+                        $cnLabel  += ')'
                         $cn = New-Object System.Windows.Forms.TreeNode($cnLabel)
                         $cn.ForeColor = [System.Drawing.Color]::FromArgb(200,200,200)
                         foreach ($c in $ch.OfferedCiphers) {
-                            # $c is [pscustomobject]@{Raw; Display; IsGrease; Weak} -- resolved inside module
                             $label = $c.Display
                             if ($c.IsGrease) {
-                                $label += '  [GREASE - RFC 8701 compatibility probe]'
+                                $label += '  [GREASE - RFC 8701 probe]'
                                 $ci = New-Object System.Windows.Forms.TreeNode($label)
                                 $ci.ForeColor = [System.Drawing.Color]::FromArgb(100,100,100)
                             } elseif ($c.Weak) {
@@ -1380,12 +1353,91 @@ $btnPcapGo.Add_Click({
                                 $ci.ForeColor = [System.Drawing.Color]::FromArgb(255,90,90)
                             } else {
                                 $ci = New-Object System.Windows.Forms.TreeNode($label)
-                                $ci.ForeColor = [System.Drawing.Color]::FromArgb(180,180,180)
+                                $ci.ForeColor = [System.Drawing.Color]::FromArgb(180,210,180)
                             }
                             [void]$cn.Nodes.Add($ci)
                         }
                         $cn.Expand(); [void]$chNode.Nodes.Add($cn)
                     }
+
+                    # ── Compression methods ──────────────────────────────────────────────
+                    if ($ch.CompressionMethods.Count -gt 0) {
+                        $cmn = New-Object System.Windows.Forms.TreeNode("Compression methods ($($ch.CompressionMethods.Count))")
+                        foreach ($cm in $ch.CompressionMethods) {
+                            $cmi = New-Object System.Windows.Forms.TreeNode("$cm")
+                            $cmi.ForeColor = if ("$cm" -match 'DEFLATE|CRIME') {
+                                [System.Drawing.Color]::FromArgb(255,140,60)
+                            } else { [System.Drawing.Color]::FromArgb(160,160,160) }
+                            [void]$cmn.Nodes.Add($cmi)
+                        }
+                        [void]$chNode.Nodes.Add($cmn)
+                    }
+
+                    # ── Extensions ───────────────────────────────────────────────────────
+                    if ($ch.SupportedVersions.Count -gt 0) {
+                        $vn = New-Object System.Windows.Forms.TreeNode("Extension: supported_versions ($($ch.SupportedVersions.Count))")
+                        $vn.ForeColor = [System.Drawing.Color]::FromArgb(160,200,220)
+                        foreach ($v in $ch.SupportedVersions) {
+                            $vi = New-Object System.Windows.Forms.TreeNode("$v")
+                            $vi.ForeColor = if ("$v" -match 'deprecated|SSL|1\.0|1\.1') {
+                                [System.Drawing.Color]::FromArgb(255,140,60)
+                            } else { [System.Drawing.Color]::FromArgb(140,200,220) }
+                            [void]$vn.Nodes.Add($vi)
+                        }
+                        $vn.Expand(); [void]$chNode.Nodes.Add($vn)
+                    }
+                    if ($ch.ALPN.Count -gt 0) {
+                        $an = New-Object System.Windows.Forms.TreeNode("Extension: application_layer_protocol_negotiation ($($ch.ALPN.Count))")
+                        $an.ForeColor = [System.Drawing.Color]::FromArgb(200,200,160)
+                        foreach ($a in $ch.ALPN) {
+                            $ai = New-Object System.Windows.Forms.TreeNode("$a")
+                            $ai.ForeColor = [System.Drawing.Color]::FromArgb(180,180,140)
+                            [void]$an.Nodes.Add($ai)
+                        }
+                        $an.Expand(); [void]$chNode.Nodes.Add($an)
+                    }
+                    if ($ch.SupportedGroups.Count -gt 0) {
+                        $gn = New-Object System.Windows.Forms.TreeNode("Extension: supported_groups ($($ch.SupportedGroups.Count))")
+                        $gn.ForeColor = [System.Drawing.Color]::FromArgb(160,220,180)
+                        foreach ($g in $ch.SupportedGroups) {
+                            $gi = New-Object System.Windows.Forms.TreeNode("$g")
+                            $gi.ForeColor = [System.Drawing.Color]::FromArgb(140,200,160)
+                            [void]$gn.Nodes.Add($gi)
+                        }
+                        $gn.Expand(); [void]$chNode.Nodes.Add($gn)
+                    }
+                    if ($ch.KeyShareGroups.Count -gt 0) {
+                        $ksn = New-Object System.Windows.Forms.TreeNode("Extension: key_share -- groups with client key material ($($ch.KeyShareGroups.Count))")
+                        $ksn.ForeColor = [System.Drawing.Color]::FromArgb(140,210,160)
+                        foreach ($ks in $ch.KeyShareGroups) {
+                            $ksi = New-Object System.Windows.Forms.TreeNode("$ks")
+                            $ksi.ForeColor = [System.Drawing.Color]::FromArgb(120,190,140)
+                            [void]$ksn.Nodes.Add($ksi)
+                        }
+                        $ksn.Expand(); [void]$chNode.Nodes.Add($ksn)
+                    }
+                    if ($ch.SignatureAlgorithms.Count -gt 0) {
+                        $sgn = New-Object System.Windows.Forms.TreeNode("Extension: signature_algorithms ($($ch.SignatureAlgorithms.Count))")
+                        $sgn.ForeColor = [System.Drawing.Color]::FromArgb(180,180,220)
+                        foreach ($sg in $ch.SignatureAlgorithms) {
+                            $sgi = New-Object System.Windows.Forms.TreeNode("$sg")
+                            $sgi.ForeColor = [System.Drawing.Color]::FromArgb(160,160,200)
+                            [void]$sgn.Nodes.Add($sgi)
+                        }
+                        [void]$chNode.Nodes.Add($sgn)
+                    }
+                    # Full extension inventory -- every extension type present in this Hello
+                    if ($ch.ExtensionTypes.Count -gt 0) {
+                        $etn = New-Object System.Windows.Forms.TreeNode("All extensions present ($($ch.ExtensionTypes.Count))")
+                        $etn.ForeColor = [System.Drawing.Color]::FromArgb(190,170,210)
+                        foreach ($et in $ch.ExtensionTypes) {
+                            $eti = New-Object System.Windows.Forms.TreeNode("$et")
+                            $eti.ForeColor = [System.Drawing.Color]::FromArgb(170,150,190)
+                            [void]$etn.Nodes.Add($eti)
+                        }
+                        [void]$chNode.Nodes.Add($etn)
+                    }
+
                     [void]$srvNode.Nodes.Add($chNode)
                     $chNode.Expand()
                 }

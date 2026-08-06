@@ -620,13 +620,18 @@ function Get-TcpkTlsSessionTree {
     $us = [char]0x1F
 
     # ClientHello -- core fields (proven across tshark versions)
+    # tls.handshake.version = legacy_version inside the Hello message (0x0303 for TLS 1.2+)
+    # tls.record.version    = record layer version (often 0x0301 for compatibility)
     $clientHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
         -Fields @('ip.src','ip.dst','tcp.dstport','frame.number','frame.time_relative',
                   'tls.record.version',
+                  'tls.handshake.version',
+                  'tls.handshake.random',
                   'tls.handshake.extensions_server_name',
                   'tls.handshake.ciphersuite',
                   'tls.handshake.extensions.supported_versions.tls',
-                  'tls.handshake.session_id') `
+                  'tls.handshake.session_id',
+                  'tls.handshake.comp_method') `
         -Occurrence 'a' -Aggregator "$us")
 
     # ClientHello extended -- ALPN / groups / sig-algs (field names vary by tshark version; fail silently)
@@ -638,6 +643,16 @@ function Get-TcpkTlsSessionTree {
                   'tls.handshake.sig_alg') `
         -Occurrence 'a' -Aggregator "$us")
     foreach ($ex in $chExt) { $chExtMap["$($ex.'frame.number')"] = $ex }
+
+    # ClientHello extension inventory -- full extension type list + TLS 1.3 key share groups
+    # tls.handshake.extension.type returns all extension type IDs in the Hello (one per extension)
+    $chExtInv = @{}
+    $chExtInvRows = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
+        -Fields @('frame.number',
+                  'tls.handshake.extension.type',
+                  'tls.handshake.extensions.key_share.group') `
+        -Occurrence 'a' -Aggregator "$us")
+    foreach ($ex in $chExtInvRows) { $chExtInv["$($ex.'frame.number')"] = $ex }
 
     # ServerHello -- core fields
     $serverHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
@@ -762,6 +777,27 @@ function Get-TcpkTlsSessionTree {
         '0x0807'='ed25519'; '0x0808'='ed448'
         '0x0809'='rsa_pss_pss_sha256'; '0x080a'='rsa_pss_pss_sha384'; '0x080b'='rsa_pss_pss_sha512'
     }
+    # TLS extension type codes -> names (IANA TLS ExtensionType Values registry)
+    $extTypeNames = @{
+        '0'='server_name (SNI)'; '1'='max_fragment_length'; '5'='status_request (OCSP)'
+        '10'='supported_groups'; '11'='ec_point_formats'; '13'='signature_algorithms'
+        '14'='use_srtp'; '15'='heartbeat'; '16'='application_layer_protocol_negotiation (ALPN)'
+        '17'='status_request_v2'; '18'='signed_certificate_timestamp (SCT)'
+        '21'='padding'; '22'='encrypt_then_mac'; '23'='extended_master_secret'
+        '24'='token_binding'; '27'='compress_certificate'; '28'='record_size_limit'
+        '34'='delegated_credentials'; '35'='session_ticket'
+        '41'='pre_shared_key'; '42'='early_data'; '43'='supported_versions'
+        '44'='cookie'; '45'='psk_key_exchange_modes'; '47'='certificate_authorities'
+        '49'='post_handshake_auth'; '50'='signature_algorithms_cert'; '51'='key_share'
+        '65281'='renegotiation_info'
+    }
+    # Compression method codes (0=null, 1=DEFLATE [CRIME-vulnerable], 64=LZS)
+    $compMethodNames = @{ '0'='null'; '1'='DEFLATE [CRIME-vulnerable]'; '64'='LZS' }
+    # TLS protocol version codes (record layer and handshake version fields)
+    $tlsVersionNames = @{
+        '0x0300'='SSL 3.0 [deprecated]'; '0x0301'='TLS 1.0 [deprecated]'
+        '0x0302'='TLS 1.1 [deprecated]'; '0x0303'='TLS 1.2'; '0x0304'='TLS 1.3'
+    }
 
     # Normalize a raw tshark value (named string / hex 0xNNNN / decimal) against a lookup table.
     # Returns the named string if found, otherwise the raw value unchanged.
@@ -777,6 +813,29 @@ function Get-TcpkTlsSessionTree {
         elseif ($r -match '^\d+$') { try { $hk = '0x{0:x4}' -f [int]$r } catch { return $r } }
         if ($hk -and $lookup.ContainsKey($hk)) { return "$($lookup[$hk]) ($hk)" }
         return $r
+    }
+
+    # Resolve a TLS version code (0x0303, decimal 771, or named string) to human-readable label.
+    $resolveVersion = {
+        param($rawVal)
+        $r = "$rawVal".Trim(); if (-not $r) { return '' }
+        if ($r -match '^0x([0-9a-fA-F]+)$') {
+            $hk = '0x' + $Matches[1].ToLower().PadLeft(4,'0')
+            if ($tlsVersionNames.ContainsKey($hk)) { return "$($tlsVersionNames[$hk]) ($hk)" }
+            return $r
+        }
+        if ($r -match '^\d+$') {
+            try { $hk = '0x{0:x4}' -f [int]$r; if ($tlsVersionNames.ContainsKey($hk)) { return "$($tlsVersionNames[$hk]) ($hk)" } } catch {}
+        }
+        return $r  # already named (e.g., "TLS 1.2")
+    }
+
+    # Resolve an extension type code (decimal string from tshark) to human-readable name.
+    $resolveExtType = {
+        param($rawVal)
+        $r = "$rawVal".Trim(); if (-not $r) { return '' }
+        if ($extTypeNames.ContainsKey($r)) { return "$($extTypeNames[$r]) [type $r]" }
+        return "extension_type_$r"
     }
 
     # Resolve a cipher suite value to a structured object with Display name, GREASE flag, and Weak info.
@@ -803,18 +862,27 @@ function Get-TcpkTlsSessionTree {
         & $ensureKey $key $ch.'ip.dst' $dport
         $fn  = "$($ch.'frame.number')"
         $ext = if ($chExtMap.ContainsKey($fn)) { $chExtMap[$fn] } else { $null }
+        $inv = if ($chExtInv.ContainsKey($fn))  { $chExtInv[$fn]  } else { $null }
         $sessions[$key].ClientHellos.Add([pscustomobject]@{
-            Client             = "$($ch.'ip.src')"
-            Frame              = $fn
-            TimeRel            = "$($ch.'frame.time_relative')"
-            RecordVersion      = (("$($ch.'tls.record.version')") -split $us)[0]
-            SNI                = (("$($ch.'tls.handshake.extensions_server_name')") -split $us)[0]
-            SessionID          = (("$($ch.'tls.handshake.session_id')") -split $us)[0]
-            OfferedCiphers     = @(& $splitField $ch.'tls.handshake.ciphersuite' | ForEach-Object { & $resolveCipher $_ } | Where-Object { $_ })
-            SupportedVersions  = & $splitField $ch.'tls.handshake.extensions.supported_versions.tls'
-            ALPN               = if ($ext) { & $splitField $ext.'tls.handshake.extensions_alpn_str' } else { @() }
-            SupportedGroups    = if ($ext) { @(& $splitField $ext.'tls.handshake.extensions_elliptic_curve' | ForEach-Object { & $resolveRaw $_ $groupNames } | Where-Object { $_ }) } else { @() }
-            SignatureAlgorithms = if ($ext) { @(& $splitField $ext.'tls.handshake.sig_alg' | ForEach-Object { & $resolveRaw $_ $sigAlgNames } | Where-Object { $_ }) } else { @() }
+            Client              = "$($ch.'ip.src')"
+            Frame               = $fn
+            TimeRel             = "$($ch.'frame.time_relative')"
+            RecordVersion       = & $resolveVersion (("$($ch.'tls.record.version')") -split $us)[0]
+            HandshakeVersion    = & $resolveVersion (("$($ch.'tls.handshake.version')") -split $us)[0]
+            Random              = (("$($ch.'tls.handshake.random')") -split $us)[0]
+            SNI                 = (("$($ch.'tls.handshake.extensions_server_name')") -split $us)[0]
+            SessionID           = (("$($ch.'tls.handshake.session_id')") -split $us)[0]
+            CompressionMethods  = @(& $splitField $ch.'tls.handshake.comp_method' | ForEach-Object {
+                                      $cm = "$_".Trim()
+                                      if ($compMethodNames.ContainsKey($cm)) { "$($compMethodNames[$cm]) ($cm)" } else { $cm }
+                                  } | Where-Object { $_ })
+            OfferedCiphers      = @(& $splitField $ch.'tls.handshake.ciphersuite' | ForEach-Object { & $resolveCipher $_ } | Where-Object { $_ })
+            SupportedVersions   = @(& $splitField $ch.'tls.handshake.extensions.supported_versions.tls' | ForEach-Object { & $resolveVersion $_ } | Where-Object { $_ })
+            ALPN                = if ($ext) { & $splitField $ext.'tls.handshake.extensions_alpn_str' } else { @() }
+            SupportedGroups     = if ($ext) { @(& $splitField $ext.'tls.handshake.extensions_elliptic_curve' | ForEach-Object { & $resolveRaw $_ $groupNames } | Where-Object { $_ }) } else { @() }
+            SignatureAlgorithms  = if ($ext) { @(& $splitField $ext.'tls.handshake.sig_alg' | ForEach-Object { & $resolveRaw $_ $sigAlgNames } | Where-Object { $_ }) } else { @() }
+            ExtensionTypes      = if ($inv) { @(& $splitField $inv.'tls.handshake.extension.type' | ForEach-Object { & $resolveExtType $_ } | Where-Object { $_ }) } else { @() }
+            KeyShareGroups      = if ($inv) { @(& $splitField $inv.'tls.handshake.extensions.key_share.group' | ForEach-Object { & $resolveRaw $_ $groupNames } | Where-Object { $_ }) } else { @() }
         })
     }
 
