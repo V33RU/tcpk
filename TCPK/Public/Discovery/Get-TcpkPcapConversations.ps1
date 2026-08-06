@@ -24,8 +24,8 @@ function Get-TcpkPcapConversations {
     Maximum frames to read (default 5000; raise for very large captures).
 
 .OUTPUTS
-    [pscustomobject] rows: SrcIP, SrcPort, SrcMAC, DstIP, DstPort, DstMAC,
-                           Protocol, Packets, Bytes
+    [ordered] rows: Date, Time, SrcIP, SrcPort, SrcMAC, DstIP, DstPort, DstMAC,
+                    Protocol, Packets, Bytes, FirstInfo
 #>
     [CmdletBinding()]
     param(

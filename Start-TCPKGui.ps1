@@ -1560,9 +1560,20 @@ $rtbConvDetail.Text = 'Click a conversation row to see its frames and Wireshark 
 $pnlConvRight.Controls.Add($rtbConvDetail)
 # Conversations ListView (Dock=Fill, sits left of the right panel)
 $lvConv = New-Object System.Windows.Forms.ListView
-$lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $true
+$lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
 $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+# Force column header to use our dark palette so text is always visible
+$lvConv.OwnerDraw = $true
+$lvConv.Add_DrawColumnHeader({
+    param($s,$e)
+    $e.Graphics.FillRectangle([System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(35,38,48)), $e.Bounds)
+    $sf = New-Object System.Drawing.StringFormat; $sf.Alignment = 'Near'; $sf.LineAlignment = 'Center'
+    $rc = $e.Bounds; $rc.X += 4; $rc.Width -= 4
+    $e.Graphics.DrawString($e.Header.Text, $lvConv.Font, [System.Drawing.Brushes]::Cyan, [System.Drawing.RectangleF]$rc, $sf)
+})
+$lvConv.Add_DrawItem({ param($s,$e); $e.DrawDefault = $true })
+$lvConv.Add_DrawSubItem({ param($s,$e); $e.DrawDefault = $true })
 foreach ($colDef in @(@('Date',88),@('Time',68),@('Src IP',112),@('Src Port',64),@('Dst IP',112),@('Dst Port',64),@('Protocol',76),@('Packets',60),@('Bytes',64),@('Info',220),@('Src MAC',110),@('Dst MAC',110))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
