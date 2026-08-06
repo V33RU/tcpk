@@ -679,7 +679,7 @@ function Get-TcpkTlsSessionTree {
 
 # ─── conversation statistics ───────────────────────────────────────────────────────
 # Returns ordered dicts (sorted by bytes descending) with:
-#   Date, Time, SrcIP, SrcPort, SrcMAC, DstIP, DstPort, DstMAC, Protocol, Packets, Bytes
+#   Date, Time, SrcIP, SrcPort, SrcMAC, DstIP, DstPort, DstMAC, Protocol, Packets, Bytes, FirstInfo
 function Get-TcpkConvStats {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Tshark, [Parameter(Mandatory)][string]$Pcap,
@@ -690,7 +690,7 @@ function Get-TcpkConvStats {
 
     $rows = Invoke-TcpkTsharkQuery @q -Max $Max `
         -Fields @('ip.src','ip.dst','eth.src','eth.dst','_ws.col.Protocol','frame.len',
-                  'tcp.srcport','tcp.dstport','udp.srcport','udp.dstport','frame.time_epoch')
+                  'tcp.srcport','tcp.dstport','udp.srcport','udp.dstport','frame.time_epoch','_ws.col.Info')
 
     $convs = [ordered]@{}
     foreach ($r in @($rows)) {
@@ -713,6 +713,7 @@ function Get-TcpkConvStats {
                 SrcIP=$sip; SrcPort=$sport; SrcMAC="$($r.'eth.src')"
                 DstIP=$dip; DstPort=$dport; DstMAC="$($r.'eth.dst')"
                 Protocol=$proto; Packets=0; Bytes=0
+                FirstInfo="$($r.'_ws.col.Info')"
             }
         }
         $convs[$ck].Packets++

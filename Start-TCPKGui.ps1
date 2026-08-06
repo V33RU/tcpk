@@ -1563,7 +1563,7 @@ $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $true
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
 $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
-foreach ($colDef in @(@('Date',88),@('Time',68),@('Src IP',112),@('Src Port',64),@('Dst IP',112),@('Dst Port',64),@('Protocol',76),@('Packets',60),@('Bytes',64),@('Src MAC',110),@('Dst MAC',110))) {
+foreach ($colDef in @(@('Date',88),@('Time',68),@('Src IP',112),@('Src Port',64),@('Dst IP',112),@('Dst Port',64),@('Protocol',76),@('Packets',60),@('Bytes',64),@('Info',220),@('Src MAC',110),@('Dst MAC',110))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
 # Dock order: filter bar Top, detail panel Right, conversation list Fill
@@ -1599,7 +1599,7 @@ $script:_applyConvFilter = {
         [void]$lvi.SubItems.Add("$($c.SrcPort)"); [void]$lvi.SubItems.Add("$($c.DstIP)")
         [void]$lvi.SubItems.Add("$($c.DstPort)"); [void]$lvi.SubItems.Add("$($c.Protocol)")
         [void]$lvi.SubItems.Add("$($c.Packets)"); [void]$lvi.SubItems.Add("$($c.Bytes)")
-        [void]$lvi.SubItems.Add("$($c.SrcMAC)"); [void]$lvi.SubItems.Add("$($c.DstMAC)")
+        [void]$lvi.SubItems.Add("$($c.FirstInfo)"); [void]$lvi.SubItems.Add("$($c.SrcMAC)"); [void]$lvi.SubItems.Add("$($c.DstMAC)")
         $prl = "$($c.Protocol)".ToLower()
         $lvi.ForeColor = if     ($prl -match 'https|tls|ssl')  { [System.Drawing.Color]::FromArgb(90,175,255) }
                          elseif ($prl -match 'http')            { [System.Drawing.Color]::FromArgb(255,150,55) }
@@ -1632,8 +1632,8 @@ $lvConv.Add_SelectedIndexChanged({
     $proto = $sel.SubItems[6].Text
     $pkts  = $sel.SubItems[7].Text
     $bytes = $sel.SubItems[8].Text
-    $smac  = $sel.SubItems[9].Text
-    $dmac  = $sel.SubItems[10].Text
+    $smac  = $sel.SubItems[10].Text
+    $dmac  = $sel.SubItems[11].Text
     $protoL = $proto.ToLower()
     $txProto = if     ($protoL -match 'tcp|tls|ssl|https|http|ssh|ftp|smtp|pop|imap|rdp|telnet') { 'tcp' }
                elseif ($protoL -match 'udp|dns|quic|snmp|ntp|dhcp|mdns|ssdp|stun')              { 'udp' }
