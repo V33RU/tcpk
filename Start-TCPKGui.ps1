@@ -1235,6 +1235,18 @@ $btnPcapGo = New-Object System.Windows.Forms.Button
 $btnPcapGo.Text = "Analyse capture"; $btnPcapGo.Location = New-Object System.Drawing.Point(576,31); $btnPcapGo.Size = New-Object System.Drawing.Size(140,24)
 $btnPcapGo.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnPcapGo.ForeColor = [System.Drawing.Color]::White; $btnPcapGo.FlatStyle = 'Flat'
 $ctlP.Controls.Add($btnPcapGo)
+$btnVuln = New-Object System.Windows.Forms.Button
+$btnVuln.Text = "Vulnerability"; $btnVuln.Location = New-Object System.Drawing.Point(722,31); $btnVuln.Size = New-Object System.Drawing.Size(120,24)
+$btnVuln.FlatStyle = 'Flat'; $btnVuln.BackColor = [System.Drawing.Color]::FromArgb(100,25,25); $btnVuln.ForeColor = [System.Drawing.Color]::White
+$ctlP.Controls.Add($btnVuln)
+$btnVuln.Add_Click({
+    $file = $txtPcap.Text.Trim()
+    if (-not $file -or -not (Test-Path -LiteralPath $file)) {
+        [System.Windows.Forms.MessageBox]::Show('Load a .pcap / .pcapng file first.','TCPK',[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return
+    }
+    $btnPcapGo.PerformClick()
+    $subPcapTabs.SelectedIndex = 6
+})
 $btnPcapGo.Add_Click({
     $file = $txtPcap.Text.Trim()
     if (-not $file -or -not (Test-Path -LiteralPath $file)) {
@@ -1244,9 +1256,16 @@ $btnPcapGo.Add_Click({
     if ($txtKeylog.Text.Trim()) { $p.KeylogFile = $txtKeylog.Text.Trim() }
     if ($txtRsa.Text.Trim())    { $p.RsaKeyFile = $txtRsa.Text.Trim() }
 
-    # Switch to Findings sub-tab and run main security analysis
+    # Clear output, switch to Findings sub-tab, then run main security analysis
+    $txtOutP.Clear()
     $subPcapTabs.SelectedIndex = 0
-    Invoke-IcptTool $txtOutP "Analyse pcap: $(Split-Path $file -Leaf)" { Invoke-TcpkPcapReview @p }
+    $script:_pcapRunParams    = $p
+    $script:_lastPcapFindings = @()
+    Invoke-IcptTool $txtOutP "Analyse pcap: $(Split-Path $file -Leaf)" {
+        $__pcapR = @(Invoke-TcpkPcapReview @script:_pcapRunParams)
+        $script:_lastPcapFindings = $__pcapR
+        $__pcapR
+    }
 
     # Populate Conversations tab
     $lvConv.Items.Clear()
@@ -1336,10 +1355,10 @@ $btnPcapGo.Add_Click({
     [System.Windows.Forms.Application]::DoEvents()
 
     # Populate BT / Zigbee tab
-    $btFile = $file; $txtOutBt.Text = ''
-    Invoke-IcptTool $txtOutBt "BT/Zigbee: $(Split-Path $btFile -Leaf)" {
-        $btF = @(Get-TcpkPcapBtFindings    -Path $btFile -ErrorAction SilentlyContinue)
-        $zbF = @(Get-TcpkPcapZigbeeFindings -Path $btFile -ErrorAction SilentlyContinue)
+    $script:_pcapBtFile = $file; $txtOutBt.Text = ''
+    Invoke-IcptTool $txtOutBt "BT/Zigbee: $(Split-Path $script:_pcapBtFile -Leaf)" {
+        $btF = @(Get-TcpkPcapBtFindings    -Path $script:_pcapBtFile -ErrorAction SilentlyContinue)
+        $zbF = @(Get-TcpkPcapZigbeeFindings -Path $script:_pcapBtFile -ErrorAction SilentlyContinue)
         $all = @($btF) + @($zbF) | Where-Object { $_ }
         if ($all) { $all } else {
             New-TcpkFinding -Module 'network' -RuleId 'pcap.no-bt-zigbee' -Severity 'INFO' -Confidence 'Inferred' `
@@ -1349,6 +1368,30 @@ $btnPcapGo.Add_Click({
                 -Fix ''
         }
     }
+
+    # Populate Vulnerabilities sub-tab (CRITICAL / HIGH / MEDIUM only)
+    $lvVuln.Items.Clear()
+    $__vCount = 0
+    foreach ($__vf in $script:_lastPcapFindings) {
+        if ("$($__vf.Severity)" -notin @('CRITICAL','HIGH','MEDIUM')) { continue }
+        $__vCount++
+        $__vLvi = New-Object System.Windows.Forms.ListViewItem("$($__vf.Severity)")
+        [void]$__vLvi.SubItems.Add("$($__vf.RuleId)")
+        [void]$__vLvi.SubItems.Add("$($__vf.Title)")
+        [void]$__vLvi.SubItems.Add("$($__vf.Evidence)")
+        [void]$__vLvi.SubItems.Add("$($__vf.Fix)")
+        $__vLvi.ForeColor = switch ("$($__vf.Severity)") {
+            'CRITICAL' { [System.Drawing.Color]::FromArgb(255,80,80) }
+            'HIGH'     { [System.Drawing.Color]::FromArgb(255,145,45) }
+            'MEDIUM'   { [System.Drawing.Color]::FromArgb(255,215,55) }
+            default    { [System.Drawing.Color]::White }
+        }
+        [void]$lvVuln.Items.Add($__vLvi)
+    }
+    if ($__vCount -eq 0) {
+        [void]$lvVuln.Items.Add((New-Object System.Windows.Forms.ListViewItem('(no CRITICAL / HIGH / MEDIUM findings detected -- see Findings tab for INFO results)')))
+    }
+    $lblVulnCount.Text = "Vulnerabilities: $__vCount actionable (CRITICAL/HIGH/MEDIUM)  |  $(Split-Path $file -Leaf)"
 })
 
 # Decrypt fields (optional): TLS keylog (all TLS incl 1.3) and/or server RSA private key (RSA kx only)
@@ -1492,7 +1535,7 @@ $txtOutP = New-Object System.Windows.Forms.RichTextBox
 $txtOutP.Dock = 'Fill'; $txtOutP.Font = New-Object System.Drawing.Font('Consolas', 9.5)
 $txtOutP.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $txtOutP.ForeColor = [System.Drawing.Color]::White
 $txtOutP.ReadOnly = $true; $txtOutP.WordWrap = $false
-$txtOutP.Text = "Packet-capture analysis console.`r`n`r`nLoad a .pcap/.pcapng and click 'Analyse capture'.`r`n`r`nTCPK dissects the file via tshark (ships with Wireshark) and surfaces:`r`n  * Cleartext credentials (HTTP Basic, FTP, SMTP AUTH)`r`n  * Plaintext HTTP transport`r`n  * Weak/obsolete TLS (SSL3 / TLS1.0 / TLS1.1 / weak ciphers)`r`n  * Credentials or tokens in URL query parameters`r`n  * Insecure cookie flags`r`n  * DNS query and endpoint inventory`r`n`r`nOther tabs: Conversations (src/dst flow table), TLS Handshakes (tree),`r`nSearch Results (string search), BT/Zigbee (Bluetooth and Zigbee findings)."
+$txtOutP.Text = "Packet-capture analysis console.`r`n`r`nLoad a .pcap / .pcapng and click 'Analyse capture' or 'Vulnerability'.`r`n`r`nTCPK dissects the file via tshark (ships with Wireshark) -- 21 detection checks:`r`n`r`n  CREDENTIALS    HTTP Basic auth, FTP USER/PASS, SMTP AUTH, HTTP POST form passwords`r`n  CLEARTEXT      HTTP transport, Telnet (23), MQTT (1883), LDAP (389), VNC (5900-5910)`r`n  WEAK TLS       SSL 3.0 / TLS 1.0-1.1 / broken ciphers: NULL, RC4, 3DES, EXPORT, anon`r`n  IN-URL LEAKS   Tokens, API keys, secrets in HTTP query params; JWT Bearer over HTTP`r`n  AUTH ATTACKS   NTLM/Negotiate over HTTP (hash capture risk), SNMP v1/v2c community str.`r`n  COOKIES        Secure / HttpOnly flag absent; session cookies set over cleartext HTTP`r`n  DNS            Query inventory (40+ domains); exfiltration patterns (long labels >40c)`r`n  NETWORK        ARP spoofing (duplicate IP-MAC pairs), endpoint inventory`r`n  PATHS          Sensitive HTTP paths: .env .git /admin /config /credentials /backup`r`n`r`nOther tabs: Conversations (flow table) | TLS Handshakes (tree) | Search Results`r`n            BT/Zigbee (Bluetooth and Zigbee) | Network Graph | Vulnerabilities (table)"
 $subPcapFindings.Controls.Add($txtOutP)
 [void]$subPcapTabs.TabPages.Add($subPcapFindings)
 
@@ -1621,6 +1664,22 @@ $pbGraph.Add_Resize({
 })
 $subPcapNetGraph.Controls.Add($pbGraph)
 [void]$subPcapTabs.TabPages.Add($subPcapNetGraph)
+
+# --- Tab 7: Vulnerabilities (structured table -- CRITICAL / HIGH / MEDIUM only) ---
+$script:_lastPcapFindings = @()
+$subPcapVuln = New-Object System.Windows.Forms.TabPage; $subPcapVuln.Text = ' Vulnerabilities '; $subPcapVuln.BackColor = [System.Drawing.Color]::FromArgb(20,15,15)
+$pnlVulnHdr = New-Object System.Windows.Forms.Panel; $pnlVulnHdr.Dock = 'Top'; $pnlVulnHdr.Height = 22; $pnlVulnHdr.BackColor = [System.Drawing.Color]::FromArgb(20,15,15); $subPcapVuln.Controls.Add($pnlVulnHdr)
+$lblVulnCount = New-Object System.Windows.Forms.Label; $lblVulnCount.Text = "Vulnerabilities: 0 actionable  |  run Analyse capture or click the Vulnerability button"; $lblVulnCount.ForeColor = [System.Drawing.Color]::FromArgb(200,200,200); $lblVulnCount.Dock = 'Fill'; $pnlVulnHdr.Controls.Add($lblVulnCount)
+$lvVuln = New-Object System.Windows.Forms.ListView
+$lvVuln.Dock = 'Fill'; $lvVuln.View = 'Details'; $lvVuln.FullRowSelect = $true; $lvVuln.GridLines = $true
+$lvVuln.BackColor = [System.Drawing.Color]::FromArgb(20,15,15); $lvVuln.ForeColor = [System.Drawing.Color]::White
+$lvVuln.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+foreach ($__vCol in @(@('Severity',90),@('Rule ID',160),@('Title',350),@('Evidence',300),@('Fix',300))) {
+    $__vc = New-Object System.Windows.Forms.ColumnHeader; $__vc.Text = $__vCol[0]; $__vc.Width = $__vCol[1]; [void]$lvVuln.Columns.Add($__vc)
+}
+[void]$lvVuln.Items.Add((New-Object System.Windows.Forms.ListViewItem("Run 'Analyse capture' or click the 'Vulnerability' button to populate this table.")))
+$subPcapVuln.Controls.Add($lvVuln); $lvVuln.BringToFront()
+[void]$subPcapTabs.TabPages.Add($subPcapVuln)
 
 $tabPcap.Controls.Add($subPcapTabs)
 $subPcapTabs.BringToFront()

@@ -358,6 +358,206 @@ function Get-TcpkPcapFindings {
             -Fix 'Require STARTTLS (port 587) or implicit TLS (port 465) before any AUTH command. Reject AUTH on unencrypted connections.'))
     }
 
+    # 11. Telnet cleartext session (TCP 23) -- all keystrokes and credentials visible
+    $telnetSeen = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q -Filter 'tcp.dstport == 23' `
+                        -Fields @('ip.dst','ip.src') -Max 5)) {
+        $h = "$($r.'ip.dst')"
+        if (-not $h -or $telnetSeen.ContainsKey($h)) { continue }
+        $telnetSeen[$h] = $true
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.telnet-cleartext' -Severity 'CRITICAL' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319','CWE-522') `
+            -Title "Telnet session to $h -- all keystrokes and credentials in cleartext" `
+            -Evidence "TCP port 23 connection from $($r.'ip.src') to $h" `
+            -Description 'Telnet is fully plaintext. Every keystroke, command, and response including credentials is visible to any on-path observer.' `
+            -Fix 'Replace Telnet with SSH. Disable the Telnet service on all devices.'))
+    }
+
+    # 12. MQTT cleartext broker traffic (TCP 1883 -- no TLS)
+    $mqttSeen = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q -Filter 'tcp.dstport == 1883' `
+                        -Fields @('ip.dst','ip.src') -Max 5)) {
+        $h = "$($r.'ip.dst')"
+        if (-not $h -or $mqttSeen.ContainsKey($h)) { continue }
+        $mqttSeen[$h] = $true
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.mqtt-cleartext' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319') `
+            -Title "MQTT cleartext broker traffic to $h (TCP 1883 -- no TLS)" `
+            -Evidence "TCP port 1883 from $($r.'ip.src') to $h" `
+            -Description 'MQTT over TCP 1883 (no TLS) exposes all publish/subscribe messages, topic names, and CONNECT credentials (username/password) to passive observers.' `
+            -Fix 'Use MQTT over TLS (port 8883). Enforce TLS 1.2+ on the broker. Use client certificate authentication.'))
+    }
+
+    # 13. HTTP POST with credentials in form body (password= / passwd= / pwd= in POST frame)
+    $fCredSeen = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q `
+                        -Filter '(http.request.method == "POST") and (frame matches "(?i)(password=|passwd=|pwd=|pass=)")' `
+                        -Fields @('ip.dst','http.host','http.request.uri') -Max 20)) {
+        $host_ = if ($r.'http.host') { $r.'http.host' } else { $r.'ip.dst' }
+        $u     = "$($r.'http.request.uri')"
+        $key   = "$host_|$u"
+        if ($fCredSeen.ContainsKey($key)) { continue }
+        $fCredSeen[$key] = $true
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.form-cred-cleartext' -Severity 'CRITICAL' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319','CWE-522') `
+            -Title "Form credential POST in cleartext to $host_" `
+            -Evidence "POST $u to $host_ -- body contains password or credential field" `
+            -Description 'A login form POST containing a password field was observed over plaintext HTTP. The credentials are recoverable by any on-path observer.' `
+            -Fix 'Serve the login endpoint over HTTPS exclusively. Redirect all HTTP traffic to HTTPS at the load balancer.'))
+    }
+
+    # 14. LDAP cleartext bind (TCP 389 -- credentials exposed without TLS)
+    $ldapSeen = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q -Filter 'tcp.dstport == 389' `
+                        -Fields @('ip.dst','ip.src') -Max 5)) {
+        $h = "$($r.'ip.dst')"
+        if (-not $h -or $ldapSeen.ContainsKey($h)) { continue }
+        $ldapSeen[$h] = $true
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.ldap-cleartext' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319','CWE-522') `
+            -Title "LDAP cleartext connection to $h (TCP 389 -- no TLS)" `
+            -Evidence "LDAP port 389 from $($r.'ip.src') to $h -- Distinguished Name and password transmitted in cleartext" `
+            -Description 'LDAP Simple Bind over TCP 389 transmits the DN and password in cleartext. Any observer between the client and LDAP server can recover Active Directory or LDAP credentials.' `
+            -Fix 'Use LDAPS (TCP 636) or LDAP with StartTLS. Require signing and sealing on all LDAP connections (AD: set domain controller LDAP signing policy to Required).'))
+    }
+
+    # 15. SNMP v1 / v2c community string exposed in cleartext (UDP 161)
+    $snmpSeen = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q -Filter 'snmp' `
+                        -Fields @('ip.dst','snmp.community','snmp.version') -Max 20)) {
+        $comm = "$($r.'snmp.community')"; $h = "$($r.'ip.dst')"
+        if (-not $comm -or -not $h) { continue }
+        $key = "$h|$comm"
+        if ($snmpSeen.ContainsKey($key)) { continue }
+        $snmpSeen[$key] = $true
+        $sev = if ($comm -imatch '^(public|private|community|default|admin)$') { 'CRITICAL' } else { 'HIGH' }
+        $ver = "$($r.'snmp.version')"
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.snmp-community' -Severity $sev `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319','CWE-260') `
+            -Title "SNMP community string in cleartext to $h (community='$comm')" `
+            -Evidence "SNMP v$ver community='$comm' to $h over UDP 161" `
+            -Description "SNMP v1/v2c authenticates via community string sent in cleartext UDP. An observer can capture the string and query or (if write community) modify MIB objects on the device." `
+            -Fix 'Migrate to SNMPv3 with authPriv (auth=SHA-256, priv=AES-256). Disable SNMPv1 and SNMPv2c. Change community strings from all defaults.'))
+    }
+
+    # 16. DNS exfiltration pattern -- abnormally long subdomain labels (>40 chars)
+    $dnsExfil = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q -Filter 'dns.flags.response == 0' `
+                        -Fields @('ip.dst','dns.qry.name') -Max 2000)) {
+        $name = "$($r.'dns.qry.name')"
+        if (-not $name) { continue }
+        $labels    = $name -split '\.'
+        $longLabel = @($labels | Where-Object { $_.Length -gt 40 } | Select-Object -First 1)
+        if ($longLabel.Count -eq 0) { continue }
+        $tld = if ($labels.Count -ge 2) { ($labels[-2] + '.' + $labels[-1]) } else { $name }
+        if ($dnsExfil.ContainsKey($tld)) { continue }
+        $dnsExfil[$tld] = $true
+        $sample = $longLabel[0]
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.dns-exfil' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-201') `
+            -Title "DNS exfiltration pattern -- abnormally long subdomain label to $tld ($($sample.Length) chars)" `
+            -Evidence "label: ${sample}....$tld" `
+            -Description 'DNS queries with subdomain labels exceeding 40 chars are a signature of DNS-based data exfiltration. Data is base32/base64/hex-encoded into labels to bypass firewall restrictions using the DNS channel.' `
+            -Fix 'Block outbound DNS except to approved resolvers. Deploy DNS inspection and response policy zones. Investigate the process and domain generating these queries.'))
+    }
+
+    # 17. NTLM / Negotiate authentication over cleartext HTTP (hash capture / relay risk)
+    $ntlmSeen = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q -Filter 'http.authorization' `
+                        -Fields @('ip.dst','tcp.dstport','http.host','http.authorization') -Max 30)) {
+        $auth  = "$($r.'http.authorization')"
+        $dport = "$($r.'tcp.dstport')"
+        if ($dport -eq '443' -or $auth -notmatch '(?i)^(NTLM|Negotiate)\s+') { continue }
+        $h = if ($r.'http.host') { $r.'http.host' } else { $r.'ip.dst' }
+        if ($ntlmSeen.ContainsKey($h)) { continue }
+        $ntlmSeen[$h] = $true
+        $scheme = ($auth -split '\s+')[0]
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.ntlm-http' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319','CWE-522') `
+            -Title "NTLM/Negotiate authentication over cleartext HTTP to $h" `
+            -Evidence "Authorization: $scheme ... over TCP $dport to $h" `
+            -Description 'NTLM challenge-response was observed over plaintext HTTP. An attacker can capture NTLM hashes for offline cracking or perform relay attacks (NTLM relay / Pass-the-Hash) even though the password is not sent in full cleartext.' `
+            -Fix 'Use Kerberos or token-based authentication. If NTLM is unavoidable, enforce HTTPS. Disable NTLMv1 via LmCompatibilityLevel >= 3.'))
+    }
+
+    # 18. Sensitive HTTP path access (.env, .git, /admin, /config, credentials, etc.)
+    $sensPathSeen = @{}
+    $sensRx = '(?i)/(\.env|\.git|admin|manager|phpmyadmin|config\.php|backup|api[_\-]?key|passwd|credentials|secret|private)'
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q `
+                        -Filter "frame matches `"$sensRx`"" `
+                        -Fields @('ip.dst','http.host','http.request.uri') -Max 50)) {
+        $uri = "$($r.'http.request.uri')"
+        if (-not $uri -or $uri -notmatch $sensRx) { continue }
+        $host_ = if ($r.'http.host') { $r.'http.host' } else { $r.'ip.dst' }
+        $key = "$host_|$($Matches[0])"
+        if ($sensPathSeen.ContainsKey($key)) { continue }
+        $sensPathSeen[$key] = $true
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.sensitive-path' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-538','CWE-200') `
+            -Title "Sensitive path request: $uri on $host_" `
+            -Evidence "Request to $host_$uri" `
+            -Description 'A request to a sensitive or potentially exposed path was observed. These paths often expose configuration data, credentials, admin interfaces, or source control repositories.' `
+            -Fix 'Block access to admin and configuration paths at the web server or WAF layer. Apply deny-by-default for /admin, /.*  and configuration paths from the internet.'))
+    }
+
+    # 19. JWT Bearer token transmitted over cleartext HTTP (full token captured on wire)
+    $jwtHttpSeen = @{}
+    $rxJwtPfx = 'eyJ[A-Za-z0-9_\-]{20,}'
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q -Filter 'http.authorization' `
+                        -Fields @('ip.dst','tcp.dstport','http.host','http.authorization') -Max 20)) {
+        $auth  = "$($r.'http.authorization')"
+        $dport = "$($r.'tcp.dstport')"
+        if ($dport -eq '443' -or $auth -notmatch "(?i)Bearer\s+($rxJwtPfx)") { continue }
+        $h = if ($r.'http.host') { $r.'http.host' } else { $r.'ip.dst' }
+        if ($jwtHttpSeen.ContainsKey($h)) { continue }
+        $jwtHttpSeen[$h] = $true
+        $tok = $Matches[1].Substring(0, [Math]::Min(40, $Matches[1].Length)) + '...'
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.jwt-cleartext' -Severity 'CRITICAL' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319','CWE-345') `
+            -Title "JWT Bearer token transmitted in cleartext HTTP to $h" `
+            -Evidence "Authorization: Bearer $tok over TCP $dport to $h" `
+            -Description 'A JWT Bearer token was observed in a cleartext HTTP Authorization header. The full token is recoverable by any on-path observer. Possession allows impersonation until expiry.' `
+            -Fix 'Serve ALL API endpoints exclusively over HTTPS. Reject requests on port 80. Rotate the captured token immediately and investigate for unauthorized use.'))
+    }
+
+    # 20. ARP spoofing indicator -- same IP claimed by multiple MAC addresses
+    $arpIpMacs = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q -Filter 'arp.opcode == 2' `
+                        -Fields @('arp.src.proto_ipv4','arp.src.hw_mac') -Max 2000)) {
+        $ip = "$($r.'arp.src.proto_ipv4')"; $mac = "$($r.'arp.src.hw_mac')"
+        if (-not $ip -or -not $mac) { continue }
+        if (-not $arpIpMacs.ContainsKey($ip)) {
+            $arpIpMacs[$ip] = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        }
+        [void]$arpIpMacs[$ip].Add($mac)
+    }
+    foreach ($ip in $arpIpMacs.Keys) {
+        if ($arpIpMacs[$ip].Count -lt 2) { continue }
+        $macs = (@($arpIpMacs[$ip]) | Select-Object -First 4) -join ', '
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.arp-spoof' -Severity 'CRITICAL' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-290','CWE-345') `
+            -Title "ARP spoofing detected -- IP $ip claimed by $($arpIpMacs[$ip].Count) different MACs" `
+            -Evidence "IP $ip -> MACs: $macs" `
+            -Description 'ARP replies from multiple distinct MAC addresses for the same IP were detected. This is the hallmark of ARP cache poisoning, used for MITM attacks, session hijacking, and DoS on LAN segments.' `
+            -Fix 'Enable Dynamic ARP Inspection (DAI) on managed switches. Use static ARP entries for critical hosts. Deploy 802.1X port authentication. Investigate the duplicate MAC source immediately.'))
+    }
+
+    # 21. VNC cleartext remote desktop (TCP 5900-5910 -- no TLS tunnel)
+    $vncSeen = @{}
+    foreach ($r in @(Invoke-TcpkTsharkQuery @q `
+                        -Filter 'tcp.dstport >= 5900 and tcp.dstport <= 5910' `
+                        -Fields @('ip.dst','tcp.dstport','ip.src') -Max 5)) {
+        $h = "$($r.'ip.dst')"
+        if (-not $h -or $vncSeen.ContainsKey($h)) { continue }
+        $vncSeen[$h] = $true
+        $out.Add((New-TcpkFinding -Module 'network' -RuleId 'pcap.vnc-cleartext' -Severity 'HIGH' `
+            -Confidence 'Confirmed (dynamic)' -Cwe @('CWE-319') `
+            -Title "VNC cleartext session to $h (TCP $($r.'tcp.dstport'))" `
+            -Evidence "TCP $($r.'tcp.dstport') from $($r.'ip.src') to $h -- VNC without TLS tunnel" `
+            -Description 'VNC over TCP 5900-5910 without a TLS or SSH tunnel transmits screen content, keystrokes, and authentication in cleartext. An on-path observer has full graphical session visibility.' `
+            -Fix 'Tunnel VNC over SSH (ssh -L 5900:localhost:5900) or use VNC over TLS. Never expose the VNC port directly on a network.'))
+    }
+
     return $out.ToArray()
 }
 
