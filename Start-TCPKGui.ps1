@@ -134,7 +134,7 @@ if (Test-Path $badgePath) {
 
 $lblTarget = New-Object System.Windows.Forms.Label
 $lblTarget.Text = "Target (MSIX file or install folder):"; $lblTarget.ForeColor = [System.Drawing.Color]::White
-$lblTarget.Location = New-Object System.Drawing.Point(14, 10)
+$lblTarget.Location = New-Object System.Drawing.Point(14, 11)
 $lblTarget.Size = New-Object System.Drawing.Size(224, 18)
 $topPanel.Controls.Add($lblTarget)
 
@@ -148,16 +148,16 @@ $topPanel.Controls.Add($txtTarget)
 
 $btnBrowse = New-Object System.Windows.Forms.Button
 $btnBrowse.Text = "Browse..."
-$btnBrowse.Location = New-Object System.Drawing.Point(820, 6)
-$btnBrowse.Size = New-Object System.Drawing.Size(90, 26)
+$btnBrowse.Location = New-Object System.Drawing.Point(820, 8)
+$btnBrowse.Size = New-Object System.Drawing.Size(90, 24)
 $btnBrowse.FlatStyle = 'Flat'; $btnBrowse.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnBrowse.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $btnBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnBrowse)
 
 $btnAutoDetect = New-Object System.Windows.Forms.Button
 $btnAutoDetect.Text = "Auto-Detect"
-$btnAutoDetect.Location = New-Object System.Drawing.Point(916, 6)
-$btnAutoDetect.Size = New-Object System.Drawing.Size(90, 26)
+$btnAutoDetect.Location = New-Object System.Drawing.Point(916, 8)
+$btnAutoDetect.Size = New-Object System.Drawing.Size(90, 24)
 $btnAutoDetect.FlatStyle = 'Flat'; $btnAutoDetect.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnAutoDetect.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $btnAutoDetect.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnAutoDetect)
@@ -176,7 +176,7 @@ $topPanel.Controls.Add($lblIdent)
 
 $lblProfile = New-Object System.Windows.Forms.Label
 $lblProfile.Text = "Profile:"; $lblProfile.ForeColor = [System.Drawing.Color]::White
-$lblProfile.Location = New-Object System.Drawing.Point(14, 42)
+$lblProfile.Location = New-Object System.Drawing.Point(14, 43)
 $lblProfile.Size = New-Object System.Drawing.Size(60, 18)
 $topPanel.Controls.Add($lblProfile)
 
@@ -191,7 +191,7 @@ $topPanel.Controls.Add($cmbProfile)
 
 $lblPkg = New-Object System.Windows.Forms.Label
 $lblPkg.Text = "PackageName:"; $lblPkg.ForeColor = [System.Drawing.Color]::White
-$lblPkg.Location = New-Object System.Drawing.Point(220, 42)
+$lblPkg.Location = New-Object System.Drawing.Point(220, 43)
 $lblPkg.Size = New-Object System.Drawing.Size(90, 18)
 $topPanel.Controls.Add($lblPkg)
 
@@ -203,7 +203,7 @@ $topPanel.Controls.Add($txtPkg)
 
 $lblProc = New-Object System.Windows.Forms.Label
 $lblProc.Text = "ProcessName:"; $lblProc.ForeColor = [System.Drawing.Color]::White
-$lblProc.Location = New-Object System.Drawing.Point(460, 42)
+$lblProc.Location = New-Object System.Drawing.Point(460, 43)
 $lblProc.Size = New-Object System.Drawing.Size(90, 18)
 $topPanel.Controls.Add($lblProc)
 
@@ -216,7 +216,7 @@ $topPanel.Controls.Add($txtProc)
 $btnRun = New-Object System.Windows.Forms.Button
 $btnRun.Text = "Run Audit"
 $btnRun.Location = New-Object System.Drawing.Point(820, 38)
-$btnRun.Size = New-Object System.Drawing.Size(118, 32)
+$btnRun.Size = New-Object System.Drawing.Size(118, 28)
 $btnRun.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
 $btnRun.ForeColor = [System.Drawing.Color]::White
 $btnRun.Font = New-Object System.Drawing.Font('Segoe UI', 10, [System.Drawing.FontStyle]::Bold)
@@ -229,8 +229,8 @@ $topPanel.Controls.Add($btnRun)
 $script:PauseFlag = Join-Path ([System.IO.Path]::GetTempPath()) ("tcpk-pause-$PID.flag")
 $btnPause = New-Object System.Windows.Forms.Button
 $btnPause.Text = "Pause"
-$btnPause.Location = New-Object System.Drawing.Point(942, 38)
-$btnPause.Size = New-Object System.Drawing.Size(64, 32)
+$btnPause.Location = New-Object System.Drawing.Point(942, 40)
+$btnPause.Size = New-Object System.Drawing.Size(64, 24)
 $btnPause.Enabled = $false; $btnPause.FlatStyle = 'Flat'; $btnPause.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPause.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $btnPause.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($btnPause)
@@ -251,7 +251,7 @@ $btnPause.Add_Click({
 # Uncheck for an offline, air-gapped run (bundled catalog only).
 $chkOnlineCve = New-Object System.Windows.Forms.CheckBox
 $chkOnlineCve.Text = "Online CVE"; $chkOnlineCve.ForeColor = [System.Drawing.Color]::White
-$chkOnlineCve.Location = New-Object System.Drawing.Point(700, 42)
+$chkOnlineCve.Location = New-Object System.Drawing.Point(700, 41)
 $chkOnlineCve.Size = New-Object System.Drawing.Size(112, 22)
 $chkOnlineCve.Checked = $true
 $topPanel.Controls.Add($chkOnlineCve)
@@ -261,14 +261,14 @@ $ttOnlineCve.SetToolTip($chkOnlineCve, "Live CVE lookup: OSV (NuGet/Electron) + 
 # --- AI row (y=108) -----------------------------------------------------------
 $chkAi = New-Object System.Windows.Forms.CheckBox
 $chkAi.Text = "AI-verify findings"; $chkAi.ForeColor = [System.Drawing.Color]::White
-$chkAi.Location = New-Object System.Drawing.Point(14, 76)
+$chkAi.Location = New-Object System.Drawing.Point(14, 75)
 $chkAi.Size = New-Object System.Drawing.Size(130, 22)
 $chkAi.Checked = $false   # unchecked by default -- let the operator opt in
 $topPanel.Controls.Add($chkAi)
 
 $lblAi = New-Object System.Windows.Forms.Label
 $lblAi.Text = "Model:"; $lblAi.ForeColor = [System.Drawing.Color]::White
-$lblAi.Location = New-Object System.Drawing.Point(150, 78)
+$lblAi.Location = New-Object System.Drawing.Point(150, 77)
 $lblAi.Size = New-Object System.Drawing.Size(44, 18)
 $topPanel.Controls.Add($lblAi)
 
@@ -295,7 +295,7 @@ $topPanel.Controls.Add($txtAiModel)
 
 $lblKey = New-Object System.Windows.Forms.Label
 $lblKey.Text = "API key:"; $lblKey.ForeColor = [System.Drawing.Color]::White
-$lblKey.Location = New-Object System.Drawing.Point(500, 78)
+$lblKey.Location = New-Object System.Drawing.Point(500, 77)
 $lblKey.Size = New-Object System.Drawing.Size(52, 18)
 $topPanel.Controls.Add($lblKey)
 
@@ -309,14 +309,14 @@ $topPanel.Controls.Add($txtAiKey)
 
 $btnTestAi = New-Object System.Windows.Forms.Button
 $btnTestAi.Text = "Test AI"
-$btnTestAi.Location = New-Object System.Drawing.Point(744, 72)
-$btnTestAi.Size = New-Object System.Drawing.Size(70, 28)
+$btnTestAi.Location = New-Object System.Drawing.Point(744, 74)
+$btnTestAi.Size = New-Object System.Drawing.Size(70, 24)
 $btnTestAi.FlatStyle = 'Flat'; $btnTestAi.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnTestAi.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $topPanel.Controls.Add($btnTestAi)
 
 $lblAiStatus = New-Object System.Windows.Forms.Label
 $lblAiStatus.Text = ""
-$lblAiStatus.Location = New-Object System.Drawing.Point(820, 78)
+$lblAiStatus.Location = New-Object System.Drawing.Point(820, 77)
 $lblAiStatus.Size = New-Object System.Drawing.Size(360, 18)
 $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
 $topPanel.Controls.Add($lblAiStatus)
@@ -333,7 +333,7 @@ $codingFonts = @($wishFonts | Where-Object { $installedFonts -contains $_ })
 if (-not ($codingFonts -contains 'Consolas')) { $codingFonts += 'Consolas' }
 
 $lblFont = New-Object System.Windows.Forms.Label
-$lblFont.Text = "Font:"; $lblFont.ForeColor = [System.Drawing.Color]::White; $lblFont.Location = New-Object System.Drawing.Point(14, 110); $lblFont.Size = New-Object System.Drawing.Size(36, 18)
+$lblFont.Text = "Font:"; $lblFont.ForeColor = [System.Drawing.Color]::White; $lblFont.Location = New-Object System.Drawing.Point(14, 111); $lblFont.Size = New-Object System.Drawing.Size(36, 18)
 $topPanel.Controls.Add($lblFont)
 
 $cmbFont = New-Object System.Windows.Forms.ComboBox
@@ -351,7 +351,7 @@ $cmbFont.Add_SelectedIndexChanged({ Apply-UiFont })
 $topPanel.Controls.Add($cmbFont)
 
 $lblSize = New-Object System.Windows.Forms.Label
-$lblSize.Text = "Size:"; $lblSize.ForeColor = [System.Drawing.Color]::White; $lblSize.Location = New-Object System.Drawing.Point(224, 110); $lblSize.Size = New-Object System.Drawing.Size(34, 18)
+$lblSize.Text = "Size:"; $lblSize.ForeColor = [System.Drawing.Color]::White; $lblSize.Location = New-Object System.Drawing.Point(224, 111); $lblSize.Size = New-Object System.Drawing.Size(34, 18)
 $topPanel.Controls.Add($lblSize)
 
 $cmbSize = New-Object System.Windows.Forms.ComboBox
@@ -364,7 +364,7 @@ $cmbSize.Add_SelectedIndexChanged({ Apply-UiFont })
 $topPanel.Controls.Add($cmbSize)
 
 $btnTheme = New-Object System.Windows.Forms.Button
-$btnTheme.Text = "Theme: Dark"; $btnTheme.Location = New-Object System.Drawing.Point(330, 106); $btnTheme.Size = New-Object System.Drawing.Size(120, 28)
+$btnTheme.Text = "Theme: Dark"; $btnTheme.Location = New-Object System.Drawing.Point(330, 108); $btnTheme.Size = New-Object System.Drawing.Size(120, 24)
 $btnTheme.Tag = 'keep'
 $btnTheme.Add_Click({
     $script:DarkTheme = -not $script:DarkTheme
@@ -1074,7 +1074,7 @@ $txtExeA.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtExeA.ForeCo
 $txtExeA.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $ctlA.Controls.Add($txtExeA)
 $btnBrowseA = New-Object System.Windows.Forms.Button
-$btnBrowseA.Text = "Browse..."; $btnBrowseA.Location = New-Object System.Drawing.Point(840,3); $btnBrowseA.Size = New-Object System.Drawing.Size(88,26)
+$btnBrowseA.Text = "Browse..."; $btnBrowseA.Location = New-Object System.Drawing.Point(840,5); $btnBrowseA.Size = New-Object System.Drawing.Size(88,24)
 $btnBrowseA.FlatStyle = 'Flat'; $btnBrowseA.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnBrowseA.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $btnBrowseA.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $ctlA.Controls.Add($btnBrowseA)
@@ -1090,7 +1090,7 @@ $ctlA.Add_SizeChanged({
     # App exe row
     $browsW = 88; $rm = 10
     $bx = $cw - $browsW - $rm
-    $btnBrowseA.Location = New-Object System.Drawing.Point($bx, 3)
+    $btnBrowseA.Location = New-Object System.Drawing.Point($bx, 5)
     $tw = $bx - 8 - 336
     if ($tw -gt 60) { $txtExeA.Size = New-Object System.Drawing.Size($tw, 24) }
 
@@ -1123,16 +1123,16 @@ $gbTraffic.Size = New-Object System.Drawing.Size(600,80)
 $gbTraffic.Anchor = [System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left
 $ctlA.Controls.Add($gbTraffic)
 
-$lblMode = New-Object System.Windows.Forms.Label; $lblMode.Text = "Mode:"; $lblMode.ForeColor = [System.Drawing.Color]::White; $lblMode.Location = New-Object System.Drawing.Point(10,26); $lblMode.Size = New-Object System.Drawing.Size(44,18); $gbTraffic.Controls.Add($lblMode)
+$lblMode = New-Object System.Windows.Forms.Label; $lblMode.Text = "Mode:"; $lblMode.ForeColor = [System.Drawing.Color]::White; $lblMode.Location = New-Object System.Drawing.Point(10,25); $lblMode.Size = New-Object System.Drawing.Size(44,18); $gbTraffic.Controls.Add($lblMode)
 $cmbMode = New-Object System.Windows.Forms.ComboBox; $cmbMode.Location = New-Object System.Drawing.Point(56,22); $cmbMode.Size = New-Object System.Drawing.Size(90,24); $cmbMode.DropDownStyle = 'DropDownList'
 $cmbMode.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbMode.ForeColor = [System.Drawing.Color]::White
 @('Proxy','Tamper') | ForEach-Object { [void]$cmbMode.Items.Add($_) }; $cmbMode.SelectedIndex = 0; $gbTraffic.Controls.Add($cmbMode)
 
-$lblDur = New-Object System.Windows.Forms.Label; $lblDur.Text = "Duration(s):"; $lblDur.ForeColor = [System.Drawing.Color]::White; $lblDur.Location = New-Object System.Drawing.Point(154,26); $lblDur.Size = New-Object System.Drawing.Size(72,18); $gbTraffic.Controls.Add($lblDur)
+$lblDur = New-Object System.Windows.Forms.Label; $lblDur.Text = "Duration(s):"; $lblDur.ForeColor = [System.Drawing.Color]::White; $lblDur.Location = New-Object System.Drawing.Point(154,25); $lblDur.Size = New-Object System.Drawing.Size(72,18); $gbTraffic.Controls.Add($lblDur)
 $numDur = New-Object System.Windows.Forms.NumericUpDown; $numDur.Location = New-Object System.Drawing.Point(228,22); $numDur.Size = New-Object System.Drawing.Size(56,24); $numDur.Minimum = 3; $numDur.Maximum = 600; $numDur.Value = 20
 $numDur.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $numDur.ForeColor = [System.Drawing.Color]::White; $gbTraffic.Controls.Add($numDur)
 
-$lblTam = New-Object System.Windows.Forms.Label; $lblTam.Text = "Tamper:"; $lblTam.ForeColor = [System.Drawing.Color]::White; $lblTam.Location = New-Object System.Drawing.Point(292,26); $lblTam.Size = New-Object System.Drawing.Size(56,18); $gbTraffic.Controls.Add($lblTam)
+$lblTam = New-Object System.Windows.Forms.Label; $lblTam.Text = "Tamper:"; $lblTam.ForeColor = [System.Drawing.Color]::White; $lblTam.Location = New-Object System.Drawing.Point(292,25); $lblTam.Size = New-Object System.Drawing.Size(56,18); $gbTraffic.Controls.Add($lblTam)
 $txtTamper = New-Object System.Windows.Forms.TextBox; $txtTamper.Location = New-Object System.Drawing.Point(350,22); $txtTamper.Size = New-Object System.Drawing.Size(200,24)
 $txtTamper.Multiline = $false; $txtTamper.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtTamper.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTamper.ForeColor = [System.Drawing.Color]::White
@@ -1691,7 +1691,7 @@ $txtExeB.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtExeB.ForeCo
 $txtExeB.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlB.Controls.Add($txtExeB)
 $btnBrowseB = New-Object System.Windows.Forms.Button
-$btnBrowseB.Text = "Browse..."; $btnBrowseB.Location = New-Object System.Drawing.Point(1002,3); $btnBrowseB.Size = New-Object System.Drawing.Size(84,26)
+$btnBrowseB.Text = "Browse..."; $btnBrowseB.Location = New-Object System.Drawing.Point(1002,5); $btnBrowseB.Size = New-Object System.Drawing.Size(84,24)
 $btnBrowseB.FlatStyle = 'Flat'; $btnBrowseB.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnBrowseB.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
 $btnBrowseB.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $ctlB.Controls.Add($btnBrowseB)
@@ -1997,7 +1997,7 @@ $chkRtClearRun = New-Object System.Windows.Forms.CheckBox
 $chkRtClearRun.Text = "Clear on run"
 $chkRtClearRun.Checked = $true
 $chkRtClearRun.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190)
-$chkRtClearRun.Location = New-Object System.Drawing.Point(652,39); $chkRtClearRun.Size = New-Object System.Drawing.Size(110,20)
+$chkRtClearRun.Location = New-Object System.Drawing.Point(652,40); $chkRtClearRun.Size = New-Object System.Drawing.Size(110,20)
 $rtTop.Controls.Add($chkRtClearRun)
 
 $btnRtCopy = New-Object System.Windows.Forms.Button
