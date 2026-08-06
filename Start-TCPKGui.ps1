@@ -1812,42 +1812,118 @@ $script:_showConvDetail = {
                elseif ($protoL -match 'udp|dns|quic|snmp|ntp|dhcp|mdns|ssdp|stun')              { 'udp' }
                else { '' }
     $hasPorts = ($sport -ne '') -and ($dport -ne '')
-    $filter = if ($hasPorts -and $txProto) {
+    $convFilter = if ($hasPorts -and $txProto) {
         "($txProto.srcport==$sport and ip.src==$sip and ip.dst==$dip and $txProto.dstport==$dport) or ($txProto.srcport==$dport and ip.src==$dip and ip.dst==$sip and $txProto.dstport==$sport)"
     } elseif ($sip -and $dip) { "(ip.src==$sip and ip.dst==$dip) or (ip.src==$dip and ip.dst==$sip)" } else { return }
-    $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $filter -T fields '-E' "separator=`t" `
+    $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $convFilter -T fields '-E' "separator=`t" `
         -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info `
         2>$null | Select-Object -First 500)
-    $sb = New-Object System.Text.StringBuilder
-    [void]$sb.AppendLine("${sip}:${sport}  <->  ${dip}:${dport}")
-    [void]$sb.AppendLine("Protocol : $proto    Packets : $pkts    Bytes : $bytes")
-    [void]$sb.AppendLine("Src MAC  : $smac")
-    [void]$sb.AppendLine("Dst MAC  : $dmac")
-    [void]$sb.AppendLine('')
-    [void]$sb.AppendLine("$($pktRows.Count) frame(s) shown  (max 500 per flow)")
-    [void]$sb.AppendLine('─────────────────────────────────────────────────────────────────────────────────')
+
+    # --- Form ---
+    $popForm = New-Object System.Windows.Forms.Form
+    $popForm.Text = "Packet Detail  --  ${sip}:${sport} <-> ${dip}:${dport}  [$proto]"
+    $popForm.Size = New-Object System.Drawing.Size(1300, 720)
+    $popForm.StartPosition = 'CenterParent'
+    $popForm.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+    $popForm.ForeColor = [System.Drawing.Color]::White
+    try { $popForm.Icon = $form.Icon } catch {}
+
+    # --- Summary strip ---
+    $pnlPopTop = New-Object System.Windows.Forms.Panel
+    $pnlPopTop.Dock = 'Top'; $pnlPopTop.Height = 52; $pnlPopTop.BackColor = [System.Drawing.Color]::FromArgb(22,22,30)
+    $lblPopSum = New-Object System.Windows.Forms.Label
+    $lblPopSum.Dock = 'Fill'; $lblPopSum.Padding = New-Object System.Windows.Forms.Padding(10,6,10,4)
+    $lblPopSum.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+    $lblPopSum.ForeColor = [System.Drawing.Color]::FromArgb(200,208,218)
+    $lblPopSum.Text = "${sip}:${sport}  <->  ${dip}:${dport}    Protocol: $proto    Packets: $pkts    Bytes: $bytes`nSrc MAC: $smac    Dst MAC: $dmac    $($pktRows.Count) frame(s) (max 500 per flow)"
+    $pnlPopTop.Controls.Add($lblPopSum)
+
+    # --- SplitContainer: left = frame list, right = single-packet dissection ---
+    $popSplit = New-Object System.Windows.Forms.SplitContainer
+    $popSplit.Dock = 'Fill'; $popSplit.Orientation = 'Vertical'
+    $popSplit.SplitterWidth = 3; $popSplit.SplitterDistance = 430
+    $popSplit.BackColor = [System.Drawing.Color]::FromArgb(30,30,40)
+    $popSplit.Panel1.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+    $popSplit.Panel2.BackColor = [System.Drawing.Color]::FromArgb(15,15,19)
+
+    # Left panel -- custom header row
+    $pnlFrHdr = New-Object System.Windows.Forms.Panel
+    $pnlFrHdr.Dock = 'Top'; $pnlFrHdr.Height = 20; $pnlFrHdr.BackColor = [System.Drawing.Color]::FromArgb(26,26,36)
+    $_fhx = 0
+    foreach ($fhd in @(@('#',52),@('Time (s)',102),@('Source',112),@('',18),@('Destination',112),@('Proto',58),@('Len',50),@('Info',300))) {
+        $fhl = New-Object System.Windows.Forms.Label; $fhl.Text = $fhd[0]; $fhl.TextAlign = 'MiddleLeft'
+        $fhl.Location = New-Object System.Drawing.Point(($_fhx+3),0); $fhl.Size = New-Object System.Drawing.Size(($fhd[1]-3),20)
+        $fhl.ForeColor = [System.Drawing.Color]::FromArgb(105,120,138); $fhl.Font = New-Object System.Drawing.Font('Cascadia Mono',7.5)
+        $pnlFrHdr.Controls.Add($fhl); $_fhx += $fhd[1]
+    }
+
+    # Left panel -- frame ListView
+    $lvFr = New-Object System.Windows.Forms.ListView
+    $lvFr.Dock = 'Fill'; $lvFr.View = 'Details'; $lvFr.FullRowSelect = $true; $lvFr.GridLines = $false
+    $lvFr.HeaderStyle = [System.Windows.Forms.ColumnHeaderStyle]::None
+    $lvFr.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+    $lvFr.ForeColor = [System.Drawing.Color]::FromArgb(188,198,210)
+    $lvFr.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+    foreach ($fw in @(52,102,112,18,112,58,50,300)) {
+        $fhc = New-Object System.Windows.Forms.ColumnHeader; $fhc.Width = $fw; [void]$lvFr.Columns.Add($fhc)
+    }
     foreach ($pr in $pktRows) {
         if (-not "$pr") { continue }
-        $parts = "$pr" -split "`t", 7
-        while ($parts.Count -lt 7) { $parts += '' }
-        [void]$sb.AppendLine("[$(($parts[0]).PadLeft(6))]  $($parts[1])s  $($parts[2]) -> $($parts[3])  $($parts[4])  $($parts[5])B  $($parts[6])")
+        $fp = "$pr" -split "`t",7; while ($fp.Count -lt 7) { $fp += '' }
+        $fvi = New-Object System.Windows.Forms.ListViewItem($fp[0].Trim())
+        [void]$fvi.SubItems.Add("$($fp[1])s")
+        [void]$fvi.SubItems.Add($fp[2])
+        [void]$fvi.SubItems.Add('->')
+        [void]$fvi.SubItems.Add($fp[3])
+        [void]$fvi.SubItems.Add($fp[4])
+        [void]$fvi.SubItems.Add("$($fp[5])B")
+        # Strip non-ASCII from Info (tshark Unicode arrows render as garbage in GDI)
+        [void]$fvi.SubItems.Add(($fp[6] -replace '[^\x00-\x7F]+', '->'))
+        [void]$lvFr.Items.Add($fvi)
     }
-    $popForm = New-Object System.Windows.Forms.Form
-    $popForm.Text          = "Packet Detail  --  ${sip}:${sport} <-> ${dip}:${dport}  [$proto]"
-    $popForm.Size          = New-Object System.Drawing.Size(1050, 660)
-    $popForm.StartPosition = 'CenterParent'
-    $popForm.BackColor     = [System.Drawing.Color]::FromArgb(18,18,22)
-    $popForm.ForeColor     = [System.Drawing.Color]::White
-    try { $popForm.Icon = $form.Icon } catch {}
-    $popRtb = New-Object System.Windows.Forms.RichTextBox
-    $popRtb.Dock = 'Fill'; $popRtb.ReadOnly = $true; $popRtb.WordWrap = $false
-    $popRtb.BackColor    = [System.Drawing.Color]::FromArgb(18,18,22)
-    $popRtb.ForeColor    = [System.Drawing.Color]::FromArgb(205,210,218)
-    $popRtb.Font         = New-Object System.Drawing.Font('Cascadia Mono', 9)
-    $popRtb.BorderStyle  = 'None'
-    $popRtb.Text         = $sb.ToString()
-    try { $popRtb.SelectionStart = 0; $popRtb.ScrollToCaret() } catch {}
-    $popForm.Controls.Add($popRtb)
+    $popSplit.Panel1.Controls.Add($lvFr)
+    $popSplit.Panel1.Controls.Add($pnlFrHdr)
+
+    # Right panel -- dissection header label + RichTextBox
+    $pnlDHdr = New-Object System.Windows.Forms.Panel
+    $pnlDHdr.Dock = 'Top'; $pnlDHdr.Height = 20; $pnlDHdr.BackColor = [System.Drawing.Color]::FromArgb(20,20,28)
+    $lblDHdr = New-Object System.Windows.Forms.Label; $lblDHdr.Dock = 'Fill'
+    $lblDHdr.Text = 'PACKET DETAIL  --  click a frame on the left'
+    $lblDHdr.ForeColor = [System.Drawing.Color]::FromArgb(80,100,120)
+    $lblDHdr.Font = New-Object System.Drawing.Font('Cascadia Mono', 7.5)
+    $lblDHdr.Padding = New-Object System.Windows.Forms.Padding(8,3,0,0)
+    $pnlDHdr.Controls.Add($lblDHdr)
+
+    $rtbDiss = New-Object System.Windows.Forms.RichTextBox
+    $rtbDiss.Dock = 'Fill'; $rtbDiss.ReadOnly = $true; $rtbDiss.WordWrap = $false
+    $rtbDiss.BackColor = [System.Drawing.Color]::FromArgb(15,15,19)
+    $rtbDiss.ForeColor = [System.Drawing.Color]::FromArgb(190,202,215)
+    $rtbDiss.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+    $rtbDiss.BorderStyle = 'None'
+    $rtbDiss.Text = 'Click any frame on the left to see its full dissection (Frame / Ethernet / IP / TCP / TLS / ...) .'
+    $popSplit.Panel2.Controls.Add($rtbDiss)
+    $popSplit.Panel2.Controls.Add($pnlDHdr)
+
+    # Frame selection -- run tshark -V for the exact frame number
+    $lvFr.Add_SelectedIndexChanged({
+        if ($lvFr.SelectedItems.Count -eq 0) { return }
+        $selFn = $lvFr.SelectedItems[0].Text.Trim()
+        if (-not $selFn) { return }
+        $lblDHdr.Text = "PACKET DETAIL  --  frame $selFn   (loading...)"
+        $popForm.Refresh()
+        $dissLines = @(& $tsharkBin -r $pcapPath -n -Y "frame.number == $selFn" -V 2>$null)
+        if ($dissLines) {
+            $rtbDiss.Text = ($dissLines -join "`n")
+            $lblDHdr.Text = "PACKET DETAIL  --  frame $selFn"
+        } else {
+            $rtbDiss.Text = "No dissection output for frame $selFn."
+            $lblDHdr.Text = "PACKET DETAIL  --  frame $selFn   (no data)"
+        }
+        try { $rtbDiss.SelectionStart = 0; $rtbDiss.ScrollToCaret() } catch {}
+    })
+
+    $popForm.Controls.Add($popSplit)
+    $popForm.Controls.Add($pnlPopTop)
     $popForm.Show()
 }
 
