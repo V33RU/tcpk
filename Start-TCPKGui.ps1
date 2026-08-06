@@ -1194,7 +1194,7 @@ $tabPcap.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabPcap)
 
 $ctlP = New-Object System.Windows.Forms.Panel
-$ctlP.Dock = 'Top'; $ctlP.Height = 152; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
+$ctlP.Dock = 'Top'; $ctlP.Height = 126; $ctlP.BackColor = [System.Drawing.Color]::FromArgb(30,30,30)
 $lblPcap = New-Object System.Windows.Forms.Label
 $lblPcap.Text = "Packet capture (.pcap / .pcapng) -- analyse it via your installed Wireshark (tshark). Read-only, needs no admin."
 $lblPcap.ForeColor = [System.Drawing.Color]::White
@@ -1202,10 +1202,10 @@ $lblPcap.Location = New-Object System.Drawing.Point(12,6); $lblPcap.Size = New-O
 $ctlP.Controls.Add($lblPcap)
 $lblPcapF = New-Object System.Windows.Forms.Label
 $lblPcapF.Text = "Capture file:"; $lblPcapF.ForeColor = [System.Drawing.Color]::White
-$lblPcapF.Location = New-Object System.Drawing.Point(12,33); $lblPcapF.Size = New-Object System.Drawing.Size(110,18)
+$lblPcapF.Location = New-Object System.Drawing.Point(12,34); $lblPcapF.Size = New-Object System.Drawing.Size(110,18)
 $ctlP.Controls.Add($lblPcapF)
 $txtPcap = New-Object System.Windows.Forms.TextBox
-$txtPcap.Location = New-Object System.Drawing.Point(126,30); $txtPcap.Size = New-Object System.Drawing.Size(480,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtPcap.Location = New-Object System.Drawing.Point(126,31); $txtPcap.Size = New-Object System.Drawing.Size(370,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtPcap.BackColor = [System.Drawing.Color]::FromArgb(36,36,40); $txtPcap.ForeColor = [System.Drawing.Color]::FromArgb(110,115,120)
 $txtPcap.ReadOnly = $true; $txtPcap.Text = 'Drop a .pcap / .pcapng here -- or click Browse'
 $txtPcap.AllowDrop = $true
@@ -1221,7 +1221,7 @@ $txtPcap.Add_DragDrop({
 $txtPcap.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left)
 $ctlP.Controls.Add($txtPcap)
 $btnPcapBrowse = New-Object System.Windows.Forms.Button
-$btnPcapBrowse.Text = "Browse"; $btnPcapBrowse.Location = New-Object System.Drawing.Point(612,28); $btnPcapBrowse.Size = New-Object System.Drawing.Size(80,26)
+$btnPcapBrowse.Text = "Browse"; $btnPcapBrowse.Location = New-Object System.Drawing.Point(502,31); $btnPcapBrowse.Size = New-Object System.Drawing.Size(68,24)
 $btnPcapBrowse.FlatStyle = 'Flat'; $btnPcapBrowse.BackColor = [System.Drawing.Color]::FromArgb(28,78,130); $btnPcapBrowse.ForeColor = [System.Drawing.Color]::White
 $btnPcapBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left)
 $ctlP.Controls.Add($btnPcapBrowse)
@@ -1232,7 +1232,7 @@ $btnPcapBrowse.Add_Click({
     if ($dlg.ShowDialog() -eq 'OK') { $txtPcap.Text = $dlg.FileName; $txtPcap.ForeColor = [System.Drawing.Color]::White }
 })
 $btnPcapGo = New-Object System.Windows.Forms.Button
-$btnPcapGo.Text = "Analyse capture"; $btnPcapGo.Location = New-Object System.Drawing.Point(126,58); $btnPcapGo.Size = New-Object System.Drawing.Size(162,26)
+$btnPcapGo.Text = "Analyse capture"; $btnPcapGo.Location = New-Object System.Drawing.Point(576,31); $btnPcapGo.Size = New-Object System.Drawing.Size(140,24)
 $btnPcapGo.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnPcapGo.ForeColor = [System.Drawing.Color]::White; $btnPcapGo.FlatStyle = 'Flat'
 $ctlP.Controls.Add($btnPcapGo)
 $btnPcapGo.Add_Click({
@@ -1352,23 +1352,23 @@ $btnPcapGo.Add_Click({
 })
 
 # Decrypt fields (optional): TLS keylog (all TLS incl 1.3) and/or server RSA private key (RSA kx only)
-$lblKeylog = New-Object System.Windows.Forms.Label; $lblKeylog.Text = "TLS keylog:"; $lblKeylog.ForeColor = [System.Drawing.Color]::White; $lblKeylog.Location = New-Object System.Drawing.Point(12,93); $lblKeylog.Size = New-Object System.Drawing.Size(96,18); $ctlP.Controls.Add($lblKeylog)
-$txtKeylog = New-Object System.Windows.Forms.TextBox; $txtKeylog.Location = New-Object System.Drawing.Point(112,90); $txtKeylog.Size = New-Object System.Drawing.Size(336,24); $txtKeylog.Font = New-Object System.Drawing.Font('Consolas', 9); $txtKeylog.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtKeylog.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtKeylog)
-$btnKeylog = New-Object System.Windows.Forms.Button; $btnKeylog.Text = "..."; $btnKeylog.Location = New-Object System.Drawing.Point(452,88); $btnKeylog.Size = New-Object System.Drawing.Size(32,26); $btnKeylog.FlatStyle = 'Flat'; $btnKeylog.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnKeylog.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnKeylog)
+$lblKeylog = New-Object System.Windows.Forms.Label; $lblKeylog.Text = "TLS keylog:"; $lblKeylog.ForeColor = [System.Drawing.Color]::White; $lblKeylog.Location = New-Object System.Drawing.Point(12,66); $lblKeylog.Size = New-Object System.Drawing.Size(96,18); $ctlP.Controls.Add($lblKeylog)
+$txtKeylog = New-Object System.Windows.Forms.TextBox; $txtKeylog.Location = New-Object System.Drawing.Point(112,63); $txtKeylog.Size = New-Object System.Drawing.Size(296,24); $txtKeylog.Font = New-Object System.Drawing.Font('Consolas', 9); $txtKeylog.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtKeylog.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtKeylog)
+$btnKeylog = New-Object System.Windows.Forms.Button; $btnKeylog.Text = ".."; $btnKeylog.Location = New-Object System.Drawing.Point(414,63); $btnKeylog.Size = New-Object System.Drawing.Size(28,24); $btnKeylog.FlatStyle = 'Flat'; $btnKeylog.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnKeylog.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnKeylog)
 $btnKeylog.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtKeylog.Text = $dlg.FileName } })
-$lblRsa = New-Object System.Windows.Forms.Label; $lblRsa.Text = "RSA key:"; $lblRsa.ForeColor = [System.Drawing.Color]::White; $lblRsa.Location = New-Object System.Drawing.Point(498,93); $lblRsa.Size = New-Object System.Drawing.Size(72,18); $ctlP.Controls.Add($lblRsa)
-$txtRsa = New-Object System.Windows.Forms.TextBox; $txtRsa.Location = New-Object System.Drawing.Point(574,90); $txtRsa.Size = New-Object System.Drawing.Size(286,24); $txtRsa.Font = New-Object System.Drawing.Font('Consolas', 9); $txtRsa.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtRsa.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtRsa)
-$btnRsa = New-Object System.Windows.Forms.Button; $btnRsa.Text = "..."; $btnRsa.Location = New-Object System.Drawing.Point(864,88); $btnRsa.Size = New-Object System.Drawing.Size(32,26); $btnRsa.FlatStyle = 'Flat'; $btnRsa.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRsa.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnRsa)
+$lblRsa = New-Object System.Windows.Forms.Label; $lblRsa.Text = "RSA key:"; $lblRsa.ForeColor = [System.Drawing.Color]::White; $lblRsa.Location = New-Object System.Drawing.Point(452,66); $lblRsa.Size = New-Object System.Drawing.Size(66,18); $ctlP.Controls.Add($lblRsa)
+$txtRsa = New-Object System.Windows.Forms.TextBox; $txtRsa.Location = New-Object System.Drawing.Point(522,63); $txtRsa.Size = New-Object System.Drawing.Size(248,24); $txtRsa.Font = New-Object System.Drawing.Font('Consolas', 9); $txtRsa.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtRsa.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtRsa)
+$btnRsa = New-Object System.Windows.Forms.Button; $btnRsa.Text = ".."; $btnRsa.Location = New-Object System.Drawing.Point(776,63); $btnRsa.Size = New-Object System.Drawing.Size(28,24); $btnRsa.FlatStyle = 'Flat'; $btnRsa.BackColor = [System.Drawing.Color]::FromArgb(60,60,60); $btnRsa.ForeColor = [System.Drawing.Color]::FromArgb(180,185,190); $ctlP.Controls.Add($btnRsa)
 $btnRsa.Add_Click({ $dlg = New-Object System.Windows.Forms.OpenFileDialog; if ($dlg.ShowDialog() -eq 'OK') { $txtRsa.Text = $dlg.FileName } })
-$lblDecHint = New-Object System.Windows.Forms.Label; $lblDecHint.Text = "keylog: all TLS  |  RSA key: RSA-kx only"; $lblDecHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblDecHint.Location = New-Object System.Drawing.Point(902,93); $lblDecHint.Size = New-Object System.Drawing.Size(280,18); $ctlP.Controls.Add($lblDecHint)
+$lblDecHint = New-Object System.Windows.Forms.Label; $lblDecHint.Text = "keylog: all TLS  |  RSA key: RSA-kx only"; $lblDecHint.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblDecHint.Location = New-Object System.Drawing.Point(812,66); $lblDecHint.Size = New-Object System.Drawing.Size(360,18); $ctlP.Controls.Add($lblDecHint)
 
-# Row 4 (y=122): string search across all frames
-$lblSearchStr = New-Object System.Windows.Forms.Label; $lblSearchStr.Text = "String search:"; $lblSearchStr.ForeColor = [System.Drawing.Color]::White; $lblSearchStr.Location = New-Object System.Drawing.Point(12,127); $lblSearchStr.Size = New-Object System.Drawing.Size(100,18); $ctlP.Controls.Add($lblSearchStr)
-$txtPcapSearch = New-Object System.Windows.Forms.TextBox; $txtPcapSearch.Location = New-Object System.Drawing.Point(116,124); $txtPcapSearch.Size = New-Object System.Drawing.Size(520,24); $txtPcapSearch.Font = New-Object System.Drawing.Font('Consolas', 9); $txtPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtPcapSearch)
-$chkSearchRegex = New-Object System.Windows.Forms.CheckBox; $chkSearchRegex.Text = "Regex"; $chkSearchRegex.ForeColor = [System.Drawing.Color]::White; $chkSearchRegex.Location = New-Object System.Drawing.Point(644,125); $chkSearchRegex.Size = New-Object System.Drawing.Size(60,20); $ctlP.Controls.Add($chkSearchRegex)
-$lblProtoFilter = New-Object System.Windows.Forms.Label; $lblProtoFilter.Text = "Protocol:"; $lblProtoFilter.ForeColor = [System.Drawing.Color]::White; $lblProtoFilter.Location = New-Object System.Drawing.Point(712,127); $lblProtoFilter.Size = New-Object System.Drawing.Size(66,18); $ctlP.Controls.Add($lblProtoFilter)
-$cmbProtoFilter = New-Object System.Windows.Forms.ComboBox; $cmbProtoFilter.Location = New-Object System.Drawing.Point(782,124); $cmbProtoFilter.Size = New-Object System.Drawing.Size(136,24); $cmbProtoFilter.DropDownStyle = 'DropDownList'; $cmbProtoFilter.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbProtoFilter.ForeColor = [System.Drawing.Color]::White; $cmbProtoFilter.FlatStyle = 'Flat'; foreach ($pv in @('All','http','dns','tls','smtp','ftp','ssh','btle','btl2cap','zbee_nwk','wpan')) { [void]$cmbProtoFilter.Items.Add($pv) }; $cmbProtoFilter.SelectedIndex = 0; $ctlP.Controls.Add($cmbProtoFilter)
-$btnPcapSearch = New-Object System.Windows.Forms.Button; $btnPcapSearch.Text = "Search"; $btnPcapSearch.Location = New-Object System.Drawing.Point(924,122); $btnPcapSearch.Size = New-Object System.Drawing.Size(74,26); $btnPcapSearch.FlatStyle = 'Flat'; $btnPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(50,60,100); $btnPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($btnPcapSearch)
+# Row 3 (y=95): string search across all frames
+$lblSearchStr = New-Object System.Windows.Forms.Label; $lblSearchStr.Text = "String search:"; $lblSearchStr.ForeColor = [System.Drawing.Color]::White; $lblSearchStr.Location = New-Object System.Drawing.Point(12,98); $lblSearchStr.Size = New-Object System.Drawing.Size(100,18); $ctlP.Controls.Add($lblSearchStr)
+$txtPcapSearch = New-Object System.Windows.Forms.TextBox; $txtPcapSearch.Location = New-Object System.Drawing.Point(116,95); $txtPcapSearch.Size = New-Object System.Drawing.Size(520,24); $txtPcapSearch.Font = New-Object System.Drawing.Font('Consolas', 9); $txtPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($txtPcapSearch)
+$chkSearchRegex = New-Object System.Windows.Forms.CheckBox; $chkSearchRegex.Text = "Regex"; $chkSearchRegex.ForeColor = [System.Drawing.Color]::White; $chkSearchRegex.Location = New-Object System.Drawing.Point(644,97); $chkSearchRegex.Size = New-Object System.Drawing.Size(60,20); $ctlP.Controls.Add($chkSearchRegex)
+$lblProtoFilter = New-Object System.Windows.Forms.Label; $lblProtoFilter.Text = "Protocol:"; $lblProtoFilter.ForeColor = [System.Drawing.Color]::White; $lblProtoFilter.Location = New-Object System.Drawing.Point(712,98); $lblProtoFilter.Size = New-Object System.Drawing.Size(66,18); $ctlP.Controls.Add($lblProtoFilter)
+$cmbProtoFilter = New-Object System.Windows.Forms.ComboBox; $cmbProtoFilter.Location = New-Object System.Drawing.Point(782,95); $cmbProtoFilter.Size = New-Object System.Drawing.Size(136,24); $cmbProtoFilter.DropDownStyle = 'DropDownList'; $cmbProtoFilter.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbProtoFilter.ForeColor = [System.Drawing.Color]::White; $cmbProtoFilter.FlatStyle = 'Flat'; foreach ($pv in @('All','http','dns','tls','smtp','ftp','ssh','btle','btl2cap','zbee_nwk','wpan')) { [void]$cmbProtoFilter.Items.Add($pv) }; $cmbProtoFilter.SelectedIndex = 0; $ctlP.Controls.Add($cmbProtoFilter)
+$btnPcapSearch = New-Object System.Windows.Forms.Button; $btnPcapSearch.Text = "Search"; $btnPcapSearch.Location = New-Object System.Drawing.Point(924,95); $btnPcapSearch.Size = New-Object System.Drawing.Size(74,24); $btnPcapSearch.FlatStyle = 'Flat'; $btnPcapSearch.BackColor = [System.Drawing.Color]::FromArgb(50,60,100); $btnPcapSearch.ForeColor = [System.Drawing.Color]::White; $ctlP.Controls.Add($btnPcapSearch)
 
 # SizeChanged: reposition all right-edge controls in the search row (avoids Anchor timing issues)
 $ctlP.Add_SizeChanged({
