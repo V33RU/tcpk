@@ -736,16 +736,44 @@ function Get-TcpkTlsSessionTree {
         })
     }
 
+    $tlsAlertNames = @{
+        '0'='close_notify';'10'='unexpected_message';'20'='bad_record_mac';
+        '21'='decryption_failed';'22'='record_overflow';'40'='handshake_failure';
+        '42'='bad_certificate';'43'='unsupported_certificate';'44'='certificate_revoked';
+        '45'='certificate_expired';'46'='certificate_unknown';'47'='illegal_parameter';
+        '48'='unknown_ca';'49'='access_denied';'50'='decode_error';'51'='decrypt_error';
+        '70'='protocol_version';'71'='insufficient_security';'80'='internal_error';
+        '86'='inappropriate_fallback';'90'='user_canceled';'100'='no_renegotiation';
+        '110'='unsupported_extension';'112'='unrecognized_name';'116'='unknown_psk_identity';
+        '120'='certificate_required'
+    }
+    $tlsLevelNames = @{ '1'='Warning'; '2'='Fatal' }
+
     foreach ($al in $alertFrames) {
         $sport = (("$($al.'tcp.srcport')") -split $us)[0]
         $dport = (("$($al.'tcp.dstport')") -split $us)[0]
-        $key   = "$($al.'ip.src'):$sport"
-        if (-not $sessions.Contains($key)) { $key = "$($al.'ip.dst'):$dport" }
-        if (-not $sessions.Contains($key)) { & $ensureKey "$($al.'ip.src'):$sport" $al.'ip.src' $sport; $key = "$($al.'ip.src'):$sport" }
+        # Server side has the lower/well-known port; prefer ip.dst:dstport as the session key
+        $iSport = 0; $iDport = 0
+        try { $iSport = [int]$sport } catch {}
+        try { $iDport = [int]$dport } catch {}
+        if ($iDport -gt 0 -and $iDport -lt $iSport) {
+            $srvKey = "$($al.'ip.dst'):$dport"; $srvIP = "$($al.'ip.dst')"; $srvPort = $dport
+        } else {
+            $srvKey = "$($al.'ip.src'):$sport"; $srvIP = "$($al.'ip.src')"; $srvPort = $sport
+        }
+        $key = if ($sessions.Contains($srvKey)) { $srvKey }
+               elseif ($sessions.Contains("$($al.'ip.dst'):$dport")) { "$($al.'ip.dst'):$dport" }
+               elseif ($sessions.Contains("$($al.'ip.src'):$sport")) { "$($al.'ip.src'):$sport" }
+               else { & $ensureKey $srvKey $srvIP $srvPort; $srvKey }
+        $rawLevel = (("$($al.'tls.alert_message.level')") -split $us)[0]
+        $rawDesc  = (("$($al.'tls.alert_message.desc')") -split $us)[0]
+        $levelStr = if ($tlsLevelNames.ContainsKey($rawLevel)) { $tlsLevelNames[$rawLevel] } else { "level $rawLevel" }
+        $descStr  = if ($tlsAlertNames.ContainsKey($rawDesc))  { "$rawDesc ($($tlsAlertNames[$rawDesc]))" } else { $rawDesc }
         $sessions[$key].Alerts.Add([pscustomobject]@{
             Frame = "$($al.'frame.number')"
-            Level = (("$($al.'tls.alert_message.level')") -split $us)[0]
-            Desc  = (("$($al.'tls.alert_message.desc')") -split $us)[0]
+            Level = $levelStr
+            Desc  = $descStr
+            SrcIP = "$($al.'ip.src')"
         })
     }
 

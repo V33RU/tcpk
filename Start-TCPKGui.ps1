@@ -1403,7 +1403,11 @@ $btnPcapGo.Add_Click({
                     $alRoot = New-Object System.Windows.Forms.TreeNode("TLS Alerts ($($hs.Alerts.Count))")
                     $alRoot.ForeColor = [System.Drawing.Color]::FromArgb(255,80,80)
                     foreach ($al in $hs.Alerts) {
-                        [void]$alRoot.Nodes.Add("frame $($al.Frame)  level=$($al.Level)  $($al.Desc)")
+                        $alLabel = "[$($al.Level)]  $($al.Desc)  --  frame $($al.Frame)"
+                        if ($al.SrcIP) { $alLabel += "  sent by $($al.SrcIP)" }
+                        $aln = New-Object System.Windows.Forms.TreeNode($alLabel)
+                        $aln.ForeColor = if ($al.Level -eq 'Fatal') { [System.Drawing.Color]::FromArgb(255,80,80) } else { [System.Drawing.Color]::FromArgb(255,160,60) }
+                        [void]$alRoot.Nodes.Add($aln)
                     }
                     $alRoot.Expand(); [void]$srvNode.Nodes.Add($alRoot)
                 }
