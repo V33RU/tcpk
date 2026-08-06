@@ -1655,7 +1655,7 @@ $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
 $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
-foreach ($colDef in @(@('Date',88),@('Time',68),@('Src IP',112),@('Src Port',64),@('Dst IP',112),@('Dst Port',64),@('Protocol',76),@('Packets',60),@('Bytes',64),@('Info',220),@('Src MAC',110),@('Dst MAC',110))) {
+foreach ($colDef in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('Dst IP',118),@('Dst Port',66),@('Protocol',78),@('Packets',60),@('Bytes',66),@('Info',220),@('Src MAC',120),@('Dst MAC',120))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
 # Dock order: filter bar Top, detail panel Right, conversation list Fill
@@ -1737,7 +1737,7 @@ $lvConv.Add_SelectedIndexChanged({
         "(ip.src==$sip and ip.dst==$dip) or (ip.src==$dip and ip.dst==$sip)"
     } else { return }
     $rtbConvDetail.Text = 'Loading...'; [System.Windows.Forms.Application]::DoEvents()
-    $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $filter -T fields '-E' "separator=`t" -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info -c 500 2>$null)
+    $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $filter -T fields '-E' "separator=`t" -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info 2>$null | Select-Object -First 500)
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.AppendLine("${sip}:${sport}  <->  ${dip}:${dport}")
     [void]$sb.AppendLine("Protocol : $proto")
