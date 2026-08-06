@@ -1344,7 +1344,28 @@ $btnPcapGo.Add_Click({
                 $srvNode.Expand()
             }
         } else {
-            [void]$tvTls.Nodes.Add('No TLS handshakes found in this capture.')
+            # No handshakes -- show TLS/SSL flows from conversations so the tab is still useful
+            $whyNode = New-Object System.Windows.Forms.TreeNode('No ClientHello / ServerHello packets in this capture.')
+            $whyNode.ForeColor = [System.Drawing.Color]::FromArgb(200,180,60)
+            [void]$whyNode.Nodes.Add('The TLS session was already established when capture started.')
+            [void]$whyNode.Nodes.Add('To see handshakes: start capture FIRST, then restart the device or app.')
+            $whyNode.Expand()
+            [void]$tvTls.Nodes.Add($whyNode)
+
+            $tlsFlows = @($script:_allConvs | Where-Object { "$($_.Protocol)" -match 'TLS|SSL|QUIC' })
+            if ($tlsFlows.Count -gt 0) {
+                $flowRoot = New-Object System.Windows.Forms.TreeNode("TLS / SSL flows in capture  ($($tlsFlows.Count) flows  -- handshake not captured)")
+                $flowRoot.ForeColor = [System.Drawing.Color]::FromArgb(100,185,255)
+                foreach ($f in $tlsFlows) {
+                    $label = "$($f.SrcIP):$($f.SrcPort)  ->  $($f.DstIP):$($f.DstPort)  [$($f.Protocol)]  $($f.Packets) pkts  $($f.Bytes) B"
+                    $fn = New-Object System.Windows.Forms.TreeNode($label)
+                    $fn.ForeColor = [System.Drawing.Color]::FromArgb(160,220,160)
+                    if ($f.FirstInfo) { [void]$fn.Nodes.Add("First frame: $($f.FirstInfo)") }
+                    [void]$flowRoot.Nodes.Add($fn)
+                }
+                $flowRoot.Expand()
+                [void]$tvTls.Nodes.Add($flowRoot)
+            }
         }
     } catch {
         $tlsErrMsg = $_.Exception.Message
