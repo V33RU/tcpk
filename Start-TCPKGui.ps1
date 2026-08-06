@@ -1303,8 +1303,8 @@ $btnPcapGo.Add_Click({
         $script:graphPositions = @{}
         if ($gNodes.Count -gt 0) {
             $gn = $gNodes.Count
-            $gcx = [double](if ($pbGraph.Width  -gt 20) { $pbGraph.Width  / 2 } else { 500 })
-            $gcy = [double](if ($pbGraph.Height -gt 20) { $pbGraph.Height / 2 } else { 350 })
+            $gcx = if ($pbGraph.Width  -gt 20) { $pbGraph.Width  / 2.0 } else { 500.0 }
+            $gcy = if ($pbGraph.Height -gt 20) { $pbGraph.Height / 2.0 } else { 350.0 }
             $grad = [Math]::Min($gcx, $gcy) * 0.78
             for ($gi = 0; $gi -lt $gn; $gi++) {
                 $ga = 2 * [Math]::PI * $gi / $gn - [Math]::PI / 2
