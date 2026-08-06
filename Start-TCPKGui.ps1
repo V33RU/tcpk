@@ -1205,7 +1205,7 @@ $lblPcapF.Text = "Capture file:"; $lblPcapF.ForeColor = [System.Drawing.Color]::
 $lblPcapF.Location = New-Object System.Drawing.Point(12,33); $lblPcapF.Size = New-Object System.Drawing.Size(110,18)
 $ctlP.Controls.Add($lblPcapF)
 $txtPcap = New-Object System.Windows.Forms.TextBox
-$txtPcap.Location = New-Object System.Drawing.Point(126,30); $txtPcap.Size = New-Object System.Drawing.Size(690,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
+$txtPcap.Location = New-Object System.Drawing.Point(126,30); $txtPcap.Size = New-Object System.Drawing.Size(480,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
 $txtPcap.BackColor = [System.Drawing.Color]::FromArgb(36,36,40); $txtPcap.ForeColor = [System.Drawing.Color]::FromArgb(110,115,120)
 $txtPcap.ReadOnly = $true; $txtPcap.Text = 'Drop a .pcap / .pcapng here -- or click Browse'
 $txtPcap.AllowDrop = $true
@@ -1218,12 +1218,12 @@ $txtPcap.Add_DragDrop({
     $files = @($args[1].Data.GetData([System.Windows.Forms.DataFormats]::FileDrop))
     if ($files.Count -gt 0) { $txtPcap.Text = $files[0]; $txtPcap.ForeColor = [System.Drawing.Color]::White }
 })
-$txtPcap.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
+$txtPcap.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left)
 $ctlP.Controls.Add($txtPcap)
 $btnPcapBrowse = New-Object System.Windows.Forms.Button
-$btnPcapBrowse.Text = "Browse"; $btnPcapBrowse.Location = New-Object System.Drawing.Point(822,28); $btnPcapBrowse.Size = New-Object System.Drawing.Size(90,26)
+$btnPcapBrowse.Text = "Browse"; $btnPcapBrowse.Location = New-Object System.Drawing.Point(612,28); $btnPcapBrowse.Size = New-Object System.Drawing.Size(80,26)
 $btnPcapBrowse.FlatStyle = 'Flat'; $btnPcapBrowse.BackColor = [System.Drawing.Color]::FromArgb(28,78,130); $btnPcapBrowse.ForeColor = [System.Drawing.Color]::White
-$btnPcapBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
+$btnPcapBrowse.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left)
 $ctlP.Controls.Add($btnPcapBrowse)
 $btnPcapBrowse.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog
