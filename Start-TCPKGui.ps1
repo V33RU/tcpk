@@ -1385,7 +1385,7 @@ $btnPcapGo.Add_Click({
                         foreach ($s in $ct.SANs) { [void]$sn.Nodes.Add("$s") }
                         $sn.Expand(); [void]$certNode.Nodes.Add($sn)
                     }
-                    $allFields = @($ct.Subject + $ct.UTF8 | Where-Object {$_} | Select-Object -Unique)
+                    $allFields = @($ct.Subject | Where-Object {$_} | Select-Object -Unique)
                     if ($allFields.Count -gt 0) {
                         $fn = New-Object System.Windows.Forms.TreeNode("Subject / Issuer fields ($($allFields.Count))")
                         foreach ($f in $allFields) { [void]$fn.Nodes.Add("$f") }

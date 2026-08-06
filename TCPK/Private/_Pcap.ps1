@@ -619,37 +619,48 @@ function Get-TcpkTlsSessionTree {
     if ($RsaKeyFile) { $q.RsaKeyFile=$RsaKeyFile }
     $us = [char]0x1F
 
-    # ClientHello -- full extension set
+    # ClientHello -- core fields (proven across tshark versions)
     $clientHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
         -Fields @('ip.src','ip.dst','tcp.dstport','frame.number','frame.time_relative',
                   'tls.record.version',
                   'tls.handshake.extensions_server_name',
                   'tls.handshake.ciphersuite',
                   'tls.handshake.extensions.supported_versions.tls',
-                  'tls.handshake.extensions.alpn_str',
-                  'tls.handshake.extensions.supported_groups',
-                  'tls.handshake.extensions.signature_algorithms',
                   'tls.handshake.session_id') `
         -Occurrence 'a' -Aggregator "$us")
 
-    # ServerHello -- full extension set
+    # ClientHello extended -- ALPN / groups / sig-algs (field names vary by tshark version; fail silently)
+    $chExtMap = @{}
+    $chExt = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
+        -Fields @('frame.number',
+                  'tls.handshake.extensions_alpn_str',
+                  'tls.handshake.extensions_elliptic_curve',
+                  'tls.handshake.sig_alg') `
+        -Occurrence 'a' -Aggregator "$us")
+    foreach ($ex in $chExt) { $chExtMap["$($ex.'frame.number')"] = $ex }
+
+    # ServerHello -- core fields
     $serverHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
         -Fields @('ip.src','ip.dst','tcp.srcport','frame.number','frame.time_relative',
                   'tls.handshake.version',
                   'tls.handshake.ciphersuite',
                   'tls.handshake.extensions.key_share.selected_group',
-                  'tls.handshake.extensions.alpn_str',
                   'tls.handshake.session_id') `
         -Occurrence 'a' -Aggregator "$us")
+
+    # ServerHello extended -- ALPN selected
+    $shExtMap = @{}
+    $shExt = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
+        -Fields @('frame.number','tls.handshake.extensions_alpn_str') `
+        -Occurrence 'a' -Aggregator "$us")
+    foreach ($ex in $shExt) { $shExtMap["$($ex.'frame.number')"] = $ex }
 
     # Certificates (handshake type 11)
     $certFrames = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 11' `
         -Fields @('ip.src','ip.dst','tcp.srcport','frame.number',
                   'x509ce.dNSName',
                   'x509sat.printableString',
-                  'x509sat.uTF8String',
-                  'x509af.utcTime',
-                  'x509af.generalTime') `
+                  'x509af.utcTime') `
         -Occurrence 'a' -Aggregator "$us")
 
     # TLS Alerts
@@ -687,18 +698,20 @@ function Get-TcpkTlsSessionTree {
         $dport = (("$($ch.'tcp.dstport')") -split $us)[0]
         $key   = "$($ch.'ip.dst'):$dport"
         & $ensureKey $key $ch.'ip.dst' $dport
+        $fn  = "$($ch.'frame.number')"
+        $ext = if ($chExtMap.ContainsKey($fn)) { $chExtMap[$fn] } else { $null }
         $sessions[$key].ClientHellos.Add([pscustomobject]@{
             Client             = "$($ch.'ip.src')"
-            Frame              = "$($ch.'frame.number')"
+            Frame              = $fn
             TimeRel            = "$($ch.'frame.time_relative')"
             RecordVersion      = (("$($ch.'tls.record.version')") -split $us)[0]
             SNI                = (("$($ch.'tls.handshake.extensions_server_name')") -split $us)[0]
             SessionID          = (("$($ch.'tls.handshake.session_id')") -split $us)[0]
             OfferedCiphers     = & $splitField $ch.'tls.handshake.ciphersuite'
             SupportedVersions  = & $splitField $ch.'tls.handshake.extensions.supported_versions.tls'
-            ALPN               = & $splitField $ch.'tls.handshake.extensions.alpn_str'
-            SupportedGroups    = & $splitField $ch.'tls.handshake.extensions.supported_groups'
-            SignatureAlgorithms = & $splitField $ch.'tls.handshake.extensions.signature_algorithms'
+            ALPN               = if ($ext) { & $splitField $ext.'tls.handshake.extensions_alpn_str' } else { @() }
+            SupportedGroups    = if ($ext) { & $splitField $ext.'tls.handshake.extensions_elliptic_curve' } else { @() }
+            SignatureAlgorithms = if ($ext) { & $splitField $ext.'tls.handshake.sig_alg' } else { @() }
         })
     }
 
@@ -707,13 +720,15 @@ function Get-TcpkTlsSessionTree {
         $key   = "$($sh.'ip.src'):$sport"
         & $ensureKey $key $sh.'ip.src' $sport
         $cipher = (("$($sh.'tls.handshake.ciphersuite')") -split $us)[0]
+        $fn     = "$($sh.'frame.number')"
+        $ext    = if ($shExtMap.ContainsKey($fn)) { $shExtMap[$fn] } else { $null }
         $sessions[$key].ServerHellos.Add([pscustomobject]@{
-            Frame             = "$($sh.'frame.number')"
+            Frame             = $fn
             TimeRel           = "$($sh.'frame.time_relative')"
             NegotiatedVersion = (("$($sh.'tls.handshake.version')") -split $us)[0]
             SelectedCipher    = $cipher
             KeyGroup          = (("$($sh.'tls.handshake.extensions.key_share.selected_group')") -split $us)[0]
-            ALPN              = (("$($sh.'tls.handshake.extensions.alpn_str')") -split $us)[0]
+            ALPN              = if ($ext) { (("$($ext.'tls.handshake.extensions_alpn_str')") -split $us)[0] } else { '' }
             SessionID         = (("$($sh.'tls.handshake.session_id')") -split $us)[0]
             WeakCipher        = if ($cipher) { Test-TcpkCipherWeak $cipher } else { $null }
         })
@@ -723,15 +738,13 @@ function Get-TcpkTlsSessionTree {
         $sport = (("$($ct.'tcp.srcport')") -split $us)[0]
         $key   = "$($ct.'ip.src'):$sport"
         if (-not $sessions.Contains($key)) { & $ensureKey $key $ct.'ip.src' $sport }
-        $sans    = & $splitField $ct.'x509ce.dNSName'
-        $pstr    = & $splitField $ct.'x509sat.printableString'
-        $utf8str = & $splitField $ct.'x509sat.uTF8String'
-        $times   = @((& $splitField $ct.'x509af.utcTime') + (& $splitField $ct.'x509af.generalTime') | Select-Object -Unique)
+        $sans  = & $splitField $ct.'x509ce.dNSName'
+        $pstr  = & $splitField $ct.'x509sat.printableString'
+        $times = & $splitField $ct.'x509af.utcTime'
         $sessions[$key].Certificates.Add([pscustomobject]@{
             Frame    = "$($ct.'frame.number')"
             SANs     = $sans
             Subject  = $pstr
-            UTF8     = $utf8str
             Validity = $times
         })
     }
