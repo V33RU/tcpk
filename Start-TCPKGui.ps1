@@ -1267,13 +1267,15 @@ $btnPcapGo.Add_Click({
         $__pcapR
     }
 
-    # Populate Conversations tab
+    # Populate Conversations tab (also drives Network Graph)
     $lvConv.Items.Clear()
+    $convs = @()
+    $gNodes = @()
     try {
         $convParams = @{ Path=$file }
         if ($txtKeylog.Text.Trim()) { $convParams.KeylogFile = $txtKeylog.Text.Trim() }
         if ($txtRsa.Text.Trim())    { $convParams.RsaKeyFile = $txtRsa.Text.Trim() }
-        $convs = @(Get-TcpkPcapConversations @convParams -ErrorAction SilentlyContinue)
+        $convs = @(Get-TcpkPcapConversations @convParams -ErrorAction Stop)
         foreach ($c in $convs) {
             $lvi = New-Object System.Windows.Forms.ListViewItem("$($c.SrcIP)")
             [void]$lvi.SubItems.Add("$($c.SrcPort)")
@@ -1310,17 +1312,36 @@ $btnPcapGo.Add_Click({
             }
         }
         $pbGraph.Invalidate()
-    } catch { }
+    } catch {
+        Write-IcptLine $txtOutP ("   [!] Conversations error: {0}`r`n" -f $_.Exception.Message) ([System.Drawing.Color]::FromArgb(249,38,114))
+        [void]$lvConv.Items.Add((New-Object System.Windows.Forms.ListViewItem("[!] Error: $($_.Exception.Message)")))
+    }
+    Write-IcptLine $txtOutP ("   Conversations: {0} flows | Network Graph: {1} node(s) -- see tabs`r`n" -f $convs.Count, $gNodes.Count) ([System.Drawing.Color]::FromArgb(100,110,120))
+    if ($convs.Count -eq 0) {
+        $tsharkBin = try { Get-TcpkTshark } catch { $null }
+        if ($tsharkBin) {
+            $diagRows = @(& $tsharkBin -r $file -n -T fields '-E' "separator=`t" -e ip.src -e ip.dst -c 3 2>$null)
+            if ($diagRows.Count -gt 0) {
+                Write-IcptLine $txtOutP ("   [DIAG] tshark ip.src sample: {0}`r`n" -f "$($diagRows[0])") ([System.Drawing.Color]::FromArgb(140,140,140))
+            } else {
+                Write-IcptLine $txtOutP "   [DIAG] tshark returned no ip.src/ip.dst rows -- may be non-IP capture (ARP-only, Bluetooth, etc.)`r`n" ([System.Drawing.Color]::FromArgb(255,180,60))
+            }
+        } else {
+            Write-IcptLine $txtOutP "   [DIAG] Get-TcpkTshark returned null -- tshark may not be installed or not in PATH`r`n" ([System.Drawing.Color]::FromArgb(255,180,60))
+        }
+    }
     [System.Windows.Forms.Application]::DoEvents()
 
     # Populate TLS Handshakes tree
     $tvTls.Nodes.Clear()
+    $tlsCount = 0
     try {
         $tlsParams = @{ Path=$file }
         if ($txtKeylog.Text.Trim()) { $tlsParams.KeylogFile = $txtKeylog.Text.Trim() }
         if ($txtRsa.Text.Trim())    { $tlsParams.RsaKeyFile = $txtRsa.Text.Trim() }
-        $tlsSessions = Get-TcpkPcapTlsTree @tlsParams -ErrorAction SilentlyContinue
+        $tlsSessions = Get-TcpkPcapTlsTree @tlsParams -ErrorAction Stop
         if ($tlsSessions -and $tlsSessions.Keys.Count) {
+            $tlsCount = $tlsSessions.Keys.Count
             foreach ($sKey in $tlsSessions.Keys) {
                 $hs = $tlsSessions[$sKey]
                 $srvNode = New-Object System.Windows.Forms.TreeNode("Server  $sKey")
@@ -1351,7 +1372,12 @@ $btnPcapGo.Add_Click({
         } else {
             [void]$tvTls.Nodes.Add('No TLS handshakes found in this capture.')
         }
-    } catch { [void]$tvTls.Nodes.Add("TLS tree error: $($_.Exception.Message)") }
+    } catch {
+        $tlsErrMsg = $_.Exception.Message
+        [void]$tvTls.Nodes.Add("TLS tree error: $tlsErrMsg")
+        Write-IcptLine $txtOutP ("   [!] TLS error: {0}`r`n" -f $tlsErrMsg) ([System.Drawing.Color]::FromArgb(249,38,114))
+    }
+    Write-IcptLine $txtOutP ("   TLS sessions: {0} server(s) -- see TLS Handshakes tab`r`n" -f $tlsCount) ([System.Drawing.Color]::FromArgb(100,110,120))
     [System.Windows.Forms.Application]::DoEvents()
 
     # Populate BT / Zigbee tab
