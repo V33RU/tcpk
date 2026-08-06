@@ -619,18 +619,49 @@ function Get-TcpkTlsSessionTree {
     if ($RsaKeyFile) { $q.RsaKeyFile=$RsaKeyFile }
     $us = [char]0x1F
 
+    # ClientHello -- full extension set
     $clientHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
-        -Fields @('ip.src','ip.dst','tcp.dstport',
+        -Fields @('ip.src','ip.dst','tcp.dstport','frame.number','frame.time_relative',
+                  'tls.record.version',
                   'tls.handshake.extensions_server_name',
                   'tls.handshake.ciphersuite',
-                  'tls.handshake.extensions.supported_versions.tls') `
+                  'tls.handshake.extensions.supported_versions.tls',
+                  'tls.handshake.extensions.alpn_str',
+                  'tls.handshake.extensions.supported_groups',
+                  'tls.handshake.extensions.signature_algorithms',
+                  'tls.handshake.session_id') `
         -Occurrence 'a' -Aggregator "$us")
 
+    # ServerHello -- full extension set
     $serverHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 2' `
-        -Fields @('ip.src','ip.dst','tcp.srcport',
+        -Fields @('ip.src','ip.dst','tcp.srcport','frame.number','frame.time_relative',
                   'tls.handshake.version',
                   'tls.handshake.ciphersuite',
-                  'tls.handshake.extensions.key_share.selected_group') `
+                  'tls.handshake.extensions.key_share.selected_group',
+                  'tls.handshake.extensions.alpn_str',
+                  'tls.handshake.session_id') `
+        -Occurrence 'a' -Aggregator "$us")
+
+    # Certificates (handshake type 11)
+    $certFrames = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 11' `
+        -Fields @('ip.src','ip.dst','tcp.srcport','frame.number',
+                  'x509ce.dNSName',
+                  'x509sat.printableString',
+                  'x509sat.uTF8String',
+                  'x509af.utcTime',
+                  'x509af.generalTime') `
+        -Occurrence 'a' -Aggregator "$us")
+
+    # TLS Alerts
+    $alertFrames = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.alert_message.level' `
+        -Fields @('ip.src','ip.dst','tcp.srcport','tcp.dstport','frame.number',
+                  'tls.alert_message.level',
+                  'tls.alert_message.desc') `
+        -Occurrence 'a' -Aggregator "$us")
+
+    # ChangeCipherSpec (handshake type 20 at record level -- marks end of handshake)
+    $ccsFrames = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.record.content_type == 20' `
+        -Fields @('ip.src','ip.dst','tcp.srcport','tcp.dstport','frame.number','frame.time_relative') `
         -Occurrence 'a' -Aggregator "$us")
 
     $sessions = [ordered]@{}
@@ -643,35 +674,85 @@ function Get-TcpkTlsSessionTree {
                 Port         = $Port
                 ClientHellos = [System.Collections.Generic.List[object]]::new()
                 ServerHellos = [System.Collections.Generic.List[object]]::new()
+                Certificates = [System.Collections.Generic.List[object]]::new()
+                Alerts       = [System.Collections.Generic.List[object]]::new()
+                CCSCount     = 0
             }
         }
     }
+
+    $splitField = { param($raw) @("$raw" -split $us | Where-Object {$_} | ForEach-Object {$_.Trim()} | Select-Object -Unique) }
 
     foreach ($ch in $clientHellos) {
         $dport = (("$($ch.'tcp.dstport')") -split $us)[0]
         $key   = "$($ch.'ip.dst'):$dport"
         & $ensureKey $key $ch.'ip.dst' $dport
-        $sni      = (("$($ch.'tls.handshake.extensions_server_name')") -split $us)[0]
-        $ciphers  = @("$($ch.'tls.handshake.ciphersuite')" -split $us | Where-Object {$_} | ForEach-Object {$_.Trim()} | Select-Object -Unique)
-        $versions = @("$($ch.'tls.handshake.extensions.supported_versions.tls')" -split $us | Where-Object {$_} | ForEach-Object {$_.Trim()} | Select-Object -Unique)
         $sessions[$key].ClientHellos.Add([pscustomobject]@{
-            Client = "$($ch.'ip.src')"; SNI = $sni
-            OfferedCiphers = $ciphers; SupportedVersions = $versions
+            Client             = "$($ch.'ip.src')"
+            Frame              = "$($ch.'frame.number')"
+            TimeRel            = "$($ch.'frame.time_relative')"
+            RecordVersion      = (("$($ch.'tls.record.version')") -split $us)[0]
+            SNI                = (("$($ch.'tls.handshake.extensions_server_name')") -split $us)[0]
+            SessionID          = (("$($ch.'tls.handshake.session_id')") -split $us)[0]
+            OfferedCiphers     = & $splitField $ch.'tls.handshake.ciphersuite'
+            SupportedVersions  = & $splitField $ch.'tls.handshake.extensions.supported_versions.tls'
+            ALPN               = & $splitField $ch.'tls.handshake.extensions.alpn_str'
+            SupportedGroups    = & $splitField $ch.'tls.handshake.extensions.supported_groups'
+            SignatureAlgorithms = & $splitField $ch.'tls.handshake.extensions.signature_algorithms'
         })
     }
 
     foreach ($sh in $serverHellos) {
-        $sport  = (("$($sh.'tcp.srcport')") -split $us)[0]
-        $key    = "$($sh.'ip.src'):$sport"
+        $sport = (("$($sh.'tcp.srcport')") -split $us)[0]
+        $key   = "$($sh.'ip.src'):$sport"
         & $ensureKey $key $sh.'ip.src' $sport
-        $ver    = (("$($sh.'tls.handshake.version')") -split $us)[0]
         $cipher = (("$($sh.'tls.handshake.ciphersuite')") -split $us)[0]
-        $kgrp   = (("$($sh.'tls.handshake.extensions.key_share.selected_group')") -split $us)[0]
-        $weak   = if ($cipher) { Test-TcpkCipherWeak $cipher } else { $null }
         $sessions[$key].ServerHellos.Add([pscustomobject]@{
-            NegotiatedVersion = $ver; SelectedCipher = $cipher
-            KeyGroup = $kgrp; WeakCipher = $weak
+            Frame             = "$($sh.'frame.number')"
+            TimeRel           = "$($sh.'frame.time_relative')"
+            NegotiatedVersion = (("$($sh.'tls.handshake.version')") -split $us)[0]
+            SelectedCipher    = $cipher
+            KeyGroup          = (("$($sh.'tls.handshake.extensions.key_share.selected_group')") -split $us)[0]
+            ALPN              = (("$($sh.'tls.handshake.extensions.alpn_str')") -split $us)[0]
+            SessionID         = (("$($sh.'tls.handshake.session_id')") -split $us)[0]
+            WeakCipher        = if ($cipher) { Test-TcpkCipherWeak $cipher } else { $null }
         })
+    }
+
+    foreach ($ct in $certFrames) {
+        $sport = (("$($ct.'tcp.srcport')") -split $us)[0]
+        $key   = "$($ct.'ip.src'):$sport"
+        if (-not $sessions.Contains($key)) { & $ensureKey $key $ct.'ip.src' $sport }
+        $sans    = & $splitField $ct.'x509ce.dNSName'
+        $pstr    = & $splitField $ct.'x509sat.printableString'
+        $utf8str = & $splitField $ct.'x509sat.uTF8String'
+        $times   = @((& $splitField $ct.'x509af.utcTime') + (& $splitField $ct.'x509af.generalTime') | Select-Object -Unique)
+        $sessions[$key].Certificates.Add([pscustomobject]@{
+            Frame    = "$($ct.'frame.number')"
+            SANs     = $sans
+            Subject  = $pstr
+            UTF8     = $utf8str
+            Validity = $times
+        })
+    }
+
+    foreach ($al in $alertFrames) {
+        $sport = (("$($al.'tcp.srcport')") -split $us)[0]
+        $dport = (("$($al.'tcp.dstport')") -split $us)[0]
+        $key   = "$($al.'ip.src'):$sport"
+        if (-not $sessions.Contains($key)) { $key = "$($al.'ip.dst'):$dport" }
+        if (-not $sessions.Contains($key)) { & $ensureKey "$($al.'ip.src'):$sport" $al.'ip.src' $sport; $key = "$($al.'ip.src'):$sport" }
+        $sessions[$key].Alerts.Add([pscustomobject]@{
+            Frame = "$($al.'frame.number')"
+            Level = (("$($al.'tls.alert_message.level')") -split $us)[0]
+            Desc  = (("$($al.'tls.alert_message.desc')") -split $us)[0]
+        })
+    }
+
+    foreach ($cs in $ccsFrames) {
+        $sport = (("$($cs.'tcp.srcport')") -split $us)[0]
+        $key   = "$($cs.'ip.src'):$sport"
+        if ($sessions.Contains($key)) { $sessions[$key].CCSCount++ }
     }
 
     return $sessions

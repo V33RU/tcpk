@@ -1320,26 +1320,97 @@ $btnPcapGo.Add_Click({
                 $hs = $tlsSessions[$sKey]
                 $srvNode = New-Object System.Windows.Forms.TreeNode("Server  $sKey")
                 $srvNode.ForeColor = [System.Drawing.Color]::FromArgb(100,185,255)
+
                 foreach ($ch in $hs.ClientHellos) {
-                    $chNode = New-Object System.Windows.Forms.TreeNode("ClientHello  from $($ch.Client)")
+                    $chNode = New-Object System.Windows.Forms.TreeNode("ClientHello  [frame $($ch.Frame)  +$($ch.TimeRel)s]  from $($ch.Client)")
                     $chNode.ForeColor = [System.Drawing.Color]::FromArgb(110,200,110)
-                    if ($ch.SNI) { [void]$chNode.Nodes.Add("SNI: $($ch.SNI)") }
-                    $vn = New-Object System.Windows.Forms.TreeNode("Supported versions ($($ch.SupportedVersions.Count))")
-                    foreach ($v in $ch.SupportedVersions) { [void]$vn.Nodes.Add("$v") }
-                    [void]$chNode.Nodes.Add($vn)
-                    $cn = New-Object System.Windows.Forms.TreeNode("Offered ciphers ($($ch.OfferedCiphers.Count))")
-                    foreach ($c in ($ch.OfferedCiphers | Select-Object -First 30)) { [void]$cn.Nodes.Add("$c") }
-                    [void]$chNode.Nodes.Add($cn)
+                    if ($ch.SNI)           { [void]$chNode.Nodes.Add("SNI (server name): $($ch.SNI)") }
+                    if ($ch.RecordVersion) { [void]$chNode.Nodes.Add("Record layer version: $($ch.RecordVersion)") }
+                    if ($ch.SessionID)     { [void]$chNode.Nodes.Add("Session ID: $($ch.SessionID)") }
+
+                    if ($ch.SupportedVersions.Count -gt 0) {
+                        $vn = New-Object System.Windows.Forms.TreeNode("Supported TLS versions ($($ch.SupportedVersions.Count))")
+                        foreach ($v in $ch.SupportedVersions) { [void]$vn.Nodes.Add("$v") }
+                        [void]$chNode.Nodes.Add($vn)
+                    }
+                    if ($ch.ALPN.Count -gt 0) {
+                        $an = New-Object System.Windows.Forms.TreeNode("ALPN protocols offered ($($ch.ALPN.Count))")
+                        foreach ($a in $ch.ALPN) { [void]$an.Nodes.Add("$a") }
+                        [void]$chNode.Nodes.Add($an)
+                    }
+                    if ($ch.SupportedGroups.Count -gt 0) {
+                        $gn = New-Object System.Windows.Forms.TreeNode("Supported groups / curves ($($ch.SupportedGroups.Count))")
+                        foreach ($g in $ch.SupportedGroups) { [void]$gn.Nodes.Add("$g") }
+                        [void]$chNode.Nodes.Add($gn)
+                    }
+                    if ($ch.SignatureAlgorithms.Count -gt 0) {
+                        $sgn = New-Object System.Windows.Forms.TreeNode("Signature algorithms ($($ch.SignatureAlgorithms.Count))")
+                        foreach ($sg in $ch.SignatureAlgorithms) { [void]$sgn.Nodes.Add("$sg") }
+                        [void]$chNode.Nodes.Add($sgn)
+                    }
+                    if ($ch.OfferedCiphers.Count -gt 0) {
+                        $cn = New-Object System.Windows.Forms.TreeNode("Offered cipher suites ($($ch.OfferedCiphers.Count))")
+                        $cn.ForeColor = [System.Drawing.Color]::FromArgb(200,200,200)
+                        foreach ($c in $ch.OfferedCiphers) {
+                            $weak = Test-TcpkCipherWeak $c
+                            $tag  = if ($weak) { "  [WEAK: $($weak.Reason)]" } else { '' }
+                            $ci   = New-Object System.Windows.Forms.TreeNode("$c$tag")
+                            $ci.ForeColor = if ($weak) { [System.Drawing.Color]::FromArgb(255,90,90) } else { [System.Drawing.Color]::FromArgb(180,180,180) }
+                            [void]$cn.Nodes.Add($ci)
+                        }
+                        [void]$chNode.Nodes.Add($cn)
+                    }
                     [void]$srvNode.Nodes.Add($chNode)
+                    $chNode.Expand()
                 }
+
                 foreach ($sh in $hs.ServerHellos) {
                     $weakTag = if ($sh.WeakCipher) { "  [WEAK: $($sh.WeakCipher.Reason)]" } else { '' }
-                    $shLabel = "ServerHello  $($sh.NegotiatedVersion)  /  $($sh.SelectedCipher)$weakTag"
+                    $shLabel = "ServerHello  [frame $($sh.Frame)]  $($sh.NegotiatedVersion)  /  $($sh.SelectedCipher)$weakTag"
                     $shNode  = New-Object System.Windows.Forms.TreeNode($shLabel)
                     $shNode.ForeColor = if ($sh.WeakCipher) { [System.Drawing.Color]::FromArgb(255,90,90) } else { [System.Drawing.Color]::FromArgb(255,180,60) }
-                    if ($sh.KeyGroup) { [void]$shNode.Nodes.Add("Key exchange: $($sh.KeyGroup)") }
+                    if ($sh.KeyGroup)  { [void]$shNode.Nodes.Add("Key exchange group: $($sh.KeyGroup)") }
+                    if ($sh.ALPN)      { [void]$shNode.Nodes.Add("ALPN selected: $($sh.ALPN)") }
+                    if ($sh.SessionID) { [void]$shNode.Nodes.Add("Session ID: $($sh.SessionID)") }
+                    if ($sh.WeakCipher){ [void]$shNode.Nodes.Add("WEAK cipher reason: $($sh.WeakCipher.Reason)") }
                     [void]$srvNode.Nodes.Add($shNode)
+                    $shNode.Expand()
                 }
+
+                foreach ($ct in $hs.Certificates) {
+                    $certNode = New-Object System.Windows.Forms.TreeNode("Certificate  [frame $($ct.Frame)]")
+                    $certNode.ForeColor = [System.Drawing.Color]::FromArgb(220,160,60)
+                    if ($ct.SANs.Count -gt 0) {
+                        $sn = New-Object System.Windows.Forms.TreeNode("Subject Alternative Names -- DNS ($($ct.SANs.Count))")
+                        foreach ($s in $ct.SANs) { [void]$sn.Nodes.Add("$s") }
+                        $sn.Expand(); [void]$certNode.Nodes.Add($sn)
+                    }
+                    $allFields = @($ct.Subject + $ct.UTF8 | Where-Object {$_} | Select-Object -Unique)
+                    if ($allFields.Count -gt 0) {
+                        $fn = New-Object System.Windows.Forms.TreeNode("Subject / Issuer fields ($($allFields.Count))")
+                        foreach ($f in $allFields) { [void]$fn.Nodes.Add("$f") }
+                        [void]$certNode.Nodes.Add($fn)
+                    }
+                    if ($ct.Validity.Count -gt 0) {
+                        $vl = New-Object System.Windows.Forms.TreeNode("Validity period")
+                        foreach ($t in $ct.Validity) { [void]$vl.Nodes.Add("$t") }
+                        $vl.Expand(); [void]$certNode.Nodes.Add($vl)
+                    }
+                    $certNode.Expand(); [void]$srvNode.Nodes.Add($certNode)
+                }
+
+                if ($hs.Alerts.Count -gt 0) {
+                    $alRoot = New-Object System.Windows.Forms.TreeNode("TLS Alerts ($($hs.Alerts.Count))")
+                    $alRoot.ForeColor = [System.Drawing.Color]::FromArgb(255,80,80)
+                    foreach ($al in $hs.Alerts) {
+                        [void]$alRoot.Nodes.Add("frame $($al.Frame)  level=$($al.Level)  $($al.Desc)")
+                    }
+                    $alRoot.Expand(); [void]$srvNode.Nodes.Add($alRoot)
+                }
+                if ($hs.CCSCount -gt 0) {
+                    [void]$srvNode.Nodes.Add("ChangeCipherSpec frames: $($hs.CCSCount)")
+                }
+
                 [void]$tvTls.Nodes.Add($srvNode)
                 $srvNode.Expand()
             }
