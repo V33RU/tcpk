@@ -619,19 +619,17 @@ function Get-TcpkTlsSessionTree {
     if ($RsaKeyFile) { $q.RsaKeyFile=$RsaKeyFile }
     $us = [char]0x1F
 
-    # ClientHello -- core fields (proven across tshark versions)
+    # ClientHello -- core fields only (ONE bad field name kills the entire query; keep proven names here)
     # tls.handshake.version = legacy_version inside the Hello message (0x0303 for TLS 1.2+)
-    # tls.record.version    = record layer version (often 0x0301 for compatibility)
+    # tls.record.version    = record layer version (often 0x0301 for compat; always safe across versions)
     $clientHellos = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
         -Fields @('ip.src','ip.dst','tcp.dstport','frame.number','frame.time_relative',
                   'tls.record.version',
                   'tls.handshake.version',
-                  'tls.handshake.random',
                   'tls.handshake.extensions_server_name',
                   'tls.handshake.ciphersuite',
                   'tls.handshake.extensions.supported_versions.tls',
-                  'tls.handshake.session_id',
-                  'tls.handshake.comp_method') `
+                  'tls.handshake.session_id') `
         -Occurrence 'a' -Aggregator "$us")
 
     # ClientHello extended -- ALPN / groups / sig-algs (field names vary by tshark version; fail silently)
@@ -644,11 +642,13 @@ function Get-TcpkTlsSessionTree {
         -Occurrence 'a' -Aggregator "$us")
     foreach ($ex in $chExt) { $chExtMap["$($ex.'frame.number')"] = $ex }
 
-    # ClientHello extension inventory -- full extension type list + TLS 1.3 key share groups
-    # tls.handshake.extension.type returns all extension type IDs in the Hello (one per extension)
+    # ClientHello extended 2 -- random, compression, full extension inventory, key share groups
+    # All of these may be absent in older tshark versions; query fails silently if any name is wrong.
     $chExtInv = @{}
     $chExtInvRows = @(Invoke-TcpkTsharkQuery @q -Filter 'tls.handshake.type == 1' `
         -Fields @('frame.number',
+                  'tls.handshake.random',
+                  'tls.handshake.comp_method',
                   'tls.handshake.extension.type',
                   'tls.handshake.extensions.key_share.group') `
         -Occurrence 'a' -Aggregator "$us")
@@ -869,13 +869,13 @@ function Get-TcpkTlsSessionTree {
             TimeRel             = "$($ch.'frame.time_relative')"
             RecordVersion       = & $resolveVersion (("$($ch.'tls.record.version')") -split $us)[0]
             HandshakeVersion    = & $resolveVersion (("$($ch.'tls.handshake.version')") -split $us)[0]
-            Random              = (("$($ch.'tls.handshake.random')") -split $us)[0]
+            Random              = if ($inv) { (("$($inv.'tls.handshake.random')") -split $us)[0] } else { '' }
             SNI                 = (("$($ch.'tls.handshake.extensions_server_name')") -split $us)[0]
             SessionID           = (("$($ch.'tls.handshake.session_id')") -split $us)[0]
-            CompressionMethods  = @(& $splitField $ch.'tls.handshake.comp_method' | ForEach-Object {
+            CompressionMethods  = if ($inv) { @(& $splitField $inv.'tls.handshake.comp_method' | ForEach-Object {
                                       $cm = "$_".Trim()
                                       if ($compMethodNames.ContainsKey($cm)) { "$($compMethodNames[$cm]) ($cm)" } else { $cm }
-                                  } | Where-Object { $_ })
+                                  } | Where-Object { $_ }) } else { @() }
             OfferedCiphers      = @(& $splitField $ch.'tls.handshake.ciphersuite' | ForEach-Object { & $resolveCipher $_ } | Where-Object { $_ })
             SupportedVersions   = @(& $splitField $ch.'tls.handshake.extensions.supported_versions.tls' | ForEach-Object { & $resolveVersion $_ } | Where-Object { $_ })
             ALPN                = if ($ext) { & $splitField $ext.'tls.handshake.extensions_alpn_str' } else { @() }
