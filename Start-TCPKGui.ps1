@@ -1235,18 +1235,6 @@ $btnPcapGo = New-Object System.Windows.Forms.Button
 $btnPcapGo.Text = "Analyse capture"; $btnPcapGo.Location = New-Object System.Drawing.Point(576,31); $btnPcapGo.Size = New-Object System.Drawing.Size(140,24)
 $btnPcapGo.BackColor = [System.Drawing.Color]::FromArgb(0,90,120); $btnPcapGo.ForeColor = [System.Drawing.Color]::White; $btnPcapGo.FlatStyle = 'Flat'
 $ctlP.Controls.Add($btnPcapGo)
-$btnVuln = New-Object System.Windows.Forms.Button
-$btnVuln.Text = "Vulnerability"; $btnVuln.Location = New-Object System.Drawing.Point(722,31); $btnVuln.Size = New-Object System.Drawing.Size(120,24)
-$btnVuln.FlatStyle = 'Flat'; $btnVuln.BackColor = [System.Drawing.Color]::FromArgb(100,25,25); $btnVuln.ForeColor = [System.Drawing.Color]::White
-$ctlP.Controls.Add($btnVuln)
-$btnVuln.Add_Click({
-    $file = $txtPcap.Text.Trim()
-    if (-not $file -or -not (Test-Path -LiteralPath $file)) {
-        [System.Windows.Forms.MessageBox]::Show('Load a .pcap / .pcapng file first.','TCPK',[System.Windows.Forms.MessageBoxButtons]::OK,[System.Windows.Forms.MessageBoxIcon]::Warning) | Out-Null; return
-    }
-    $btnPcapGo.PerformClick()
-    $subPcapTabs.SelectedIndex = 6
-})
 $btnPcapGo.Add_Click({
     $file = $txtPcap.Text.Trim()
     if (-not $file -or -not (Test-Path -LiteralPath $file)) {
@@ -1563,14 +1551,14 @@ $lblConvProtoF = New-Object System.Windows.Forms.Label; $lblConvProtoF.Text = 'P
 $cmbConvProtoF = New-Object System.Windows.Forms.ComboBox; $cmbConvProtoF.Location = New-Object System.Drawing.Point(374,4); $cmbConvProtoF.Size = New-Object System.Drawing.Size(130,22); $cmbConvProtoF.DropDownStyle = 'DropDownList'; $cmbConvProtoF.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbConvProtoF.ForeColor = [System.Drawing.Color]::White; $cmbConvProtoF.FlatStyle = 'Flat'; [void]$cmbConvProtoF.Items.Add('All'); $cmbConvProtoF.SelectedIndex = 0; $pnlConvFilter.Controls.Add($cmbConvProtoF)
 $btnConvClearF = New-Object System.Windows.Forms.Button; $btnConvClearF.Text = 'Clear'; $btnConvClearF.Location = New-Object System.Drawing.Point(512,4); $btnConvClearF.Size = New-Object System.Drawing.Size(52,22); $btnConvClearF.FlatStyle = 'Flat'; $btnConvClearF.BackColor = [System.Drawing.Color]::FromArgb(55,55,58); $btnConvClearF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($btnConvClearF)
 $lblConvCount = New-Object System.Windows.Forms.Label; $lblConvCount.Text = 'No capture loaded'; $lblConvCount.ForeColor = [System.Drawing.Color]::FromArgb(120,125,130); $lblConvCount.Location = New-Object System.Drawing.Point(572,7); $lblConvCount.Size = New-Object System.Drawing.Size(300,18); $pnlConvFilter.Controls.Add($lblConvCount)
-# Packet detail pane (Dock=Bottom) -- shown when a conversation row is selected
-$pnlConvDetail = New-Object System.Windows.Forms.Panel; $pnlConvDetail.Dock = 'Bottom'; $pnlConvDetail.Height = 162; $pnlConvDetail.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
-$pnlConvDetailHdr = New-Object System.Windows.Forms.Panel; $pnlConvDetailHdr.Dock = 'Top'; $pnlConvDetailHdr.Height = 20; $pnlConvDetailHdr.BackColor = [System.Drawing.Color]::FromArgb(28,30,38)
-$lblConvDetailHdr = New-Object System.Windows.Forms.Label; $lblConvDetailHdr.Dock = 'Fill'; $lblConvDetailHdr.Text = 'Select a conversation row to see its individual frames'; $lblConvDetailHdr.ForeColor = [System.Drawing.Color]::FromArgb(130,135,142); $lblConvDetailHdr.Font = New-Object System.Drawing.Font('Cascadia Mono',8); $pnlConvDetailHdr.Controls.Add($lblConvDetailHdr)
-$lvConvPkts = New-Object System.Windows.Forms.ListView; $lvConvPkts.Dock = 'Fill'; $lvConvPkts.View = 'Details'; $lvConvPkts.FullRowSelect = $true; $lvConvPkts.GridLines = $true; $lvConvPkts.BackColor = [System.Drawing.Color]::FromArgb(20,20,24); $lvConvPkts.ForeColor = [System.Drawing.Color]::FromArgb(210,215,220); $lvConvPkts.Font = New-Object System.Drawing.Font('Cascadia Mono',8)
-foreach ($__pc in @(@('Frame#',60),@('Time',86),@('Src IP',130),@('Dst IP',130),@('Protocol',88),@('Len',56),@('Info',400))) { $__ph = New-Object System.Windows.Forms.ColumnHeader; $__ph.Text = $__pc[0]; $__ph.Width = $__pc[1]; [void]$lvConvPkts.Columns.Add($__ph) }
-$pnlConvDetail.Controls.Add($lvConvPkts); $pnlConvDetail.Controls.Add($pnlConvDetailHdr)
-# Conversations ListView (Dock=Fill)
+# Right panel: plain RichTextBox, no headers, no grid lines
+$pnlConvRight = New-Object System.Windows.Forms.Panel; $pnlConvRight.Dock = 'Right'; $pnlConvRight.Width = 480; $pnlConvRight.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+$rtbConvDetail = New-Object System.Windows.Forms.RichTextBox; $rtbConvDetail.Dock = 'Fill'; $rtbConvDetail.ReadOnly = $true; $rtbConvDetail.WordWrap = $false
+$rtbConvDetail.BackColor = [System.Drawing.Color]::FromArgb(18,18,22); $rtbConvDetail.ForeColor = [System.Drawing.Color]::FromArgb(205,210,218)
+$rtbConvDetail.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5); $rtbConvDetail.BorderStyle = 'None'
+$rtbConvDetail.Text = 'Click a conversation row to see its frames and Wireshark Info here.'
+$pnlConvRight.Controls.Add($rtbConvDetail)
+# Conversations ListView (Dock=Fill, sits left of the right panel)
 $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $true
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
@@ -1578,8 +1566,8 @@ $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
 foreach ($colDef in @(@('Src IP',120),@('Src Port',72),@('Dst IP',120),@('Dst Port',72),@('Protocol',80),@('Packets',70),@('Bytes',80),@('Src MAC',130),@('Dst MAC',130))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
-# Dock order: Top, Bottom, Fill
-$subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($pnlConvDetail); $subPcapConv.Controls.Add($lvConv)
+# Dock order: filter bar Top, detail panel Right, conversation list Fill
+$subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($pnlConvRight); $subPcapConv.Controls.Add($lvConv)
 [void]$subPcapTabs.TabPages.Add($subPcapConv)
 
 # --- Tab 3: TLS Handshakes ---
@@ -1624,7 +1612,7 @@ $script:_applyConvFilter = {
     }
     $lvConv.EndUpdate()
     $lblConvCount.Text = "Showing $shown of $($script:_allConvs.Count) flow(s)"
-    $lvConvPkts.Items.Clear(); $lblConvDetailHdr.Text = 'Select a conversation row to see its individual frames'
+    $rtbConvDetail.Text = 'Click a conversation row to see its frames and Wireshark Info here.'
 }
 $txtConvIpF.Add_TextChanged({ & $script:_applyConvFilter })
 $txtConvPortF.Add_TextChanged({ & $script:_applyConvFilter })
@@ -1641,6 +1629,10 @@ $lvConv.Add_SelectedIndexChanged({
     $dip   = $sel.SubItems[2].Text
     $dport = $sel.SubItems[3].Text
     $proto = $sel.SubItems[4].Text
+    $pkts  = $sel.SubItems[5].Text
+    $bytes = $sel.SubItems[6].Text
+    $smac  = $sel.SubItems[7].Text
+    $dmac  = $sel.SubItems[8].Text
     $protoL = $proto.ToLower()
     $txProto = if     ($protoL -match 'tcp|tls|ssl|https|http|ssh|ftp|smtp|pop|imap|rdp|telnet') { 'tcp' }
                elseif ($protoL -match 'udp|dns|quic|snmp|ntp|dhcp|mdns|ssdp|stun')              { 'udp' }
@@ -1651,20 +1643,32 @@ $lvConv.Add_SelectedIndexChanged({
     } elseif ($sip -and $dip) {
         "(ip.src==$sip and ip.dst==$dip) or (ip.src==$dip and ip.dst==$sip)"
     } else { return }
-    $lblConvDetailHdr.Text = "Loading frames: ${sip}:${sport} -> ${dip}:${dport}  [$proto] ..."
-    [System.Windows.Forms.Application]::DoEvents()
-    $lvConvPkts.BeginUpdate(); $lvConvPkts.Items.Clear()
+    $rtbConvDetail.Text = 'Loading...'; [System.Windows.Forms.Application]::DoEvents()
     $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $filter -T fields '-E' "separator=`t" -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info -c 500 2>$null)
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine("${sip}:${sport}  <->  ${dip}:${dport}")
+    [void]$sb.AppendLine("Protocol : $proto")
+    [void]$sb.AppendLine("Packets  : $pkts   Bytes: $bytes")
+    [void]$sb.AppendLine("Src MAC  : $smac")
+    [void]$sb.AppendLine("Dst MAC  : $dmac")
+    [void]$sb.AppendLine('')
+    [void]$sb.AppendLine("$($pktRows.Count) frame(s) shown  (max 500 per flow)")
+    [void]$sb.AppendLine('─────────────────────────────────────────────────────────────────────────────────')
     foreach ($pr in $pktRows) {
         if (-not "$pr") { continue }
         $parts = "$pr" -split "`t", 7
         while ($parts.Count -lt 7) { $parts += '' }
-        $pli = New-Object System.Windows.Forms.ListViewItem($parts[0])
-        for ($pi = 1; $pi -lt 7; $pi++) { [void]$pli.SubItems.Add($parts[$pi]) }
-        [void]$lvConvPkts.Items.Add($pli)
+        $fn     = $parts[0].PadLeft(6)
+        $ts     = $parts[1]
+        $fsrc   = $parts[2]
+        $fdst   = $parts[3]
+        $fproto = $parts[4]
+        $flen   = $parts[5]
+        $finfo  = $parts[6]
+        [void]$sb.AppendLine("[$fn]  ${ts}s  $fsrc -> $fdst  $fproto  ${flen}B  $finfo")
     }
-    $lvConvPkts.EndUpdate()
-    $lblConvDetailHdr.Text = "${sip}:${sport} <-> ${dip}:${dport}  [$proto]  --  $($lvConvPkts.Items.Count) frame(s)  (max 500 shown)"
+    $rtbConvDetail.Text = $sb.ToString()
+    try { $rtbConvDetail.SelectionStart = 0; $rtbConvDetail.ScrollToCaret() } catch {}
 })
 
 # --- Tab 4: Search Results ---
@@ -1773,7 +1777,7 @@ $subPcapNetGraph.Controls.Add($pbGraph)
 $script:_lastPcapFindings = @()
 $subPcapVuln = New-Object System.Windows.Forms.TabPage; $subPcapVuln.Text = ' Vulnerabilities '; $subPcapVuln.BackColor = [System.Drawing.Color]::FromArgb(20,15,15)
 $pnlVulnHdr = New-Object System.Windows.Forms.Panel; $pnlVulnHdr.Dock = 'Top'; $pnlVulnHdr.Height = 22; $pnlVulnHdr.BackColor = [System.Drawing.Color]::FromArgb(20,15,15); $subPcapVuln.Controls.Add($pnlVulnHdr)
-$lblVulnCount = New-Object System.Windows.Forms.Label; $lblVulnCount.Text = "Vulnerabilities: 0 actionable  |  run Analyse capture or click the Vulnerability button"; $lblVulnCount.ForeColor = [System.Drawing.Color]::FromArgb(200,200,200); $lblVulnCount.Dock = 'Fill'; $pnlVulnHdr.Controls.Add($lblVulnCount)
+$lblVulnCount = New-Object System.Windows.Forms.Label; $lblVulnCount.Text = "Vulnerabilities: 0 actionable  |  run Analyse capture to populate"; $lblVulnCount.ForeColor = [System.Drawing.Color]::FromArgb(200,200,200); $lblVulnCount.Dock = 'Fill'; $pnlVulnHdr.Controls.Add($lblVulnCount)
 $lvVuln = New-Object System.Windows.Forms.ListView
 $lvVuln.Dock = 'Fill'; $lvVuln.View = 'Details'; $lvVuln.FullRowSelect = $true; $lvVuln.GridLines = $true
 $lvVuln.BackColor = [System.Drawing.Color]::FromArgb(20,15,15); $lvVuln.ForeColor = [System.Drawing.Color]::White
@@ -1781,7 +1785,7 @@ $lvVuln.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
 foreach ($__vCol in @(@('Severity',90),@('Rule ID',160),@('Title',350),@('Evidence',300),@('Fix',300))) {
     $__vc = New-Object System.Windows.Forms.ColumnHeader; $__vc.Text = $__vCol[0]; $__vc.Width = $__vCol[1]; [void]$lvVuln.Columns.Add($__vc)
 }
-[void]$lvVuln.Items.Add((New-Object System.Windows.Forms.ListViewItem("Run 'Analyse capture' or click the 'Vulnerability' button to populate this table.")))
+[void]$lvVuln.Items.Add((New-Object System.Windows.Forms.ListViewItem("Run 'Analyse capture' to populate this table.")))
 $subPcapVuln.Controls.Add($lvVuln); $lvVuln.BringToFront()
 [void]$subPcapTabs.TabPages.Add($subPcapVuln)
 
