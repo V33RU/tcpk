@@ -1,0 +1,120 @@
+================================================================================
+TCPK -- THIRD-PARTY NOTICES
+================================================================================
+
+TCPK itself is licensed under the MIT License. See LICENSE.
+
+This file reproduces the copyright notices and license terms required by the
+third-party components that TCPK REDISTRIBUTES. Components that TCPK merely
+invokes at runtime (and does not ship) are listed separately at the end for
+clarity; they impose no redistribution obligation on this repository.
+
+================================================================================
+1. Mono.Cecil 0.11.5 -- REDISTRIBUTED (MIT License)
+================================================================================
+
+TCPK ships four unmodified Mono.Cecil assemblies under tools/ILSpy/. They are
+used to read .NET IL for the decompiler and for IL-level verification of
+client-side controls (see TCPK/Private/_Decompile.ps1).
+
+Project    : Mono.Cecil
+Upstream   : https://github.com/jbevain/cecil
+Version    : 0.11.5.0
+Source     : Official NuGet package Mono.Cecil 0.11.5 (lib/net40), unmodified.
+
+Files and SHA256:
+  tools/ILSpy/Mono.Cecil.dll
+    71c8b01208ab37a5164f5bacd69054899db9fc00f2da87dbd07dc1ee40fc06a8
+  tools/ILSpy/Mono.Cecil.Mdb.dll
+    d65e445a02dc2d2a189d19745f14368c6a24d05914e36bbc7ed9732962998ea5
+  tools/ILSpy/Mono.Cecil.Pdb.dll
+    8e221211df8a917d69145239b71b71c87e61761fb0c96d5e997964c172dda4c0
+  tools/ILSpy/Mono.Cecil.Rocks.dll
+    9db3edaa8bc6ccd7ac6e2517c743591658bd6bdd436a146e0eda101d30a1332e
+
+Note on the directory name: the folder is named tools/ILSpy/ for historical
+reasons. ILSpy itself is NOT bundled and NOT used. Only the Mono.Cecil
+assemblies listed above are present.
+
+--------------------------------------------------------------------------------
+
+Copyright (c) 2008 - 2015 Jb Evain
+Copyright (c) 2008 - 2011 Novell, Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+2. CVSS v4.0 reference calculator -- DERIVED WORK (BSD 2-Clause License)
+================================================================================
+
+TCPK's CVSS v4.0 base-score engine is a PowerShell port of the FIRST.org
+reference calculator, and ships the upstream macrovector lookup table verbatim.
+
+Project    : cvss-v4-calculator
+Upstream   : https://github.com/FIRSTdotorg/cvss-v4-calculator
+Ported from: cvss_score.js, cvss_lookup.js, max_severity.js, max_composed.js
+
+Files in this repository derived from the above:
+  TCPK/Private/_Cvss40.ps1              (algorithm port)
+  TCPK/Data/cvss/cvss40-lookup.json     (270-entry macrovector table, verbatim)
+
+--------------------------------------------------------------------------------
+
+Copyright (c) 2023 FIRST.ORG, Inc., Red Hat, and contributors
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+================================================================================
+3. Invoked at runtime, NOT redistributed
+================================================================================
+
+The following tools are OPTIONAL and are resolved from an explicit path, a
+local untracked tools/ subfolder, a standard install location, or PATH. None
+of them are included in this repository, so their licenses do not attach to
+TCPK's distribution. Install them yourself if you want the related features.
+
+  Wireshark / tshark / dumpcap   GPL-2.0-or-later   pcap analysis (Pcap tab)
+  Frida                          wxWindows 3.1      runtime hooking
+  mitmproxy / mitmdump           MIT                traffic interception
+  Sysinternals (ProcMon, etc.)   Microsoft EULA     process monitoring
+  Ollama and hosted LLM APIs     varies by provider optional AI review
+
+The complete list of binary files tracked in this repository is the four
+Mono.Cecil assemblies named in section 1. Nothing else is redistributed.
+
+================================================================================

@@ -76,20 +76,17 @@ its `baseUrl` in `Data\llm-config.json` (any OpenAI-compatible endpoint works).
 
 ### 2c. Mono.Cecil (lets the AI read .NET IL -- sharper verdicts)
 
-Only used by AI-verify on **.NET** targets to read method IL. Without it, AI
-still runs and just skips the IL step. To enable it, place **one DLL**:
+**Already included. Nothing to install.** TCPK ships Mono.Cecil 0.11.5 at
+`<TCPK folder>\tools\ILSpy\`, taken unmodified from the official NuGet package.
+It is used by AI-verify on **.NET** targets to read method IL, and by the IL
+verifiers in `TCPK\Public\Verify\`. If the files are missing, AI-verify still
+runs and just skips the IL step.
 
-- **Easiest:** install **ILSpy** (https://github.com/icsharpcode/ILSpy/releases) --
-  it ships `Mono.Cecil.dll`. TCPK auto-detects it at
-  `%LOCALAPPDATA%\Programs\ILSpy\Mono.Cecil.dll`.
-- **No-install:** download the **Mono.Cecil** NuGet package
-  (https://www.nuget.org/packages/Mono.Cecil), rename `.nupkg`-> `.zip`, extract
-  `lib\net40\Mono.Cecil.dll`, and drop it at:
-  ```
-  <TCPK folder>\tools\ILSpy\Mono.Cecil.dll
-  ```
+Licensing: Mono.Cecil is MIT. Its copyright notice, the full license text, and
+the SHA256 of each shipped assembly are recorded in [NOTICE](NOTICE).
 
-TCPK does **not** run ILSpy/dnSpy -- it only loads this one MIT-licensed DLL.
+TCPK does **not** run ILSpy or dnSpy. The folder is named `tools\ILSpy\` for
+historical reasons; only the Mono.Cecil assemblies are present.
 
 ---
 

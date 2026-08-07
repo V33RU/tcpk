@@ -24,3 +24,7 @@ SOFTWARE.
 AUTHORIZED USE ONLY. TCPK is a dual-use security-research tool intended for
 testing software you own or are explicitly authorized to test. You are solely
 responsible for how you use it. See DISCLAIMER.txt.
+
+THIRD-PARTY COMPONENTS. TCPK redistributes Mono.Cecil (MIT) and includes a
+port of the FIRST.org CVSS v4.0 reference calculator (BSD-2-Clause). Their
+copyright notices and license terms are reproduced in NOTICE.
