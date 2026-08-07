@@ -89,8 +89,8 @@ function Test-TcpkMemoryRegions {
         # separate: libglesv2.dll, libegl.dll, vk_swiftshader.dll are always present.
         'libglesv2.dll', 'libegl.dll', 'vk_swiftshader.dll', 'libvk_swiftshader.dll',
         'vulkan-1.dll', 'd3dcompiler_47.dll', 'ffmpeg.dll',
-        'libcef.dll',       # CEF-based apps (Spotify, Discord older builds)
-        'chrome_elf.dll'    # Chrome / Edge branded builds only
+        'libcef.dll',       # Chromium Embedded Framework host apps
+        'chrome_elf.dll'    # branded Chromium browser builds only
     )
 
     foreach ($p in $procs) {
@@ -178,15 +178,14 @@ function Test-TcpkMemoryRegions {
             $jitLabel = if ($hasJit) { ($jitFound -join '+') } else { 'none' }
 
             $jitNote = if ($hasJit) {
-                # V8 / Electron special-case: every Chromium-derived app (Chrome, Edge, VS Code,
-                # Slack, Teams, and Electron-based thick clients) holds RWX V8 code-space pages.
-                # These are MEM_PRIVATE, often reserved-NOACCESS then committed-RWX, and appear
-                # identically in all renderer processes.  They are JIT output, not injected code.
-                # V8 supports --write-protect-code-memory and --jitless, but very few Electron apps
-                # opt in.  Flagging this HIGH would flag the entire Electron/Chromium ecosystem.
+                # V8 / Electron special-case: every Chromium-derived app holds RWX V8 code-space
+                # pages. These are MEM_PRIVATE, often reserved-NOACCESS then committed-RWX, and
+                # appear identically in all renderer processes.  They are JIT output, not injected
+                # code.  V8 supports --write-protect-code-memory and --jitless, but very few
+                # Electron apps opt in.  Flagging this HIGH would flag the entire Chromium ecosystem.
                 "JIT runtime detected ($jitLabel). Writable-executable pages are expected: V8 " +
                 "writes machine code into private RWX pages at runtime.  This is the same shape " +
-                "Chrome, Edge, VS Code, Slack, Teams, and every Electron app produces.  Reported " +
+                "every Chromium-derived and Electron application produces.  Reported " +
                 "as an INFO hardening note (W^X not enforced), not as a defect.  V8 does support " +
                 "--write-protect-code-memory and --jitless; Electron apps can pass these via app.commandLine."
             } else {
