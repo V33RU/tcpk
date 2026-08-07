@@ -359,7 +359,7 @@ $cmbSize.Location = New-Object System.Drawing.Point(270, 108); $cmbSize.Size = N
 $cmbSize.DropDownStyle = 'DropDownList'
 $cmbSize.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbSize.ForeColor = [System.Drawing.Color]::White
 @(8, 9, 10, 11, 12, 14, 16) | ForEach-Object { [void]$cmbSize.Items.Add($_) }
-$cmbSize.SelectedItem = 10
+$cmbSize.SelectedItem = 9
 $cmbSize.Add_SelectedIndexChanged({ Apply-UiFont })
 $topPanel.Controls.Add($cmbSize)
 
