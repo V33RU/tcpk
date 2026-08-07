@@ -179,7 +179,7 @@ function Test-TcpkMemoryRegions {
 
             $jitNote = if ($hasJit) {
                 # V8 / Electron special-case: every Chromium-derived app (Chrome, Edge, VS Code,
-                # Slack, Teams, Crestron Virtual Panel) holds RWX V8 code-space pages.
+                # Slack, Teams, and Electron-based thick clients) holds RWX V8 code-space pages.
                 # These are MEM_PRIVATE, often reserved-NOACCESS then committed-RWX, and appear
                 # identically in all renderer processes.  They are JIT output, not injected code.
                 # V8 supports --write-protect-code-memory and --jitless, but very few Electron apps

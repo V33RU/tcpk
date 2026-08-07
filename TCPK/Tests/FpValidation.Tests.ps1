@@ -2,7 +2,7 @@
 
 <#
 Regression fixtures for the 6 validated false-positive / misrating defects
-from TCPK v2.7.1 (Crestron Virtual Panel 1.1.89.0 validation, 2026-08-04).
+from TCPK v2.7.1 (commercial Electron thick-client validation, 2026-08-04).
 
 Each context row is labelled to match the defect specification:
   (a) Electron, no JIT DLL in module list, RWX present      -> INFO (not HIGH)
@@ -293,7 +293,7 @@ Describe 'FP regression: chain PoC suppressed when premise measures zero (j)' {
     Context '(j) chain.browser-store-session-theft with 0 measured rows -> PoC suppressed' {
         BeforeAll {
             # Build a finding set that has master-key-recovered Confirmed (dynamic)
-            # but with cookie_row_count=0 in evidence - simulates Crestron case.
+            # but with cookie_row_count=0 in evidence - simulates the validated case.
             $mkFinding = [PSCustomObject]@{
                 RuleId     = 'browser.master-key-recovered'
                 Severity   = 'HIGH'
