@@ -1542,13 +1542,14 @@ $btnPcapGo.Add_Click({
         }
     }
 
-    # Populate Vulnerabilities sub-tab (CRITICAL / HIGH / MEDIUM only)
+    # Populate Vulnerabilities sub-tab (all severities)
     $lvVuln.Items.Clear()
     $__vCount = 0
-    foreach ($__vf in $script:_lastPcapFindings) {
-        if ("$($__vf.Severity)" -notin @('CRITICAL','HIGH','MEDIUM')) { continue }
+    $__sevRankV = @{ CRITICAL=0; HIGH=1; MEDIUM=2; LOW=3; INFO=4 }
+    foreach ($__vf in ($script:_lastPcapFindings | Sort-Object { $__sevRankV["$($_.Severity)"] })) {
         $__vCount++
         $__vLvi = New-Object System.Windows.Forms.ListViewItem("$($__vf.Severity)")
+        $__vLvi.BackColor = [System.Drawing.Color]::FromArgb(20,15,15)
         [void]$__vLvi.SubItems.Add("$($__vf.RuleId)")
         [void]$__vLvi.SubItems.Add("$($__vf.Title)")
         [void]$__vLvi.SubItems.Add("$($__vf.Evidence)")
@@ -1557,14 +1558,15 @@ $btnPcapGo.Add_Click({
             'CRITICAL' { [System.Drawing.Color]::FromArgb(255,80,80) }
             'HIGH'     { [System.Drawing.Color]::FromArgb(255,145,45) }
             'MEDIUM'   { [System.Drawing.Color]::FromArgb(255,215,55) }
-            default    { [System.Drawing.Color]::White }
+            'LOW'      { [System.Drawing.Color]::FromArgb(100,210,120) }
+            default    { [System.Drawing.Color]::FromArgb(130,155,200) }
         }
         [void]$lvVuln.Items.Add($__vLvi)
     }
     if ($__vCount -eq 0) {
-        [void]$lvVuln.Items.Add((New-Object System.Windows.Forms.ListViewItem('(no CRITICAL / HIGH / MEDIUM findings detected -- see Findings tab for INFO results)')))
+        [void]$lvVuln.Items.Add((New-Object System.Windows.Forms.ListViewItem('(no findings detected -- run Analyse capture with a loaded pcap file)')))
     }
-    $lblVulnCount.Text = "Vulnerabilities: $__vCount actionable (CRITICAL/HIGH/MEDIUM)  |  $(Split-Path $file -Leaf)"
+    $lblVulnCount.Text = "Findings: $__vCount  |  $(Split-Path $file -Leaf)"
 })
 
 # Decrypt fields (optional): TLS keylog (all TLS incl 1.3) and/or server RSA private key (RSA kx only)
@@ -1792,116 +1794,47 @@ $script:_showConvDetail = {
     $convFilter = if ($hasPorts -and $txProto) {
         "($txProto.srcport==$sport and ip.src==$sip and ip.dst==$dip and $txProto.dstport==$dport) or ($txProto.srcport==$dport and ip.src==$dip and ip.dst==$sip and $txProto.dstport==$sport)"
     } elseif ($sip -and $dip) { "(ip.src==$sip and ip.dst==$dip) or (ip.src==$dip and ip.dst==$sip)" } else { return }
-    $pktRows = @(& $tsharkBin -r $pcapPath -n -Y $convFilter -T fields '-E' "separator=`t" `
-        -e frame.number -e frame.time_relative -e ip.src -e ip.dst -e _ws.col.Protocol -e frame.len -e _ws.col.Info `
-        2>$null | Select-Object -First 500)
-
     # --- Form ---
     $popForm = New-Object System.Windows.Forms.Form
     $popForm.Text = "Packet Detail  --  ${sip}:${sport} <-> ${dip}:${dport}  [$proto]"
-    $popForm.Size = New-Object System.Drawing.Size(1300, 720)
+    $popForm.Size = New-Object System.Drawing.Size(1100, 780)
     $popForm.StartPosition = 'CenterParent'
-    $popForm.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
+    $popForm.BackColor = [System.Drawing.Color]::FromArgb(15,15,19)
     $popForm.ForeColor = [System.Drawing.Color]::White
     try { $popForm.Icon = $form.Icon } catch {}
 
     # --- Summary strip ---
     $pnlPopTop = New-Object System.Windows.Forms.Panel
-    $pnlPopTop.Dock = 'Top'; $pnlPopTop.Height = 52; $pnlPopTop.BackColor = [System.Drawing.Color]::FromArgb(22,22,30)
+    $pnlPopTop.Dock = 'Top'; $pnlPopTop.Height = 38; $pnlPopTop.BackColor = [System.Drawing.Color]::FromArgb(22,22,30)
     $lblPopSum = New-Object System.Windows.Forms.Label
-    $lblPopSum.Dock = 'Fill'; $lblPopSum.Padding = New-Object System.Windows.Forms.Padding(10,6,10,4)
+    $lblPopSum.Dock = 'Fill'; $lblPopSum.Padding = New-Object System.Windows.Forms.Padding(10,5,10,0)
     $lblPopSum.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
     $lblPopSum.ForeColor = [System.Drawing.Color]::FromArgb(200,208,218)
-    $lblPopSum.Text = "${sip}:${sport}  <->  ${dip}:${dport}    Protocol: $proto    Packets: $pkts    Bytes: $bytes`nSrc MAC: $smac    Dst MAC: $dmac    $($pktRows.Count) frame(s) (max 500 per flow)"
+    $lblPopSum.Text = "${sip}:${sport}  ->  ${dip}:${dport}    Proto: $proto    Packets: $pkts    Bytes: $bytes    Src MAC: $smac    Dst MAC: $dmac"
     $pnlPopTop.Controls.Add($lblPopSum)
 
-    # --- SplitContainer: left = frame list, right = single-packet dissection ---
-    $popSplit = New-Object System.Windows.Forms.SplitContainer
-    $popSplit.Dock = 'Fill'; $popSplit.Orientation = 'Vertical'
-    $popSplit.SplitterWidth = 3; $popSplit.SplitterDistance = 430
-    $popSplit.BackColor = [System.Drawing.Color]::FromArgb(30,30,40)
-    $popSplit.Panel1.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
-    $popSplit.Panel2.BackColor = [System.Drawing.Color]::FromArgb(15,15,19)
-
-    # Left panel -- custom header row
-    $pnlFrHdr = New-Object System.Windows.Forms.Panel
-    $pnlFrHdr.Dock = 'Top'; $pnlFrHdr.Height = 20; $pnlFrHdr.BackColor = [System.Drawing.Color]::FromArgb(26,26,36)
-    $_fhx = 0
-    foreach ($fhd in @(@('#',52),@('Time (s)',102),@('Source',112),@('',18),@('Destination',112),@('Proto',58),@('Len',50),@('Info',300))) {
-        $fhl = New-Object System.Windows.Forms.Label; $fhl.Text = $fhd[0]; $fhl.TextAlign = 'MiddleLeft'
-        $fhl.Location = New-Object System.Drawing.Point(($_fhx+3),0); $fhl.Size = New-Object System.Drawing.Size(($fhd[1]-3),20)
-        $fhl.ForeColor = [System.Drawing.Color]::FromArgb(105,120,138); $fhl.Font = New-Object System.Drawing.Font('Cascadia Mono',7.5)
-        $pnlFrHdr.Controls.Add($fhl); $_fhx += $fhd[1]
-    }
-
-    # Left panel -- frame ListView
-    $lvFr = New-Object System.Windows.Forms.ListView
-    $lvFr.Dock = 'Fill'; $lvFr.View = 'Details'; $lvFr.FullRowSelect = $true; $lvFr.GridLines = $false
-    $lvFr.HeaderStyle = [System.Windows.Forms.ColumnHeaderStyle]::None
-    $lvFr.BackColor = [System.Drawing.Color]::FromArgb(18,18,22)
-    $lvFr.ForeColor = [System.Drawing.Color]::FromArgb(188,198,210)
-    $lvFr.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
-    foreach ($fw in @(52,102,112,18,112,58,50,300)) {
-        $fhc = New-Object System.Windows.Forms.ColumnHeader; $fhc.Width = $fw; [void]$lvFr.Columns.Add($fhc)
-    }
-    foreach ($pr in $pktRows) {
-        if (-not "$pr") { continue }
-        $fp = "$pr" -split "`t",7; while ($fp.Count -lt 7) { $fp += '' }
-        $fvi = New-Object System.Windows.Forms.ListViewItem($fp[0].Trim())
-        [void]$fvi.SubItems.Add("$($fp[1])s")
-        [void]$fvi.SubItems.Add($fp[2])
-        [void]$fvi.SubItems.Add('->')
-        [void]$fvi.SubItems.Add($fp[3])
-        [void]$fvi.SubItems.Add($fp[4])
-        [void]$fvi.SubItems.Add("$($fp[5])B")
-        # Strip non-ASCII from Info (tshark Unicode arrows render as garbage in GDI)
-        [void]$fvi.SubItems.Add(($fp[6] -replace '[^\x00-\x7F]+', '->'))
-        [void]$lvFr.Items.Add($fvi)
-    }
-    $popSplit.Panel1.Controls.Add($lvFr)
-    $popSplit.Panel1.Controls.Add($pnlFrHdr)
-
-    # Right panel -- dissection header label + RichTextBox
-    $pnlDHdr = New-Object System.Windows.Forms.Panel
-    $pnlDHdr.Dock = 'Top'; $pnlDHdr.Height = 20; $pnlDHdr.BackColor = [System.Drawing.Color]::FromArgb(20,20,28)
-    $lblDHdr = New-Object System.Windows.Forms.Label; $lblDHdr.Dock = 'Fill'
-    $lblDHdr.Text = 'PACKET DETAIL  --  click a frame on the left'
-    $lblDHdr.ForeColor = [System.Drawing.Color]::FromArgb(80,100,120)
-    $lblDHdr.Font = New-Object System.Drawing.Font('Cascadia Mono', 7.5)
-    $lblDHdr.Padding = New-Object System.Windows.Forms.Padding(8,3,0,0)
-    $pnlDHdr.Controls.Add($lblDHdr)
-
+    # --- Full dissection: single RichTextBox ---
     $rtbDiss = New-Object System.Windows.Forms.RichTextBox
     $rtbDiss.Dock = 'Fill'; $rtbDiss.ReadOnly = $true; $rtbDiss.WordWrap = $false
     $rtbDiss.BackColor = [System.Drawing.Color]::FromArgb(15,15,19)
     $rtbDiss.ForeColor = [System.Drawing.Color]::FromArgb(190,202,215)
     $rtbDiss.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
     $rtbDiss.BorderStyle = 'None'
-    $rtbDiss.Text = 'Click any frame on the left to see its full dissection (Frame / Ethernet / IP / TCP / TLS / ...) .'
-    $popSplit.Panel2.Controls.Add($rtbDiss)
-    $popSplit.Panel2.Controls.Add($pnlDHdr)
+    $rtbDiss.Text = 'Loading dissection...'
 
-    # Frame selection -- run tshark -V for the exact frame number
-    $lvFr.Add_SelectedIndexChanged({
-        if ($lvFr.SelectedItems.Count -eq 0) { return }
-        $selFn = $lvFr.SelectedItems[0].Text.Trim()
-        if (-not $selFn) { return }
-        $lblDHdr.Text = "PACKET DETAIL  --  frame $selFn   (loading...)"
-        $popForm.Refresh()
-        $dissLines = @(& $tsharkBin -r $pcapPath -n -Y "frame.number == $selFn" -V 2>$null)
-        if ($dissLines) {
-            $rtbDiss.Text = ($dissLines -join "`n")
-            $lblDHdr.Text = "PACKET DETAIL  --  frame $selFn"
-        } else {
-            $rtbDiss.Text = "No dissection output for frame $selFn."
-            $lblDHdr.Text = "PACKET DETAIL  --  frame $selFn   (no data)"
-        }
-        try { $rtbDiss.SelectionStart = 0; $rtbDiss.ScrollToCaret() } catch {}
-    })
-
-    $popForm.Controls.Add($popSplit)
+    $popForm.Controls.Add($rtbDiss)
     $popForm.Controls.Add($pnlPopTop)
     $popForm.Show()
+    $popForm.Refresh()
+
+    # Load full tshark -V output for all packets in the flow
+    $dissLines = @(& $tsharkBin -r $pcapPath -n -Y $convFilter -V 2>$null | Select-Object -First 5000)
+    if ($dissLines) {
+        $rtbDiss.Text = ($dissLines -join "`n")
+    } else {
+        $rtbDiss.Text = "No dissection output returned for this flow."
+    }
+    try { $rtbDiss.SelectionStart = 0; $rtbDiss.ScrollToCaret() } catch {}
 }
 
 # Right-click context menu
