@@ -1745,7 +1745,9 @@ foreach ($cd in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('
     $lh.ForeColor = [System.Drawing.Color]::FromArgb(155,165,178); $lh.Font = New-Object System.Drawing.Font('Cascadia Mono', 8)
     $pnlConvHdr.Controls.Add($lh); $_xOff += $cd[1]
 }
-$subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($pnlConvHdr); $subPcapConv.Controls.Add($lvConv)
+# Dock order: WinForms docks Top controls in DESCENDING Controls-index order (highest index = absolute top).
+# To get Filter(top) -> Header -> List: add pnlConvHdr first (lower index) then pnlConvFilter (higher index).
+$subPcapConv.Controls.Add($pnlConvHdr); $subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($lvConv)
 [void]$subPcapTabs.TabPages.Add($subPcapConv)
 
 # --- Tab 3: TLS Handshakes ---
@@ -1779,6 +1781,7 @@ $script:_applyConvFilter = {
         [void]$lvi.SubItems.Add("$($c.Packets)"); [void]$lvi.SubItems.Add("$($c.Bytes)")
         [void]$lvi.SubItems.Add("$($c.FirstInfo)"); [void]$lvi.SubItems.Add("$($c.SrcMAC)"); [void]$lvi.SubItems.Add("$($c.DstMAC)")
         $prl = "$($c.Protocol)".ToLower()
+        $lvi.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
         $lvi.ForeColor = if     ($prl -match 'https|tls|ssl')  { [System.Drawing.Color]::FromArgb(90,175,255) }
                          elseif ($prl -match 'http')            { [System.Drawing.Color]::FromArgb(255,150,55) }
                          elseif ($prl -match 'dns')             { [System.Drawing.Color]::FromArgb(205,215,50) }
