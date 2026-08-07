@@ -262,18 +262,18 @@ $ttOnlineCve.SetToolTip($chkOnlineCve, "Live CVE lookup: OSV (NuGet/Electron) + 
 $chkAi = New-Object System.Windows.Forms.CheckBox
 $chkAi.Text = "AI-verify findings"; $chkAi.ForeColor = [System.Drawing.Color]::White
 $chkAi.Location = New-Object System.Drawing.Point(14, 75)
-$chkAi.Size = New-Object System.Drawing.Size(148, 22)
+$chkAi.Size = New-Object System.Drawing.Size(180, 22)
 $chkAi.Checked = $false   # unchecked by default -- let the operator opt in
 $topPanel.Controls.Add($chkAi)
 
 $lblAi = New-Object System.Windows.Forms.Label
 $lblAi.Text = "Model:"; $lblAi.ForeColor = [System.Drawing.Color]::White
-$lblAi.Location = New-Object System.Drawing.Point(166, 77)
+$lblAi.Location = New-Object System.Drawing.Point(198, 77)
 $lblAi.Size = New-Object System.Drawing.Size(50, 18)
 $topPanel.Controls.Add($lblAi)
 
 $cmbAi = New-Object System.Windows.Forms.ComboBox
-$cmbAi.Location = New-Object System.Drawing.Point(220, 74)
+$cmbAi.Location = New-Object System.Drawing.Point(252, 74)
 $cmbAi.Size = New-Object System.Drawing.Size(120, 24)
 $cmbAi.DropDownStyle = 'DropDownList'
 $cmbAi.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbAi.ForeColor = [System.Drawing.Color]::White
@@ -286,7 +286,7 @@ $topPanel.Controls.Add($cmbAi)
 # A sensible default is pre-filled per provider; click "Test AI" to load the live
 # list from your key (Get-TcpkLlmModels) into the dropdown for convenience.
 $txtAiModel = New-Object System.Windows.Forms.ComboBox
-$txtAiModel.Location = New-Object System.Drawing.Point(344, 74)
+$txtAiModel.Location = New-Object System.Drawing.Point(376, 74)
 $txtAiModel.Size = New-Object System.Drawing.Size(148, 24)
 $txtAiModel.DropDownStyle = 'DropDown'
 $txtAiModel.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiModel.ForeColor = [System.Drawing.Color]::White
@@ -295,12 +295,12 @@ $topPanel.Controls.Add($txtAiModel)
 
 $lblKey = New-Object System.Windows.Forms.Label
 $lblKey.Text = "API key:"; $lblKey.ForeColor = [System.Drawing.Color]::White
-$lblKey.Location = New-Object System.Drawing.Point(496, 77)
+$lblKey.Location = New-Object System.Drawing.Point(528, 77)
 $lblKey.Size = New-Object System.Drawing.Size(68, 18)
 $topPanel.Controls.Add($lblKey)
 
 $txtAiKey = New-Object System.Windows.Forms.TextBox
-$txtAiKey.Location = New-Object System.Drawing.Point(568, 74)
+$txtAiKey.Location = New-Object System.Drawing.Point(600, 74)
 $txtAiKey.Size = New-Object System.Drawing.Size(164, 24)
 $txtAiKey.UseSystemPasswordChar = $true
 $txtAiKey.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiKey.ForeColor = [System.Drawing.Color]::White
@@ -309,14 +309,14 @@ $topPanel.Controls.Add($txtAiKey)
 
 $btnTestAi = New-Object System.Windows.Forms.Button
 $btnTestAi.Text = "Test AI"
-$btnTestAi.Location = New-Object System.Drawing.Point(740, 74)
+$btnTestAi.Location = New-Object System.Drawing.Point(772, 74)
 $btnTestAi.Size = New-Object System.Drawing.Size(74, 24)
 $btnTestAi.FlatStyle = 'Flat'; $btnTestAi.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnTestAi.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $topPanel.Controls.Add($btnTestAi)
 
 $lblAiStatus = New-Object System.Windows.Forms.Label
 $lblAiStatus.Text = ""
-$lblAiStatus.Location = New-Object System.Drawing.Point(820, 77)
+$lblAiStatus.Location = New-Object System.Drawing.Point(852, 77)
 $lblAiStatus.Size = New-Object System.Drawing.Size(360, 18)
 $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
 $topPanel.Controls.Add($lblAiStatus)
