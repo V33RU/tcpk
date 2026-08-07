@@ -102,14 +102,14 @@ function Resolve-TcpkImpact {
     if ($Candidate -in @('CRITICAL','HIGH') -and -not $supportsHigh) {
         $downgraded = 'MEDIUM'
         $reason = "no high-tier measured fact (facts supplied: $(($Facts.Keys | Sort-Object) -join ', '))"
-        Write-Verbose "[Resolve-TcpkImpact] $RuleId: $Candidate -> $downgraded; $reason"
-        if ($Log) { $Log.Value.Add("CAP1: $RuleId ${Candidate}->$downgraded; $reason") }
+        Write-Verbose "[Resolve-TcpkImpact] ${RuleId}: $Candidate -> $downgraded; $reason"
+        if ($Log) { $Log.Value.Add("CAP1: ${RuleId} ${Candidate}->$downgraded; $reason") }
         return $downgraded
     }
     if ($Candidate -eq 'MEDIUM' -and -not $supportsMedium) {
         $reason = "no measured medium-impact fact"
-        Write-Verbose "[Resolve-TcpkImpact] $RuleId: MEDIUM -> INFO; $reason"
-        if ($Log) { $Log.Value.Add("CAP1: $RuleId MEDIUM->INFO; $reason") }
+        Write-Verbose "[Resolve-TcpkImpact] ${RuleId}: MEDIUM -> INFO; $reason"
+        if ($Log) { $Log.Value.Add("CAP1: ${RuleId} MEDIUM->INFO; $reason") }
         return 'INFO'
     }
     return $Candidate
