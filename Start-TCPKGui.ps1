@@ -1267,9 +1267,6 @@ $btnPcapGo.Add_Click({
         $convs = @(Get-TcpkPcapConversations @convParams -ErrorAction Stop)
         $script:_allConvs = $convs
         $script:_convReady = $false
-        $cmbConvProtoF.Items.Clear(); [void]$cmbConvProtoF.Items.Add('All')
-        @($convs | ForEach-Object { "$($_.Protocol)" } | Where-Object { $_ } | Sort-Object -Unique) | ForEach-Object { [void]$cmbConvProtoF.Items.Add($_) }
-        $cmbConvProtoF.SelectedIndex = 0; $txtConvIpF.Text = ''; $txtConvPortF.Text = ''
         $script:_convReady = $true; & $script:_applyConvFilter
         # Build network graph data (circular layout, up to 200 conversations)
         $script:graphConvs = @($convs | Where-Object { $_.SrcIP -and $_.DstIP } | Select-Object -First 200)
@@ -1717,16 +1714,6 @@ $subPcapFindings.Controls.Add($txtOutP)
 
 # --- Tab 2: Conversations ---
 $subPcapConv = New-Object System.Windows.Forms.TabPage; $subPcapConv.Text = ' Conversations '; $subPcapConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
-# Filter bar (Dock=Top)
-$pnlConvFilter = New-Object System.Windows.Forms.Panel; $pnlConvFilter.Dock = 'Top'; $pnlConvFilter.Height = 30; $pnlConvFilter.BackColor = [System.Drawing.Color]::FromArgb(28,28,32)
-$lblConvIpF = New-Object System.Windows.Forms.Label; $lblConvIpF.Text = 'IP:'; $lblConvIpF.ForeColor = [System.Drawing.Color]::FromArgb(170,175,180); $lblConvIpF.Location = New-Object System.Drawing.Point(4,7); $lblConvIpF.Size = New-Object System.Drawing.Size(24,18); $pnlConvFilter.Controls.Add($lblConvIpF)
-$txtConvIpF = New-Object System.Windows.Forms.TextBox; $txtConvIpF.Location = New-Object System.Drawing.Point(30,5); $txtConvIpF.Size = New-Object System.Drawing.Size(148,20); $txtConvIpF.Font = New-Object System.Drawing.Font('Consolas',8.5); $txtConvIpF.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtConvIpF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($txtConvIpF)
-$lblConvPortF = New-Object System.Windows.Forms.Label; $lblConvPortF.Text = 'Port:'; $lblConvPortF.ForeColor = [System.Drawing.Color]::FromArgb(170,175,180); $lblConvPortF.Location = New-Object System.Drawing.Point(186,7); $lblConvPortF.Size = New-Object System.Drawing.Size(38,18); $pnlConvFilter.Controls.Add($lblConvPortF)
-$txtConvPortF = New-Object System.Windows.Forms.TextBox; $txtConvPortF.Location = New-Object System.Drawing.Point(226,5); $txtConvPortF.Size = New-Object System.Drawing.Size(72,20); $txtConvPortF.Font = New-Object System.Drawing.Font('Consolas',8.5); $txtConvPortF.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtConvPortF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($txtConvPortF)
-$lblConvProtoF = New-Object System.Windows.Forms.Label; $lblConvProtoF.Text = 'Protocol:'; $lblConvProtoF.ForeColor = [System.Drawing.Color]::FromArgb(170,175,180); $lblConvProtoF.Location = New-Object System.Drawing.Point(308,7); $lblConvProtoF.Size = New-Object System.Drawing.Size(64,18); $pnlConvFilter.Controls.Add($lblConvProtoF)
-$cmbConvProtoF = New-Object System.Windows.Forms.ComboBox; $cmbConvProtoF.Location = New-Object System.Drawing.Point(374,4); $cmbConvProtoF.Size = New-Object System.Drawing.Size(130,22); $cmbConvProtoF.DropDownStyle = 'DropDownList'; $cmbConvProtoF.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $cmbConvProtoF.ForeColor = [System.Drawing.Color]::White; $cmbConvProtoF.FlatStyle = 'Flat'; [void]$cmbConvProtoF.Items.Add('All'); $cmbConvProtoF.SelectedIndex = 0; $pnlConvFilter.Controls.Add($cmbConvProtoF)
-$btnConvClearF = New-Object System.Windows.Forms.Button; $btnConvClearF.Text = 'Clear'; $btnConvClearF.Location = New-Object System.Drawing.Point(512,4); $btnConvClearF.Size = New-Object System.Drawing.Size(52,22); $btnConvClearF.FlatStyle = 'Flat'; $btnConvClearF.BackColor = [System.Drawing.Color]::FromArgb(55,55,58); $btnConvClearF.ForeColor = [System.Drawing.Color]::White; $pnlConvFilter.Controls.Add($btnConvClearF)
-$lblConvCount = New-Object System.Windows.Forms.Label; $lblConvCount.Text = 'No capture loaded'; $lblConvCount.ForeColor = [System.Drawing.Color]::FromArgb(120,125,130); $lblConvCount.Location = New-Object System.Drawing.Point(572,7); $lblConvCount.Size = New-Object System.Drawing.Size(300,18); $pnlConvFilter.Controls.Add($lblConvCount)
 # Conversations ListView (Dock=Fill, full width -- packet detail opens in popup via right-click)
 $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false; $lvConv.HeaderStyle = [System.Windows.Forms.ColumnHeaderStyle]::None
@@ -1745,9 +1732,7 @@ foreach ($cd in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('
     $lh.ForeColor = [System.Drawing.Color]::FromArgb(155,165,178); $lh.Font = New-Object System.Drawing.Font('Cascadia Mono', 8)
     $pnlConvHdr.Controls.Add($lh); $_xOff += $cd[1]
 }
-# Dock order: WinForms docks Top controls in DESCENDING Controls-index order (highest index = absolute top).
-# To get Filter(top) -> Header -> List: add pnlConvHdr first (lower index) then pnlConvFilter (higher index).
-$subPcapConv.Controls.Add($pnlConvHdr); $subPcapConv.Controls.Add($pnlConvFilter); $subPcapConv.Controls.Add($lvConv)
+$subPcapConv.Controls.Add($pnlConvHdr); $subPcapConv.Controls.Add($lvConv)
 [void]$subPcapTabs.TabPages.Add($subPcapConv)
 
 # --- Tab 3: TLS Handshakes ---
@@ -1766,14 +1751,8 @@ $subPcapTls.Controls.Add($tvTls)
 $script:_allConvs = @(); $script:_convReady = $false; $script:_tshark = $null
 $script:_applyConvFilter = {
     if (-not $script:_convReady) { return }
-    $ipF    = $txtConvIpF.Text.Trim()
-    $portF  = $txtConvPortF.Text.Trim()
-    $protoF = if ($cmbConvProtoF.SelectedIndex -le 0) { '' } else { "$($cmbConvProtoF.SelectedItem)" }
     $lvConv.BeginUpdate(); $lvConv.Items.Clear(); $shown = 0
     foreach ($c in $script:_allConvs) {
-        if ($ipF   -and "$($c.SrcIP)" -notmatch [Regex]::Escape($ipF) -and "$($c.DstIP)" -notmatch [Regex]::Escape($ipF)) { continue }
-        if ($portF -and "$($c.SrcPort)" -ne $portF -and "$($c.DstPort)" -ne $portF) { continue }
-        if ($protoF -and "$($c.Protocol)" -ne $protoF) { continue }
         $lvi = New-Object System.Windows.Forms.ListViewItem("$($c.Date)")
         [void]$lvi.SubItems.Add("$($c.Time)"); [void]$lvi.SubItems.Add("$($c.SrcIP)")
         [void]$lvi.SubItems.Add("$($c.SrcPort)"); [void]$lvi.SubItems.Add("$($c.DstIP)")
@@ -1793,12 +1772,7 @@ $script:_applyConvFilter = {
         [void]$lvConv.Items.Add($lvi); $shown++
     }
     $lvConv.EndUpdate()
-    $lblConvCount.Text = "Showing $shown of $($script:_allConvs.Count) flow(s)"
 }
-$txtConvIpF.Add_TextChanged({ & $script:_applyConvFilter })
-$txtConvPortF.Add_TextChanged({ & $script:_applyConvFilter })
-$cmbConvProtoF.Add_SelectedIndexChanged({ & $script:_applyConvFilter })
-$btnConvClearF.Add_Click({ $txtConvIpF.Text = ''; $txtConvPortF.Text = ''; $cmbConvProtoF.SelectedIndex = 0 })
 
 # Shared helper: query tshark for the selected flow and open a popup window with full packet detail
 $script:_showConvDetail = {
