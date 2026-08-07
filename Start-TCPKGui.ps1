@@ -94,7 +94,7 @@ $script:DefaultFontName = try {
     elseif ($_fns -contains 'Cascadia Code') { 'Cascadia Code' }
     else { 'Consolas' }
 } catch { 'Consolas' }
-$form.Font = New-Object System.Drawing.Font($script:DefaultFontName, 10)
+$form.Font = New-Object System.Drawing.Font($script:DefaultFontName, 9)
 
 # Window / taskbar icon (assets\tcpk.ico). Replace that file to rebrand.
 $script:TcpkAssets = Join-Path $PSScriptRoot 'assets'
@@ -1720,7 +1720,7 @@ $subPcapConv = New-Object System.Windows.Forms.TabPage; $subPcapConv.Text = ' Co
 $lvConv = New-Object System.Windows.Forms.ListView
 $lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false; $lvConv.HeaderStyle = [System.Windows.Forms.ColumnHeaderStyle]::None
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
-$lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+$lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
 foreach ($colDef in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('Dst IP',118),@('Dst Port',66),@('Protocol',78),@('Packets',60),@('Bytes',66),@('Info',220),@('Src MAC',120),@('Dst MAC',120))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
@@ -1731,7 +1731,7 @@ $_xOff = 0
 foreach ($cd in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('Dst IP',118),@('Dst Port',66),@('Protocol',78),@('Packets',60),@('Bytes',66),@('Info',220),@('Src MAC',120),@('Dst MAC',120))) {
     $lh = New-Object System.Windows.Forms.Label; $lh.Text = $cd[0]; $lh.TextAlign = 'MiddleLeft'
     $lh.Location = New-Object System.Drawing.Point(($_xOff + 3), 0); $lh.Size = New-Object System.Drawing.Size(($cd[1] - 4), 22)
-    $lh.ForeColor = [System.Drawing.Color]::FromArgb(155,165,178); $lh.Font = New-Object System.Drawing.Font('Cascadia Mono', 8)
+    $lh.ForeColor = [System.Drawing.Color]::FromArgb(155,165,178); $lh.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
     $pnlConvHdr.Controls.Add($lh); $_xOff += $cd[1]
 }
 $subPcapConv.Controls.Add($pnlConvHdr); $subPcapConv.Controls.Add($lvConv)
@@ -1808,7 +1808,7 @@ $script:_showConvDetail = {
     $pnlPopTop.Dock = 'Top'; $pnlPopTop.Height = 38; $pnlPopTop.BackColor = [System.Drawing.Color]::FromArgb(22,22,30)
     $lblPopSum = New-Object System.Windows.Forms.Label
     $lblPopSum.Dock = 'Fill'; $lblPopSum.Padding = New-Object System.Windows.Forms.Padding(10,5,10,0)
-    $lblPopSum.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+    $lblPopSum.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
     $lblPopSum.ForeColor = [System.Drawing.Color]::FromArgb(200,208,218)
     $lblPopSum.Text = "${sip}:${sport}  ->  ${dip}:${dport}    Proto: $proto    Packets: $pkts    Bytes: $bytes    Src MAC: $smac    Dst MAC: $dmac"
     $pnlPopTop.Controls.Add($lblPopSum)
@@ -1818,7 +1818,7 @@ $script:_showConvDetail = {
     $rtbDiss.Dock = 'Fill'; $rtbDiss.ReadOnly = $true; $rtbDiss.WordWrap = $false
     $rtbDiss.BackColor = [System.Drawing.Color]::FromArgb(15,15,19)
     $rtbDiss.ForeColor = [System.Drawing.Color]::FromArgb(190,202,215)
-    $rtbDiss.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+    $rtbDiss.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
     $rtbDiss.BorderStyle = 'None'
     $rtbDiss.Text = 'Loading dissection...'
 
@@ -1853,7 +1853,7 @@ $subPcapSearch = New-Object System.Windows.Forms.TabPage; $subPcapSearch.Text = 
 $lvSearch = New-Object System.Windows.Forms.ListView
 $lvSearch.Dock = 'Fill'; $lvSearch.View = 'Details'; $lvSearch.FullRowSelect = $true; $lvSearch.GridLines = $true
 $lvSearch.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvSearch.ForeColor = [System.Drawing.Color]::White
-$lvSearch.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+$lvSearch.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
 foreach ($colDef in @(@('#',60),@('Time',80),@('Src',130),@('Dst',130),@('Protocol',90),@('Info',600))) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvSearch.Columns.Add($lvc)
 }
@@ -1958,7 +1958,7 @@ $lblVulnCount = New-Object System.Windows.Forms.Label; $lblVulnCount.Text = "Vul
 $lvVuln = New-Object System.Windows.Forms.ListView
 $lvVuln.Dock = 'Fill'; $lvVuln.View = 'Details'; $lvVuln.FullRowSelect = $true; $lvVuln.GridLines = $true
 $lvVuln.BackColor = [System.Drawing.Color]::FromArgb(20,15,15); $lvVuln.ForeColor = [System.Drawing.Color]::White
-$lvVuln.Font = New-Object System.Drawing.Font('Cascadia Mono', 8.5)
+$lvVuln.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
 foreach ($__vCol in @(@('Severity',90),@('Rule ID',160),@('Title',350),@('Evidence',300),@('Fix',300))) {
     $__vc = New-Object System.Windows.Forms.ColumnHeader; $__vc.Text = $__vCol[0]; $__vc.Width = $__vCol[1]; [void]$lvVuln.Columns.Add($__vc)
 }
@@ -2623,7 +2623,7 @@ $txtAsarFilter.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.W
 $asarFilterRow.Controls.Add($txtAsarFilter)
 $asarLeft.Controls.Add($asarFilterRow)
 $lstAsar = New-Object System.Windows.Forms.ListBox
-$lstAsar.Dock = 'Fill'; $lstAsar.Font = New-Object System.Drawing.Font('Consolas', 8.5); $lstAsar.DisplayMember = 'path'; $lstAsar.IntegralHeight = $false
+$lstAsar.Dock = 'Fill'; $lstAsar.Font = New-Object System.Drawing.Font('Consolas', 9); $lstAsar.DisplayMember = 'path'; $lstAsar.IntegralHeight = $false
 $lstAsar.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $lstAsar.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228); $lstAsar.BorderStyle = 'None'
 $asarLeft.Controls.Add($lstAsar); $lstAsar.BringToFront()
 # Nest the Left list + Fill viewer inside a Dock=Fill body panel so the Top strip above spans
@@ -3250,7 +3250,7 @@ $hexTop.Controls.Add($btnHexLoad)
 $btnHexPe = New-Object System.Windows.Forms.Button
 $btnHexPe.Text = "PE"; $btnHexPe.Location = New-Object System.Drawing.Point(820, 10); $btnHexPe.Size = New-Object System.Drawing.Size(46, 26)
 $btnHexPe.FlatStyle = 'Flat'; $btnHexPe.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexPe.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
-$btnHexPe.Font = New-Object System.Drawing.Font('Segoe UI', 8, [System.Drawing.FontStyle]::Bold)
+$btnHexPe.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $hexTop.Controls.Add($btnHexPe)
 $btnHexDiff = New-Object System.Windows.Forms.Button
 $btnHexDiff.Text = "Diff..."; $btnHexDiff.Location = New-Object System.Drawing.Point(872, 10); $btnHexDiff.Size = New-Object System.Drawing.Size(72, 26)
@@ -3465,7 +3465,7 @@ $pdToolbar.Controls.Add($btnPdAnalyze)
 $lblPdNote = New-Object System.Windows.Forms.Label
 $lblPdNote.Text = 'uses file loaded in Hex view'; $lblPdNote.Location = New-Object System.Drawing.Point(82, 7)
 $lblPdNote.Size = New-Object System.Drawing.Size(220, 16); $lblPdNote.ForeColor = [System.Drawing.Color]::FromArgb(100, 100, 100)
-$lblPdNote.Font = New-Object System.Drawing.Font('Segoe UI', 8)
+$lblPdNote.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $pdToolbar.Controls.Add($lblPdNote)
 $pnlPdMode.Controls.Add($pdToolbar)
 
@@ -3478,20 +3478,20 @@ $lblPdStatus.Font = New-Object System.Drawing.Font('Segoe UI', 7.5)
 $pnlPdMode.Controls.Add($lblPdStatus)
 
 $pdMain = New-Object System.Windows.Forms.TabControl
-$pdMain.Dock = 'Fill'; $pdMain.Font = New-Object System.Drawing.Font('Segoe UI', 8.5)
+$pdMain.Dock = 'Fill'; $pdMain.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 
 $pdTabSum = New-Object System.Windows.Forms.TabPage; $pdTabSum.Text = 'Sum'; $pdTabSum.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$pdMain.TabPages.Add($pdTabSum)
 $txtPiSum = New-Object System.Windows.Forms.RichTextBox
 $txtPiSum.Dock = 'Fill'; $txtPiSum.ReadOnly = $true; $txtPiSum.WordWrap = $false
-$txtPiSum.Font = New-Object System.Drawing.Font('Consolas', 8.5); $txtPiSum.BackColor = $piDark; $txtPiSum.ForeColor = $piWhite
+$txtPiSum.Font = New-Object System.Drawing.Font('Consolas', 9); $txtPiSum.BackColor = $piDark; $txtPiSum.ForeColor = $piWhite
 $txtPiSum.Text = 'Click Analyze.'; $pdTabSum.Controls.Add($txtPiSum)
 
 $pdTabSec = New-Object System.Windows.Forms.TabPage; $pdTabSec.Text = 'Secs'; $pdTabSec.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$pdMain.TabPages.Add($pdTabSec)
 $lvPiSec = New-Object System.Windows.Forms.ListView
 $lvPiSec.Dock = 'Fill'; $lvPiSec.View = 'Details'; $lvPiSec.FullRowSelect = $true; $lvPiSec.GridLines = $true
-$lvPiSec.HeaderStyle = 'Nonclickable'; $lvPiSec.Font = New-Object System.Drawing.Font('Consolas', 8.5)
+$lvPiSec.HeaderStyle = 'Nonclickable'; $lvPiSec.Font = New-Object System.Drawing.Font('Consolas', 9)
 $lvPiSec.BackColor = $piDark; $lvPiSec.ForeColor = $piWhite
 [void]$lvPiSec.Columns.Add('Name', 65); [void]$lvPiSec.Columns.Add('VirtAddr', 82)
 [void]$lvPiSec.Columns.Add('VirtSize', 70); [void]$lvPiSec.Columns.Add('RawOff', 82)
@@ -3503,7 +3503,7 @@ $pdTabExp = New-Object System.Windows.Forms.TabPage; $pdTabExp.Text = 'Exp'; $pd
 [void]$pdMain.TabPages.Add($pdTabExp)
 $lvPiExp = New-Object System.Windows.Forms.ListView
 $lvPiExp.Dock = 'Fill'; $lvPiExp.View = 'Details'; $lvPiExp.FullRowSelect = $true; $lvPiExp.GridLines = $true
-$lvPiExp.HeaderStyle = 'Nonclickable'; $lvPiExp.Font = New-Object System.Drawing.Font('Consolas', 8.5)
+$lvPiExp.HeaderStyle = 'Nonclickable'; $lvPiExp.Font = New-Object System.Drawing.Font('Consolas', 9)
 $lvPiExp.BackColor = $piDark; $lvPiExp.ForeColor = $piWhite
 [void]$lvPiExp.Columns.Add('Name', 165); [void]$lvPiExp.Columns.Add('Ord', 48)
 [void]$lvPiExp.Columns.Add('RVA', 72); [void]$lvPiExp.Columns.Add('Fwd', 48)
@@ -3520,7 +3520,7 @@ $lblPiRichHint.Font = New-Object System.Drawing.Font('Segoe UI', 7.5); $pdRichHd
 $pdTabRich.Controls.Add($pdRichHdr)
 $lvPiRich = New-Object System.Windows.Forms.ListView
 $lvPiRich.Dock = 'Fill'; $lvPiRich.View = 'Details'; $lvPiRich.FullRowSelect = $true; $lvPiRich.GridLines = $true
-$lvPiRich.HeaderStyle = 'Nonclickable'; $lvPiRich.Font = New-Object System.Drawing.Font('Consolas', 8.5)
+$lvPiRich.HeaderStyle = 'Nonclickable'; $lvPiRich.Font = New-Object System.Drawing.Font('Consolas', 9)
 $lvPiRich.BackColor = $piDark; $lvPiRich.ForeColor = $piWhite
 [void]$lvPiRich.Columns.Add('ToolId', 52); [void]$lvPiRich.Columns.Add('Tool', 135)
 [void]$lvPiRich.Columns.Add('Build#', 60); [void]$lvPiRich.Columns.Add('Cnt', 52)
@@ -3530,7 +3530,7 @@ $pdTabVer = New-Object System.Windows.Forms.TabPage; $pdTabVer.Text = 'Ver'; $pd
 [void]$pdMain.TabPages.Add($pdTabVer)
 $txtPiVer = New-Object System.Windows.Forms.RichTextBox
 $txtPiVer.Dock = 'Fill'; $txtPiVer.ReadOnly = $true; $txtPiVer.WordWrap = $false
-$txtPiVer.Font = New-Object System.Drawing.Font('Consolas', 8.5); $txtPiVer.BackColor = $piDark; $txtPiVer.ForeColor = $piWhite
+$txtPiVer.Font = New-Object System.Drawing.Font('Consolas', 9); $txtPiVer.BackColor = $piDark; $txtPiVer.ForeColor = $piWhite
 $txtPiVer.Text = 'Click Analyze.'; $pdTabVer.Controls.Add($txtPiVer)
 
 $pnlPdMode.Controls.Add($pdMain); $pdMain.BringToFront()
@@ -5553,7 +5553,7 @@ $lblCpuPct.AutoSize  = $false
 $lblCpuPct.Location  = New-Object System.Drawing.Point(0, 0)
 $lblCpuPct.Size      = New-Object System.Drawing.Size(96, 15)
 $lblCpuPct.TextAlign = 'MiddleLeft'
-$lblCpuPct.Font      = New-Object System.Drawing.Font('Consolas', 8, [System.Drawing.FontStyle]::Bold)
+$lblCpuPct.Font      = New-Object System.Drawing.Font('Consolas', 9, [System.Drawing.FontStyle]::Bold)
 $lblCpuPct.ForeColor = [System.Drawing.Color]::FromArgb(166, 226, 46)
 $pnlRes.Controls.Add($lblCpuPct)
 
@@ -5579,7 +5579,7 @@ $lblRamMb.AutoSize  = $false
 $lblRamMb.Location  = New-Object System.Drawing.Point(0, 17)
 $lblRamMb.Size      = New-Object System.Drawing.Size(96, 15)
 $lblRamMb.TextAlign = 'MiddleLeft'
-$lblRamMb.Font      = New-Object System.Drawing.Font('Consolas', 8, [System.Drawing.FontStyle]::Bold)
+$lblRamMb.Font      = New-Object System.Drawing.Font('Consolas', 9, [System.Drawing.FontStyle]::Bold)
 $lblRamMb.ForeColor = [System.Drawing.Color]::FromArgb(102, 217, 239)
 $pnlRes.Controls.Add($lblRamMb)
 
@@ -7343,7 +7343,7 @@ $disclaimerStrip.Height = 22
 $disclaimerStrip.BackColor = [System.Drawing.Color]::FromArgb(120, 0, 0)
 $disclaimerStrip.ForeColor = [System.Drawing.Color]::White
 $disclaimerStrip.TextAlign = 'MiddleCenter'
-$disclaimerStrip.Font = New-Object System.Drawing.Font('Segoe UI', 8, [System.Drawing.FontStyle]::Bold)
+$disclaimerStrip.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $disclaimerStrip.Text = "FOR AUTHORIZED TESTING ONLY  --  misuse is solely YOUR responsibility; the author(s) / community accept NO liability.  Provided AS IS, no warranty.  See DISCLAIMER.txt"
 $form.Controls.Add($disclaimerStrip)
 $disclaimerStrip.BringToFront()
