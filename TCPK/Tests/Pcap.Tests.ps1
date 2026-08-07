@@ -16,8 +16,10 @@ BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
 
-    # a tiny pcapng: one HTTP GET carrying 'Authorization: Basic YWRtaW46c2VjcmV0' (admin:secret)
-    $b64 = 'Cg0NCsQAAABNPCsaAQAAAP//////////AQAiAEdlbmVyYXRlZCBmcm9tIGlucHV0IGZpbGUgcmVxLmhleC4AAAIAPAAxMXRoIEdlbiBJbnRlbChSKSBDb3JlKFRNKSBpNy0xMTg1MEggQCAyLjUwR0h6ICh3aXRoIFNTRTQuMikDABYATGludXggNy4wLjAtMjgtZ2VuZXJpYwAABAAbAFRleHQycGNhcCAoV2lyZXNoYXJrKSA0LjYuNgAAAAAAxAAAAAEAAAA4AAAAAQAAAAAABAACABIARmFrZSBJRiwgdGV4dDJwY2FwAAAJAAEACQAAAAAAAAA4AAAABgAAAOAAAAAAAAAAB7/GGOhpX+m9AAAAvQAAACBSRUNWACBTRU5EAAgARQAArxI0AAD/BpIPCgEBAQoCAgKr4ABQAAAAAAAAAABQACAAjeEAAEdFVCAvYWRtaW4vY29uZmlnIEhUVFAvMS4xDQpIb3N0OiBwYW5lbC5jcmVzdHJvbi5sb2NhbA0KQXV0aG9yaXphdGlvbjogQmFzaWMgWVdSdGFXNDZjMlZqY21WMA0KVXNlci1BZ2VudDogQ3Jlc3Ryb25WaXJ0dWFsUGFuZWwvMS4wDQoNCgAAAOAAAAA='
+    # a tiny pcapng: one HTTP GET carrying 'Authorization: Basic YWRtaW46c2VjcmV0' (admin:secret).
+    # Fully synthetic: RFC1918 addresses, a .test host, and a Section Header Block with no
+    # capture-machine options. Regenerate with the block layout in pcapng RFC section 4.
+    $b64 = 'Cg0NChwAAABNPCsaAQAAAP//////////HAAAAAEAAAAoAAAAAQAAAAAAAAACAAwAVENQSyB0ZXN0IElGAAAAACgAAAAGAAAA2AAAAAAAAAAAAAAAAAAAALUAAAC1AAAAAgAAAAABAgAAAAACCABFAACnEjQAAP8GkhcKAQEBCgICAqrgAFAAAAAAAAAAAFAYIAAAAAAAR0VUIC9hZG1pbi9jb25maWcgSFRUUC8xLjENCkhvc3Q6IGFwcC5leGFtcGxlLnRlc3QNCkF1dGhvcml6YXRpb246IEJhc2ljIFlXUnRhVzQ2YzJWamNtVjANClVzZXItQWdlbnQ6IFRDUEstVGVzdC1DbGllbnQvMS4wDQoNCgAAANgAAAA='
     $script:pcap = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-pcaptest-" + [guid]::NewGuid().ToString('N') + '.pcapng')
     [IO.File]::WriteAllBytes($script:pcap, [Convert]::FromBase64String($b64))
 }
