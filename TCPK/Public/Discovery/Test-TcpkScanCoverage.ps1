@@ -74,8 +74,13 @@ function Test-TcpkScanCoverage {
     $packed     = [int]$s.PackedOpaqueCount
     $bigBundle  = [int]$s.BundleTooLargeCount
     $nativeOnly = [int]$s.NativeOnlyCount
+    # A CVE lookup that could not reach OSV or NVD. Same failure shape as WmiFailed: the CVE
+    # layer returns nothing, and a report with no dependency CVEs is what an application with
+    # no vulnerable dependencies produces. TCPK ships no offline CVE data, so there is no
+    # fallback -- an unreachable lookup means the supply-chain surface was never tested.
+    $cveFail    = [int]$s.CveLookupFailedCount
     if (($unreadable + $depth + $reparse + $viewCap + $viewDedup + $budgetOut + $wmiFail +
-         $packed + $bigBundle + $nativeOnly) -eq 0) { return }
+         $packed + $bigBundle + $nativeOnly + $cveFail) -eq 0) { return }
 
     $parts = New-Object 'System.Collections.Generic.List[string]'
     if ($unreadable) { $parts.Add("$unreadable directory(ies) unreadable") }
@@ -88,6 +93,7 @@ function Test-TcpkScanCoverage {
     if ($packed)     { $parts.Add("$packed packed/protected binary(ies) whose strings are opaque to static analysis") }
     if ($bigBundle)  { $parts.Add("$bigBundle single-file bundle(s) above the extractor size ceiling, so their assemblies were never carved") }
     if ($nativeOnly) { $parts.Add("$nativeOnly non-managed stack(s) the IL provers cannot read") }
+    if ($cveFail)    { $parts.Add("$cveFail CVE lookup(s) could not reach OSV/NVD, so those components were never checked") }
     $summary = $parts -join '; '
 
     $sample = New-Object 'System.Collections.Generic.List[string]'
@@ -101,6 +107,7 @@ function Test-TcpkScanCoverage {
     foreach ($p in @($s.PackedOpaqueSample))  { $sample.Add("packed: $p") }
     foreach ($p in @($s.BundleTooLargeSample)){ $sample.Add("bundle-too-large: $p") }
     foreach ($p in @($s.NativeOnlySample))    { $sample.Add("native-only: $p") }
+    foreach ($p in @($s.CveLookupFailedSample)){ $sample.Add("cve-lookup-failed: $p") }
     $sampleTxt = (@($sample) | Select-Object -First 12) -join ' ; '
 
     # Unreadable directories and a capped text view are the classes that represent an
@@ -114,7 +121,7 @@ function Test-TcpkScanCoverage {
     # confirmed above the ceiling. NativeOnly alone stays LOW, because a native target is a
     # correct and expected use of the tool rather than a degraded run of it -- the native
     # checks (PE hardening, unsafe CRT, imports) do apply and did run.
-    if ($packed -gt 0 -or $bigBundle -gt 0) { $sev = 'MEDIUM' }
+    if ($packed -gt 0 -or $bigBundle -gt 0 -or $cveFail -gt 0) { $sev = 'MEDIUM' }
     elseif ($nativeOnly -gt 0 -and $sev -eq 'INFO') { $sev = 'LOW' }
 
     $advice = 'Reparse points and depth-capped subtrees are deliberate limits, not errors.'
@@ -171,6 +178,16 @@ function Test-TcpkScanCoverage {
             'and point the audit at the extracted folder: Expand-TcpkSingleFile -Path <exe> ' +
             '-OutDir <dir>, then run the audit against <dir>.')
     }
+    if ($cveFail -gt 0) {
+        $advice = ('The CVE lookup could not reach OSV or NVD, so the components it was going to ' +
+            'query were never checked against any vulnerability source. TCPK ships NO offline CVE ' +
+            'database, so there was nothing to fall back to: the dependency and supply-chain ' +
+            'surface is UNTESTED for this run, not clean. A report with no dependency CVEs after ' +
+            'a failed lookup looks identical to one for an application with no vulnerable ' +
+            'packages. Re-run with network access to api.osv.dev and services.nvd.nist.gov. If ' +
+            'NVD rate-limiting is the cause, set an NVD_API_KEY environment variable, which ' +
+            'raises the limit from about 5 to 50 requests per 30 seconds.')
+    }
     if ($packed -gt 0) {
         $advice = ('A packer or protector was confirmed on the target. Its strings and code are ' +
             'compressed or encrypted until it runs, so the secret, endpoint, callsite, entropy ' +
@@ -187,6 +204,7 @@ function Test-TcpkScanCoverage {
     $title = "Scan coverage was incomplete: $summary"
     if ($nativeOnly -gt 0) { $title = "Static results are PARTIAL: non-managed target, IL analysis unavailable -- $summary" }
     if ($bigBundle -gt 0)  { $title = "Static results are INCOMPLETE: single-file bundle skipped for size, managed assemblies never scanned -- $summary" }
+    if ($cveFail -gt 0)    { $title = "Dependency CVE surface was NOT tested: the CVE lookup could not reach OSV/NVD -- $summary" }
     if ($packed -gt 0)     { $title = "Static results are UNRELIABLE: target is packed, text-level checks never saw the real code -- $summary" }
 
     New-TcpkFinding -Module 'discovery' -RuleId 'scan.incomplete-coverage' `

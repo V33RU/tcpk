@@ -202,6 +202,54 @@ Describe 'Scan reliability: non-managed stack declares the IL limit' {
     }
 }
 
+Describe 'Scan reliability: a failed CVE lookup is not a clean supply chain' {
+    BeforeAll {
+        & (Get-Module TCPK) { Reset-TcpkScanStats }
+        # Force a REAL network failure by pointing the OSV endpoint at an unroutable host,
+        # rather than mocking the transport. The .invalid TLD is reserved by RFC 2606 and
+        # can never resolve, so this exercises the actual catch block.
+        $script:osvMatches = & (Get-Module TCPK) {
+            $orig = $script:TcpkOsvBatchUri
+            $script:TcpkOsvBatchUri = 'https://osv-does-not-exist.invalid/v1/querybatch'
+            Reset-TcpkOsvQueryStatus
+            $comp = @(
+                [pscustomobject]@{ Name = 'Newtonsoft.Json'; Version = '9.0.1'; File = 'deps.json' },
+                [pscustomobject]@{ Name = 'log4net';         Version = '2.0.8'; File = 'deps.json' }
+            )
+            $r = @(Get-TcpkOsvQueryNet -Components $comp -Ecosystem 'NuGet' -TimeoutSec 5 -WarningAction SilentlyContinue)
+            $script:TcpkOsvBatchUri = $orig
+            , $r
+        }
+        $script:cveStats = & (Get-Module TCPK) { Get-TcpkScanStats }
+        $script:cveCov   = @(Test-TcpkScanCoverage)
+    }
+
+    It 'returns no CVE matches, which on its own looks like a clean supply chain' {
+        @($script:osvMatches).Count | Should -Be 0
+    }
+
+    It 'registers the failed lookup instead of leaving it to a console warning' {
+        [int]$script:cveStats.CveLookupFailedCount | Should -BeGreaterThan 0
+    }
+
+    It 'names the component count and the transport error in the sample' {
+        (@($script:cveStats.CveLookupFailedSample) -join ' ') | Should -Match '2 component'
+    }
+
+    It 'reports at MEDIUM and says the dependency surface was NOT tested' {
+        $c = @($script:cveCov | Where-Object { $_.RuleId -eq 'scan.incomplete-coverage' })
+        $c.Count | Should -Be 1
+        $c[0].Severity   | Should -Be 'MEDIUM'
+        "$($c[0].Title)" | Should -Match 'NOT tested'
+    }
+
+    It 'states there is no offline database to fall back to' {
+        $c = @($script:cveCov | Where-Object { $_.RuleId -eq 'scan.incomplete-coverage' })
+        "$($c[0].Fix)" | Should -Match 'NO offline CVE database'
+        "$($c[0].Fix)" | Should -Match 'UNTESTED for this run, not clean'
+    }
+}
+
 Describe 'Scan reliability: a managed stack does NOT trigger the native limit' {
     It 'stays silent for an Avalonia/.NET target' {
         $mdir = Join-Path $script:work 'managed'

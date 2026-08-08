@@ -248,7 +248,8 @@ $btnPause.Add_Click({
 
 # Online CVE toggle -- on the main scan-options row so it is visible on every screen (not buried
 # in the SBOM tab). Checked by default: live CVE via OSV (NuGet/Electron) + NVD/CPE (native libs).
-# Uncheck for an offline, air-gapped run (bundled catalog only).
+# Unchecking it makes the run fully air-gapped. Note TCPK ships no offline CVE data, so an
+# unchecked run performs NO CVE matching at all rather than falling back to a local catalog.
 $chkOnlineCve = New-Object System.Windows.Forms.CheckBox
 $chkOnlineCve.Text = "Online CVE"; $chkOnlineCve.ForeColor = [System.Drawing.Color]::White
 $chkOnlineCve.Location = New-Object System.Drawing.Point(700, 41)
@@ -256,7 +257,7 @@ $chkOnlineCve.Size = New-Object System.Drawing.Size(112, 22)
 $chkOnlineCve.Checked = $true
 $topPanel.Controls.Add($chkOnlineCve)
 $ttOnlineCve = New-Object System.Windows.Forms.ToolTip
-$ttOnlineCve.SetToolTip($chkOnlineCve, "Live CVE lookup: OSV (NuGet/Electron) + NVD/CPE (native libs: OpenSSL/zlib/sqlite). Uncheck = offline catalog only. Sends only package/CPE name+version.")
+$ttOnlineCve.SetToolTip($chkOnlineCve, "Live CVE lookup: OSV (NuGet/Electron) + NVD/CPE (native libs: OpenSSL/zlib/sqlite). Sends only package/CPE name+version to those services. Unchecked = NO CVE matching is performed; TCPK ships no offline CVE database.")
 
 # --- AI row (y=108) -----------------------------------------------------------
 $chkAi = New-Object System.Windows.Forms.CheckBox
@@ -816,7 +817,8 @@ $txtSbomFilter = New-Object System.Windows.Forms.TextBox
 $txtSbomFilter.Location = New-Object System.Drawing.Point(52, 25); $txtSbomFilter.Size = New-Object System.Drawing.Size(470, 22)
 $txtSbomFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtSbomFilter.ForeColor = [System.Drawing.Color]::White
 $txtSbomFilter.Add_TextChanged({ Filter-Sbom })
-# Live-CVE (OSV) toggle. OFF by default = offline catalog only. Ticking it makes the NEXT
+# Live-CVE (OSV) toggle. Unticking it means NO CVE matching runs at all (no offline data
+# is shipped). Ticking it makes the NEXT
 # audit ALSO query the OSV API for the shipped NuGet components (sends only package
 # name + version). It lives on this tab because CVE matches surface here, and its state
 # persists for the session -- one tick covers every audit you run.

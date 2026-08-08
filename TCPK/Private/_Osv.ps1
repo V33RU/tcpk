@@ -3,8 +3,12 @@
 # opt-in (Get-TcpkCveMatches -OnlineCve / Invoke-TcpkAudit -OnlineCve). TCPK is offline by
 # default; when enabled this sends ONLY public component identifiers (package name + version
 # + ecosystem) to https://api.osv.dev -- never findings, secrets, file contents, or the target
-# name. It fails CLOSED: any network/parse error returns nothing and the caller keeps the
-# offline catalog result.
+# name. It fails CLOSED: any network or parse error returns nothing and caches nothing, so the
+# next run retries rather than reading back a fabricated clean entry. Failing closed is correct,
+# but it is not silent by itself: TCPK ships NO offline CVE data, so a failed query means the
+# component was never checked against any source, and zero CVE findings then looks exactly like
+# an app with no vulnerable dependencies. The gap is registered via
+# Add-TcpkScanSkip 'CveLookupFailed' so Test-TcpkScanCoverage states it in the report.
 
 $script:TcpkOsvBatchUri = 'https://api.osv.dev/v1/querybatch'
 $script:TcpkOsvVulnUri  = 'https://api.osv.dev/v1/vulns'
@@ -141,7 +145,12 @@ function Get-TcpkOsvQueryNet {
         # Ok stays $false, Answered stays empty -> the caller caches NOTHING and the next
         # run retries instead of reading a fabricated clean entry.
         $st.Reason = "$($_.Exception.Message)"
-        Write-Warning "OSV online query failed ($($st.Reason)); nothing will be cached, so the next run retries."
+        # A warning on the console is not enough. It does not reach the HTML/Excel report,
+        # and the report is where someone decides the dependencies are fine. With no CVE
+        # findings emitted, that report is identical to one for an app with no vulnerable
+        # packages. Register the gap so Test-TcpkScanCoverage states it as a coverage fact.
+        try { Add-TcpkScanSkip -Kind 'CveLookupFailed' -ItemPath "OSV querybatch ($($queries.Count) component(s)): $($st.Reason)" } catch { }
+        Write-Warning "OSV online query failed ($($st.Reason)); nothing will be cached, so the next run retries. The dependency surface is UNTESTED for this run, not clean."
         return
     }
 

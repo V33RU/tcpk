@@ -176,6 +176,13 @@ function Reset-TcpkScanStats {
         BundleTooLargeSample= (New-Object 'System.Collections.Generic.List[string]')
         NativeOnlyCount     = 0
         NativeOnlySample    = (New-Object 'System.Collections.Generic.List[string]')
+        # A CVE lookup that could not reach OSV or NVD. Same shape as WmiFailed and for the
+        # same reason: on a network failure the CVE layer returns nothing, and a report with
+        # no dependency CVEs is byte-for-byte what an application with no vulnerable
+        # dependencies produces. TCPK ships no offline CVE data, so a failed lookup means the
+        # supply-chain surface was not tested at all, not that it came back clean.
+        CveLookupFailedCount  = 0
+        CveLookupFailedSample = (New-Object 'System.Collections.Generic.List[string]')
     }
 }
 
@@ -231,6 +238,10 @@ function Add-TcpkScanSkip {
         'NativeOnly' {
             $s.NativeOnlyCount++
             if ($ItemPath -and $s.NativeOnlySample.Count -lt $script:TcpkScanSampleCap) { $s.NativeOnlySample.Add($ItemPath) }
+        }
+        'CveLookupFailed' {
+            $s.CveLookupFailedCount++
+            if ($ItemPath -and $s.CveLookupFailedSample.Count -lt $script:TcpkScanSampleCap) { $s.CveLookupFailedSample.Add($ItemPath) }
         }
     }
 }

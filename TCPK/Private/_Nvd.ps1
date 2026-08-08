@@ -108,7 +108,9 @@ function Test-TcpkNvdInRange {
 # NETWORK (opt-in). Query NVD by CPE for each native component; return version-accurate matches.
 # Rate limits: NVD allows ~5 requests / 30s anonymous, 50 / 30s with an API key (env NVD_API_KEY).
 # We sleep between requests to stay under the anonymous limit; a small native inventory is a few
-# requests. Failures are non-fatal (warn + return what we have) so the offline catalog still stands.
+# requests. A failure is non-fatal to the RUN (warn + return what we have) but it is not
+# harmless: TCPK ships no offline CVE data, so an unreachable NVD means that component was
+# never checked. The gap is registered via Add-TcpkScanSkip 'CveLookupFailed'.
 function Get-TcpkNvdMatches {
     [CmdletBinding()]
     param([object[]]$Components, [int]$TimeoutSec = 25, [string]$ApiKey = $env:NVD_API_KEY)
@@ -127,7 +129,12 @@ function Get-TcpkNvdMatches {
         try {
             $resp = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec $TimeoutSec -ErrorAction Stop
         } catch {
-            Write-Warning "NVD online query for $product@$ver failed ($($_.Exception.Message)); keeping the offline catalog result only."
+            # This used to say it was "keeping the offline catalog result only". There is no
+            # offline catalog: TCPK ships no CVE data. A failed NVD query means this native
+            # library was NOT checked against any vulnerability source, so saying it fell back
+            # to something told the operator the opposite of what happened.
+            try { Add-TcpkScanSkip -Kind 'CveLookupFailed' -ItemPath "NVD $product@$ver ($cpeName): $($_.Exception.Message)" } catch { }
+            Write-Warning "NVD online query for $product@$ver failed ($($_.Exception.Message)); this component was NOT checked against any CVE source."
             continue
         }
         foreach ($v in @($resp.vulnerabilities)) {
