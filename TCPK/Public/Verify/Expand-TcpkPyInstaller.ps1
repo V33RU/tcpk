@@ -54,7 +54,7 @@ function Expand-TcpkPyInstaller {
     recursively for either.
 
 .PARAMETER OutDir
-    Extraction root. Default: a fresh folder under the system temp directory. The
+    Extraction root. Default: a fresh folder under <tool folder>\work\extract\. The
     per-target root is reported on the inventory finding's .File so other Test-Tcpk*
     cmdlets can be pointed at it.
 
@@ -161,7 +161,7 @@ function Expand-TcpkPyInstaller {
     }
 
     if (-not $OutDir) {
-        $OutDir = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-pyinst-' + [guid]::NewGuid().ToString('N'))
+        $OutDir = Join-Path (Get-TcpkWorkDir -Kind 'extract') ('pyinst-' + [guid]::NewGuid().ToString('N'))
     }
 
     $magic = [byte[]]@(0x4D, 0x45, 0x49, 0x0C, 0x0B, 0x0A, 0x0B, 0x0E)   # 'MEI' + 0C 0B 0A 0B 0E

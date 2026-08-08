@@ -1267,7 +1267,7 @@ function Invoke-TcpkPcapCaptureFile {
     $dumpcap = Get-TcpkDumpcap -Override $DumpcapPath
     if (-not $dumpcap) { throw "dumpcap not found -- install Wireshark (it includes dumpcap)." }
     if ($Seconds -lt 1) { $Seconds = 1 }
-    if (-not $OutFile) { $OutFile = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-cap-' + [guid]::NewGuid().ToString('N') + '.pcapng') }
+    if (-not $OutFile) { $OutFile = New-TcpkWorkPath -Kind 'capture' -Prefix 'cap' -Extension 'pcapng' }
     $a = @('-i', $Interface, '-a', "duration:$Seconds", '-w', $OutFile, '-q')
     if ($Filter) { $a += @('-f', $Filter) }
     try { & $dumpcap @a 2>&1 | Out-Null } catch { throw "dumpcap failed: $($_.Exception.Message)" }

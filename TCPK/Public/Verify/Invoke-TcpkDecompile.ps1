@@ -51,7 +51,7 @@ function Invoke-TcpkDecompile {
 
     if ($IlspycmdPath -and (Test-Path -LiteralPath $IlspycmdPath)) {
         # 2) Decompile whole module to a temp file, then grep + extract context
-        $tmp = Join-Path $env:TEMP "tcpk-decompile-$([Guid]::NewGuid().ToString().Substring(0,8)).cs"
+        $tmp = New-TcpkWorkPath -Kind 'run' -Prefix 'decompile' -Extension 'cs'
         try {
             & $IlspycmdPath -o (Split-Path $tmp -Parent) -p (Split-Path $tmp -Leaf) $Dll 2>&1 | Out-Null
             if (-not (Test-Path $tmp)) {

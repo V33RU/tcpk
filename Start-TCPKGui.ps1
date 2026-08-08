@@ -226,7 +226,14 @@ $topPanel.Controls.Add($btnRun)
 # Pause / Resume the running audit. Pause holds the audit at the next check boundary
 # (a shared signal file the background job watches) so the operator can change the
 # target / environment, then Resume continues. Enabled only while an audit is running.
-$script:PauseFlag = Join-Path ([System.IO.Path]::GetTempPath()) ("tcpk-pause-$PID.flag")
+# Everything TCPK writes stays under the tool folder, including this flag. $PSScriptRoot is
+# the tool folder because this script sits at its root; the module's Get-TcpkWorkDir is not
+# used here because this line runs before the module is guaranteed to be imported.
+$script:TcpkWorkRun = Join-Path $PSScriptRoot 'work\run'
+if (-not (Test-Path -LiteralPath $script:TcpkWorkRun)) {
+    try { New-Item -ItemType Directory -Path $script:TcpkWorkRun -Force -ErrorAction Stop | Out-Null } catch { }
+}
+$script:PauseFlag = Join-Path $script:TcpkWorkRun "pause-$PID.flag"
 $btnPause = New-Object System.Windows.Forms.Button
 $btnPause.Text = "Pause"
 $btnPause.Location = New-Object System.Drawing.Point(942, 40)
@@ -2479,7 +2486,7 @@ function Expand-GuiAsar([string]$target) {
         if ($jr -lt [int]$jsonSize) { return @{ error = 'asar header truncated' } }
         $tree = [System.Text.Encoding]::UTF8.GetString($jb, 0, [int]$jsonSize) | ConvertFrom-Json
         $base = 8 + $headerObjSize
-        $outDir = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
+        $outDir = Join-Path $PSScriptRoot ('work\extract\asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
         New-Item -ItemType Directory -Path $outDir -Force | Out-Null
         $rootFull = [System.IO.Path]::GetFullPath($outDir)
         $files = New-Object System.Collections.Generic.List[object]

@@ -59,7 +59,7 @@ function Test-TcpkRegistryWrites {
     }
 
     $sess = "TCPK-RegWrites-$([Guid]::NewGuid().ToString().Substring(0, 8))"
-    $etl  = Join-Path $env:TEMP "$sess.etl"
+    $etl  = Join-Path (Get-TcpkWorkDir -Kind 'trace') "$sess.etl"
     $started = $false
 
     # Provider GUID for kernel-mode registry operations (documented, stable across Win10/11).

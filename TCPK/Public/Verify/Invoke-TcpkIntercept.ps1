@@ -81,7 +81,7 @@ function Invoke-TcpkIntercept {
         if (-not $frida) { throw "frida not found. Install with 'pip install frida-tools', drop the frida binary in tools\frida\, or add it to PATH." }
         $hookScript = Get-TcpkHookScript
         if (-not (Test-Path -LiteralPath $hookScript)) { throw "hook script missing: $hookScript" }
-        $cap = Join-Path ([System.IO.Path]::GetTempPath()) ("tcpk-hook-" + [guid]::NewGuid().ToString('N') + ".log")
+        $cap = New-TcpkWorkPath -Kind 'capture' -Prefix 'hook' -Extension 'log'
         $fp = $null
         try {
             Write-TcpkInfo "[intercept] frida-spawning $(Split-Path $Target -Leaf) with the TCPK hook (~${DurationSec}s)"
@@ -110,7 +110,7 @@ function Invoke-TcpkIntercept {
         $tamperAddon = Get-TcpkTamperAddon
         if (-not (Test-Path -LiteralPath $tamperAddon)) { throw "tamper addon missing: $tamperAddon" }
         if ($Port -le 0) { $Port = Get-TcpkFreePort }
-        $log = Join-Path ([System.IO.Path]::GetTempPath()) ("tcpk-tamper-" + [guid]::NewGuid().ToString('N') + ".log")
+        $log = New-TcpkWorkPath -Kind 'capture' -Prefix 'tamper' -Extension 'log'
         $env:TCPK_TAMPER_RULES = (ConvertTo-TcpkTamperRules -Rules $TamperRules)
         $env:TCPK_TAMPER_OUT = $log
         $mp = $null; $tp = $null; $ph = $env:HTTP_PROXY; $ps = $env:HTTPS_PROXY
@@ -141,7 +141,7 @@ function Invoke-TcpkIntercept {
     if (-not (Test-Path -LiteralPath $addon)) { throw "capture addon missing: $addon" }
     if ($Port -le 0) { $Port = Get-TcpkFreePort }
 
-    $out = Join-Path ([System.IO.Path]::GetTempPath()) ("tcpk-flows-" + [guid]::NewGuid().ToString('N') + ".jsonl")
+    $out = New-TcpkWorkPath -Kind 'capture' -Prefix 'flows' -Extension 'jsonl'
     $env:TCPK_INTERCEPT_OUT = $out
     $mp = $null; $tp = $null; $prevHttp = $env:HTTP_PROXY; $prevHttps = $env:HTTPS_PROXY
     $savedProxy = Get-TcpkWinInetProxy

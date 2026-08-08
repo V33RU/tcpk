@@ -13,12 +13,12 @@ function Expand-TcpkMsix {
         return $item.FullName
     }
 
-    $dest = Join-Path $env:TEMP ("TCPK_" + [IO.Path]::GetFileNameWithoutExtension($Path))
+    $dest = Get-TcpkWorkDir -Kind 'extract' -Leaf ('msix_' + [IO.Path]::GetFileNameWithoutExtension($Path)) -NoCreate
     if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
     New-Item -ItemType Directory -Path $dest -Force | Out-Null
 
     # Expand-Archive in PS 5.1 dislikes non-.zip extensions; copy to .zip first.
-    $tmpZip = Join-Path $env:TEMP ([IO.Path]::GetRandomFileName() + '.zip')
+    $tmpZip = New-TcpkWorkPath -Kind 'run' -Prefix 'msixzip' -Extension 'zip'
     try {
         Copy-Item -LiteralPath $Path -Destination $tmpZip -Force
         Expand-Archive -LiteralPath $tmpZip -DestinationPath $dest -Force

@@ -218,7 +218,7 @@ $script:TcpkOsvCacheTtlDays = 7
 
 function Get-TcpkOsvCachePath {
     $base = $env:LOCALAPPDATA
-    if (-not $base) { $base = $env:TEMP }
+    if (-not $base) { $base = Get-TcpkWorkDir -Kind 'vulndb' }
     $dir = Join-Path $base 'TCPK'
     if (-not (Test-Path -LiteralPath $dir)) {
         try { New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null } catch { }

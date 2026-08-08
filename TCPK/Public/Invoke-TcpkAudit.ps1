@@ -125,11 +125,14 @@ function Invoke-TcpkAudit {
         Write-TcpkInfo "Authorization acknowledged via -Acknowledge."
     }
 
-    # Default OutDir under .\out\<target-leaf>_<date>
+    # Default OutDir under <tool folder>\work\out\<target-leaf>_<date>.
+    # It used to be CWD-relative, so reports landed wherever the operator's prompt happened
+    # to be standing and did not travel with the tool. A report can contain real recovered
+    # secrets, so it belongs with everything else TCPK produces, under one removable folder.
     if (-not $OutDir) {
         $leaf = Split-Path -Leaf $Target
         $stamp = (Get-Date).ToString('yyyy-MM-dd')
-        $OutDir = Join-Path (Get-Location) ("out\${leaf}_${stamp}")
+        $OutDir = Get-TcpkWorkDir -Kind 'out' -Leaf "${leaf}_${stamp}" -NoCreate
     }
     if (-not (Test-Path $OutDir)) { New-Item -ItemType Directory -Path $OutDir -Force | Out-Null }
 

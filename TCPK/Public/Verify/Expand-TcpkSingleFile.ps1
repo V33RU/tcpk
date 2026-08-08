@@ -23,7 +23,8 @@ function Expand-TcpkSingleFile {
     A single-file .exe, or a folder (recursive) that contains one or more of them.
 
 .PARAMETER OutDir
-    Where to extract. Default: a fresh folder under %TEMP%.
+    Where to extract. Default: a fresh folder under <tool folder>\work\extract\. Everything TCPK writes stays inside
+    the tool folder so it travels with the tool and leaves nothing on the target machine.
 
 .OUTPUTS
     [TcpkFinding]
@@ -41,7 +42,7 @@ function Expand-TcpkSingleFile {
             Where-Object { $_.Extension.ToLowerInvariant() -eq '.exe' }
     } else { @($item) }
 
-    if (-not $OutDir) { $OutDir = Join-Path $env:TEMP ('tcpk-singlefile-' + [guid]::NewGuid().ToString('N')) }
+    if (-not $OutDir) { $OutDir = Join-Path (Get-TcpkWorkDir -Kind 'extract') ('singlefile-' + [guid]::NewGuid().ToString('N')) }
     $rules = Get-TcpkSecretRegexRules
 
     foreach ($exe in $exes) {

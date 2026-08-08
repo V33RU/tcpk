@@ -3,6 +3,13 @@
 # Audit outputs can contain REAL secrets extracted from a target. Never commit.
 # ---------------------------------------------------------------------------
 
+# Everything TCPK creates at runtime lives under work/ inside the tool folder, so that it
+# travels with the tool and one delete removes it all. It is ALL engagement data -- extracted
+# application code, decompiled sources, captured traffic, memory dumps, reports -- and none
+# of it may ever be committed.
+work/
+**/work/
+
 # Audit output folders + artifacts (may contain real findings/secrets)
 out/
 **/out/

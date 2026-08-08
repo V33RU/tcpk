@@ -230,13 +230,14 @@ function Start-TcpkWebAuditJob {
     $jobId = [guid]::NewGuid().ToString('N')
     # Write reports to a persistent, discoverable <repo-parent>\out\<target>_<stamp> folder -- the
     # SAME location the desktop GUI uses -- instead of a throwaway %TEMP% dir. Tests pass
-    # $State.OutRoot to redirect into a temp dir; falls back to %TEMP% if the root cannot resolve.
+    # $State.OutRoot to redirect the output root; falls back to <tool folder>\work\out\ if the
+    # root cannot resolve. Never outside the tool folder.
     $stamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
     $leaf = try { Split-Path $target -Leaf } catch { '' }; if (-not $leaf) { $leaf = 'audit' }
     $outRoot = if ("$($State.OutRoot)") { "$($State.OutRoot)" } else { try { Split-Path -Parent (Split-Path -Parent $script:TcpkRoot) } catch { $null } }
-    $outDir = if ($outRoot) { Join-Path $outRoot "out\${leaf}_$stamp" } else { Join-Path ([IO.Path]::GetTempPath()) ("tcpk-web-" + $jobId) }
+    $outDir = if ($outRoot) { Join-Path $outRoot "work\out\${leaf}_$stamp" } else { Get-TcpkWorkDir -Kind 'out' -Leaf ("web-" + $jobId) -NoCreate }
     if (-not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
-    $pauseFlag = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-webpause-" + $jobId + ".flag")
+    $pauseFlag = Join-Path (Get-TcpkWorkDir -Kind 'run') ("webpause-" + $jobId + ".flag")
 
     $params = @{ Target = $target; OutDir = $outDir; Acknowledge = $true; PauseSignalPath = $pauseFlag }
     if ($bodyObj) {

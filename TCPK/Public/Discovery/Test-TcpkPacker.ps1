@@ -33,7 +33,8 @@ function Test-TcpkPacker {
 
 .PARAMETER Unpack
     Opt-in: when a UPX-packed binary is found and upx.exe is on PATH, auto-unpack a
-    COPY (upx -d) to %TEMP% and report the path so the static checks can run on the
+    COPY (upx -d) into <tool folder>\work\extract\ and report the path so the static
+    checks can run on the
     real code. Only UPX is auto-reversible; commercial protectors (Themida/VMProtect)
     require a dynamic unpacker and are never touched.
 
@@ -196,7 +197,7 @@ function Test-TcpkPacker {
                             -File $pe.FullName -Evidence 'install UPX and re-run with -Unpack' `
                             -Description 'UPX was detected but the upx tool is not available to reverse it.'
                     } else {
-                        $dest = Join-Path $env:TEMP ('tcpk-unpacked-' + [guid]::NewGuid().ToString('N') + '-' + $pe.Name)
+                        $dest = Join-Path (Get-TcpkWorkDir -Kind 'extract') ('unpacked-' + [guid]::NewGuid().ToString('N').Substring(0,8) + '-' + $pe.Name)
                         try {
                             Copy-Item -LiteralPath $pe.FullName -Destination $dest -Force
                             & $upxExe -d -q $dest 2>$null | Out-Null

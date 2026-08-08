@@ -18,7 +18,8 @@ function Expand-TcpkAsar {
     A .asar file, or a folder (recursive) containing one or more *.asar.
 
 .PARAMETER OutDir
-    Where to extract. Default: a fresh folder under %TEMP%.
+    Where to extract. Default: a fresh folder under <tool folder>\work\extract\. Everything TCPK writes stays inside
+    the tool folder so it travels with the tool and leaves nothing on the target machine.
 
 .OUTPUTS
     [TcpkFinding]
@@ -36,7 +37,7 @@ function Expand-TcpkAsar {
         @(Get-Item -LiteralPath $Path)
     } else { @() }
 
-    if (-not $OutDir) { $OutDir = Join-Path $env:TEMP ('tcpk-asar-' + [guid]::NewGuid().ToString('N')) }
+    if (-not $OutDir) { $OutDir = Join-Path (Get-TcpkWorkDir -Kind 'extract') ('asar-' + [guid]::NewGuid().ToString('N')) }
     $rules = Get-TcpkSecretRegexRules
     $flagRx = '(?i)(nodeIntegration\s*:\s*true|contextIsolation\s*:\s*false|webSecurity\s*:\s*false|allowRunningInsecureContent\s*:\s*true|sandbox\s*:\s*false)'
     $scanExt = @('.js','.mjs','.cjs','.ts','.json','.html','.env','.txt','.map')

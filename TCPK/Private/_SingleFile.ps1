@@ -213,7 +213,7 @@ function Expand-TcpkSingleFileForScan {
     foreach ($exe in $exes) {
         if ($null -eq (Test-TcpkSingleFileExe -Path $exe.FullName)) { continue }
         if (-not $outRoot) {
-            $outRoot = Join-Path $env:TEMP ("TCPK_sf_" + [IO.Path]::GetRandomFileName().Replace('.', ''))
+            $outRoot = Join-Path (Get-TcpkWorkDir -Kind 'extract') ('sf_' + [guid]::NewGuid().ToString('N').Substring(0,12))
             New-Item -ItemType Directory -Path $outRoot -Force | Out-Null
         }
         $sub = Join-Path $outRoot $exe.BaseName

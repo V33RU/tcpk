@@ -72,7 +72,9 @@ function Read-JsonFile([string]$path) {
 }
 function New-DefaultOutDir {
     $stamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
-    Join-Path $env:TEMP "tcpk-mcp\audit-$stamp"
+    # Under the tool folder, not %TEMP%: an audit output can contain recovered secrets and
+    # must travel with the tool rather than persist in the operator's profile.
+    Join-Path $PSScriptRoot "work\out\mcp-audit-$stamp"
 }
 
 # ---------------------------------------------------------------------------

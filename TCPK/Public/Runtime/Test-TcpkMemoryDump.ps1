@@ -39,8 +39,13 @@ function Test-TcpkMemoryDump {
             -Title 'procdump.exe not on PATH; install via .\Scripts\Install-Requirements.ps1'
         return
     }
+    # Track whether TCPK chose this path. When the operator supplies -DumpPath, the file is
+    # theirs: it may already exist and may be evidence they want to keep, so the cleanup
+    # below must not delete it. Only a dump TCPK created is TCPK's to remove.
+    $tcpkOwnsDump = $false
     if (-not $DumpPath) {
-        $DumpPath = Join-Path $env:TEMP "tcpk-$ProcessName-$([Guid]::NewGuid().ToString().Substring(0,8)).dmp"
+        $DumpPath = New-TcpkWorkPath -Kind 'dump' -Prefix "$ProcessName" -Extension 'dmp'
+        $tcpkOwnsDump = $true
     }
 
     & $Procdump -accepteula -ma $ProcessName $DumpPath 2>&1 | Out-Null
@@ -58,6 +63,11 @@ function Test-TcpkMemoryDump {
             $f
         }
     } finally {
-        Remove-Item $DumpPath -Force -ErrorAction SilentlyContinue
+        # A full -ma dump of a thick client holds whatever was in its memory, including any
+        # credential the app had decrypted. Delete it as soon as the scan is done. Only when
+        # TCPK created it: an operator-supplied -DumpPath is not ours to remove.
+        if ($tcpkOwnsDump) {
+            Remove-Item $DumpPath -Force -ErrorAction SilentlyContinue
+        }
     }
 }

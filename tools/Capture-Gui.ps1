@@ -30,8 +30,8 @@ Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
     ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force } catch {} }
 Start-Sleep -Seconds 1
 
-$o = Join-Path $env:TEMP 'tcpk-gui-cap-out.txt'
-$e = Join-Path $env:TEMP 'tcpk-gui-cap-err.txt'
+$o = Join-Path $PSScriptRoot '..\work\run\gui-cap-out.txt'
+$e = Join-Path $PSScriptRoot '..\work\run\gui-cap-err.txt'
 $p = Start-Process powershell.exe -PassThru -RedirectStandardOutput $o -RedirectStandardError $e -ArgumentList '-STA','-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$Gui`""
 $hwnd = [IntPtr]::Zero
 $sw = [System.Diagnostics.Stopwatch]::StartNew()

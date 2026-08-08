@@ -56,7 +56,7 @@ function Expand-TcpkMsiFile {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path)
     $full = (Resolve-Path -LiteralPath $Path).Path
-    $dest = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-msi-' + [guid]::NewGuid().ToString('N'))
+    $dest = Join-Path (Get-TcpkWorkDir -Kind 'extract') ('msi-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $dest -Force | Out-Null
     Write-TcpkInfo "Extracting MSI via 'msiexec /a' (administrative install -- no system changes): $(Split-Path $full -Leaf) -> $dest"
     $argStr = "/a `"$full`" /qn TARGETDIR=`"$dest`""
@@ -92,7 +92,7 @@ function Expand-TcpkZipFile {
     param([Parameter(Mandatory)][string]$Path)
     Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
     $full = (Resolve-Path -LiteralPath $Path).Path
-    $dest = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-zip-' + [guid]::NewGuid().ToString('N'))
+    $dest = Join-Path (Get-TcpkWorkDir -Kind 'extract') ('zip-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $dest -Force | Out-Null
     $root = (Resolve-Path -LiteralPath $dest).Path.TrimEnd([IO.Path]::DirectorySeparatorChar)
     Write-TcpkInfo "Extracting ZIP -> $dest"

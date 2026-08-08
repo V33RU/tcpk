@@ -318,7 +318,7 @@ function Get-TcpkAgentAsar {
         if ($jr -lt [int]$jsonSize) { return @{ error = 'asar header truncated' } }
         $tree = [System.Text.Encoding]::UTF8.GetString($jb, 0, [int]$jsonSize) | ConvertFrom-Json
         $base = 8 + $headerObjSize
-        $outDir = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
+        $outDir = Join-Path (Get-TcpkWorkDir -Kind 'extract') ('asar-' + [System.Guid]::NewGuid().ToString('N').Substring(0, 10))
         New-Item -ItemType Directory -Path $outDir -Force | Out-Null
         $rootFull = [System.IO.Path]::GetFullPath($outDir)
         $files = New-Object System.Collections.Generic.List[object]
