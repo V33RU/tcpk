@@ -24,9 +24,15 @@ the portable `tools\` layout, and PATH setup, see **[docs/INSTALL.md](docs/INSTA
 | **Windows PowerShell 5.1** (`powershell.exe`) | Ships with Windows | Yes |
 | The `TCPK\` module folder + `Start-TCPKGui.ps1` / `TCPK.bat` | The tool itself | Yes |
 
-That's it. No installs. All 115 checks, recon, CVE matching, reports, and
-exploit-PoC **generation** run on pure PowerShell + built-in Windows tools
-(`reg.exe`, `schtasks.exe`, `.NET` BCL). **Works fully offline / air-gapped.**
+That's it. No installs. All 254 cmdlets (174 detection checks across 19 buckets),
+recon, reports, and exploit-PoC **generation** run on pure PowerShell + built-in
+Windows tools (`reg.exe`, `schtasks.exe`, `.NET` BCL), so the static audit works
+**fully offline / air-gapped**.
+
+The one exception is **CVE matching**, which queries OSV and NVD over the network
+and is the only feature that needs internet at audit time. TCPK ships no offline
+CVE database, so on an air-gapped run it performs no CVE matching and the report
+says the dependency surface was not tested rather than showing it clean.
 
 ### How to run
 

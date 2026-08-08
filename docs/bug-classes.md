@@ -1,6 +1,6 @@
 # Thick-client bug class reference
 
-The 88 testcases TCPK covers, organized as a reading guide for engagement
+The bug classes TCPK covers, organized as a reading guide for engagement
 scoping and post-audit triage.
 
 ## Bucket A. Static binary analysis (20 testcases)

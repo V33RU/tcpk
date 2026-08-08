@@ -45,7 +45,7 @@ Invoke-TcpkAudit `
     -Acknowledge
 ```
 
-The orchestrator runs all 83 checks across 10 buckets, dedupes / triages via the
+The orchestrator runs the checks across 19 buckets, dedupes / triages via the
 Verify layer, and writes:
 
 - `out\YourApp\index.html`    -- the human-readable report

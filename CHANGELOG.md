@@ -2,6 +2,75 @@
 
 Release history for TCPK. Newest first.
 
+## v2.8.0
+
+Coverage and honesty release. The theme is that a check which cannot run must say
+so, rather than returning nothing and looking like a clean result.
+
+**New cmdlets (250 -> 254)**
+
+- **Test-TcpkJavaSigning** -- unsigned JARs (severity raised when the containing
+  directory is writable), mixed-signature archives where content entries are covered
+  by no `.SF` or `MANIFEST.MF` entry, and MD5/SHA1 digests. Structural reading only;
+  no signature is cryptographically verified and every finding says so.
+- **Expand-TcpkPyInstaller** -- carves the PyInstaller CArchive and cx_Freeze /
+  py2exe `library.zip`, so a Python thick client's code surface is readable. Recovers
+  `.pyc`; it does not decompile it. Refuses entries that resolve outside the output
+  directory.
+- **Test-TcpkGoRustDeps** -- recovers Go build-info modules and Rust crate versions
+  from statically linked binaries and feeds them to the existing OSV matching, so Go
+  and Rust targets get supply-chain coverage for the first time.
+- **Test-TcpkQtSurface** -- QSettings credential storage (value masked), the QProcess
+  single-string API family reported as surface rather than proven injection, bundled
+  Qt WebEngine, QML dynamic construction, and a `.rcc` inventory.
+
+**Coverage honesty**
+
+`Test-TcpkScanCoverage` now also reports four conditions where every check ran to
+completion and the results still are not evidence: a **packed** binary (the text rules
+read the stub), a **single-file bundle above the extractor ceiling** (its assemblies
+were never carved), a **non-managed target** (the IL provers had nothing to parse), and
+a **failed CVE lookup** (TCPK ships no offline CVE data, so the dependency surface was
+not tested). The first three and the CVE case raise the finding to MEDIUM and rewrite
+the title to say UNRELIABLE, INCOMPLETE or NOT TESTED.
+
+**Everything TCPK creates now lives inside the tool folder**
+
+Reports, extractions, captures, memory dumps and traces moved from `%TEMP%` and from
+CWD into `work\` under the tool folder (`out`, `extract`, `capture`, `dump`, `trace`,
+`vulndb`, `run`). Windows does not clear `%TEMP%` on reboot, so engagement data used to
+outlive the engagement and survive deleting TCPK. There is deliberately no fallback to a
+temp or profile path; `Set-TcpkWorkRoot` is the explicit override. `work/` is gitignored.
+
+**Fixes**
+
+- `Invoke-TcpkOnFileText -Utf8Only` built its view list in a way PowerShell unrolled on
+  assignment, so every caller received a one-character string. Nothing errored and the
+  checks simply matched nothing. This had silently disabled cert-validation bypass, IPC
+  handler-to-sink correlation, contextBridge analysis, deep-link surface and zip-slip
+  detection on Electron targets. Restores 26 detection tests and the benchmark's
+  `recall = 1.0` assertion.
+- `Test-TcpkMemoryDump` and `Invoke-TcpkDecompile` built their bundled-tool path with
+  `'..\..\'` from the module root, which resolved to a sibling of the tool folder, so a
+  bundled `procdump.exe` or `ilspycmd.exe` could never be found.
+- `Test-TcpkMemoryDump` deleted an operator-supplied `-DumpPath` it had not created.
+- The JIT allowlist in `Test-TcpkMemoryRegions` listed `vulkan-1.dll` and
+  `d3dcompiler_47.dll`, which ship in System32. Any Vulkan or D3D app tripped the JIT
+  gate and had a genuine RWX finding downgraded from HIGH to INFO.
+- The GUI called Pester's `InModuleScope`, undefined on a machine without Pester, so
+  AI-verify threw on a stock Windows box. It resolved `tshark` by PATH only, and
+  Wireshark does not add itself to PATH, so the Pcap tab silently did nothing on a
+  normal install.
+- Removed five strings promising an offline CVE catalogue that does not exist.
+
+**Documentation**
+
+- New `docs/INSTALL.md`: the eight optional tools, what each unlocks, and the two ways
+  TCPK finds them (a `tools\<name>\` folder checked before PATH, or a normal install).
+- `NOTICE` added, reproducing the Mono.Cecil MIT and CVSS v4.0 BSD-2-Clause notices with
+  the SHA256 of each shipped assembly.
+- Reconciled the check counts, which previously disagreed across seven documents.
+
 ## v2.7.1
 
 Scoping and GUI quality-of-life patch.

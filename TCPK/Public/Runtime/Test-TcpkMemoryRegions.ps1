@@ -88,9 +88,16 @@ function Test-TcpkMemoryRegions {
         # Electron statically links V8 into the main exe; the companion DLLs are still
         # separate: libglesv2.dll, libegl.dll, vk_swiftshader.dll are always present.
         'libglesv2.dll', 'libegl.dll', 'vk_swiftshader.dll', 'libvk_swiftshader.dll',
-        'vulkan-1.dll', 'd3dcompiler_47.dll', 'ffmpeg.dll',
         'libcef.dll',       # Chromium Embedded Framework host apps
         'chrome_elf.dll'    # branded Chromium browser builds only
+        # DELIBERATELY NOT LISTED: vulkan-1.dll and d3dcompiler_47.dll. Both ship in
+        # System32 and are loaded by ANY Vulkan or D3D shader-compiling process - games,
+        # Unity and Qt apps, emulators, CAD - none of which carry V8, the CLR or a JVM.
+        # Treating them as JIT proxies set $hasJit on those targets, and $hasJit drives
+        # the RWX verdict down from HIGH to INFO, so a genuine writable-executable
+        # finding was suppressed on a plain native app. ffmpeg.dll is out for the same
+        # reason: Chromium ships one, but so does every media player.
+        # The entries kept above are shipped BY the runtime itself, not by Windows.
     )
 
     foreach ($p in $procs) {

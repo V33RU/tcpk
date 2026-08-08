@@ -114,7 +114,9 @@ TCPK's distribution. Install them yourself if you want the related features.
   Sysinternals (ProcMon, etc.)   Microsoft EULA     process monitoring
   Ollama and hosted LLM APIs     varies by provider optional AI review
 
-The complete list of binary files tracked in this repository is the four
-Mono.Cecil assemblies named in section 1. Nothing else is redistributed.
+The four Mono.Cecil assemblies named in section 1 are the only third-party
+BINARIES redistributed here. The repository also tracks its own images (icons,
+logo, documentation screenshots), which are TCPK's own work and carry no
+third-party licence.
 
 ================================================================================
