@@ -178,6 +178,16 @@ function Test-TcpkPacker {
                     -Description "A packer/protector section was found. Packing hides code from static analysis and is sometimes used to evade AV; confirm it is intentional (commercial protector) and unpack to audit the real code." `
                     -Fix 'If this is your own product, ensure the protector is a known commercial one and document it; otherwise treat as suspicious.'
 
+                # Record the coverage consequence centrally, not just the fact of packing.
+                # A packed binary's strings are compressed or encrypted until it runs, so the
+                # secret, endpoint, callsite and entropy checks read the stub rather than the
+                # application. They return few or zero findings, which is indistinguishable
+                # from a clean binary. This finding alone does not tell the reader that; the
+                # scan-coverage record does, once, for the whole run.
+                # Registered only on the CONFIRMED section-name match, not on the entropy
+                # heuristic, which has legitimate causes such as compressed resources.
+                try { Add-TcpkScanSkip -Kind 'PackedOpaque' -ItemPath "$($pe.FullName) ($packerName)" } catch { }
+
                 if ($Unpack -and $packerName -eq 'UPX') {
                     if (-not $upxExe) {
                         New-TcpkFinding -Module 'static' -RuleId 'packer.unpack-skipped' `

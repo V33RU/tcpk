@@ -113,6 +113,14 @@ function Test-TcpkAppStack {
             note='A PyInstaller one-file build -- the .pyc archive is embedded in the .exe. Extract with pyinstxtractor, decompile the .pyc, and review for secrets, pickle.loads, eval/exec, and TLS verify=False.' })
     }
 
+    # Stacks whose application logic the managed-IL layer (Mono.Cecil) cannot read at all.
+    # For these, the IL provers -- Get-TcpkCryptoVerdicts, Get-TcpkTlsCallbackVerdicts, the
+    # TypeNameHandling verdict and the interprocedural taint pass -- have nothing to parse
+    # and return nothing. That silence is a CAPABILITY LIMIT, not a clean verdict, and the
+    # per-stack note below already says so in prose. Registering it centrally means the
+    # audit states it once as a coverage fact instead of relying on the reader noticing.
+    $ilBlind = @('python-frozen', 'qt', 'go-binary', 'rust-native', 'python-nuitka')
+
     foreach ($s in $stacks) {
         New-TcpkFinding -Module 'static' -RuleId "appstack.$($s.id)" `
             -Severity 'INFO' -Confidence 'Inferred' `
@@ -120,6 +128,10 @@ function Test-TcpkAppStack {
             -Evidence $s.name `
             -Description "Technology-stack fingerprint (so you know which TCPK checks actually apply). $($s.note)" `
             -Fix 'Informational. Use the noted tooling to cover the parts of this stack that TCPK''s managed-IL analysis does not reach.'
+
+        if ($ilBlind -contains "$($s.id)") {
+            try { Add-TcpkScanSkip -Kind 'NativeOnly' -ItemPath "$Path ($($s.name))" } catch { }
+        }
     }
 
     foreach ($k in $nativeLibs.Keys) {

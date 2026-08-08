@@ -64,7 +64,18 @@ function Test-TcpkScanCoverage {
     # identical to "no service is misconfigured". Without this counter an audit on a box with a
     # sick WMI service reads as a clean bill of health for the entire service attack surface.
     $wmiFail    = [int]$s.WmiFailedCount
-    if (($unreadable + $depth + $reparse + $viewCap + $viewDedup + $budgetOut + $wmiFail) -eq 0) { return }
+    # The three below are a different class from everything above. Those record parts of the
+    # tree that were not read; these record a target that WAS read in full, where every check
+    # ran to completion, and the results still are not evidence. A packed binary hands the
+    # text rules its decompression stub, an oversized single-file apphost is skipped by the
+    # extractor and its bundled assemblies never exist on disk to be scanned, and a native
+    # target gives the IL provers nothing to parse. In all three the checks return few or
+    # zero findings, which is byte-for-byte what a genuinely clean target produces.
+    $packed     = [int]$s.PackedOpaqueCount
+    $bigBundle  = [int]$s.BundleTooLargeCount
+    $nativeOnly = [int]$s.NativeOnlyCount
+    if (($unreadable + $depth + $reparse + $viewCap + $viewDedup + $budgetOut + $wmiFail +
+         $packed + $bigBundle + $nativeOnly) -eq 0) { return }
 
     $parts = New-Object 'System.Collections.Generic.List[string]'
     if ($unreadable) { $parts.Add("$unreadable directory(ies) unreadable") }
@@ -74,6 +85,9 @@ function Test-TcpkScanCoverage {
     if ($viewDedup)  { $parts.Add("$viewDedup file(s) read with repeated strings collapsed") }
     if ($budgetOut)  { $parts.Add("$budgetOut check(s) stopped early on the time budget") }
     if ($wmiFail)    { $parts.Add("$wmiFail WMI/CIM query(ies) failed or timed out") }
+    if ($packed)     { $parts.Add("$packed packed/protected binary(ies) whose strings are opaque to static analysis") }
+    if ($bigBundle)  { $parts.Add("$bigBundle single-file bundle(s) above the extractor size ceiling, so their assemblies were never carved") }
+    if ($nativeOnly) { $parts.Add("$nativeOnly non-managed stack(s) the IL provers cannot read") }
     $summary = $parts -join '; '
 
     $sample = New-Object 'System.Collections.Generic.List[string]'
@@ -84,6 +98,9 @@ function Test-TcpkScanCoverage {
     foreach ($p in @($s.ViewDedupedSample))    { $sample.Add("deduped: $p") }
     foreach ($p in @($s.BudgetStoppedSample)) { $sample.Add("budget-stopped: $p") }
     foreach ($p in @($s.WmiFailedSample))     { $sample.Add("wmi-failed: $p") }
+    foreach ($p in @($s.PackedOpaqueSample))  { $sample.Add("packed: $p") }
+    foreach ($p in @($s.BundleTooLargeSample)){ $sample.Add("bundle-too-large: $p") }
+    foreach ($p in @($s.NativeOnlySample))    { $sample.Add("native-only: $p") }
     $sampleTxt = (@($sample) | Select-Object -First 12) -join ' ; '
 
     # Unreadable directories and a capped text view are the classes that represent an
@@ -91,6 +108,14 @@ function Test-TcpkScanCoverage {
     # decisions: dedup keeps every distinct string and loses only repeat counts.
     $sev = 'INFO'
     if ($unreadable -gt 0 -or $viewCap -gt 0 -or $budgetOut -gt 0 -or $wmiFail -gt 0) { $sev = 'LOW' }
+    # A packed binary or a skipped bundle invalidates a whole FAMILY of results rather than
+    # leaving a gap in one subtree, so it outranks the classes above. The measured fact
+    # backing this is the count itself: N binaries were confirmed packed, or N bundles were
+    # confirmed above the ceiling. NativeOnly alone stays LOW, because a native target is a
+    # correct and expected use of the tool rather than a degraded run of it -- the native
+    # checks (PE hardening, unsafe CRT, imports) do apply and did run.
+    if ($packed -gt 0 -or $bigBundle -gt 0) { $sev = 'MEDIUM' }
+    elseif ($nativeOnly -gt 0 -and $sev -eq 'INFO') { $sev = 'LOW' }
 
     $advice = 'Reparse points and depth-capped subtrees are deliberate limits, not errors.'
     if ($viewDedup -gt 0 -and $unreadable -eq 0 -and $viewCap -eq 0) {
@@ -126,10 +151,47 @@ function Test-TcpkScanCoverage {
             'clean result. Treat the service and persistence surface as UNTESTED for this run. ' +
             'Check the Winmgmt service is running, then re-run: winmgmt /verifyrepository')
     }
+    if ($nativeOnly -gt 0) {
+        $advice = ('The target is a non-managed stack, so the IL provers (crypto verdicts, TLS ' +
+            'callback verdicts, TypeNameHandling, interprocedural taint) had no assembly to read ' +
+            'and returned nothing. That is a capability limit of the managed layer, not a clean ' +
+            'verdict. The native checks (PE hardening, unsafe CRT, imports/exports, packer, ' +
+            'signature) DID run and their results stand. Cover the application logic with a native ' +
+            'disassembler (Ghidra / IDA / radare2), or for a frozen Python target decompile the ' +
+            'recovered bytecode and re-scan the sources.')
+    }
+    # These two are last, so they win when several classes fired. Both mean the checks ran to
+    # completion against bytes that are not the application, which is the failure mode most
+    # easily mistaken for a clean result.
+    if ($bigBundle -gt 0) {
+        $advice = ('A .NET single-file apphost was larger than the extractor ceiling, so its ' +
+            'bundled assemblies were never carved and never existed on disk for the static ' +
+            'checks to read. The managed attack surface of that target is ABSENT from this ' +
+            'audit, not clean. Re-run with a higher ceiling, or extract the bundle yourself ' +
+            'and point the audit at the extracted folder: Expand-TcpkSingleFile -Path <exe> ' +
+            '-OutDir <dir>, then run the audit against <dir>.')
+    }
+    if ($packed -gt 0) {
+        $advice = ('A packer or protector was confirmed on the target. Its strings and code are ' +
+            'compressed or encrypted until it runs, so the secret, endpoint, callsite, entropy ' +
+            'and string checks read the packer stub rather than the application. A low or zero ' +
+            'finding count from those checks on this target is NOT evidence that it is clean, ' +
+            'because they never saw the real bytes. Unpack first, then re-run the audit against ' +
+            'the unpacked copy (for UPX, re-run with -Unpack; for a commercial protector, dump ' +
+            'the process image at runtime). Read the packer.detected finding for which protector.')
+    }
+
+    # Lead the title with the condition that invalidates results, not with whichever class
+    # happened to be counted first. A reader who sees only the title must still learn that
+    # the static results for this target cannot be trusted.
+    $title = "Scan coverage was incomplete: $summary"
+    if ($nativeOnly -gt 0) { $title = "Static results are PARTIAL: non-managed target, IL analysis unavailable -- $summary" }
+    if ($bigBundle -gt 0)  { $title = "Static results are INCOMPLETE: single-file bundle skipped for size, managed assemblies never scanned -- $summary" }
+    if ($packed -gt 0)     { $title = "Static results are UNRELIABLE: target is packed, text-level checks never saw the real code -- $summary" }
 
     New-TcpkFinding -Module 'discovery' -RuleId 'scan.incomplete-coverage' `
         -Severity $sev -Confidence 'Confirmed' `
-        -Title "Scan coverage was incomplete: $summary" `
+        -Title $title `
         -File '(scan coverage)' `
         -Evidence ("walked $($s.DirsWalked) directory(ies), max depth $($s.MaxDepthSeen); $summary" +
             $(if ($sampleTxt) { " -- $sampleTxt" } else { '' })) `
@@ -140,6 +202,11 @@ function Test-TcpkScanCoverage {
             'to be streamed are read in full, but the rules then see extracted printable runs ' +
             'rather than verbatim bytes; where a view hit its ceiling, part of even that was not ' +
             'evaluated. This is a statement about the completeness of the audit, not about the ' +
-            'application.') `
+            'application. Three of the classes counted here go further than a gap in one ' +
+            'subtree: a packed binary, a single-file bundle above the extractor ceiling, and a ' +
+            'non-managed stack all let every check run to completion against bytes that are not ' +
+            'the application code. Those checks then report few or zero findings, which is ' +
+            'identical to what a genuinely clean target produces, so where any of them is ' +
+            'counted above, read the affected results as NOT YET EXAMINED rather than clean.') `
         -Fix $advice
 }

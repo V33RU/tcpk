@@ -76,7 +76,22 @@ function Test-TcpkSingleFileExe {
     try {
         $fi = Get-Item -LiteralPath $Path -ErrorAction Stop
     } catch { return $null }
-    if ($fi.PSIsContainer -or $fi.Length -lt 64 -or $fi.Length -gt $MaxBytes) { return $null }
+    if ($fi.PSIsContainer -or $fi.Length -lt 64) { return $null }
+    # A file above the ceiling used to return $null, which is the SAME value this function
+    # returns for "not a single-file bundle". The caller cannot tell the two apart, so an
+    # oversized self-contained app had its whole managed attack surface skipped and the
+    # audit looked identical to one on a plain native exe. Record the shortfall centrally
+    # before returning, so Test-TcpkScanCoverage reports it for the run.
+    if ($fi.Length -gt $MaxBytes) {
+        try {
+            # Report exact bytes alongside MB. Rounding alone renders a sub-megabyte value
+            # as "0 MB", which reads as a bug in the reporter rather than a real ceiling.
+            $mb  = [math]::Round($fi.Length / 1MB, 1)
+            $cap = [math]::Round($MaxBytes  / 1MB, 1)
+            Add-TcpkScanSkip -Kind 'BundleTooLarge' -ItemPath ("$($fi.FullName) ($($fi.Length) bytes / $mb MB, ceiling $MaxBytes bytes / $cap MB)")
+        } catch { }
+        return $null
+    }
     try {
         $bytes = [IO.File]::ReadAllBytes($Path)
     } catch { return $null }

@@ -152,6 +152,30 @@ function Reset-TcpkScanStats {
         # from "no service is misconfigured" unless the gap is recorded here.
         WmiFailedCount      = 0
         WmiFailedSample     = (New-Object 'System.Collections.Generic.List[string]')
+        # ---- Conditions that make a whole FAMILY of results meaningless -------------
+        # The three above record parts of the tree that were not read. These three record
+        # something worse: the file WAS read, every check ran to completion, and the
+        # results are still not evidence of anything, because the bytes the checks saw
+        # do not contain the application's code or strings.
+        #
+        # PackedOpaque   the binary is packed / obfuscated, so its strings are encrypted
+        #                or generated at runtime. Every text-level check (secrets,
+        #                endpoints, callsites, entropy) returns few or zero findings on
+        #                it, which is byte-for-byte identical to a clean binary.
+        # BundleTooLarge a .NET single-file apphost above the extractor's size ceiling.
+        #                Test-TcpkSingleFileExe returns $null for it, which is the same
+        #                value it returns for "this is not a bundle", so the bundled
+        #                assemblies are never carved and the entire managed attack
+        #                surface is silently absent from the audit.
+        # NativeOnly     the target carries no managed assembly, so the IL-based provers
+        #                (crypto verdicts, TLS callback verdicts, taint) cannot run at
+        #                all. Their silence is a capability limit, not a clean verdict.
+        PackedOpaqueCount   = 0
+        PackedOpaqueSample  = (New-Object 'System.Collections.Generic.List[string]')
+        BundleTooLargeCount = 0
+        BundleTooLargeSample= (New-Object 'System.Collections.Generic.List[string]')
+        NativeOnlyCount     = 0
+        NativeOnlySample    = (New-Object 'System.Collections.Generic.List[string]')
     }
 }
 
@@ -195,6 +219,18 @@ function Add-TcpkScanSkip {
         'WmiFailed' {
             $s.WmiFailedCount++
             if ($ItemPath -and $s.WmiFailedSample.Count -lt $script:TcpkScanSampleCap) { $s.WmiFailedSample.Add($ItemPath) }
+        }
+        'PackedOpaque' {
+            $s.PackedOpaqueCount++
+            if ($ItemPath -and $s.PackedOpaqueSample.Count -lt $script:TcpkScanSampleCap) { $s.PackedOpaqueSample.Add($ItemPath) }
+        }
+        'BundleTooLarge' {
+            $s.BundleTooLargeCount++
+            if ($ItemPath -and $s.BundleTooLargeSample.Count -lt $script:TcpkScanSampleCap) { $s.BundleTooLargeSample.Add($ItemPath) }
+        }
+        'NativeOnly' {
+            $s.NativeOnlyCount++
+            if ($ItemPath -and $s.NativeOnlySample.Count -lt $script:TcpkScanSampleCap) { $s.NativeOnlySample.Add($ItemPath) }
         }
     }
 }
