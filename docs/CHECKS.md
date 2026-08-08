@@ -43,6 +43,8 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkEntropySecrets** - A12. Entropy-based secret detection in text / config / source files.
 - **Test-TcpkHollowingApis** - A32. Process hollowing / DLL injection / APC injection P/Invoke patterns in .NET PEs.
 - **Test-TcpkJavaBundle** - A35. Crack shipped Java archives (jar/war/ear) and scan entries for secrets + insecure-TLS markers.
+- **Test-TcpkJavaSigning** - JAR signing structure: unsigned archives (severity raised when the containing directory is writable), mixed-signature JARs where content entries appear in no .SF or MANIFEST.MF Name section, and MD5/SHA1 digest algorithms. Structural reading only; no signature is cryptographically verified, so pair it with `jarsigner -verify`.
+- **Test-TcpkGoRustDeps** - Recover the dependency set embedded in statically-linked binaries: Go build-info modules and versions, and Rust crate names/versions inferred best-effort from Cargo registry source paths. Feeds the same OSV/CVE matching as NuGet and npm.
 - **Test-TcpkJwt** - A14. Embedded JSON Web Token (JWT) discovery + weakness analysis.
 - **Test-TcpkMsixPsf** - A33. Package Support Framework (PSF) script injection in MSIX packages.
 - **Test-TcpkNativeInterop** - A18. Native interop -- unsafe Marshal / pointer patterns.
@@ -57,6 +59,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkResources** - A07. Embedded resource audit.
 - **Test-TcpkSecrets** - A08 -- Hardcoded-secret scan (regex rules over UTF-8 + UTF-16LE views).
 - **Test-TcpkSessionHandling** - A33. Session-handling hygiene (cookie HttpOnly/Secure/SameSite, token in URL, weak token generation, expiry) over shipped config / scripts / PE strings.
+- **Test-TcpkQtSurface** - Qt/C++ security surface: QSettings credential storage in .ini/.conf/.cfg (value always masked), the QProcess single-string command API family (surface, not proven injection), bundled Qt WebEngine Chromium and its observed version, QML dynamic construction (Qt.createQmlObject / Qt.include / eval) and remote QML, plus a .rcc resource-bundle inventory.
 - **Test-TcpkSignature** - A01. Authenticode chain validation.
 - **Test-TcpkStrings** - A06. Strings extraction with summary classification.
 - **Test-TcpkStrongName** - A05. .NET assembly strong-name presence check.
@@ -236,6 +239,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Disable-TcpkExploit** - Turn off the Exploit bucket for this PowerShell session.
 - **Enable-TcpkExploit** - Toggle on the Exploit bucket (K01-K06) for this PowerShell session.
 - **Expand-TcpkSingleFile** - Extract the managed assemblies bundled inside a .NET single-file (PublishSingleFile) apphost so every static scanner can read them (the full audit auto-extracts + re-scans).
+- **Expand-TcpkPyInstaller** - Carve the CArchive out of a PyInstaller-frozen .exe, and extract a cx_Freeze / py2exe library.zip, so the code surface of a Python thick client is readable (the full audit auto-extracts + re-scans). Recovers .pyc bytecode; it does not decompile it.
 - **Invoke-TcpkDecompile** - Drive ILSpy CLI to decompile and return source context for a method.
 - **Resolve-TcpkFindings** - Triage pipeline: dedupe + false-positive killers + confidence refinement.
 

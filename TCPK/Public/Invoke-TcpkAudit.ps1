@@ -356,8 +356,10 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkAmsiSurface'       { Test-TcpkAmsiSurface         -Path $expanded }
     _RunCheck 'Test-TcpkNativeInterop'       { Test-TcpkNativeInterop       -Path $expanded }
     _RunCheck 'Test-TcpkJavaBundle'          { Test-TcpkJavaBundle          -Path $expanded }
+    _RunCheck 'Test-TcpkJavaSigning'         { Test-TcpkJavaSigning         -Path $expanded }
     _RunCheck 'Test-TcpkDevArtifacts'        { Test-TcpkDevArtifacts        -Path $expanded }
     _RunCheck 'Test-TcpkDependencyConfusion' { Test-TcpkDependencyConfusion  -Path $expanded }
+    _RunCheck 'Test-TcpkGoRustDeps'          { Test-TcpkGoRustDeps          -Path $expanded }
     _RunCheck 'Test-TcpkEmbeddedScripts'     { Test-TcpkEmbeddedScripts     -Path $expanded }
     _RunCheck 'Test-TcpkWebViewNavTargets'   { Test-TcpkWebViewNavTargets   -Path $expanded }
     _RunCheck 'Test-TcpkNamedObjects'        { Test-TcpkNamedObjects        -Path $expanded }
@@ -391,6 +393,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkTauriConfig'         { Test-TcpkTauriConfig         -Path $expanded }
     _RunCheck 'Test-TcpkCsvInjection'        { Test-TcpkCsvInjection        -Path $expanded }
     _RunCheck 'Test-TcpkAppStack'            { Test-TcpkAppStack            -Path $expanded }
+    _RunCheck 'Test-TcpkQtSurface'           { Test-TcpkQtSurface           -Path $expanded }
 
     # ----- Single-file (.NET PublishSingleFile): extract bundled assemblies + re-scan -----
     # A single-file apphost embeds all managed assemblies inside the .exe, so the
@@ -412,6 +415,21 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkEntropySecrets (bundle)'   { Test-TcpkEntropySecrets   -Path $sfRoot }
         _RunCheck 'Test-TcpkAuthFlags (bundle)'        { Test-TcpkAuthFlags        -Path $sfRoot }
         _RunCheck 'Test-TcpkSessionHandling (bundle)'  { Test-TcpkSessionHandling  -Path $sfRoot }
+    }
+
+    # ----- Python-frozen (PyInstaller / cx_Freeze / py2exe): carve + re-scan -----
+    # A frozen .exe holds the whole app inside a CArchive (or a sibling library.zip),
+    # so the on-disk checks above see only the bootloader. Carve it out and re-run the
+    # text-level static checks against the recovered sources and data files. Extraction
+    # goes to a temp folder, so the ACL / dev-artifact checks are deliberately not re-run.
+    $pyRoot = $null
+    try { $pyRoot = @(Expand-TcpkPyInstaller -Path $expanded -PassThru | Where-Object { $_ -is [string] })[-1] } catch { $pyRoot = $null }
+    if ($pyRoot -and (Test-Path -LiteralPath $pyRoot)) {
+        _RunCheck 'Test-TcpkSecrets (python)'          { Test-TcpkSecrets          -Path $pyRoot }
+        _RunCheck 'Test-TcpkEndpoints (python)'        { Test-TcpkEndpoints        -Path $pyRoot }
+        _RunCheck 'Test-TcpkEntropySecrets (python)'   { Test-TcpkEntropySecrets   -Path $pyRoot }
+        _RunCheck 'Test-TcpkCallsites (python)'        { Test-TcpkCallsites        -Path $pyRoot }
+        _RunCheck 'Test-TcpkJwt (python)'              { Test-TcpkJwt              -Path $pyRoot }
     }
 
     # ----- Bucket B (MSIX manifest, 8 cmdlets) -----

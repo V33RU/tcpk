@@ -251,8 +251,22 @@ function Invoke-TcpkOnFileText {
     $v = Read-TcpkStringViews -Path $Path
     if ($v) {
         Register-TcpkViewCoverage -Views $v
-        $views = if ($Utf8Only) { @(, @($v.Utf8, 'utf8')) }
-                 else { @(@($v.Utf8, 'utf8'), @($v.Utf16Le, 'utf16le'), @($v.Utf16LeOdd, 'utf16le-odd')) }
+        # BUILT WITH A LIST, NOT AN ARRAY LITERAL, AND THE DIFFERENCE WAS A SILENT BUG.
+        # The -Utf8Only branch used to be `@(, @($v.Utf8, 'utf8'))`. That is an array
+        # holding ONE array, and a statement's value is UNROLLED on its way out of the
+        # if-block, so the assignment received the inner array itself: $views became the
+        # flat 2-element @($text, 'utf8'). foreach then iterated the TEXT and the LABEL as
+        # two separate "pairs", and $pair[0] / $pair[1] indexed into a STRING -- so every
+        # -Utf8Only caller was handed a one-character $Text and a one-character $Src, twice.
+        # Nothing errored; the checks simply matched nothing, which is indistinguishable
+        # from a clean file. Three call sites were affected (Test-TcpkElectron x2,
+        # Test-TcpkDiagConfig). A List is immune: .Add stores each pair as one element.
+        $views = New-Object 'System.Collections.Generic.List[object]'
+        $views.Add(@($v.Utf8, 'utf8'))
+        if (-not $Utf8Only) {
+            $views.Add(@($v.Utf16Le, 'utf16le'))
+            $views.Add(@($v.Utf16LeOdd, 'utf16le-odd'))
+        }
         foreach ($pair in $views) {
             if ($State.Stop) { return }
             & $OnText $pair[0] $pair[1] $State
