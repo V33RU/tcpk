@@ -29,14 +29,16 @@ function Test-TcpkMemoryDump {
     if (-not $Procdump) {
         $cmd = Get-Command procdump.exe -ErrorAction SilentlyContinue
         if (-not $cmd) {
-            # Try the bundled tools path
-            $bundled = Join-Path $script:TcpkRoot '..\..\tools\Procdump\procdump.exe'
+            # Try the bundled tools path. $script:TcpkRoot is <tool folder>\TCPK, so the
+            # tools directory is ONE level up. This was '..\..\', which resolved to a
+            # sibling of the tool folder and could never find a bundled procdump.
+            $bundled = Join-Path $script:TcpkRoot '..\tools\Procdump\procdump.exe'
             if (Test-Path $bundled) { $Procdump = (Resolve-Path $bundled).Path }
         } else { $Procdump = $cmd.Source }
     }
     if (-not $Procdump -or -not (Test-Path $Procdump)) {
         New-TcpkSkippedFinding -RuleId 'memory-dump.no-procdump' `
-            -Title 'procdump.exe not on PATH; install via .\Scripts\Install-Requirements.ps1'
+            -Title 'procdump.exe not found; see docs/INSTALL.md (Sysinternals ProcDump), or drop it in the tools\Procdump folder'
         return
     }
     # Track whether TCPK chose this path. When the operator supplies -DumpPath, the file is

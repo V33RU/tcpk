@@ -81,6 +81,8 @@ Reports land in `.\out\<target>_<date>\`: `index.html`, `report.xlsx`, `findings
 
 Windows 10/11, PowerShell 5.1 or 7+. Admin only for some deep runtime checks. Optional local AI
 needs [Ollama](https://ollama.com) + a pulled model (e.g. `qwen2.5-coder:7b`).
+Optional tools per tab (Wireshark for pcap, mitmproxy for intercept, frida for runtime
+hooks) install separately: see [docs/INSTALL.md](docs/INSTALL.md). The static audit needs none of them.
 
 ## Authorized use only
 

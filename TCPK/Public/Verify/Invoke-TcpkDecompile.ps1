@@ -44,7 +44,9 @@ function Invoke-TcpkDecompile {
         $cmd = Get-Command ilspycmd -ErrorAction SilentlyContinue
         if ($cmd) { $IlspycmdPath = $cmd.Source }
         else {
-            $bundled = Join-Path $script:TcpkRoot '..\..\tools\ilspycmd\ilspycmd.exe'
+            # One level up, not two: $script:TcpkRoot is <tool folder>\TCPK, so '..\..\'
+            # resolved to a sibling of the tool folder and never found a bundled copy.
+            $bundled = Join-Path $script:TcpkRoot '..\tools\ilspycmd\ilspycmd.exe'
             if (Test-Path $bundled) { $IlspycmdPath = (Resolve-Path $bundled).Path }
         }
     }

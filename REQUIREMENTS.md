@@ -9,6 +9,11 @@ double-click `TCPK.bat`, and run.
 Everything below the "Required" section is **optional** and only adds
 convenience (AI triage, exploit execution).
 
+Some GUI tabs need an external tool before they do anything: the **Pcap tab
+needs Wireshark's `tshark`**, Intercept needs `mitmdump`, and the runtime hook
+checks need `frida`. None of them affect the static audit. For install commands,
+the portable `tools\` layout, and PATH setup, see **[docs/INSTALL.md](docs/INSTALL.md)**.
+
 ---
 
 ## 1. Required (to run TCPK and produce a full report)
@@ -163,6 +168,9 @@ machine** (Cascadia Code ships with Windows Terminal). To add others:
 | AI auto-triage of findings | Ollama (free, local) (+ Mono.Cecil.dll for .NET IL) |
 | Cloud AI | Provider API key |
 | Run a generated exploit PoC | Frida and/or a C compiler |
+| Analyse a .pcap (Pcap tab) | **Wireshark** (`tshark`) - see [docs/INSTALL.md](docs/INSTALL.md) |
+| Capture live traffic | Wireshark with **Npcap** (`dumpcap`) |
+| Intercept / tamper HTTP | **mitmproxy** (`mitmdump`) |
 | Live memory dump | ProcDump |
 | Rebuild the EXE | ps2exe |
 | Extra coding fonts | Install the `.ttf` |
