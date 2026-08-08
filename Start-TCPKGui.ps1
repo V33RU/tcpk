@@ -1243,7 +1243,12 @@ $btnPcapGo.Add_Click({
     $p = @{ Path = $file }
     if ($txtKeylog.Text.Trim()) { $p.KeylogFile = $txtKeylog.Text.Trim() }
     if ($txtRsa.Text.Trim())    { $p.RsaKeyFile = $txtRsa.Text.Trim() }
-    $script:_tshark = try { (Get-Command tshark -ErrorAction Stop).Source } catch { $null }
+    # Resolve via the module's own resolver, not PATH. Wireshark does NOT add itself to
+    # PATH on Windows, so Get-Command alone reports "not installed" on a perfectly normal
+    # install and the whole pcap tab silently does nothing. Get-TcpkTshark probes
+    # tools\wireshark\, both Program Files locations, then PATH.
+    $script:_tshark = try { & (Get-Module TCPK) { Get-TcpkTshark } } catch { $null }
+    if (-not $script:_tshark) { $script:_tshark = try { (Get-Command tshark -ErrorAction Stop).Source } catch { $null } }
 
     # Clear output, switch to Findings sub-tab, then run main security analysis
     $txtOutP.Clear()
@@ -1289,7 +1294,7 @@ $btnPcapGo.Add_Click({
     }
     Write-IcptLine $txtOutP ("   Conversations: {0} flows | Network Graph: {1} node(s) -- see tabs`r`n" -f $convs.Count, $gNodes.Count) ([System.Drawing.Color]::FromArgb(100,110,120))
     if ($convs.Count -eq 0) {
-        $tsharkBin = try { (Get-Command tshark -ErrorAction Stop).Source } catch { $null }
+        $tsharkBin = if ($script:_tshark) { $script:_tshark } else { try { & (Get-Module TCPK) { Get-TcpkTshark } } catch { $null } }
         if ($tsharkBin) {
             $diagRows = @(& $tsharkBin -r $file -n -T fields '-E' "separator=`t" -e ip.src -e ip.dst -c 3 2>$null)
             if ($diagRows.Count -gt 0) {
@@ -1779,7 +1784,7 @@ $script:_applyConvFilter = {
 # Shared helper: query tshark for the selected flow and open a popup window with full packet detail
 $script:_showConvDetail = {
     param($sel)
-    $tsharkBin = if ($script:_tshark) { $script:_tshark } else { try { (Get-Command tshark -ErrorAction Stop).Source } catch { $null } }
+    $tsharkBin = if ($script:_tshark) { $script:_tshark } else { try { & (Get-Module TCPK) { Get-TcpkTshark } } catch { $null } }
     $pcapPath  = if ($script:_pcapRunParams.Path) { $script:_pcapRunParams.Path } else { $null }
     if (-not $tsharkBin -or -not $pcapPath -or -not (Test-Path -LiteralPath $pcapPath)) { return }
     $sip   = $sel.SubItems[2].Text;  $sport = $sel.SubItems[3].Text
@@ -6049,12 +6054,16 @@ function Set-AiConfigFromGui {
     $model = $txtAiModel.Text
     $key = $txtAiKey.Text
 
-    # Write into the module's config + enable cloud if needed (in-module-scope)
-    InModuleScope TCPK -ArgumentList $provider, $model, $key, $preset.needsKey {
+    # Write into the module's config + enable cloud if needed.
+    # Runs in the module's own scope so $script:TcpkLlmCloudEnabled is the module's
+    # variable. Uses the call operator against the module, NOT Pester's InModuleScope:
+    # that is a test-framework cmdlet and is undefined on a machine without Pester,
+    # which is every stock Windows box the GUI actually ships to.
+    & (Get-Module TCPK) {
         param($provider, $model, $key, $needsKey)
         Set-TcpkLlmConfig -Provider $provider -Model $model -ApiKey $key -Enabled $true | Out-Null
         if ($needsKey) { $script:TcpkLlmCloudEnabled = $true }
-    }
+    } $provider $model $key $preset.needsKey
     return $true
 }
 

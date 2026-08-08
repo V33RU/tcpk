@@ -234,13 +234,19 @@ Describe 'Expand-TcpkPyInstaller CArchive extraction' {
         $inv[0].Evidence | Should -Match 'python=3\.11'
     }
 
-    It 'flags that only bytecode was recovered, with no source' {
+    It 'records bytecode-only recovery as a coverage limit, not a weakness' {
         $bc = @($script:fA | Where-Object { $_.RuleId -eq 'pyfrozen.bytecode-only' })
         $bc.Count | Should -Be 1
-        $bc[0].Severity | Should -Be 'MEDIUM'
-        $bc[0].Evidence | Should -Match 'pyc=2'
+        # Every PyInstaller build ships .pyc and no .py, so this is the normal shape of the
+        # format and not a defect in the application. It is INFO / Skipped because it states
+        # that the text-level checks could not read the logic, which is a coverage limit.
+        $bc[0].Severity   | Should -Be 'INFO'
+        $bc[0].Confidence | Should -Be 'Skipped'
+        $bc[0].Evidence   | Should -Match 'pyc=2'
         # honesty: the fix text must point at decompilation as a manual follow-up
         $bc[0].Fix | Should -Match 'decompyle3|uncompyle6'
+        # and it must NOT assert what the unread bytecode contains
+        "$($bc[0].Impact)" | Should -Not -Match 'pickle\.loads|eval/exec|verify=False'
     }
 
     It 'states that the PYZ container was recovered but not unpacked' {

@@ -420,12 +420,12 @@ function Expand-TcpkPyInstaller {
         }
 
         if ($pycFiles.Count -gt 0 -and $srcFiles.Count -eq 0) {
-            New-TcpkFinding -Module 'static' -RuleId 'pyfrozen.bytecode-only' -Severity 'MEDIUM' -Confidence 'Confirmed' `
+            New-TcpkFinding -Module 'static' -RuleId 'pyfrozen.bytecode-only' -Severity 'INFO' -Confidence 'Skipped' `
                 -Title "Application logic recovered only as Python bytecode: $($exe.Name)" -File $outRoot `
                 -Evidence ("pyc=$($pycFiles.Count) py=0 python=$pyText. " + $hdrNote) `
                 -AttributionBasis 'established-footprint' `
-                -Description 'Every code entry in this archive came back as .pyc bytecode with no matching .py source, so the code surface is present on disk but not yet readable. TCPK recovered the bytecode; it did NOT decompile it. Until these files are decompiled, the secret, TLS and deserialization checks see almost nothing of the application logic, and a clean result from them is a coverage gap rather than evidence of a clean app.' `
-                -Impact 'The application logic is unreviewed. Hardcoded credentials, pickle.loads on untrusted input, eval/exec, and requests(verify=False) all live in this bytecode and are invisible to a static pass over the frozen executable.' `
+                -Description 'Every code entry in this archive came back as .pyc bytecode with no matching .py source, so the code surface is present on disk but not yet readable. TCPK recovered the bytecode; it did NOT decompile it. This is the normal shape of a PyInstaller build rather than a defect in the application, which is why it is INFO / Skipped: it records a COVERAGE LIMIT, not a vulnerability. It is reported so that a clean result from the text-level checks against this target is read as "not yet examined" rather than "examined and clean".' `
+                -Impact 'Coverage limit, not a measured weakness. The text-level checks (secrets, endpoints, callsites, JWT) read almost nothing of this application''s logic, so their results for this target carry little weight until the bytecode is decompiled. No claim is made here about what the bytecode contains; none of it was read.' `
                 -Fix ("Decompile the recovered bytecode as a follow-up step, then re-run the static checks against the decompiled sources: python -m decompyle3 '<file>.pyc' (or uncompyle6 for older bytecode). Recovered .pyc are under: $outRoot")
         }
 

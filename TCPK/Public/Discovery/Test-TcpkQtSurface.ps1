@@ -165,7 +165,18 @@ function Test-TcpkQtSurface {
             $val = $t.Substring($eq + 1).Trim()
             if (-not $key) { continue }
 
-            $km = $credKeyRx.Match($key)
+            # Match against a separator-normalized copy of the key. The \b anchors on token,
+            # key and pwd cannot see a camelCase transition, so SessionToken, AccessKey,
+            # SigningKey and userPwd all read as clean against the raw key. Split at
+            # lower-to-upper and acronym-to-word boundaries first: SessionToken -> "Session
+            # Token", APIKey -> "API Key". The separator must be a SPACE, not an underscore,
+            # because underscore is itself a word character and would not create the \b the
+            # anchors need. Both forms are tried, so api_key style keys still match on the
+            # raw key. The ORIGINAL key is what gets reported.
+            $keyNorm = [regex]::Replace($key,     '([a-z0-9])([A-Z])',    '$1 $2')
+            $keyNorm = [regex]::Replace($keyNorm, '([A-Z]+)([A-Z][a-z])', '$1 $2')
+            $km = $credKeyRx.Match($keyNorm)
+            if (-not $km.Success) { $km = $credKeyRx.Match($key) }
             if (-not $km.Success) { continue }
 
             # QSettings wrappers: "quoted", @ByteArray(...), @Variant(...).
@@ -257,14 +268,24 @@ function Test-TcpkQtSurface {
             continue
         }
 
+        # Classify ONLY on positive evidence. A symbol whose parameter list was not
+        # recovered (inlined call, truncated at a chunk boundary, or a bare start() used
+        # after setProgram/setArguments) says nothing about which overload was called, and
+        # defaulting it to the injection-prone bucket reports the SAFE Qt6 pattern as MEDIUM.
+        # Unclassified symbols go to their own bucket and are reported as INFO surface.
         $stringOverload = New-Object 'System.Collections.Generic.List[string]'
         $listOverload   = New-Object 'System.Collections.Generic.List[string]'
+        $unclassified   = New-Object 'System.Collections.Generic.List[string]'
         foreach ($s in $syms) {
             $short = $s
             if ($short.Length -gt 120) { $short = $short.Substring(0, 120) + '...' }
-            if ($s -match 'startCommand') { $stringOverload.Add($short); continue }
-            if ($s -match 'QList|QStringList') { $listOverload.Add($short); continue }
-            $stringOverload.Add($short)
+            # startCommand takes ONE command string by definition (Qt6). Definite.
+            if ($s -match 'startCommand')      { $stringOverload.Add($short); continue }
+            # A QStringList/QList parameter means program + separate argument vector. Safe.
+            if ($s -match 'QStringList|QList') { $listOverload.Add($short);   continue }
+            # Qt5 start(const QString &command, ...): a QString parameter and no list type.
+            if ($s -match 'QString')           { $stringOverload.Add($short); continue }
+            $unclassified.Add($short)
         }
 
         $qprocHits++
@@ -279,7 +300,7 @@ function Test-TcpkQtSurface {
                 -Description 'The binary references the QProcess overloads that take ONE command string - QProcess::start(const QString &command) in Qt5 or QProcess::startCommand(const QString &command) in Qt6. Qt splits that string into a program and arguments itself, so any attacker-influenced text concatenated into it changes the argument vector and, depending on the program invoked, the program itself. THIS FINDING IS THE SURFACE, NOT AN INJECTION: it states which API family is referenced and says nothing about whether the argument is attacker controlled. Confirm by disassembling the call sites (Ghidra / IDA) and tracing what feeds the QString.' `
                 -Impact 'If any of these call sites builds its command string from a file, registry value, IPC message, URL, or network response, that input controls the argument vector of a spawned process.' `
                 -Fix 'Use the QProcess overload that takes a program and a QStringList of arguments (setProgram + setArguments + start, or start(program, args)). Never build a single command string from external input. On Qt6, prefer start(program, args) over startCommand.'))
-        } else {
+        } elseif ($listOverload.Count) {
             $ev = ($listOverload | Select-Object -First 3) -join ' | '
             $out.Add((New-TcpkFinding -Module 'static' -RuleId 'qt.qprocess-surface' `
                 -Severity 'INFO' -Confidence 'Confirmed' `
@@ -289,6 +310,16 @@ function Test-TcpkQtSurface {
                 -AttributionBasis 'established-footprint' `
                 -Description 'Only the QProcess overloads that take a program plus a separate argument list were recovered. That form does not re-parse a command string, so it is the safer variant. The child-process surface is recorded here for review: what gets spawned, from where, and whether the program path itself is attacker influenced.' `
                 -Fix 'Informational. Verify the program path is absolute and not user writable, and that no argument crosses a shell.'))
+        } else {
+            $ev = ($unclassified | Select-Object -First 3) -join ' | '
+            $out.Add((New-TcpkFinding -Module 'static' -RuleId 'qt.qprocess-surface' `
+                -Severity 'INFO' -Confidence 'Confirmed' `
+                -Title "$($pe.Name) spawns child processes via QProcess (overload family not determined)" `
+                -File $pe.FullName -Evidence "recovered symbol(s): $ev; no QString or QStringList parameter was recoverable from these symbols" `
+                -Cwe @('CWE-78') `
+                -AttributionBasis 'established-footprint' `
+                -Description 'QProcess start/execute symbols were recovered but none carried a recoverable parameter list, so which overload family is used was NOT determined. This is reported as unresolved rather than assumed: a bare start() after setProgram/setArguments is the safe form, and guessing the single-string family here would report the safe Qt6 pattern as a defect. Disassemble the call sites to establish which overload is used.' `
+                -Fix 'Informational. Determine the overload at the call sites; if any builds one command string from external input, switch to start(program, args).'))
         }
     }
 
