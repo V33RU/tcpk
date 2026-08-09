@@ -404,7 +404,19 @@ function Invoke-TcpkAudit {
     # checks against the recovered assemblies (temp folder, so ACL/dev-artifact
     # checks are not re-run against them).
     $sfRoot = $null
+    # These carves are not _RunCheck steps (they return a path, not findings), so they
+    # used to emit nothing at all. On a 212 MB target the pair took ~25s of total silence,
+    # which reads exactly like the hang this tool keeps trying to make impossible.
+    $sfSw = [System.Diagnostics.Stopwatch]::StartNew()
+    Write-Information -MessageData "  [carve] scanning for a .NET single-file bundle ..." -InformationAction Continue
     try { $sfRoot = Expand-TcpkSingleFileForScan -Path $expanded } catch { $sfRoot = $null }
+    $sfSw.Stop()
+    Write-TcpkLog -Level INFO -Component 'carve.singlefile' `
+        -Message $(if ($sfRoot) { "bundle extracted to $sfRoot" } else { 'no single-file bundle found' }) `
+        -DurationMs ([int]$sfSw.Elapsed.TotalMilliseconds) | Out-Null
+    if ($sfSw.Elapsed.TotalSeconds -ge 3) {
+        Write-Information -MessageData ("  [carve] single-file scan took {0}s" -f [math]::Round($sfSw.Elapsed.TotalSeconds,1)) -InformationAction Continue
+    }
     if ($sfRoot) {
         _RunCheck 'Single-file bundle detected' { New-TcpkFinding -Module 'static' -RuleId 'singlefile.bundle-detected' -Severity 'LOW' -Confidence 'Confirmed' -Title 'Single-file (.NET PublishSingleFile) bundle detected' -File $expanded -Evidence "managed assemblies extracted to $sfRoot" -Description 'Managed assemblies are bundled inside the apphost .exe; on-disk static checks would otherwise miss them. TCPK extracted the bundle and re-ran the managed checks against the recovered assemblies. Single-file packaging is not a security boundary.' -Fix 'Treat all bundled code and strings as recoverable.' }
         _RunCheck 'Test-TcpkSecrets (bundle)'          { Test-TcpkSecrets          -Path $sfRoot }
@@ -426,7 +438,16 @@ function Invoke-TcpkAudit {
     # text-level static checks against the recovered sources and data files. Extraction
     # goes to a temp folder, so the ACL / dev-artifact checks are deliberately not re-run.
     $pyRoot = $null
+    $pySw = [System.Diagnostics.Stopwatch]::StartNew()
+    Write-Information -MessageData "  [carve] scanning for a PyInstaller / cx_Freeze archive ..." -InformationAction Continue
     try { $pyRoot = @(Expand-TcpkPyInstaller -Path $expanded -PassThru | Where-Object { $_ -is [string] })[-1] } catch { $pyRoot = $null }
+    $pySw.Stop()
+    Write-TcpkLog -Level INFO -Component 'carve.python' `
+        -Message $(if ($pyRoot) { "archive extracted to $pyRoot" } else { 'no Python-frozen archive found' }) `
+        -DurationMs ([int]$pySw.Elapsed.TotalMilliseconds) | Out-Null
+    if ($pySw.Elapsed.TotalSeconds -ge 3) {
+        Write-Information -MessageData ("  [carve] Python archive scan took {0}s" -f [math]::Round($pySw.Elapsed.TotalSeconds,1)) -InformationAction Continue
+    }
     if ($pyRoot -and (Test-Path -LiteralPath $pyRoot)) {
         _RunCheck 'Test-TcpkSecrets (python)'          { Test-TcpkSecrets          -Path $pyRoot }
         _RunCheck 'Test-TcpkEndpoints (python)'        { Test-TcpkEndpoints        -Path $pyRoot }
@@ -890,14 +911,20 @@ function Invoke-TcpkAudit {
         Write-TcpkLog -Level ERROR -Component 'recon.profile' -Message $_.Exception.Message | Out-Null
     }
 
-    # Interesting-strings extraction (recon-tab only; written as a sidecar, NOT in reports)
+    # Interesting-strings extraction (recon-tab only; written as a sidecar, NOT in reports).
+    # Announced BEFORE it runs: it re-reads the whole target, so on a large app it is one of
+    # the longest single steps in the audit (47s on a 212 MB Electron target) and only logged
+    # on completion, leaving the tail of the run looking stalled.
+    Write-Information -MessageData "  Extracting interesting strings (recon)..." -InformationAction Continue
+    $rsSw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $reconStrings = Get-TcpkReconStrings -Path $expanded
         $reconStrings | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutDir 'strings.json') -Encoding UTF8
         Write-Information -MessageData ("  strings.json: {0} URLs, {1} paths, {2} reg keys, {3} IPs, {4} emails, {5} cmd refs" -f `
             @($reconStrings.Urls).Count, @($reconStrings.FilePaths).Count, @($reconStrings.RegistryKeys).Count, `
             @($reconStrings.IpAddresses).Count, @($reconStrings.Emails).Count, @($reconStrings.Commands).Count) -InformationAction Continue
-        Write-TcpkLog -Level SUCCESS -Component 'recon.strings' -Message "$(@($reconStrings.Urls).Count) URLs, $(@($reconStrings.IpAddresses).Count) IPs, $(@($reconStrings.Interesting).Count) secret-ish" | Out-Null
+        $rsSw.Stop()
+        Write-TcpkLog -Level SUCCESS -Component 'recon.strings' -Message "$(@($reconStrings.Urls).Count) URLs, $(@($reconStrings.IpAddresses).Count) IPs, $(@($reconStrings.Interesting).Count) secret-ish" -DurationMs ([int]$rsSw.Elapsed.TotalMilliseconds) | Out-Null
     } catch {
         Write-Information -MessageData "  strings extraction failed: $($_.Exception.Message)" -InformationAction Continue
         Write-TcpkLog -Level ERROR -Component 'recon.strings' -Message $_.Exception.Message | Out-Null
