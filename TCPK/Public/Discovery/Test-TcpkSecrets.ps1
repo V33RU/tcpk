@@ -42,12 +42,30 @@ function Test-TcpkSecrets {
     # Compiled only repays itself after thousands of matches against the same instance, and
     # the extractor already cut the matched text by more than an order of magnitude, so there
     # is even less left to amortise against.
+    # Per-rule match budget, applied per Match call rather than per file. 5s is far above
+    # any legitimate rule: the extractor hands these regexes printable runs, not raw bytes,
+    # which cuts a 59 MB binary to a small fraction of that, and the _QuickLit pre-filter
+    # means most rules never run at all. A rule that exceeds it is backtracking
+    # pathologically, and the per-check wall-clock budget is the backstop above this.
+    if (-not $script:TcpkSecretsRuleTimeout) {
+        $script:TcpkSecretsRuleTimeout = [TimeSpan]::FromSeconds(5)
+    }
+
     foreach ($r in $rules) {
         if (-not $r.PSObject.Properties['_RX']) {
+            # MATCH TIMEOUT IS MANDATORY. This used to call the 2-argument overload
+            # (pattern, options), which leaves matchTimeout at Regex.InfiniteMatchTimeout.
+            # A rule that backtracks badly on one file therefore ran forever: the scan sat
+            # on a single large member of a bundle with no output and no way to tell a hang
+            # from slow progress. It also made the RegexMatchTimeoutException handler below
+            # dead code, because .NET can only raise that when a finite timeout is set.
+            # With a timeout, one pathological rule costs a few seconds and is REPORTED as
+            # secrets.rule-timeout instead of stalling the audit.
             $r | Add-Member -NotePropertyName _RX -NotePropertyValue ([regex]::new(
                 $r.pattern,
                 [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
-                [System.Text.RegularExpressions.RegexOptions]::Multiline
+                [System.Text.RegularExpressions.RegexOptions]::Multiline,
+                $script:TcpkSecretsRuleTimeout
             )) -Force
         }
         if (-not $r.PSObject.Properties['_QuickLit']) {
