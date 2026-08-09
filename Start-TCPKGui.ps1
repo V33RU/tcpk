@@ -853,7 +853,7 @@ $sbomHint.Text = "Run an audit -- every shipped component (name, version, purl, 
 $sbomLblF = New-Object System.Windows.Forms.Label
 $sbomLblF.AutoSize = $true; $sbomLblF.Location = New-Object System.Drawing.Point(6, 28); $sbomLblF.Text = "Filter:"; $sbomLblF.ForeColor = [System.Drawing.Color]::White
 $txtSbomFilter = New-Object System.Windows.Forms.TextBox
-$txtSbomFilter.Location = New-Object System.Drawing.Point(52, 25); $txtSbomFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtSbomFilter.Location = New-Object System.Drawing.Point(76, 25); $txtSbomFilter.Size = New-Object System.Drawing.Size(470, 22)
 $txtSbomFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtSbomFilter.ForeColor = [System.Drawing.Color]::White
 $txtSbomFilter.Add_TextChanged({ Filter-Sbom })
 # Live-CVE (OSV) toggle. Unticking it means NO CVE matching runs at all (no offline data
@@ -889,9 +889,12 @@ $hardHint = New-Object System.Windows.Forms.Label
 $hardHint.AutoSize = $true; $hardHint.Location = New-Object System.Drawing.Point(6, 6); $hardHint.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hardHint.Text = "Run an audit -- per-DLL mitigations (ASLR / DEP / CFG / HighEntropyVA / SafeSEH / GS stack cookie / ForceIntegrity). Red = WEAK, orange = PARTIAL, green = HARDENED."
 $hardLblF = New-Object System.Windows.Forms.Label
+# The label is AutoSize and starts at x=6; "Filter:" renders ~50px wide at the 9pt
+# default, so a textbox at x=52 sat UNDER it and hid the first character typed.
+# The box now starts at 76. (Very large font sizes are a separate, known scaling issue.)
 $hardLblF.AutoSize = $true; $hardLblF.Location = New-Object System.Drawing.Point(6, 28); $hardLblF.Text = "Filter:"; $hardLblF.ForeColor = [System.Drawing.Color]::White
 $txtHardFilter = New-Object System.Windows.Forms.TextBox
-$txtHardFilter.Location = New-Object System.Drawing.Point(52, 25); $txtHardFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtHardFilter.Location = New-Object System.Drawing.Point(76, 25); $txtHardFilter.Size = New-Object System.Drawing.Size(470, 22)
 $txtHardFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHardFilter.ForeColor = [System.Drawing.Color]::White
 $txtHardFilter.Add_TextChanged({ Filter-Hardening })
 $hardHeader.Controls.AddRange(@($hardHint, $hardLblF, $txtHardFilter))
@@ -928,7 +931,7 @@ $signHint.Text = "Run an audit -- per-DLL code-signing status (information only)
 $signLblF = New-Object System.Windows.Forms.Label
 $signLblF.AutoSize = $true; $signLblF.Location = New-Object System.Drawing.Point(6, 28); $signLblF.Text = "Filter:"; $signLblF.ForeColor = [System.Drawing.Color]::White
 $txtSignFilter = New-Object System.Windows.Forms.TextBox
-$txtSignFilter.Location = New-Object System.Drawing.Point(52, 25); $txtSignFilter.Size = New-Object System.Drawing.Size(470, 22)
+$txtSignFilter.Location = New-Object System.Drawing.Point(76, 25); $txtSignFilter.Size = New-Object System.Drawing.Size(470, 22)
 $txtSignFilter.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtSignFilter.ForeColor = [System.Drawing.Color]::White
 $txtSignFilter.Add_TextChanged({ Filter-Signing })
 $signHeader.Controls.AddRange(@($signHint, $signLblF, $txtSignFilter))
@@ -6674,6 +6677,30 @@ function Apply-UiFont {
             foreach ($child in $ctl.Controls) { $queue.Enqueue($child) }
         }
     } catch { }
+
+    # Reflow the three "Filter:" rows. Those labels are AutoSize, so changing the font
+    # changes their rendered width, while the textboxes beside them sit at a fixed x. At
+    # 14pt and above the label grew past the box and covered the first character typed.
+    # Re-anchoring to the label's ACTUAL width after the font is applied keeps them clear
+    # at every size the Size dropdown offers, instead of only the ones a constant happened
+    # to suit.
+    foreach ($pair in @(
+        @($hardLblF, $txtHardFilter),
+        @($sbomLblF, $txtSbomFilter),
+        @($signLblF, $txtSignFilter)
+    )) {
+        try {
+            $lbl = $pair[0]; $box = $pair[1]
+            if ($lbl -and $box) {
+                $x = $lbl.Left + $lbl.Width + 10
+                # Keep the right edge where it was so the box does not grow off-panel.
+                $right = $box.Left + $box.Width
+                $box.Left  = $x
+                $box.Width = [Math]::Max(120, $right - $x)
+            }
+        } catch { }
+    }
+
     [System.Windows.Forms.Application]::DoEvents()
 }
 
