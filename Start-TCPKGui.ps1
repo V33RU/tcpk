@@ -7077,7 +7077,11 @@ $btnRun.Add_Click({
     Write-LogLine ""
 
     $stamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
-    $outDir = Join-Path (Split-Path -Parent $PSScriptRoot) "out\$(Split-Path $target -Leaf)_$stamp"
+    # $PSScriptRoot IS the tool folder (this script sits at its root). Split-Path -Parent
+    # climbed one level ABOVE it, so reports landed beside the tool rather than inside it --
+    # e.g. GitHub\out\ instead of GitHub\tcpk\work\out\. A report can contain recovered
+    # secrets, so it belongs under work\ with everything else the tool produces.
+    $outDir = Join-Path $PSScriptRoot "work\out\$(Split-Path $target -Leaf)_$stamp"
     if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
     $script:CurrentOutDir = $outDir
 

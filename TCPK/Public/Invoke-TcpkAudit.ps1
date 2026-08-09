@@ -774,18 +774,50 @@ function Invoke-TcpkAudit {
         try {
             $cveMatches = @(Get-TcpkCveMatches -Path $expanded)
             $vulnCount = 0
+            $cveDropped = 0
             foreach ($m in $cveMatches) {
                 if ($m.Status -ne 'Vulnerable') { continue }   # only emit confirmed vulnerable as findings
-                $vulnCount++
-                $all.Add( (New-TcpkFinding -Module 'static' -RuleId "cve.$($m.Cve)" `
-                    -Severity $m.Severity -Confidence $m.Confidence `
-                    -Title "$($m.Package) $($m.ShippedVersion) -- $($m.Cve): $($m.Title)" `
-                    -File $m.File -Evidence "shipped $($m.ShippedVersion); fixed in $($m.FixedVersion)" `
-                    -Cwe ([string[]]@($m.Cwe)) -Description $m.Summary `
-                    -Fix "Upgrade $($m.Package) to $($m.FixedVersion) or later (ideally the latest supported release). Ref: $(@($m.References)[0])") )
+
+                # A match carries whatever band its advisory published. OSV records frequently
+                # have none -- RustSec and many GHSA entries ship a CVSS vector instead of a
+                # band -- and ConvertFrom-TcpkOsvVuln returns the string 'UNKNOWN' for those.
+                # New-TcpkFinding's ValidateSet rejects it, so passing it straight through threw
+                # and, because the whole loop sat in ONE try, the first such record aborted the
+                # entire batch: an audit of 127 crates emitted zero CVE findings and the report
+                # read as a clean supply chain.
+                #
+                # An advisory with no published band is still a version-matched hit, which is a
+                # measured fact, so it becomes MEDIUM and the description says the band was not
+                # published rather than implying one was assessed.
+                $sev = "$($m.Severity)".ToUpperInvariant()
+                $sevNote = ''
+                if ($sev -notin @('INFO', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL')) {
+                    $sevNote = " The advisory published no severity band$(if ($sev) { " (source reported '$sev')" }); " +
+                               "recorded as MEDIUM because the version match itself is confirmed. Rate it from the advisory's CVSS vector."
+                    $sev = 'MEDIUM'
+                }
+
+                # Per-match isolation: one malformed advisory must not discard the others.
+                try {
+                    $all.Add( (New-TcpkFinding -Module 'static' -RuleId "cve.$($m.Cve)" `
+                        -Severity $sev -Confidence $m.Confidence `
+                        -Title "$($m.Package) $($m.ShippedVersion) -- $($m.Cve): $($m.Title)" `
+                        -File $m.File -Evidence "shipped $($m.ShippedVersion); fixed in $($m.FixedVersion)" `
+                        -Cwe ([string[]]@($m.Cwe)) -Description ("$($m.Summary)$sevNote") `
+                        -Fix "Upgrade $($m.Package) to $($m.FixedVersion) or later (ideally the latest supported release). Ref: $(@($m.References)[0])") )
+                    $vulnCount++
+                } catch {
+                    $cveDropped++
+                    Write-TcpkLog -Level WARN -Component 'cve.match' -Message ("dropped $($m.Cve) for $($m.Package): $($_.Exception.Message)") | Out-Null
+                }
+            }
+            if ($cveDropped -gt 0) {
+                # Never silent: a dropped advisory is a gap in the supply-chain result.
+                try { Add-TcpkScanSkip -Kind 'CveLookupFailed' -ItemPath "$cveDropped advisory record(s) could not be turned into findings" } catch { }
+                Write-Information -MessageData "  Online CVE: $cveDropped advisory record(s) could not be recorded (see log)" -InformationAction Continue
             }
             Write-Information -MessageData "  Online CVE: $(@($cveMatches).Count) live match(es) ($vulnCount confirmed-vulnerable -> findings)" -InformationAction Continue
-            Write-TcpkLog -Level SUCCESS -Component 'cve.match' -Message "$(@($cveMatches).Count) online matches, $vulnCount confirmed-vulnerable" | Out-Null
+            Write-TcpkLog -Level SUCCESS -Component 'cve.match' -Message "$(@($cveMatches).Count) online matches, $vulnCount confirmed-vulnerable, $cveDropped dropped" | Out-Null
         } catch {
             Write-Information -MessageData "  Online CVE lookup failed: $($_.Exception.Message)" -InformationAction Continue
             Write-TcpkLog -Level ERROR -Component 'cve.match' -Message $_.Exception.Message | Out-Null
