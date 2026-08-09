@@ -274,15 +274,24 @@ $chkAi.Size = New-Object System.Drawing.Size(180, 22)
 $chkAi.Checked = $false   # unchecked by default -- let the operator opt in
 $topPanel.Controls.Add($chkAi)
 
+# This label sits before the PROVIDER dropdown, not the model box. It read "Model:",
+# so the row rendered as  Model: [copilot (proxy)] [gpt-4o]  and named the wrong control.
 $lblAi = New-Object System.Windows.Forms.Label
-$lblAi.Text = "Model:"; $lblAi.ForeColor = [System.Drawing.Color]::White
+$lblAi.Text = "Provider:"; $lblAi.ForeColor = [System.Drawing.Color]::White
 $lblAi.Location = New-Object System.Drawing.Point(198, 77)
-$lblAi.Size = New-Object System.Drawing.Size(50, 18)
+$lblAi.Size = New-Object System.Drawing.Size(74, 18)
 $topPanel.Controls.Add($lblAi)
 
+# The model box had no label at all.
+$lblAiModel = New-Object System.Windows.Forms.Label
+$lblAiModel.Text = "Model:"; $lblAiModel.ForeColor = [System.Drawing.Color]::White
+$lblAiModel.Location = New-Object System.Drawing.Point(420, 77)
+$lblAiModel.Size = New-Object System.Drawing.Size(50, 18)
+$topPanel.Controls.Add($lblAiModel)
+
 $cmbAi = New-Object System.Windows.Forms.ComboBox
-$cmbAi.Location = New-Object System.Drawing.Point(252, 74)
-$cmbAi.Size = New-Object System.Drawing.Size(148, 24)
+$cmbAi.Location = New-Object System.Drawing.Point(276, 74)
+$cmbAi.Size = New-Object System.Drawing.Size(140, 24)
 $cmbAi.DropDownStyle = 'DropDownList'
 $cmbAi.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbAi.ForeColor = [System.Drawing.Color]::White
 # Provider list. 'custom' = any other OpenAI-compatible endpoint (set its URL in llm-config.json).
@@ -294,8 +303,8 @@ $topPanel.Controls.Add($cmbAi)
 # A sensible default is pre-filled per provider; click "Test AI" to load the live
 # list from your key (Get-TcpkLlmModels) into the dropdown for convenience.
 $txtAiModel = New-Object System.Windows.Forms.ComboBox
-$txtAiModel.Location = New-Object System.Drawing.Point(404, 74)
-$txtAiModel.Size = New-Object System.Drawing.Size(148, 24)
+$txtAiModel.Location = New-Object System.Drawing.Point(474, 74)
+$txtAiModel.Size = New-Object System.Drawing.Size(128, 24)
 $txtAiModel.DropDownStyle = 'DropDown'
 $txtAiModel.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiModel.ForeColor = [System.Drawing.Color]::White
 $txtAiModel.Text = 'qwen2.5-coder:7b'   # default for ollama (provider[0]); overtype with anything
@@ -303,13 +312,13 @@ $topPanel.Controls.Add($txtAiModel)
 
 $lblKey = New-Object System.Windows.Forms.Label
 $lblKey.Text = "API key:"; $lblKey.ForeColor = [System.Drawing.Color]::White
-$lblKey.Location = New-Object System.Drawing.Point(556, 77)
-$lblKey.Size = New-Object System.Drawing.Size(68, 18)
+$lblKey.Location = New-Object System.Drawing.Point(606, 77)
+$lblKey.Size = New-Object System.Drawing.Size(64, 18)
 $topPanel.Controls.Add($lblKey)
 
 $txtAiKey = New-Object System.Windows.Forms.TextBox
-$txtAiKey.Location = New-Object System.Drawing.Point(628, 74)
-$txtAiKey.Size = New-Object System.Drawing.Size(164, 24)
+$txtAiKey.Location = New-Object System.Drawing.Point(674, 74)
+$txtAiKey.Size = New-Object System.Drawing.Size(126, 24)
 $txtAiKey.UseSystemPasswordChar = $true
 $txtAiKey.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiKey.ForeColor = [System.Drawing.Color]::White
 $txtAiKey.Enabled = $false   # disabled for local ollama
@@ -317,18 +326,18 @@ $topPanel.Controls.Add($txtAiKey)
 
 $btnTestAi = New-Object System.Windows.Forms.Button
 $btnTestAi.Text = "Test AI"
-$btnTestAi.Location = New-Object System.Drawing.Point(800, 74)
+$btnTestAi.Location = New-Object System.Drawing.Point(808, 74)
 $btnTestAi.Size = New-Object System.Drawing.Size(74, 24)
 $btnTestAi.FlatStyle = 'Flat'; $btnTestAi.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnTestAi.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $topPanel.Controls.Add($btnTestAi)
 
 $lblAiStatus = New-Object System.Windows.Forms.Label
 $lblAiStatus.Text = ""
-$lblAiStatus.Location = New-Object System.Drawing.Point(908, 77)
+$lblAiStatus.Location = New-Object System.Drawing.Point(890, 77)
 # Bounded to the gap between the Test AI button and the brand badge at x=1024.
 # It used to be 360 wide starting at 852, so it ran to 1212 and its tail was
 # painted under the badge. Long detail now lives in the tooltip instead.
-$lblAiStatus.Size = New-Object System.Drawing.Size(112, 18)
+$lblAiStatus.Size = New-Object System.Drawing.Size(130, 18)
 $lblAiStatus.AutoEllipsis = $true
 $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
 # The label is deliberately short (it has to fit beside the brand badge), so the
