@@ -169,7 +169,7 @@ $lblIdent.Text = "App identity: click Auto-Detect to identify the target (type /
 $lblIdent.Location = New-Object System.Drawing.Point(14, 136)
 $lblIdent.Size = New-Object System.Drawing.Size(992, 20)
 $lblIdent.AutoEllipsis = $true
-$lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+$lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(90, 175, 255)
 $lblIdent.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
 $lblIdent.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($lblIdent)
@@ -339,7 +339,7 @@ $lblAiStatus.Location = New-Object System.Drawing.Point(890, 77)
 # painted under the badge. Long detail now lives in the tooltip instead.
 $lblAiStatus.Size = New-Object System.Drawing.Size(130, 18)
 $lblAiStatus.AutoEllipsis = $true
-$lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 # The label is deliberately short (it has to fit beside the brand badge), so the
 # full explanation of each provider lives here.
 $ttAiStatus = New-Object System.Windows.Forms.ToolTip
@@ -1247,7 +1247,7 @@ $lblPcapF.Location = New-Object System.Drawing.Point(12,34); $lblPcapF.Size = Ne
 $ctlP.Controls.Add($lblPcapF)
 $txtPcap = New-Object System.Windows.Forms.TextBox
 $txtPcap.Location = New-Object System.Drawing.Point(126,31); $txtPcap.Size = New-Object System.Drawing.Size(370,24); $txtPcap.Font = New-Object System.Drawing.Font('Consolas', 9)
-$txtPcap.BackColor = [System.Drawing.Color]::FromArgb(36,36,40); $txtPcap.ForeColor = [System.Drawing.Color]::FromArgb(110,115,120)
+$txtPcap.BackColor = [System.Drawing.Color]::FromArgb(36,36,40); $txtPcap.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $txtPcap.ReadOnly = $true; $txtPcap.Text = 'Drop a .pcap / .pcapng here -- or click Browse'
 $txtPcap.AllowDrop = $true
 $txtPcap.Add_DragEnter({
@@ -1389,7 +1389,7 @@ $btnPcapGo.Add_Click({
                             if ($c.IsGrease) {
                                 $label += '  [GREASE - RFC 8701 probe]'
                                 $ci = New-Object System.Windows.Forms.TreeNode($label)
-                                $ci.ForeColor = [System.Drawing.Color]::FromArgb(100,100,100)
+                                $ci.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
                             } elseif ($c.Weak) {
                                 $label += "  [WEAK: $($c.Weak.Reason)]"
                                 $ci = New-Object System.Windows.Forms.TreeNode($label)
@@ -2366,7 +2366,7 @@ $rtTop.Controls.Add($numRtSec)
 $lblRtHint = New-Object System.Windows.Forms.Label
 $lblRtHint.Text = "Grey=process  Amber=trace  Blue=system  Green=target-path  Teal=clipboard  Red=gated"
 $lblRtHint.Location = New-Object System.Drawing.Point(528,10); $lblRtHint.Size = New-Object System.Drawing.Size(660,18)
-$lblRtHint.ForeColor = [System.Drawing.Color]::FromArgb(120,130,140)
+$lblRtHint.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $lblRtHint.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $rtTop.Controls.Add($lblRtHint)
 $chkRtGate = New-Object System.Windows.Forms.CheckBox
@@ -2642,7 +2642,7 @@ $lblAsar = New-Object System.Windows.Forms.Label
 $lblAsar.Dock = 'Fill'; $lblAsar.TextAlign = 'MiddleLeft'
 $lblAsar.Padding = New-Object System.Windows.Forms.Padding(10, 0, 10, 0)
 $lblAsar.Text = "Pick a target, then Extract (a large app can take ~30s). Click a file to read its source; Hex view opens it in the Hex tab. npm audit checks the bundled packages for CVEs + deprecations."
-$lblAsar.ForeColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+$lblAsar.ForeColor = [System.Drawing.Color]::FromArgb(90, 175, 255)
 $asarRow2.Controls.Add($lblAsar)
 
 # add row2 first, then row1, so row1 (path + buttons) docks ABOVE the hint line
@@ -3349,7 +3349,7 @@ $hexTop.Controls.Add($btnHexFind)
 $lblHex = New-Object System.Windows.Forms.Label
 $lblHex.Location = New-Object System.Drawing.Point(12, 70); $lblHex.Size = New-Object System.Drawing.Size(1060, 18)
 $lblHex.Text = "Load a binary, then browse hex, overlay PE sections, diff, list strings, or inspect bytes."
-$lblHex.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblHex.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $hexTop.Controls.Add($lblHex)
 $tabHex.Controls.Add($hexTop)
 
@@ -3428,7 +3428,7 @@ $btnXorScan.FlatStyle = 'Flat'; $btnXorScan.BackColor = [System.Drawing.Color]::
 $hexXorTop.Controls.Add($btnXorScan)
 $lblXorInfo = New-Object System.Windows.Forms.Label
 $lblXorInfo.Text = ''; $lblXorInfo.Location = New-Object System.Drawing.Point(116, 30)
-$lblXorInfo.Size = New-Object System.Drawing.Size(160, 16); $lblXorInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblXorInfo.Size = New-Object System.Drawing.Size(160, 16); $lblXorInfo.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $hexXorTop.Controls.Add($lblXorInfo)
 $pnlXorMode.Controls.Add($hexXorTop)
 $lvHexXor = New-Object System.Windows.Forms.ListView
@@ -3448,7 +3448,7 @@ $btnFreqScan.FlatStyle = 'Flat'; $btnFreqScan.BackColor = [System.Drawing.Color]
 $hexFreqTop.Controls.Add($btnFreqScan)
 $lblFreqInfo = New-Object System.Windows.Forms.Label
 $lblFreqInfo.Text = ''; $lblFreqInfo.Location = New-Object System.Drawing.Point(96, 9)
-$lblFreqInfo.Size = New-Object System.Drawing.Size(190, 16); $lblFreqInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblFreqInfo.Size = New-Object System.Drawing.Size(190, 16); $lblFreqInfo.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $hexFreqTop.Controls.Add($lblFreqInfo)
 $pnlFreqMode.Controls.Add($hexFreqTop)
 $lvHexFreq = New-Object System.Windows.Forms.ListView
@@ -3480,7 +3480,7 @@ $btnBmkClear.FlatStyle = 'Flat'; $btnBmkClear.BackColor = [System.Drawing.Color]
 $hexBmkTop.Controls.Add($btnBmkClear)
 $lblBmkInfo = New-Object System.Windows.Forms.Label
 $lblBmkInfo.Text = "Bookmark the current offset"; $lblBmkInfo.Location = New-Object System.Drawing.Point(8, 34)
-$lblBmkInfo.Size = New-Object System.Drawing.Size(280, 16); $lblBmkInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblBmkInfo.Size = New-Object System.Drawing.Size(280, 16); $lblBmkInfo.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $hexBmkTop.Controls.Add($lblBmkInfo)
 $pnlBmkMode.Controls.Add($hexBmkTop)
 $lvHexBmk = New-Object System.Windows.Forms.ListView
@@ -3510,7 +3510,7 @@ $btnPdAnalyze.FlatStyle = 'Flat'; $btnPdAnalyze.BackColor = [System.Drawing.Colo
 $pdToolbar.Controls.Add($btnPdAnalyze)
 $lblPdNote = New-Object System.Windows.Forms.Label
 $lblPdNote.Text = 'uses file loaded in Hex view'; $lblPdNote.Location = New-Object System.Drawing.Point(82, 7)
-$lblPdNote.Size = New-Object System.Drawing.Size(220, 16); $lblPdNote.ForeColor = [System.Drawing.Color]::FromArgb(100, 100, 100)
+$lblPdNote.Size = New-Object System.Drawing.Size(220, 16); $lblPdNote.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $lblPdNote.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $pdToolbar.Controls.Add($lblPdNote)
 $pnlPdMode.Controls.Add($pdToolbar)
@@ -3616,7 +3616,7 @@ $btnHexStrings.Text = "Search"; $btnHexStrings.Location = New-Object System.Draw
 $btnHexStrings.FlatStyle = 'Flat'; $btnHexStrings.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnHexStrings.ForeColor = [System.Drawing.Color]::White
 $strBar.Controls.Add($btnHexStrings)
 $lblHexSInfo = New-Object System.Windows.Forms.Label
-$lblHexSInfo.Location = New-Object System.Drawing.Point(452, 8); $lblHexSInfo.Size = New-Object System.Drawing.Size(300, 16); $lblHexSInfo.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblHexSInfo.Location = New-Object System.Drawing.Point(452, 8); $lblHexSInfo.Size = New-Object System.Drawing.Size(300, 16); $lblHexSInfo.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $strBar.Controls.Add($lblHexSInfo)
 $pnlStrWrap.Controls.Add($strBar)
 $lvHexStr = New-Object System.Windows.Forms.ListView
@@ -4563,7 +4563,7 @@ $btnPmSave.Text = "Save output..."; $btnPmSave.Location = New-Object System.Draw
 $btnPmSave.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnPmSave.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $pmonTop.Controls.Add($btnPmSave)
 $lblPmStatus = New-Object System.Windows.Forms.Label
-$lblPmStatus.Location = New-Object System.Drawing.Point(600, 52); $lblPmStatus.Size = New-Object System.Drawing.Size(580, 18); $lblPmStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+$lblPmStatus.Location = New-Object System.Drawing.Point(600, 52); $lblPmStatus.Size = New-Object System.Drawing.Size(580, 18); $lblPmStatus.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
 $lblPmStatus.Text = "Pick a mode, choose a process (Refresh), set the interval / duration, then Start."
 $pmonTop.Controls.Add($lblPmStatus)
 # Row 3: capture extras -- DLL trace option (ETW, admin) and what the enhanced capture now tracks.
@@ -4581,7 +4581,7 @@ $lblPmCapExtras = New-Object System.Windows.Forms.Label
 $lblPmCapExtras.Text = 'Capture now also tracks: named pipes / new listening ports / unsigned module loads'
 $lblPmCapExtras.Location = New-Object System.Drawing.Point(12, 88)
 $lblPmCapExtras.Size = New-Object System.Drawing.Size(700, 18)
-$lblPmCapExtras.ForeColor = [System.Drawing.Color]::FromArgb(100, 120, 100)
+$lblPmCapExtras.ForeColor = [System.Drawing.Color]::FromArgb(150, 190, 150)
 $lblPmCapExtras.Visible = $false
 $pmonTop.Controls.Add($lblPmCapExtras)
 $tabPmon.Controls.Add($pmonTop)
@@ -6177,7 +6177,7 @@ function Populate-Sbom([string]$OutDir) {
         [void]$row.SubItems.Add("$($c.purl)")
         [void]$row.SubItems.Add($sha)
         [void]$row.SubItems.Add($cves)
-        if ($cves) { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+        if ($cves) { $row.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85) }
         $row.Tag = ("$($c.name) $($c.version) $managed $($c.publisher) $($c.purl) $sha $cves").ToLowerInvariant()
         [void]$script:SbomItems.Add($row)
     }
@@ -6218,7 +6218,7 @@ function Populate-Hardening([string]$OutDir) {
         [void]$row.SubItems.Add("$($h.Status)")
         [void]$row.SubItems.Add("$($h.Missing)")
         switch ("$($h.Status)") {
-            'WEAK'     { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+            'WEAK'     { $row.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85) }
             'PARTIAL'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(214, 137, 16) }
             'HARDENED' { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
         }
@@ -6259,10 +6259,10 @@ function Populate-Signing([string]$OutDir) {
         [void]$row.SubItems.Add("$($s.Expires)")
         [void]$row.SubItems.Add("$($s.Type)")
         switch ("$($s.Status)") {
-            'UNSIGNED'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
-            'TAMPERED'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
-            'UNTRUSTED' { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
-            'EXPIRED'    { $row.ForeColor = [System.Drawing.Color]::FromArgb(192, 57, 43) }
+            'UNSIGNED'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85) }
+            'TAMPERED'  { $row.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85) }
+            'UNTRUSTED' { $row.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85) }
+            'EXPIRED'    { $row.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85) }
             'EXPIRED-TS' { $row.ForeColor = [System.Drawing.Color]::FromArgb(214, 137, 16) }
             'SIGNED'    { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
             'CATALOG'   { $row.ForeColor = [System.Drawing.Color]::FromArgb(39, 174, 96) }
@@ -6821,7 +6821,7 @@ function Update-Dashboard {
         $lbl.Text = "$n"
         $sc  = if ($script:SevColour -and $script:SevColour.ContainsKey($sev)) { $script:SevColour[$sev] } else { $valC }
         if ($n -eq 0) {
-            $lbl.ForeColor = [System.Drawing.Color]::FromArgb(92, 98, 106)
+            $lbl.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
             $lbl.Parent.SevStripe.BackColor = [System.Drawing.Color]::FromArgb(58, 64, 72)
         } else {
             $lbl.ForeColor = $sc
@@ -6836,7 +6836,7 @@ function Update-Dashboard {
             $script:DashMaxCvssLbl.ForeColor = if ($script:Accent) { $script:Accent } else { [System.Drawing.Color]::FromArgb(45, 212, 191) }
         } else {
             $script:DashMaxCvssLbl.Text = '-'
-            $script:DashMaxCvssLbl.ForeColor = [System.Drawing.Color]::FromArgb(92, 98, 106)
+            $script:DashMaxCvssLbl.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
         }
     }
 
@@ -6925,11 +6925,11 @@ $btnTestAi.Add_Click({
     $sel = $cmbAi.SelectedItem
     $preset = $script:AiPresets[$sel]
     if ($preset.needsKey -and -not $txtAiKey.Text) {
-        $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(192,57,43)
+        $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85)
         $lblAiStatus.Text = "Enter an API key for $sel first."
         return
     }
-    $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(86,101,115)
+    $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(150, 160, 172)
     $lblAiStatus.Text = "Testing $sel ..."
     [System.Windows.Forms.Application]::DoEvents()
     [void](Set-AiConfigFromGui)
@@ -6949,14 +6949,14 @@ $btnTestAi.Add_Click({
         $r = Test-TcpkLlm
         $modelNote = if ($modelCount) { "  ($modelCount models in dropdown)" } else { '' }
         if ($r.ModelResponds) {
-            $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(17,122,101)
+            $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(80, 200, 160)
             $lblAiStatus.Text = "OK: $($r.Provider)/$($r.Model) responded.$modelNote"
         } else {
-            $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(192,57,43)
+            $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85)
             $lblAiStatus.Text = "Reachable=$($r.Reachable), model didn't reply -- pick a valid model from the dropdown.$modelNote"
         }
     } catch {
-        $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(192,57,43)
+        $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85)
         $lblAiStatus.Text = "FAILED: $($_.Exception.Message.Split([char]10)[0])"
     }
 })
@@ -7007,10 +7007,10 @@ $btnAutoDetect.Add_Click({
     try {
         $ident = Get-TcpkAppIdentity -Path $path
         $lblIdent.Text = "App identity: $($ident.Summary)"
-        $lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(30, 100, 60)
+        $lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(110, 205, 140)
     } catch {
         $lblIdent.Text = "App identity: could not identify ($($_.Exception.Message))"
-        $lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(150, 60, 40)
+        $lblIdent.ForeColor = [System.Drawing.Color]::FromArgb(255, 138, 101)
     }
 
     # Try to extract package family name from the path
