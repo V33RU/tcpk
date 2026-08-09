@@ -52,12 +52,26 @@ function Invoke-TcpkDecompile {
     }
 
     if ($IlspycmdPath -and (Test-Path -LiteralPath $IlspycmdPath)) {
-        # 2) Decompile whole module to a temp file, then grep + extract context
-        $tmp = New-TcpkWorkPath -Kind 'run' -Prefix 'decompile' -Extension 'cs'
+        # 2) Decompile the whole module, then grep + extract context.
+        #
+        # The previous invocation was  -o <dir> -p <leaf> $Dll  and could never work:
+        # ilspycmd's -p/--project is a BOOLEAN switch, so <leaf> was consumed as an extra
+        # positional ASSEMBLY name, and -p also selects project mode, which writes a source
+        # tree rather than the single .cs the code then looked for. Test-Path on that file
+        # always failed, so this fell through to byte-grep on every run even when ilspycmd
+        # was installed. Per ilspycmd's own docs, "-o <dir>" WITHOUT -p is what produces a
+        # single C# file.
+        #
+        # The output name is chosen by ilspycmd from the assembly name, so decompile into a
+        # dedicated empty directory and take whatever .cs appears rather than assuming one.
+        $tmpDir = Get-TcpkWorkDir -Kind 'run' -Leaf ('decompile-' + [guid]::NewGuid().ToString('N').Substring(0, 12))
+        $tmp = $null
         try {
-            & $IlspycmdPath -o (Split-Path $tmp -Parent) -p (Split-Path $tmp -Leaf) $Dll 2>&1 | Out-Null
-            if (-not (Test-Path $tmp)) {
-                Write-Warning "ilspycmd produced no output; falling back to byte-grep."
+            & $IlspycmdPath -o $tmpDir $Dll 2>&1 | Out-Null
+            $tmp = (Get-ChildItem -LiteralPath $tmpDir -Filter '*.cs' -File -Recurse -ErrorAction SilentlyContinue |
+                    Sort-Object Length -Descending | Select-Object -First 1).FullName
+            if (-not $tmp) {
+                Write-Warning "ilspycmd produced no .cs output in $tmpDir; falling back to byte-grep."
             } else {
                 $lines = Get-Content -LiteralPath $tmp
                 $sb = New-Object Text.StringBuilder
@@ -75,12 +89,23 @@ function Invoke-TcpkDecompile {
                 return $sb.ToString()
             }
         } finally {
-            if (Test-Path $tmp) { Remove-Item $tmp -Force -ErrorAction SilentlyContinue }
+            # Remove the whole scratch directory, not just the one .cs we read: ilspycmd
+            # can emit several files and they are decompiled target source.
+            if ($tmpDir -and (Test-Path -LiteralPath $tmpDir)) {
+                Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 
-    # 3) Fallback: byte-grep over UTF-8 + UTF-16LE
-    Write-Warning "ilspycmd not available; returning byte context (not decompiled). Install via: dotnet tool install -g ilspycmd"
+    # 3) Fallback: byte-grep over UTF-8 + UTF-16LE.
+    # This is reached two different ways, and saying "not available" for both hid the bug
+    # above for as long as it existed: with ilspycmd installed and failing, the operator was
+    # told to install the thing they already had.
+    if ($IlspycmdPath -and (Test-Path -LiteralPath $IlspycmdPath)) {
+        Write-Warning "ilspycmd is installed at $IlspycmdPath but produced no C# output; returning byte context (NOT decompiled)."
+    } else {
+        Write-Warning "ilspycmd not available; returning byte context (not decompiled). Install via: dotnet tool install -g ilspycmd"
+    }
     $bytes = [IO.File]::ReadAllBytes($Dll)
     foreach ($enc in @(@{N='utf8';E=[Text.Encoding]::UTF8}, @{N='utf16le';E=[Text.Encoding]::Unicode})) {
         $t = $enc.E.GetString($bytes)
