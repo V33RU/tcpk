@@ -237,3 +237,104 @@ function Invoke-TcpkJwtProbe {
     }
     return New-TcpkHttpSnapshot -Method $Method -Url $Url -Headers $headers -VolatileFieldRegex $VolatileFieldRegex -TimeoutSec $TimeoutSec
 }
+
+# ------------------------------------------------- JWT-from-request-spec bridge ----
+#
+# Shared by Invoke-TcpkExpiryProbe (K22) and Invoke-TcpkLogoutProbe (K23). They live here
+# rather than in either cmdlet's own file because a helper used by two public cmdlets is a
+# private helper: every other in-file helper in Public/Exploit serves exactly one cmdlet.
+#
+# The two answer deliberately different questions and must not be merged. Get-TcpkSpecJwtClaim
+# asks "is there a usable DEADLINE", Test-TcpkSpecHasJwt asks "is this structurally a JWT at
+# all". A token that is a JWT but has no parseable exp answers no to the first and yes to the
+# second, and that exact combination is what identifies a credential nothing can expire.
+
+function Get-TcpkSpecJwtClaim {
+<#
+.SYNOPSIS
+    Find the first JWT in a request spec that carries a numeric exp, and return the
+    deadline as UTC.
+
+.DESCRIPTION
+    Private helper for Invoke-TcpkExpiryProbe. Looks in the Authorization header first
+    (with or without a Bearer prefix) and then in each cookie value, because plenty of
+    thick clients put the access token in a cookie rather than a header.
+
+    Returns $null when nothing qualifies, which the caller reports as "no declared
+    deadline" rather than treating as a pass. A token whose exp is present but not a
+    number is skipped for the same reason: an unparseable deadline is not a deadline.
+#>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][hashtable]$Spec)
+
+    $candidates = New-Object 'System.Collections.Generic.List[object]'
+
+    if ($Spec.Headers -and $Spec.Headers.Contains('Authorization')) {
+        $raw = "$($Spec.Headers['Authorization'])"
+        $val = $raw -replace '(?i)^\s*Bearer\s+', ''
+        $candidates.Add(@{ Token = $val.Trim(); Where = 'the Authorization header' })
+    }
+
+    if ($Spec.Cookies) {
+        foreach ($k in $Spec.Cookies.Keys) {
+            $candidates.Add(@{ Token = "$($Spec.Cookies[$k])"; Where = "cookie '$k'" })
+        }
+    }
+
+    foreach ($c in $candidates) {
+        if (-not $c.Token) { continue }
+        $jwt = ConvertFrom-TcpkJwt -Token $c.Token
+        if (-not $jwt.Valid) { continue }
+        if (-not $jwt.Payload) { continue }
+
+        # Same coercion Test-TcpkJwt.ps1:71 uses: exp may be absent, non-numeric, or out
+        # of FromUnixTimeSeconds range on a crafted token. '-as [int64]' yields $null on
+        # anything unparseable instead of throwing, and the conversion is still wrapped
+        # because the range check lives inside FromUnixTimeSeconds.
+        $pay = $jwt.Payload
+        if (-not $pay.PSObject.Properties['exp']) { continue }
+        $secs = $pay.exp -as [int64]
+        if ($null -eq $secs) { continue }
+
+        $expUtc = $null
+        try { $expUtc = ([DateTimeOffset]::FromUnixTimeSeconds($secs)).UtcDateTime } catch { continue }
+
+        return @{
+            ExpUtc = $expUtc
+            Where  = $c.Where
+            Token  = $c.Token
+        }
+    }
+
+    return $null
+}
+
+function Test-TcpkSpecHasJwt {
+<#
+.SYNOPSIS
+    True when the spec carries a structurally valid JWT, regardless of whether it has exp.
+
+.DESCRIPTION
+    Private helper for Invoke-TcpkLogoutProbe. Get-TcpkSpecJwtClaim deliberately returns
+    nothing for a token with no exp, because its job is to find a deadline. This separates
+    the two questions, so "JWT with no expiry" can be told apart from "opaque token" -- the
+    first is a permanent credential when logout also fails, the second is not.
+#>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][hashtable]$Spec)
+
+    $tokens = New-Object 'System.Collections.Generic.List[string]'
+    if ($Spec.Headers -and $Spec.Headers.Contains('Authorization')) {
+        $tokens.Add(("$($Spec.Headers['Authorization'])" -replace '(?i)^\s*Bearer\s+', '').Trim())
+    }
+    if ($Spec.Cookies) {
+        foreach ($k in $Spec.Cookies.Keys) { $tokens.Add("$($Spec.Cookies[$k])") }
+    }
+
+    foreach ($t in $tokens) {
+        if (-not $t) { continue }
+        $jwt = ConvertFrom-TcpkJwt -Token $t
+        if ($jwt.Valid -and $jwt.Payload) { return $true }
+    }
+    return $false
+}
