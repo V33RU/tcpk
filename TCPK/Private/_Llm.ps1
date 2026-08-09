@@ -19,6 +19,19 @@ $script:TcpkLlmProviders = @{
     'gemini'    = @{ dialect='openai';    baseUrl='https://generativelanguage.googleapis.com/v1beta/openai'; needsKey=$true; cloud=$true; defaultModel='gemini-2.0-flash' }
     'grok'      = @{ dialect='openai';    baseUrl='https://api.x.ai/v1';        needsKey=$true;  cloud=$true;  defaultModel='grok-2-latest' }
     'deepseek'  = @{ dialect='openai';    baseUrl='https://api.deepseek.com';   needsKey=$true;  cloud=$true;  defaultModel='deepseek-chat' }
+    # GitHub Copilot via the copilot-api proxy (github.com/ericc-ch/copilot-api).
+    # For orgs that hold Copilot licences but issue no direct model API key. The proxy
+    # runs locally (default port 4141) and re-exposes Copilot on both wire formats;
+    # the openai dialect is used here because it also gives GET /v1/models, which the
+    # GUI's "Test AI" button uses to load the live model list.
+    #
+    # cloud = $true DELIBERATELY. The endpoint is localhost, but the proxy FORWARDS to
+    # GitHub's servers, so decompiled IL still leaves this machine. Treating it as local
+    # would silently bypass the confidentiality gate that exists for exactly that reason.
+    #
+    # needsKey = $false: the proxy authenticates to GitHub itself and ignores the
+    # client's Authorization header. Start it with: npx copilot-api@latest start
+    'copilot'   = @{ dialect='openai';    baseUrl='http://localhost:4141/v1';   needsKey=$false; cloud=$true;  defaultModel='gpt-4o' }
     'custom'    = @{ dialect='openai';    baseUrl='';                           needsKey=$true;  cloud=$true;  defaultModel='' }
 }
 

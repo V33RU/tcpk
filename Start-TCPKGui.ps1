@@ -286,7 +286,7 @@ $cmbAi.Size = New-Object System.Drawing.Size(120, 24)
 $cmbAi.DropDownStyle = 'DropDownList'
 $cmbAi.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbAi.ForeColor = [System.Drawing.Color]::White
 # Provider list. 'custom' = any other OpenAI-compatible endpoint (set its URL in llm-config.json).
-@('ollama (local)','claude','openai','gemini','grok','deepseek','custom') | ForEach-Object { [void]$cmbAi.Items.Add($_) }
+@('ollama (local)','copilot (proxy)','claude','openai','gemini','grok','deepseek','custom') | ForEach-Object { [void]$cmbAi.Items.Add($_) }
 $cmbAi.SelectedIndex = 0
 $topPanel.Controls.Add($cmbAi)
 
@@ -386,6 +386,9 @@ $topPanel.Controls.Add($btnTheme)
 # with ANY model the provider exposes; "Test AI" loads the live list from your key.
 $script:AiPresets = @{
     'ollama (local)' = @{ name='ollama';   default='qwen2.5-coder:7b'; needsKey=$false }
+    # GitHub Copilot through the copilot-api proxy on localhost:4141. No key: the proxy
+    # holds the GitHub auth. Still gated as cloud, because it forwards to GitHub.
+    'copilot (proxy)'= @{ name='copilot';  default='gpt-4o';            needsKey=$false }
     'claude'         = @{ name='claude';    default='claude-sonnet-4-5'; needsKey=$true }
     'openai'         = @{ name='openai';    default='gpt-4o';            needsKey=$true }
     'gemini'         = @{ name='gemini';    default='gemini-2.0-flash';  needsKey=$true }
@@ -7075,7 +7078,16 @@ $btnRun.Add_Click({
         $aiKeyOk = (-not $aiPreset.needsKey) -or [bool]$txtAiKey.Text
         $aiCloudOk = $true
         if ($aiKeyOk -and $aiPreset.name -ne 'ollama') {
-            $msg = "The AI pass will send DECOMPILED CODE (IL) of the target to the CLOUD provider '$($aiPreset.name)'.`r`n`r`nFor a confidential engagement this may breach your authorization / NDA -- the code leaves this machine.`r`n`r`nSend the target's code to '$($aiPreset.name)'?`r`n`r`n(No = skip the AI pass and keep everything local. Tip: choose 'ollama (local)' for fully offline AI.)"
+            # copilot-api listens on localhost, so the endpoint LOOKS local. It is not:
+            # the proxy forwards every request to GitHub. Say that explicitly, otherwise
+            # a "CLOUD provider" warning next to a localhost URL reads like a mistake and
+            # gets dismissed.
+            $destNote = if ($aiPreset.name -eq 'copilot') {
+                "the GitHub Copilot backend, via the copilot-api proxy on this machine.`r`n`r`nThe proxy endpoint is localhost, but it FORWARDS to GitHub -- the code does leave this machine."
+            } else {
+                "the CLOUD provider '$($aiPreset.name)'.`r`n`r`nThe code leaves this machine."
+            }
+            $msg = "The AI pass will send DECOMPILED CODE (IL) of the target to $destNote`r`n`r`nFor a confidential engagement this may breach your authorization / NDA.`r`n`r`nSend the target's code to '$($aiPreset.name)'?`r`n`r`n(No = skip the AI pass and keep everything local. Tip: choose 'ollama (local)' for fully offline AI.)"
             $ans = [System.Windows.Forms.MessageBox]::Show($msg, "TCPK -- cloud AI confirmation", [System.Windows.Forms.MessageBoxButtons]::YesNo, [System.Windows.Forms.MessageBoxIcon]::Warning, [System.Windows.Forms.MessageBoxDefaultButton]::Button2)
             $aiCloudOk = ($ans -eq [System.Windows.Forms.DialogResult]::Yes)
         }

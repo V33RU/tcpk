@@ -85,6 +85,35 @@ its `baseUrl` in `Data\llm-config.json` (any OpenAI-compatible endpoint works).
 
 (Cloud is opt-in behind a gate; local Ollama is the default.)
 
+### 2b-i. GitHub Copilot (for orgs with Copilot licences but no model API key)
+
+Many organisations issue Copilot seats but no direct Anthropic/OpenAI API key.
+[copilot-api](https://github.com/ericc-ch/copilot-api) re-exposes your existing Copilot
+entitlement as an OpenAI- and Anthropic-compatible server, and TCPK ships a preset for it.
+
+1. Start the proxy (it authenticates to GitHub itself, so TCPK needs no key):
+
+   ```powershell
+   npx copilot-api@latest start
+   ```
+
+   It listens on `http://localhost:4141` by default.
+
+2. In TCPK, tick **AI-verify findings**, pick **copilot (proxy)**, and leave the API-key
+   box empty. Click **Test AI** to load the live model list from the proxy.
+
+To use a non-default port, pick **custom** instead and set `baseUrl` to
+`http://localhost:<port>/v1` in `Data\llm-config.json`.
+
+**This is still a cloud path.** The endpoint is localhost, but the proxy forwards every
+request to GitHub, so decompiled IL leaves the machine exactly as it would with any
+hosted provider. TCPK gates it behind the same confirmation as Claude or OpenAI, and the
+prompt says so. Do not use it on material you are under NDA for. Check your Copilot
+subscription terms cover this use; that is between you and GitHub, and TCPK takes no
+position on it.
+
+For fully offline AI, use Ollama.
+
 ### 2c. Mono.Cecil (lets the AI read .NET IL -- sharper verdicts)
 
 **Already included. Nothing to install.** TCPK ships Mono.Cecil 0.11.5 at
