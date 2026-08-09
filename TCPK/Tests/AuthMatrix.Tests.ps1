@@ -76,6 +76,16 @@ AfterAll {
     try { Disable-TcpkExploit | Out-Null } catch { }
 }
 
+# The listener is a hard requirement, not an optional capability, so a failure to bind is
+# a FAILING test rather than a skip. Gating these on a -Skip: whose variable is assigned in
+# BeforeAll would be worse than useless: Pester evaluates -Skip: during DISCOVERY, before
+# BeforeAll has run, so the variable is still $null, -not $null is $true, and the entire
+# file silently reports green having executed nothing. Repo suites that legitimately skip
+# (Windows-only, tshark-only) set their flag in BeforeDiscovery for exactly this reason.
+Describe 'test server' {
+    It 'listener came up' { $script:up | Should -BeTrue }
+}
+
 Describe 'Invoke-TcpkAuthMatrix: safety gates' {
     It 'refuses to run without -ConfirmActive' {
         { Invoke-TcpkAuthMatrix -Role $script:roles -Url "$($script:base)/admin-only" -Target "127.0.0.1:$($script:port)" } |
@@ -95,7 +105,7 @@ Describe 'Invoke-TcpkAuthMatrix: safety gates' {
     }
 }
 
-Describe 'Invoke-TcpkAuthMatrix: a correctly enforced route' -Skip:(-not $script:up) {
+Describe 'Invoke-TcpkAuthMatrix: a correctly enforced route' {
     BeforeAll {
         $script:okF = @(Invoke-TcpkAuthMatrix -Role $script:roles -Url "$($script:base)/admin-only" `
             -ConfirmActive -Target "127.0.0.1:$($script:port)")
@@ -114,7 +124,7 @@ Describe 'Invoke-TcpkAuthMatrix: a correctly enforced route' -Skip:(-not $script
     }
 }
 
-Describe 'Invoke-TcpkAuthMatrix: a route that authenticates but never checks the role' -Skip:(-not $script:up) {
+Describe 'Invoke-TcpkAuthMatrix: a route that authenticates but never checks the role' {
     BeforeAll {
         $script:badF = @(Invoke-TcpkAuthMatrix -Role $script:roles -Url "$($script:base)/broken" `
             -ConfirmActive -Target "127.0.0.1:$($script:port)")
@@ -143,7 +153,7 @@ Describe 'Invoke-TcpkAuthMatrix: a route that authenticates but never checks the
     }
 }
 
-Describe 'Invoke-TcpkAuthMatrix: a fully public route' -Skip:(-not $script:up) {
+Describe 'Invoke-TcpkAuthMatrix: a fully public route' {
     BeforeAll {
         $script:pubF = @(Invoke-TcpkAuthMatrix -Role $script:roles -Url "$($script:base)/public" `
             -ConfirmActive -Target "127.0.0.1:$($script:port)")
@@ -172,7 +182,7 @@ Describe 'Invoke-TcpkAuthMatrix: a fully public route' -Skip:(-not $script:up) {
     }
 }
 
-Describe 'Invoke-TcpkAuthMatrix: stale baseline' -Skip:(-not $script:up) {
+Describe 'Invoke-TcpkAuthMatrix: stale baseline' {
     It 'stops rather than reporting every lower role as correctly denied' {
         $stale = @(
             @{ Name = 'admin'; Header = 'Authorization: Bearer EXPIRED' },

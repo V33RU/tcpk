@@ -1,6 +1,6 @@
 # TCPK - Check Catalogue
 
-Public cmdlets, grouped by bucket. This page covers 219 of the 255 that ship; run
+Public cmdlets, grouped by bucket. This page covers 220 of the 256 that ship; run
 `Get-TcpkInfo` or `Get-Command -Module TCPK` for the authoritative live list.
 **GATED** cmdlets require `Enable-TcpkExploit -Acknowledge`.
 
@@ -212,7 +212,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkSelfIntegrityCheck** - J02. Self-integrity verification markers.
 - **Test-TcpkTimingAntiDebug** - J04. Timing-based anti-debug markers (RDTSC, QueryPerformanceCounter).
 
-## K - Exploitation (GATED, off by default)  (26)
+## K - Exploitation (GATED, off by default)  (27)
 
 - **New-TcpkProxyDll** - K01. Generate a proxy-DLL source scaffold for a flagged phantom-import.
 - **New-TcpkFridaTlsBypass** - K02. Generate a Frida JS script template that bypasses a flagged TLS validation callback.
@@ -235,6 +235,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Invoke-TcpkAuthMatrix** - K19. Vertical authorization matrix: replay one role's request under another role's credential and report where a lower-privilege identity is accepted.
 - **New-TcpkIlPatch** - K20. IL binary patching via Mono.Cecil (gated exploit).
 - **New-TcpkRegistryHijackTemplate** - K21. Generate registry-based persistence / hijack PoC artifacts.
+- **Invoke-TcpkExpiryProbe** - K22. Prove a backend accepts a token AFTER the expiry the backend itself issued, judged against the server's own clock.
 - **Get-TcpkCveMatches** - Match the target's shipped components against LIVE online CVE sources.
 - **Get-TcpkExploitPlan** - Build a unified, actionable exploit plan from CVE matches + exploitable findings.
 - **Get-TcpkStoredCredentials** - Enumerate and decrypt the current user's Windows Credential Manager entries -- the stored-credential extraction primitive.
@@ -279,6 +280,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**219 of 255 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**220 of 256 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.8.0: 255 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.8.0: 256 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).

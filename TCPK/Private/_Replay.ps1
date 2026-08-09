@@ -30,8 +30,18 @@ function Get-TcpkNormalizedBodyHash {
 
 # Low-level sender shared by the JWT probe and the request replayer. Arbitrary method +
 # headers + body. Never follows redirects (a 401 must not be masked by a login redirect).
-# Returns the canonical snapshot: @{Status;Len;Hash;BodyHead;Redirect}. Status 0 on a
-# transport error. Body preview and any headers are credential-redacted.
+# Returns the canonical snapshot:
+#   @{ Status; Len; Hash; BodyHead; Redirect; ServerDate; ElapsedMs }
+# Status 0 on a transport error. Body preview and any headers are credential-redacted.
+# ServerDate is the response Date header as UTC [datetime], or $null when absent; it is
+# the only clock a vendor cannot dispute, so expiry checks compare against it and never
+# against the local machine. ElapsedMs is wall-clock for the send, including the error
+# path. Every key is present on BOTH the success and the transport-error return, so a
+# caller never has to test for existence.
+#
+# This is the ONLY place a socket is opened. Anything a new check needs off the wire
+# (headers, timing, full body) has to be added here, and additively: three call sites
+# read the existing keys positionally by name and must keep working untouched.
 function New-TcpkHttpSnapshot {
     [CmdletBinding()]
     param(
@@ -46,6 +56,8 @@ function New-TcpkHttpSnapshot {
     $handler.AllowAutoRedirect = $false
     $client = [System.Net.Http.HttpClient]::new($handler)
     $client.Timeout = [TimeSpan]::FromSeconds($TimeoutSec)
+    # Started before the try so the error path can still report how long we waited.
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         $req = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::new($Method), $Url)
         if ($null -ne $Body -and $Body.Length -gt 0) {
@@ -75,15 +87,34 @@ function New-TcpkHttpSnapshot {
         }
         $redirect = $null
         if ($status -ge 300 -and $status -lt 400 -and $resp.Headers.Location) { $redirect = "$($resp.Headers.Location)" }
+
+        # The SERVER's own clock, not ours. An expiry check that compares a token's exp
+        # against the local clock proves nothing: the operator's machine may be skewed,
+        # and the vendor's first response is always "your clock was wrong". Reading the
+        # Date header off the same response that accepted the token removes that defence,
+        # because the server is then the only clock in the argument. $null when the header
+        # is absent (it is a SHOULD in RFC 9110, not a MUST), and callers must treat a
+        # missing value as "cannot prove", never as "not expired".
+        $serverDate = $null
+        try {
+            if ($resp.Headers.Date -and $resp.Headers.Date.HasValue) {
+                $serverDate = $resp.Headers.Date.Value.UtcDateTime
+            }
+        } catch { $serverDate = $null }
+
+        $sw.Stop()
         return @{
-            Status   = $status
-            Len      = $bytes.Length
-            Hash     = Get-TcpkNormalizedBodyHash -Body $bytes -VolatileFieldRegex $VolatileFieldRegex
-            BodyHead = $preview
-            Redirect = $redirect
+            Status     = $status
+            Len        = $bytes.Length
+            Hash       = Get-TcpkNormalizedBodyHash -Body $bytes -VolatileFieldRegex $VolatileFieldRegex
+            BodyHead   = $preview
+            Redirect   = $redirect
+            ServerDate = $serverDate
+            ElapsedMs  = [int]$sw.ElapsedMilliseconds
         }
     } catch {
-        return @{ Status = 0; Len = 0; Hash = 'sha256:error'; BodyHead = "<transport-error: $(("$($_.Exception.Message)" -split "`n")[0])>"; Redirect = $null }
+        $sw.Stop()
+        return @{ Status = 0; Len = 0; Hash = 'sha256:error'; BodyHead = "<transport-error: $(("$($_.Exception.Message)" -split "`n")[0])>"; Redirect = $null; ServerDate = $null; ElapsedMs = [int]$sw.ElapsedMilliseconds }
     } finally { $client.Dispose() }
 }
 
