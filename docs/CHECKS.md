@@ -193,7 +193,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 ## H - Logging / telemetry  (4)
 
 - **Test-TcpkEtwProviders** - H04. Custom ETW / EventSource providers (cross-process telemetry leak).
-- **Test-TcpkLogFiles** - H01. Log files under the target path: ACL + sensitive-content scan.
+- **Test-TcpkLogFiles** - H01. Log files under the target path. Inventory, sensitive-keyword and stack-trace content scan, plus the log-TAMPERING question, which is separate from what a log leaks: can a non-admin principal rewrite or delete the record. Checks the ACL of each log file (`log.tamperable-file`) and of its containing directory (`log.tamperable-directory`) for Write / Modify / FullControl / Delete granted to Everyone, Authenticated Users, Users or INTERACTIVE. The directory is reported separately and matters more: on Windows, Delete on the parent removes a file whose own ACL denies it, so a hardened log inside a loose directory is still deletable. Append-only (AppendData without WriteData) is deliberately not flagged, since that is the correct posture.
 - **Test-TcpkPiiInLogs** - H03. PII patterns in shipped logs / templates / data files.
 - **Test-TcpkTelemetrySdks** - H02. Third-party telemetry SDK enumeration.
 
