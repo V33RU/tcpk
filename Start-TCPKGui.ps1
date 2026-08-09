@@ -5587,7 +5587,9 @@ $script:ScanWorkerLastAt  = [DateTime]::Now
 $pnlRes = New-Object System.Windows.Forms.Panel
 $pnlRes.Tag      = 'keep'
 $pnlRes.Size     = New-Object System.Drawing.Size(186, 34)
-$pnlRes.Location = New-Object System.Drawing.Point(820, 96)
+# y=100, not 96: the AI row's Test AI button ends at y=98, so at 96 the panel clipped
+# its bottom 2px, and the AI status label cleared it by only 1px.
+$pnlRes.Location = New-Object System.Drawing.Point(820, 100)
 $pnlRes.Anchor   = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($pnlRes)
 
@@ -5776,7 +5778,7 @@ $lvFindings.BringToFront()
 # is widened (stopping short of the right-anchored logo).
 $pbar = New-Object System.Windows.Forms.ProgressBar
 $pbar.Location = New-Object System.Drawing.Point(466, 110)
-$pbar.Size = New-Object System.Drawing.Size(200, 16)
+$pbar.Size = New-Object System.Drawing.Size(150, 16)
 $pbar.Minimum = 0; $pbar.Maximum = 100; $pbar.Value = 0
 $pbar.Style = 'Continuous'   # solid fill (no chunk animation / value-set lag)
 $pbar.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left)
@@ -5784,9 +5786,10 @@ $topPanel.Controls.Add($pbar)
 
 $lblStatus = New-Object System.Windows.Forms.Label
 $lblStatus.Text = "Ready. Pick a target, then click Run Audit."
-$lblStatus.Location = New-Object System.Drawing.Point(674, 109)
-$lblStatus.Size = New-Object System.Drawing.Size(320, 18)
+$lblStatus.Location = New-Object System.Drawing.Point(624, 109)
+$lblStatus.Size = New-Object System.Drawing.Size(188, 18)
 $lblStatus.TextAlign = 'MiddleLeft'
+$lblStatus.AutoEllipsis = $true   # truncate with '...' rather than a hard cut mid-word
 $lblStatus.Anchor = ([System.Windows.Forms.AnchorStyles]::Top -bor [System.Windows.Forms.AnchorStyles]::Left -bor [System.Windows.Forms.AnchorStyles]::Right)
 $topPanel.Controls.Add($lblStatus)
 
