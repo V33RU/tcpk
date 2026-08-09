@@ -1,6 +1,6 @@
 # TCPK - Check Catalogue
 
-Public cmdlets, grouped by bucket. This page covers 203 of the 254 that ship; run
+Public cmdlets, grouped by bucket. This page covers 219 of the 255 that ship; run
 `Get-TcpkInfo` or `Get-Command -Module TCPK` for the authoritative live list.
 **GATED** cmdlets require `Enable-TcpkExploit -Acknowledge`.
 
@@ -212,22 +212,34 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkSelfIntegrityCheck** - J02. Self-integrity verification markers.
 - **Test-TcpkTimingAntiDebug** - J04. Timing-based anti-debug markers (RDTSC, QueryPerformanceCounter).
 
-## K - Exploitation (GATED, off by default)  (14)
+## K - Exploitation (GATED, off by default)  (26)
 
-- **Get-TcpkCveMatches** - Match the target's shipped components against live CVE data (ONLINE-ONLY): OSV (NuGet/npm/Maven) + NVD (native libs by CPE); no offline catalog is bundled
-- **Get-TcpkExploitPlan** - Build a unified, actionable exploit plan from CVE matches + exploitable findings.
-- **Invoke-TcpkDpapiCrossUser** - K04. Attempt to decrypt a DPAPI blob under each available DPAPI scope.
-- **Invoke-TcpkGuiUnlock** - K10. (GATED) Enable disabled controls / unmask password fields (Win32).
-- **Invoke-TcpkInputFuzz** - K09. (GATED) Dumb file/argument fuzzer with crash capture.
-- **Invoke-TcpkMemoryFlagFlip** - K07. (GATED) Locate and optionally patch an in-memory flag to prove bypass.
-- **Invoke-TcpkPipeProbe** - K08. (GATED) Connect to a named pipe and send a benign probe.
-- **New-TcpkComHijackTemplate** - K05. Generate a proxy-COM scaffold for a flagged COM-server CLSID.
-- **New-TcpkFridaTlsBypass** - K02. Generate a Frida JS script template that bypasses a flagged TLS-pinning mechanism.
-- **New-TcpkIlPatch** - K11. (GATED) IL binary patching via Mono.Cecil: ReturnTrue, ReturnFalse, ReturnNull, Nop, FlipBranch, StripSn.
-- **New-TcpkRegistryHijackTemplate** - K12. (GATED) Registry-based persistence / hijack PoC artifacts (IFEO, RunKey, AppInitDlls).
-- **New-TcpkPoisonedUpdateManifest** - K03. Generate a TEMPLATE update-manifest that demonstrates an unsigned-update hijack.
 - **New-TcpkProxyDll** - K01. Generate a proxy-DLL source scaffold for a flagged phantom-import.
+- **New-TcpkFridaTlsBypass** - K02. Generate a Frida JS script template that bypasses a flagged TLS validation callback.
+- **New-TcpkPoisonedUpdateManifest** - K03. Generate a TEMPLATE update-manifest that demonstrates an unsigned-update supply-chain finding.
+- **Invoke-TcpkDpapiCrossUser** - K04. Attempt to decrypt a DPAPI blob under each available DPAPI scope.
+- **New-TcpkComHijackTemplate** - K05. Generate a proxy-COM scaffold for a flagged COM-server CLSID.
 - **Start-TcpkPipeMitm** - K06. Local-loopback named-pipe MITM listener.
+- **Invoke-TcpkMemoryFlagFlip** - K07. Locate and optionally patch an in-memory flag to prove client-side gating (e.g. IsLicensed/IsTrial false->true).
+- **Invoke-TcpkPipeProbe** - K08. Connect to a named pipe and send a benign probe.
+- **Invoke-TcpkInputFuzz** - K09. Dumb file/argument fuzzer with crash capture.
+- **Invoke-TcpkGuiUnlock** - K10. Enable disabled controls / unmask password / unlock read-only fields (Win32).
+- **Invoke-TcpkComProbe** - K11. Actively probe a discovered COM server: try to instantiate it, test whether it AUTO-ELEVATES via the Elevation moniker, and enumerate its callable member surface. Logic-PoC: it instantiates and reads the type info; it never invokes a method.
+- **Invoke-TcpkRpcProbe** - K12. Enumerate the live local RPC endpoint mapper -- the runtime counterpart to the static rpc.server-interface marker. Read-only: it lists the registered interfaces (UUID / binding / annotation); it never binds or calls a method.
+- **Invoke-TcpkJwtCrack** - K13. Prove a JWT's forgeability OFFLINE: decode + analyze it, and recover a weak HMAC signing secret by dictionary attack. Makes NO network call.
+- **Invoke-TcpkJwtAttack** - K14. Forge JWT attack tokens and test which ones a live backend ACCEPTS. Proves auth-bypass by BODY comparison against baselines, never by HTTP status alone.
+- **Invoke-TcpkReplay** - K15. Replay a captured request with its credential REMOVED to prove missing function-level authorization (CWE-862). Confirmed by protected-body comparison.
+- **Invoke-TcpkIdorProbe** - K16. Prove horizontal IDOR / broken object-level authorization (CWE-639): identity A, using A's credential, reads identity B's object. Four baselines kill the public-object and soft-404 false positives.
+- **New-TcpkChainPoc** - K17. Emit a concrete, lab-safe proof-of-concept PROCEDURE for each correlated exploit chain (Get-TcpkExploitChains). Turns a HIGH/CRITICAL correlation into the exact steps an operator runs to demonstrate it -- benign marker only, stop at proof-of-control.
+- **Invoke-TcpkApiTrace** - K18. Trace security-relevant Windows API calls in a RUNNING target with Frida and report what it did: weak crypto, process/command launch, secrets written to disk/registry, DPAPI use. READ-ONLY: it observes calls, it never modifies them.
+- **Invoke-TcpkAuthMatrix** - K19. Vertical authorization matrix: replay one role's request under another role's credential and report where a lower-privilege identity is accepted.
+- **New-TcpkIlPatch** - K20. IL binary patching via Mono.Cecil (gated exploit).
+- **New-TcpkRegistryHijackTemplate** - K21. Generate registry-based persistence / hijack PoC artifacts.
+- **Get-TcpkCveMatches** - Match the target's shipped components against LIVE online CVE sources.
+- **Get-TcpkExploitPlan** - Build a unified, actionable exploit plan from CVE matches + exploitable findings.
+- **Get-TcpkStoredCredentials** - Enumerate and decrypt the current user's Windows Credential Manager entries -- the stored-credential extraction primitive.
+- **Invoke-TcpkHookBypass** - Force the return value of a named native export at runtime via Frida -- flip a client-side auth / license / integrity check the thick client trusts.
+- **Test-TcpkCredentialLiveness** - Prove a recovered/observed credential actually AUTHENTICATES to a live service -- turning an exposed secret into demonstrated impact (Confirmed exploit).
 
 ## Recon / target profiling  (4)
 
@@ -267,6 +279,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**203 of 254 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**219 of 255 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.8.0: 254 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.8.0: 255 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
