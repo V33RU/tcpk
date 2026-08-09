@@ -282,7 +282,7 @@ $topPanel.Controls.Add($lblAi)
 
 $cmbAi = New-Object System.Windows.Forms.ComboBox
 $cmbAi.Location = New-Object System.Drawing.Point(252, 74)
-$cmbAi.Size = New-Object System.Drawing.Size(120, 24)
+$cmbAi.Size = New-Object System.Drawing.Size(148, 24)
 $cmbAi.DropDownStyle = 'DropDownList'
 $cmbAi.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbAi.ForeColor = [System.Drawing.Color]::White
 # Provider list. 'custom' = any other OpenAI-compatible endpoint (set its URL in llm-config.json).
@@ -294,7 +294,7 @@ $topPanel.Controls.Add($cmbAi)
 # A sensible default is pre-filled per provider; click "Test AI" to load the live
 # list from your key (Get-TcpkLlmModels) into the dropdown for convenience.
 $txtAiModel = New-Object System.Windows.Forms.ComboBox
-$txtAiModel.Location = New-Object System.Drawing.Point(376, 74)
+$txtAiModel.Location = New-Object System.Drawing.Point(404, 74)
 $txtAiModel.Size = New-Object System.Drawing.Size(148, 24)
 $txtAiModel.DropDownStyle = 'DropDown'
 $txtAiModel.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiModel.ForeColor = [System.Drawing.Color]::White
@@ -303,12 +303,12 @@ $topPanel.Controls.Add($txtAiModel)
 
 $lblKey = New-Object System.Windows.Forms.Label
 $lblKey.Text = "API key:"; $lblKey.ForeColor = [System.Drawing.Color]::White
-$lblKey.Location = New-Object System.Drawing.Point(528, 77)
+$lblKey.Location = New-Object System.Drawing.Point(556, 77)
 $lblKey.Size = New-Object System.Drawing.Size(68, 18)
 $topPanel.Controls.Add($lblKey)
 
 $txtAiKey = New-Object System.Windows.Forms.TextBox
-$txtAiKey.Location = New-Object System.Drawing.Point(600, 74)
+$txtAiKey.Location = New-Object System.Drawing.Point(628, 74)
 $txtAiKey.Size = New-Object System.Drawing.Size(164, 24)
 $txtAiKey.UseSystemPasswordChar = $true
 $txtAiKey.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtAiKey.ForeColor = [System.Drawing.Color]::White
@@ -317,16 +317,23 @@ $topPanel.Controls.Add($txtAiKey)
 
 $btnTestAi = New-Object System.Windows.Forms.Button
 $btnTestAi.Text = "Test AI"
-$btnTestAi.Location = New-Object System.Drawing.Point(772, 74)
+$btnTestAi.Location = New-Object System.Drawing.Point(800, 74)
 $btnTestAi.Size = New-Object System.Drawing.Size(74, 24)
 $btnTestAi.FlatStyle = 'Flat'; $btnTestAi.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnTestAi.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $topPanel.Controls.Add($btnTestAi)
 
 $lblAiStatus = New-Object System.Windows.Forms.Label
 $lblAiStatus.Text = ""
-$lblAiStatus.Location = New-Object System.Drawing.Point(852, 77)
-$lblAiStatus.Size = New-Object System.Drawing.Size(360, 18)
+$lblAiStatus.Location = New-Object System.Drawing.Point(908, 77)
+# Bounded to the gap between the Test AI button and the brand badge at x=1024.
+# It used to be 360 wide starting at 852, so it ran to 1212 and its tail was
+# painted under the badge. Long detail now lives in the tooltip instead.
+$lblAiStatus.Size = New-Object System.Drawing.Size(112, 18)
+$lblAiStatus.AutoEllipsis = $true
 $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(86, 101, 115)
+# The label is deliberately short (it has to fit beside the brand badge), so the
+# full explanation of each provider lives here.
+$ttAiStatus = New-Object System.Windows.Forms.ToolTip
 $topPanel.Controls.Add($lblAiStatus)
 
 # --- Appearance row (y=146): font, size, theme ---
@@ -406,10 +413,23 @@ $cmbAi.Add_SelectedIndexChanged({
         $txtAiModel.Text = $p.default
         $txtAiKey.Enabled = $p.needsKey
         if (-not $p.needsKey) { $txtAiKey.Text = '' }
-        $lblAiStatus.Text = if ($p.needsKey) {
-            "$sel needs an API key -- type any model, or 'Test AI' to load its live list"
+        # The label is narrow, so it carries a SHORT verdict and the detail goes in the
+        # tooltip. Three cases, not two: 'no key needed' must not imply 'stays local'.
+        # copilot-api needs no key because the proxy holds the GitHub auth, but it
+        # forwards to GitHub, so saying "local" there would contradict the cloud
+        # confirmation the operator is about to see.
+        if ($p.needsKey) {
+            $lblAiStatus.Text = 'API key needed'
+            $ttAiStatus.SetToolTip($lblAiStatus,
+                "$sel is a hosted provider: it needs an API key, and the target's decompiled code leaves this machine. Type any model the provider exposes, or click 'Test AI' to load its live list.")
+        } elseif ($p.name -eq 'copilot') {
+            $lblAiStatus.Text = 'GitHub, no key'
+            $ttAiStatus.SetToolTip($lblAiStatus,
+                "GitHub Copilot via the copilot-api proxy on localhost:4141. No API key: the proxy holds the GitHub auth. NOT local -- the proxy forwards to GitHub, so the target's decompiled code leaves this machine. Start it with: npx copilot-api@latest start. Click 'Test AI' to load the live model list.")
         } else {
-            "local -- no key needed; type any model you've pulled (e.g. qwen2.5-coder:7b)"
+            $lblAiStatus.Text = 'local, no key'
+            $ttAiStatus.SetToolTip($lblAiStatus,
+                "Runs entirely on this machine: nothing leaves it. Type any model you have pulled (e.g. qwen2.5-coder:7b), or click 'Test AI' to load the live list.")
         }
     }
 })
