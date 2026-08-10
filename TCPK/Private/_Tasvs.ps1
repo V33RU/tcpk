@@ -60,6 +60,20 @@ $script:TcpkTasvsMap = @(
     @{ rx='^diag\.';                                                                        tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA3 Sensitive Data Exposure') }
     @{ rx='^grpc\.';                                                                        tasvs=@('TASVS-NETWORK Network Communication'); da=@('DA6 Security Misconfiguration') }
     @{ rx='^wv2\.(sideload|fixed-version)';                                                 tasvs=@('TASVS-PLATFORM Platform Interaction'); da=@('DA5 Improper Authorization') }
+
+    # --- active session / authorization probes (K19, K22, K23) ----------------------
+    # Matched by EXACT rule id, not by prefix, and this is deliberate. Each of these three
+    # cmdlets emits far more procedural rule ids than finding ones: refusals
+    # (*.unsafe-method-refused, *.credential-mismatch), inconclusive results
+    # (*.transport-error, expiry.not-yet-lapsed) and records of a control WORKING
+    # (expiry.enforced, logout.revoked, authmatrix.matrix). A prefix like '^logout\.' would
+    # tag all of them, which would put 'logout revoked the session correctly' into a
+    # Broken Authentication bucket and inflate any compliance matrix built off this map.
+    # Only rules that can actually emit LOW or higher appear below.
+    @{ rx='^authmatrix\.vertical-escalation$';                                              tasvs=@('TASVS-AUTH Authentication & Session'); da=@('DA5 Improper Authorization') }
+    @{ rx='^(authmatrix|expiry|logout)\.(no-auth-accepted|endpoint-open)$';                 tasvs=@('TASVS-AUTH Authentication & Session'); da=@('DA2 Broken Authentication') }
+    @{ rx='^expiry\.expired-token-accepted$';                                               tasvs=@('TASVS-AUTH Authentication & Session'); da=@('DA2 Broken Authentication') }
+    @{ rx='^logout\.(session-not-invalidated|token-never-dies|credential-survives)$';       tasvs=@('TASVS-AUTH Authentication & Session'); da=@('DA2 Broken Authentication') }
     @{ rx='^amsi\.';                                                                        tasvs=@('TASVS-RESILIENCE Resiliency Against Reverse Engineering'); da=@('DA8 Poor Code Quality') }
     @{ rx='^injection\.';                                                                   tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA8 Poor Code Quality') }
 )
