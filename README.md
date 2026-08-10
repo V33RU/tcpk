@@ -84,6 +84,14 @@ needs [Ollama](https://ollama.com) + a pulled model (e.g. `qwen2.5-coder:7b`).
 Optional tools per tab (Wireshark for pcap, mitmproxy for intercept, frida for runtime
 hooks) install separately: see [docs/INSTALL.md](docs/INSTALL.md). The static audit needs none of them.
 
+## Resources
+
+- [Awesome Thick Client Pentesting](https://github.com/V33RU/Awesome-Thick-Client-Pentesting) - curated tooling, writeups and labs for this problem space.
+
+## Acknowledgements
+
+**Srinivas ([DVTA](https://github.com/srini0x00/dvta))** - Damn Vulnerable Thick Client Application.
+
 ## Authorized use only
 
 For security testing of software you own or are explicitly authorized to test. Provided **AS IS**,
