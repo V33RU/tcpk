@@ -111,6 +111,7 @@ TCPK's distribution. Install them yourself if you want the related features.
   Wireshark / tshark / dumpcap   GPL-2.0-or-later   pcap analysis (Pcap tab)
   Frida                          wxWindows 3.1      runtime hooking
   mitmproxy / mitmdump           MIT                traffic interception
+  CFR (cfr.jar) + a JRE          MIT (CFR)          Java decompilation
   Sysinternals (ProcMon, etc.)   Microsoft EULA     process monitoring
   Ollama and hosted LLM APIs     varies by provider optional AI review
 

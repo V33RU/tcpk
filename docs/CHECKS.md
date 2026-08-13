@@ -1,6 +1,6 @@
 # TCPK - Check Catalogue
 
-Public cmdlets, grouped by bucket. This page covers 221 of the 257 that ship; run
+Public cmdlets, grouped by bucket. This page covers 233 of the 258 that ship; run
 `Get-TcpkInfo` or `Get-Command -Module TCPK` for the authoritative live list.
 **GATED** cmdlets require `Enable-TcpkExploit -Acknowledge`.
 
@@ -250,14 +250,27 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Get-TcpkReconStrings** - R11. Extract + categorize interesting literal strings from first-party binaries.
 - **Get-TcpkTargetProfile** - R00. Recon / fingerprint pass. Builds a target-application profile for the
 
-## Verify / triage  (6)
+## Verify / triage  (20)
 
-- **Confirm-TcpkCallsiteUsage** - Deterministic IL verification of callsites.* findings: is the flagged API actually invoked, reachable, and fed by external input? Refines Confidence to 'Confirmed (IL)' (reachable + dynamic argument) or 'Likely-FP (IL)' (no call site / constant-only argument). Runs in the audit before the LLM; no model needed.
+- **Confirm-TcpkCallsiteUsage** - Deterministic IL verification of callsites.* and deser.* findings: is the flagged API actually invoked, reachable, and fed by external input -- or a false positive?.
+- **Confirm-TcpkCallsites** - Phase-2 confirmation for dangerous-API callsite findings.
+- **Confirm-TcpkDeserialization** - Phase-2 confirmation for unsafe-deserialization findings.
+- **Confirm-TcpkTlsBypass** - Phase-2 confirmation for TLS certificate-validation bypass findings.
 - **Disable-TcpkExploit** - Turn off the Exploit bucket for this PowerShell session.
 - **Enable-TcpkExploit** - Toggle on the Exploit bucket (K01-K06) for this PowerShell session.
-- **Expand-TcpkSingleFile** - Extract the managed assemblies bundled inside a .NET single-file (PublishSingleFile) apphost so every static scanner can read them (the full audit auto-extracts + re-scans).
-- **Expand-TcpkPyInstaller** - Carve the CArchive out of a PyInstaller-frozen .exe, and extract a cx_Freeze / py2exe library.zip, so the code surface of a Python thick client is readable (the full audit auto-extracts + re-scans). Recovers .pyc bytecode; it does not decompile it.
+- **Expand-TcpkAsar** - Parse an Electron app.asar header file-table, extract each bundled module, and scan the extracted JS/config for secrets and insecure Electron flags.
+- **Expand-TcpkPyInstaller** - Carve the CArchive out of a PyInstaller-frozen .exe (and extract a cx_Freeze / py2exe library.zip) so the rest of TCPK can actually read the app's code surface.
+- **Expand-TcpkSingleFile** - Extract the managed assemblies bundled inside a .NET single-file (PublishSingleFile) apphost so the rest of TCPK can actually scan them.
+- **Get-TcpkCaptureInterface** - List the network capture interfaces available via the operator's installed Wireshark (tshark -D). For picking an interface for Invoke-TcpkPcapCapture.
+- **Get-TcpkPcapBtFindings** - Analyse a Bluetooth / BLE packet capture for security findings.
+- **Get-TcpkPcapZigbeeFindings** - Analyse a Zigbee / IEEE 802.15.4 packet capture for security findings.
 - **Invoke-TcpkDecompile** - Drive ILSpy CLI to decompile and return source context for a method.
+- **Invoke-TcpkDynamicConfirm** - GATED, observation-only dynamic confirmation: does the target app TRUST a command-line / deep-link session override at runtime? (Dynamic harness, slice 1.).
+- **Invoke-TcpkIntercept** - Traffic interception for a thick client, via mitmproxy. Two modes: parse an existing mitmproxy capture into findings (-FlowFile, cross-platform, ungated), or actively launch the target through a local mitmdump and observe its traffic (-Target, GATED).
+- **Invoke-TcpkJavaDecompile** - Drive CFR to decompile a .jar / .war / .class and return source context for a symbol.
+- **Invoke-TcpkPcapCapture** - Capture live traffic on an interface (via the operator's dumpcap), then analyse it for security issues. LIVE capture needs a capture driver (npcap on Windows) and elevation -- it is the operator's dumpcap doing the privileged work; TCPK ships no driver.
+- **Invoke-TcpkPcapReview** - Analyse a packet capture (.pcap / .pcapng) for security issues, via the operator's installed Wireshark (tshark). Read-only: it dissects a capture you already made; it does not capture live and needs no admin.
+- **Invoke-TcpkSecretRecovery** - Turn shipped crypto material into a DEMONSTRATED secret. When an app ships a symmetric key + IV + ciphertext together, decrypt it and recover the plaintext - upgrading three 'Inferred' findings to one 'Confirmed (exploit)'.
 - **Resolve-TcpkFindings** - Triage pipeline: dedupe + false-positive killers + confidence refinement.
 
 ## Reporting  (8)
@@ -281,6 +294,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**221 of 257 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**233 of 258 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.8.0: 257 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.8.0: 258 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).

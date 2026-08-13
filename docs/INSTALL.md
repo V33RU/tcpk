@@ -34,6 +34,7 @@ The exact folder names TCPK probes:
 | mitmdump | `tools\mitmproxy\` |
 | procdump | `tools\Procdump\` |
 | ilspycmd | `tools\ilspycmd\` |
+| cfr.jar | `tools\cfr\` (needs a JRE on PATH) |
 | Mono.Cecil | `tools\ILSpy\` (already shipped) |
 
 Those names are matched exactly. `tools\Wireshark\` works on Windows because its file
@@ -51,6 +52,7 @@ system is case-insensitive, but keep to the casing above.
 | **mitmdump** | no Intercept proxy or tamper mode |
 | **procdump** | no memory-secret scanning |
 | **ilspycmd** | IL still works; only C# reconstruction is unavailable |
+| **cfr.jar + JRE** | Java targets fall back to class constant-pool context, which finds the symbol but is not decompiled source |
 | **upx** | UPX-packed binaries are detected but not auto-unpacked |
 | **Ollama / API key** | no AI verification; every deterministic check is unaffected |
 
