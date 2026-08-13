@@ -2889,11 +2889,37 @@ function Get-GuiHexInspect([string]$path, [int64]$offset) {
     & $add 'uint16 LE' ([System.BitConverter]::ToUInt16($buf, 0)); & $add 'uint16 BE' ([System.BitConverter]::ToUInt16((& $be 2), 0))
     & $add 'int32 LE'  ([System.BitConverter]::ToInt32($buf, 0));  & $add 'int32 BE'  ([System.BitConverter]::ToInt32((& $be 4), 0))
     & $add 'uint32 LE' ([System.BitConverter]::ToUInt32($buf, 0)); & $add 'uint32 BE' ([System.BitConverter]::ToUInt32((& $be 4), 0))
-    & $add 'int64 LE'  ([System.BitConverter]::ToInt64($buf, 0));  & $add 'uint64 LE' ([System.BitConverter]::ToUInt64($buf, 0))
+    & $add 'int64 LE'  ([System.BitConverter]::ToInt64($buf, 0));  & $add 'int64 BE'  ([System.BitConverter]::ToInt64((& $be 8), 0))
+    & $add 'uint64 LE' ([System.BitConverter]::ToUInt64($buf, 0))
     & $add 'float LE'  ([System.BitConverter]::ToSingle($buf, 0)); & $add 'double LE' ([System.BitConverter]::ToDouble($buf, 0))
     $asc = -join (0..([Math]::Min(15, $n - 1)) | ForEach-Object { $b = $buf[$_]; if ($b -ge 32 -and $b -lt 127) { [char]$b } else { '.' } })
     & $add 'ASCII' $asc
     try { $u = [System.BitConverter]::ToUInt32($buf, 0); if ($u -gt 0 -and $u -lt 4102444800) { & $add 'u32 epoch' ([System.DateTimeOffset]::FromUnixTimeSeconds($u).UtcDateTime.ToString('u')) } } catch { }
+
+    # Windows-shaped interpretations. The u32 epoch above is the UNIX convention, which is
+    # the wrong one for most structures in a Windows binary.
+    #
+    # FILETIME: 100-nanosecond ticks since 1601-01-01 UTC, and what Windows actually stores.
+    # Range-guarded because FromFileTimeUtc throws outside it, and most 8-byte runs are not
+    # timestamps at all; the upper bound is year 9999.
+    if ($n -ge 8) {
+        try {
+            $ft = [System.BitConverter]::ToInt64($buf, 0)
+            if ($ft -gt 0 -and $ft -lt 2650467744000000000) {
+                & $add 'FILETIME' ([DateTime]::FromFileTimeUtc($ft).ToString('u'))
+            }
+        } catch { }
+    }
+
+    # GUID: only at a full 16 bytes, otherwise the tail would be the zero-padding of $buf
+    # rather than file content and the value would be quietly wrong. .NET's Guid(byte[])
+    # uses the mixed-endian layout Windows writes (first three fields little-endian), which
+    # is exactly how a CLSID sits in a PE, so this reads back the way the registry shows it.
+    # Directly useful next to Test-TcpkComHijack and Invoke-TcpkComProbe.
+    if ($n -ge 16) {
+        try { & $add 'GUID' ([guid]::new($buf).ToString('B').ToUpperInvariant()) } catch { }
+    }
+
     return $o.ToArray()
 }
 # Byte search: offset of the next 'hex'/'ascii' match at/after $from, or -1 (or negative code on error).
