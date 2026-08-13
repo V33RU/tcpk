@@ -1772,23 +1772,67 @@ $subPcapFindings.Controls.Add($txtOutP)
 $subPcapConv = New-Object System.Windows.Forms.TabPage; $subPcapConv.Text = ' Conversations '; $subPcapConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24)
 # Conversations ListView (Dock=Fill, full width -- packet detail opens in popup via right-click)
 $lvConv = New-Object System.Windows.Forms.ListView
-$lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false; $lvConv.HeaderStyle = [System.Windows.Forms.ColumnHeaderStyle]::None
+$lvConv.Dock = 'Fill'; $lvConv.View = 'Details'; $lvConv.FullRowSelect = $true; $lvConv.GridLines = $false
 $lvConv.BackColor = [System.Drawing.Color]::FromArgb(24,24,24); $lvConv.ForeColor = [System.Drawing.Color]::White
 $lvConv.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
-foreach ($colDef in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('Dst IP',118),@('Dst Port',66),@('Protocol',78),@('Packets',60),@('Bytes',66),@('Info',220),@('Src MAC',120),@('Dst MAC',120))) {
+
+# REAL column headers, themed by owner-draw. This previously hid the system header
+# (ColumnHeaderStyle::None) and hand-drew a substitute: a Dock=Top Panel of fixed-position
+# Labels, built from a SECOND copy of the column list. Two defects came out of that.
+#
+#   1. The 12 name/width tuples were written twice, with nothing keeping them in step, so
+#      editing one list silently shifted every header off its data.
+#   2. Worse, the substitute could not scroll. These columns total 1200px, so horizontal
+#      scrolling is certain on any normal window, and the Panel was a SIBLING of the
+#      ListView rather than part of it. Scrolling right moved the rows and left the
+#      headers behind, permanently misaligned until the view was scrolled back.
+#
+# The reason for the hack was real (system headers are unreadable on a dark theme), but the
+# fix already existed in this file: $lvDashTop keeps its real header and themes it through
+# Add_DrawColumnHeader. Real headers scroll with the data because the control owns them.
+# The column list is now defined exactly once.
+$lvConv.OwnerDraw = $true
+$lvConv.HeaderStyle = 'Nonclickable'
+$script:ConvCols = @(
+    @('Date',92), @('Time',76), @('Src IP',118), @('Src Port',66), @('Dst IP',118), @('Dst Port',66),
+    @('Protocol',78), @('Packets',60), @('Bytes',66), @('Info',220), @('Src MAC',120), @('Dst MAC',120)
+)
+foreach ($colDef in $script:ConvCols) {
     $lvc = New-Object System.Windows.Forms.ColumnHeader; $lvc.Text = $colDef[0]; $lvc.Width = $colDef[1]; [void]$lvConv.Columns.Add($lvc)
 }
-# Column header row -- ListView system headers are invisible on dark themes
-$pnlConvHdr = New-Object System.Windows.Forms.Panel
-$pnlConvHdr.Dock = 'Top'; $pnlConvHdr.Height = 22; $pnlConvHdr.BackColor = [System.Drawing.Color]::FromArgb(36,36,44)
-$_xOff = 0
-foreach ($cd in @(@('Date',92),@('Time',76),@('Src IP',118),@('Src Port',66),@('Dst IP',118),@('Dst Port',66),@('Protocol',78),@('Packets',60),@('Bytes',66),@('Info',220),@('Src MAC',120),@('Dst MAC',120))) {
-    $lh = New-Object System.Windows.Forms.Label; $lh.Text = $cd[0]; $lh.TextAlign = 'MiddleLeft'
-    $lh.Location = New-Object System.Drawing.Point(($_xOff + 3), 0); $lh.Size = New-Object System.Drawing.Size(($cd[1] - 4), 22)
-    $lh.ForeColor = [System.Drawing.Color]::FromArgb(155,165,178); $lh.Font = New-Object System.Drawing.Font('Cascadia Mono', 9)
-    $pnlConvHdr.Controls.Add($lh); $_xOff += $cd[1]
-}
-$subPcapConv.Controls.Add($pnlConvHdr); $subPcapConv.Controls.Add($lvConv)
+
+$lvConv.Add_DrawColumnHeader({
+    param($s, $e)
+    try {
+        $b = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(36,36,44))
+        $e.Graphics.FillRectangle($b, $e.Bounds); $b.Dispose()
+        $r = $e.Bounds; $r.X += 3; $r.Width -= 5
+        $fl = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis
+        [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, $e.Header.Text, $s.Font, $r, [System.Drawing.Color]::FromArgb(155,165,178), $fl)
+    } catch { $e.DrawDefault = $true }
+})
+# OwnerDraw makes cell painting OUR job: without a DrawSubItem handler every row renders
+# blank. DrawItem stays empty because per-cell drawing happens in DrawSubItem, the same
+# split $lvDashTop uses.
+$lvConv.Add_DrawItem({ param($s, $e) })
+$lvConv.Add_DrawSubItem({
+    param($s, $e)
+    try {
+        # Alternating row tint. Twelve columns of mono text with no gridlines is hard to
+        # track across, and banding fixes that without the noise of a full grid.
+        $bg = if ($e.Item.Selected) { [System.Drawing.Color]::FromArgb(32,42,56) }
+              elseif ($e.ItemIndex % 2) { [System.Drawing.Color]::FromArgb(28,28,30) }
+              else { [System.Drawing.Color]::FromArgb(24,24,24) }
+        $bb = New-Object System.Drawing.SolidBrush($bg); $e.Graphics.FillRectangle($bb, $e.Bounds); $bb.Dispose()
+        # Protocol colour is already resolved per row into Item.ForeColor by the filter
+        # scriptblock, so reuse it rather than duplicating that mapping here.
+        $r = $e.Bounds; $r.X += 3; $r.Width -= 5
+        $fl = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::Left -bor [System.Windows.Forms.TextFormatFlags]::EndEllipsis
+        [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, "$($e.SubItem.Text)", $s.Font, $r, $e.Item.ForeColor, $fl)
+    } catch { $e.DrawDefault = $true }
+})
+
+$subPcapConv.Controls.Add($lvConv)
 [void]$subPcapTabs.TabPages.Add($subPcapConv)
 
 # --- Tab 3: TLS Handshakes ---
