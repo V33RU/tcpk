@@ -520,7 +520,12 @@ $lvDashTop.Add_DrawSubItem({
         } else { $s.BackColor }
         $bb = New-Object System.Drawing.SolidBrush($selBg); $g.FillRectangle($bb, $e.Bounds); $bb.Dispose()
         $txt = "$($e.SubItem.Text)"
-        $sev = "$($e.Item.Tag)"
+        # Severity comes from column 0, which already holds it, NOT from Tag. Tag now
+        # carries the whole finding row so a double-click can open its detail, and reading
+        # severity out of Tag would have silently killed the CVSS column's colour the
+        # moment that changed: "$($e.Item.Tag)" on an object stringifies to a type name,
+        # SevColour.ContainsKey misses, and the cell just quietly renders default grey.
+        $sev = "$($e.Item.SubItems[0].Text)"
         $font = $s.Font
         # theme-aware colours: teal RULE + green/grey CONFIDENCE need deeper tones on white
         $ruleCol = if ($script:DarkTheme) { if ($script:Accent) { $script:Accent } else { [System.Drawing.Color]::FromArgb(45, 212, 191) } } else { [System.Drawing.Color]::FromArgb(13, 130, 118) }
@@ -6887,13 +6892,22 @@ function Update-Dashboard {
     $lvDashTop.BeginUpdate()
     $lvDashTop.Items.Clear()
     $lvDashTop.BackColor = $pal.TextBg
+    # This table shows the worst 14 and nothing else. That cap is fine; hiding it is not.
+    # An operator looking at 14 rows under a heading that just says "Top findings" has no
+    # way to tell 14-of-14 from 14-of-212, so the count goes in the heading. Kept short
+    # deliberately: the label is Dock=Top with a fixed Height of 24, so a longer sentence
+    # clips once Apply-UiFont scales the form up. Same rule the scan-coverage work follows,
+    # a truncated view must never be able to read as a complete one.
+    $topShown = 0; $topTotal = 0
     if ($rows.Count) {
         $sorted = @($rows | Sort-Object @{ E = { $sevRank["$($_.Sev)"] } }, @{ E = { if ($null -ne $_.Cvss) { -1 * [double]$_.Cvss } else { 0 } } })
-        $show = [Math]::Min(14, $sorted.Count)
-        for ($i = 0; $i -lt $show; $i++) {
+        $topTotal = $sorted.Count
+        $topShown = [Math]::Min(14, $topTotal)
+        for ($i = 0; $i -lt $topShown; $i++) {
             $r  = $sorted[$i]
             $it = New-Object System.Windows.Forms.ListViewItem("$($r.Sev)")
-            $it.Tag = "$($r.Sev)"
+            # The whole row, not just its severity: this is what a detail view reads.
+            $it.Tag = $r
             [void]$it.SubItems.Add("$($r.Rule)")
             [void]$it.SubItems.Add("$($r.Finding)")
             [void]$it.SubItems.Add("$($r.Conf)")
@@ -6903,6 +6917,14 @@ function Update-Dashboard {
         }
     }
     $lvDashTop.EndUpdate()
+
+    if ($topTotal -eq 0) {
+        $dashTopTitle.Text = 'Top findings'
+    } elseif ($topTotal -gt $topShown) {
+        $dashTopTitle.Text = "Top findings  ($topShown of $topTotal)"
+    } else {
+        $dashTopTitle.Text = "Top findings  (all $topTotal)"
+    }
 
     # --- panels + labels follow the theme (uniform deep ground) ---
     foreach ($p in @($dashTopBox, $dashMid, $dashSevBox, $dashAssBox, $dashHeader, $dashCards)) {
