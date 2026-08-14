@@ -3412,7 +3412,7 @@ $cmbHexMode = New-Object System.Windows.Forms.ComboBox
 $cmbHexMode.Location = New-Object System.Drawing.Point(8, 4); $cmbHexMode.Size = New-Object System.Drawing.Size(140, 22)
 $cmbHexMode.DropDownStyle = 'DropDownList'; $cmbHexMode.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48)
 $cmbHexMode.ForeColor = [System.Drawing.Color]::FromArgb(200, 205, 210); $cmbHexMode.FlatStyle = 'Flat'
-@('Data Inspector', 'PE Map', 'XOR Decode', 'Byte Freq', 'Bookmarks', 'PE Detail') | ForEach-Object { [void]$cmbHexMode.Items.Add($_) }; $cmbHexMode.SelectedIndex = 0
+@('Data Inspector', 'PE Map', 'XOR Decode', 'Byte Freq', 'Bookmarks', 'PE Detail', 'Byte Pattern') | ForEach-Object { [void]$cmbHexMode.Items.Add($_) }; $cmbHexMode.SelectedIndex = 0
 $hexInsHdr.Controls.Add($cmbHexMode)
 $hexInsPanel.Controls.Add($hexInsHdr)
 # Mode A: Data Inspector (default)
@@ -3628,6 +3628,147 @@ $txtPiVer.Text = 'Click Analyze.'; $pdTabVer.Controls.Add($txtPiVer)
 
 $pnlPdMode.Controls.Add($pdMain); $pdMain.BringToFront()
 $hexInsPanel.Controls.Add($pnlPdMode)
+
+# Mode G: Byte Pattern -- apply a declarative field table and render the header as named,
+# decoded rows. The engine is Get-TcpkFileStructure / _BytePattern.ps1 in the module; this
+# is only the view.
+#
+# Colouring reuses the PE-overlay path unchanged. Get-GuiHexRtfEx builds its RTF colour
+# table from $peMap.Sections[*].R/G/B and then indexes it with $s.Ci + 2, so Ci must be the
+# section's own position in the array. A pattern is simply that same map with a loadable
+# producer, which is why no rendering code changed.
+$pnlPatMode = New-Object System.Windows.Forms.Panel
+$pnlPatMode.Dock = 'Fill'; $pnlPatMode.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $pnlPatMode.Visible = $false
+
+$hexPatTop = New-Object System.Windows.Forms.Panel
+$hexPatTop.Dock = 'Top'; $hexPatTop.Height = 58; $hexPatTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+
+$cmbPatName = New-Object System.Windows.Forms.ComboBox
+$cmbPatName.Location = New-Object System.Drawing.Point(8, 6); $cmbPatName.Size = New-Object System.Drawing.Size(150, 22)
+$cmbPatName.DropDownStyle = 'DropDownList'; $cmbPatName.FlatStyle = 'Flat'
+$cmbPatName.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbPatName.ForeColor = [System.Drawing.Color]::White
+try {
+    foreach ($sp in @(Get-TcpkFileStructure -ListPatterns)) { [void]$cmbPatName.Items.Add($sp.Name) }
+    if ($cmbPatName.Items.Count) { $cmbPatName.SelectedIndex = 0 }
+} catch { }
+$hexPatTop.Controls.Add($cmbPatName)
+
+$btnPatLoad = New-Object System.Windows.Forms.Button
+$btnPatLoad.Text = 'Load...'; $btnPatLoad.Location = New-Object System.Drawing.Point(164, 5); $btnPatLoad.Size = New-Object System.Drawing.Size(60, 24)
+$btnPatLoad.FlatStyle = 'Flat'; $btnPatLoad.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $btnPatLoad.ForeColor = [System.Drawing.Color]::White
+$hexPatTop.Controls.Add($btnPatLoad)
+
+$lblPatBase = New-Object System.Windows.Forms.Label
+$lblPatBase.Text = 'At offset:'; $lblPatBase.Location = New-Object System.Drawing.Point(8, 34); $lblPatBase.AutoSize = $true
+$lblPatBase.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexPatTop.Controls.Add($lblPatBase)
+
+# x=76 for the same reason the SBOM filter box uses it: an AutoSize label starting at x=8
+# grows over a box placed too close once Apply-UiFont scales the form up.
+$txtPatBase = New-Object System.Windows.Forms.TextBox
+# Width 120 to match the reflow floor in Apply-UiFont: that helper clamps a reflowed box
+# to Math::Max(120, ...), so a narrower box would be GROWN on the first font change and
+# pushed under the Apply button. Apply moves right accordingly.
+$txtPatBase.Location = New-Object System.Drawing.Point(76, 31); $txtPatBase.Size = New-Object System.Drawing.Size(120, 22)
+$txtPatBase.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtPatBase.ForeColor = [System.Drawing.Color]::White
+$txtPatBase.Text = '0'
+$hexPatTop.Controls.Add($txtPatBase)
+
+$btnPatApply = New-Object System.Windows.Forms.Button
+$btnPatApply.Text = 'Apply'; $btnPatApply.Location = New-Object System.Drawing.Point(202, 30); $btnPatApply.Size = New-Object System.Drawing.Size(60, 24)
+$btnPatApply.FlatStyle = 'Flat'; $btnPatApply.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnPatApply.ForeColor = [System.Drawing.Color]::White
+$hexPatTop.Controls.Add($btnPatApply)
+$pnlPatMode.Controls.Add($hexPatTop)
+
+$lvHexPat = New-Object System.Windows.Forms.ListView
+$lvHexPat.Dock = 'Fill'; $lvHexPat.View = 'Details'; $lvHexPat.FullRowSelect = $true; $lvHexPat.GridLines = $false
+$lvHexPat.HeaderStyle = 'Nonclickable'
+$lvHexPat.BackColor = [System.Drawing.Color]::FromArgb(24, 24, 24); $lvHexPat.ForeColor = [System.Drawing.Color]::FromArgb(214, 220, 228)
+$lvHexPat.Font = New-Object System.Drawing.Font('Consolas', 9)
+[void]$lvHexPat.Columns.Add('Field', 108); [void]$lvHexPat.Columns.Add('Offset', 74)
+[void]$lvHexPat.Columns.Add('Type', 62);   [void]$lvHexPat.Columns.Add('Value', 150)
+$pnlPatMode.Controls.Add($lvHexPat); $lvHexPat.BringToFront()
+$hexInsPanel.Controls.Add($pnlPatMode)
+
+$script:PatCustomFile = ''
+$btnPatLoad.Add_Click({
+    $dlg = New-Object System.Windows.Forms.OpenFileDialog
+    $dlg.Filter = 'Byte pattern (*.json)|*.json|All files (*.*)|*.*'
+    if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        $script:PatCustomFile = $dlg.FileName
+        $nm = [IO.Path]::GetFileNameWithoutExtension($dlg.FileName) + ' (file)'
+        if (-not $cmbPatName.Items.Contains($nm)) { [void]$cmbPatName.Items.Add($nm) }
+        $cmbPatName.SelectedItem = $nm
+    }
+})
+
+$btnPatApply.Add_Click({
+    $fp = $txtHexPath.Text.Trim()
+    if (-not $fp) { $lblHex.Text = 'load a file first'; return }
+    $sel = [string]$cmbPatName.SelectedItem
+    if (-not $sel) { $lblHex.Text = 'pick a pattern'; return }
+    $pat = if ($sel.EndsWith(' (file)')) { $script:PatCustomFile } else { $sel }
+
+    $base = [int64]0
+    $bt = $txtPatBase.Text.Trim()
+    if ($bt) {
+        try { $base = if ($bt -match '^0x') { [Convert]::ToInt64($bt.Substring(2), 16) } else { [int64]$bt } }
+        catch { $lblHex.Text = 'offset must be decimal or 0x-prefixed hex'; return }
+    }
+
+    $rows = $null
+    try { $rows = @(Get-TcpkFileStructure -Path $fp -Pattern $pat -BaseOffset $base) }
+    catch {
+        # An invalid pattern is refused whole by the engine, so surface the reason instead
+        # of showing a half-populated table that looks like a result.
+        $lvHexPat.Items.Clear()
+        $lblHex.Text = "pattern: $(("$($_.Exception.Message)" -split "`n")[0])"
+        return
+    }
+
+    $lvHexPat.BeginUpdate(); $lvHexPat.Items.Clear()
+    $secs = New-Object 'System.Collections.Generic.List[object]'
+    $ci = 0
+    foreach ($r in $rows) {
+        $it = New-Object System.Windows.Forms.ListViewItem("$($r.Name)")
+        [void]$it.SubItems.Add("0x$($r.Offset.ToString('x'))")
+        [void]$it.SubItems.Add("$($r.Type)")
+        [void]$it.SubItems.Add($(if ($r.Status -eq 'ok') { "$($r.Value)" } else { "<$($r.Status)>" }))
+        if ($r.Status -eq 'ok') {
+            $it.ForeColor = [System.Drawing.Color]::FromArgb($r.R, $r.G, $r.B)
+            # Only a field that actually fits gets coloured in the hex view. Colouring an
+            # out-of-range row would tint bytes the pattern never described.
+            $secs.Add([pscustomobject]@{
+                Name = $r.Name; RawOff = [int64]$r.Offset; RawSize = [int]$r.Size
+                R = $r.R; G = $r.G; B = $r.B; Ci = $ci
+            })
+            $ci++
+        } else {
+            $it.ForeColor = [System.Drawing.Color]::FromArgb(200, 90, 90)
+        }
+        $it.Tag = [int64]$r.Offset
+        [void]$lvHexPat.Items.Add($it)
+    }
+    $lvHexPat.EndUpdate()
+
+    $bad = @($rows | Where-Object { $_.Status -ne 'ok' }).Count
+    if ($secs.Count) {
+        # HeaderEnd = 0: a pattern has no separate header region, so no byte gets colour
+        # index 1. Ci is the section's own array position because Get-GuiHexRtfEx indexes
+        # its colour table with Ci + 2.
+        $script:HexPeMap = [pscustomobject]@{ Sections = $secs.ToArray(); HeaderEnd = [int64]0 }
+        $script:HexPeOverlay = $true
+        $btnHexPe.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166)
+        Load-GuiHex $script:HexOffset
+    }
+    $lblHex.Text = "pattern '$sel': $($secs.Count) field(s) mapped" + $(if ($bad) { ", $bad out of range" } else { '' })
+})
+
+$lvHexPat.Add_Click({
+    if ($lvHexPat.SelectedItems.Count -and $null -ne $lvHexPat.SelectedItems[0].Tag) {
+        Do-GuiHexInspect ([int64]$lvHexPat.SelectedItems[0].Tag)
+    }
+})
 $hexBody.Controls.Add($hexInsPanel)
 # --- Center column: entropy strip + hex view + strings panel ---
 $hexCenter = New-Object System.Windows.Forms.Panel
@@ -3771,10 +3912,13 @@ $cmbHexMode.Add_SelectedIndexChanged({
     $mi = $cmbHexMode.SelectedIndex
     $pnlInsMode.Visible = ($mi -eq 0); $pnlPeMode.Visible = ($mi -eq 1); $pnlXorMode.Visible = ($mi -eq 2)
     $pnlFreqMode.Visible = ($mi -eq 3); $pnlBmkMode.Visible = ($mi -eq 4); $pnlPdMode.Visible = ($mi -eq 5)
-    $modePnls = @($pnlInsMode, $pnlPeMode, $pnlXorMode, $pnlFreqMode, $pnlBmkMode, $pnlPdMode)
+    $pnlPatMode.Visible = ($mi -eq 6)
+    $modePnls = @($pnlInsMode, $pnlPeMode, $pnlXorMode, $pnlFreqMode, $pnlBmkMode, $pnlPdMode, $pnlPatMode)
     if ($mi -ge 0 -and $mi -lt $modePnls.Count) { $modePnls[$mi].BringToFront() }
     # PE Detail needs more horizontal space for its multi-column ListViews
-    $hexInsPanel.Width = if ($mi -eq 5) { 440 } else { 300 }
+    # PE Detail and Byte Pattern both carry multi-column tables; 300 would cut the
+    # Value column off entirely (the pattern columns total 394).
+    $hexInsPanel.Width = if ($mi -eq 5 -or $mi -eq 6) { 440 } else { 300 }
 })
 $btnPdAnalyze.Add_Click({
     $p = "$($txtHexPath.Text)".Trim()
@@ -6731,7 +6875,9 @@ function Apply-UiFont {
     foreach ($pair in @(
         @($hardLblF, $txtHardFilter),
         @($sbomLblF, $txtSbomFilter),
-        @($signLblF, $txtSignFilter)
+        @($signLblF, $txtSignFilter),
+        # Byte Pattern's "At offset:" is the same shape: AutoSize label, fixed-x box.
+        @($lblPatBase, $txtPatBase)
     )) {
         try {
             $lbl = $pair[0]; $box = $pair[1]
