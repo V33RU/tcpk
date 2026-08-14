@@ -77,6 +77,59 @@ function New-DefaultOutDir {
     Join-Path $PSScriptRoot "work\out\mcp-audit-$stamp"
 }
 
+# JSON booleans arrive typed, but a client is free to send the STRING "false", and [bool]
+# on any non-empty string is $true in PowerShell. Every gate in this file therefore has to
+# compare explicitly. It was written correctly once, inline, for tcpk_generate_poc and then
+# NOT reused: 'verbose' used a bare [bool] cast and flipped open on the string "false".
+# One implementation, so the next gate cannot get it wrong.
+function Get-BoolArg($arguments, [string]$name, [bool]$default = $false) {
+    $v = Get-Arg $arguments $name $null
+    if ($null -eq $v) { return $default }
+    if ($v -is [bool]) { return $v }
+    return ("$v".Trim() -ieq 'true')
+}
+
+# Validate a caller-supplied outDir. The model chooses this value, and the model reads
+# untrusted content: strings carved out of the target, CVE text, decompiled code.
+#
+# Reading and writing are gated differently, on purpose.
+#
+# UNC and device paths are refused for BOTH. That is the actual harm: opening \\host\share
+# makes the Windows filesystem provider perform SMB session setup and hand the operator's
+# Net-NTLMv2 to whatever host the model named, before the file-exists check even returns.
+# The tool then answers with an ordinary empty result, so nothing on screen indicates an
+# outbound authentication happened.
+#
+# CONFINEMENT to the tool folder applies only where TCPK CREATES things (tcpk_audit,
+# tcpk_generate_poc), which is exactly what the project rule covers, and stops
+# tcpk_generate_poc dropping build.bat or a .reg into, say, a Startup folder.
+#
+# Reads are deliberately NOT confined. An operator can legitimately point at output from a
+# CLI run, an older version, or another machine, and the existing MCP tests read a fixture
+# from %TEMP% for that reason. Confining reads would have broken a real workflow to close
+# a hole that the UNC refusal already closes: what is left is a local file read whose
+# content flows into model context, and the operator chose the client and the target.
+function Resolve-SafeOutDir([string]$path, [string]$toolName, [switch]$ForWrite) {
+    if (-not $path) { throw "$toolName requires an outDir." }
+    if ($path -match '^(\\\\|//)') {
+        throw "$toolName refused outDir '$path': UNC and device paths authenticate this machine to the named host. Use a local path."
+    }
+    $rootFull = [IO.Path]::GetFullPath($PSScriptRoot)
+    $full = $null
+    try { $full = [IO.Path]::GetFullPath([IO.Path]::Combine($rootFull, $path)) }
+    catch { throw "$toolName could not resolve outDir '$path': $($_.Exception.Message)" }
+
+    if ($ForWrite) {
+        # Trailing separator before comparing, so a sibling like '<root>_evil' cannot pass
+        # a naive StartsWith on '<root>'.
+        $rootCmp = $rootFull.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+        if (-not $full.StartsWith($rootCmp, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "$toolName refused outDir '$path': it resolves to '$full', outside the tool folder. Everything TCPK creates stays under '$rootFull'."
+        }
+    }
+    return $full
+}
+
 # ---------------------------------------------------------------------------
 # Tool implementations. Each returns a STRING (text content for the client).
 # All TCPK calls suppress streams 2-6 so only the return value is used.
@@ -110,7 +163,7 @@ $script:ToolHandlers = @{
         param($a)
         $target = Get-Arg $a 'target'
         if (-not $target) { throw "Missing required argument: target" }
-        $incl = [bool](Get-Arg $a 'includePatched' $false)
+        $incl = Get-BoolArg $a 'includePatched' $false
         $m = if ($incl) { Get-TcpkCveMatches -Path $target -IncludePatched 2>$null 3>$null 4>$null 5>$null 6>$null }
              else       { Get-TcpkCveMatches -Path $target               2>$null 3>$null 4>$null 5>$null 6>$null }
         return (@($m) | ConvertTo-Json -Depth 6)
@@ -155,10 +208,57 @@ $script:ToolHandlers = @{
         param($a)
         $target = Get-Arg $a 'target'
         if (-not $target) { throw "Missing required argument: target" }
-        $outDir = Get-Arg $a 'outDir' (New-DefaultOutDir)
+
+        # Unpacking an .msi means RUNNING it. Expand-TcpkTarget routes '^\.msi$' to
+        # Expand-TcpkMsiFile, which shells out to `msiexec /a`, and an administrative
+        # install executes the package's AdminExecuteSequence, i.e. the MSI author's own
+        # custom actions, as the invoking user. _Expand.ps1 says so itself: "/a can still
+        # run an MSI's custom actions -- extract untrusted installers in a VM".
+        #
+        # On the CLI that is survivable, because Invoke-TcpkAudit stops at a Read-Host
+        # authorization prompt and prints "Extracting MSI via 'msiexec /a'" as it goes.
+        # This handler removed BOTH: it passes Acknowledge = $true, which skips the prompt,
+        # and pipes the call through *>$null, which swallows the notice. So a model that
+        # was steered to a .msi executed the sample's code with nothing shown to anyone.
+        #
+        # The target is chosen by a model reading untrusted content, so this needs the same
+        # explicit opt-in tcpk_generate_poc uses rather than an inference from the path.
+        # Decide "is this an .msi" the SAME WAY Expand-TcpkTarget decides it, by asking
+        # Get-Item for the extension, rather than by regexing the path string. A gate that
+        # parses its input differently from the code it guards is only ever as good as the
+        # edge cases its author thought of; matching the dispatcher's own predicate makes
+        # the two agree by construction. Get-Item failing is fine and needs no gate:
+        # Expand-TcpkTarget opens with the same Test-Path and returns the path untouched,
+        # so msiexec is never reached either.
+        $isMsi = $false
+        try {
+            $ti = Get-Item -LiteralPath $target -ErrorAction SilentlyContinue
+            if ($ti -and -not $ti.PSIsContainer) { $isMsi = ($ti.Extension.ToLowerInvariant() -eq '.msi') }
+        } catch { $isMsi = $false }
+
+        if ($isMsi) {
+            if (-not (Get-BoolArg $a 'runInstaller' $false)) {
+                throw ("Refused: '$target' is an .msi, and TCPK unpacks one by running it (msiexec /a), " +
+                       "which executes the installer's own custom actions on this machine. Re-send with " +
+                       "runInstaller=true only if you have authorization AND are in a disposable VM. " +
+                       "To audit without running it, extract the .msi yourself and pass the folder.")
+            }
+            Log-Stderr "tcpk_audit: runInstaller=true, .msi will be unpacked via 'msiexec /a' (executes vendor custom actions)"
+        }
+
+        $outDir = Resolve-SafeOutDir (Get-Arg $a 'outDir' (New-DefaultOutDir)) 'tcpk_audit' -ForWrite
         $params = @{ Target = $target; Acknowledge = $true; OutDir = $outDir; InformationAction = 'SilentlyContinue' }
         $pkg  = Get-Arg $a 'packageName';  if ($pkg)  { $params.PackageName = $pkg }
-        $proc = Get-Arg $a 'processName';  if ($proc) { $params.ProcessName = $proc }
+        # No wildcards: Get-Process treats * and ? as patterns, so a model-supplied
+        # 'YourApp*' or plain '*' would attach the live-process checks to whatever else
+        # happens to be running rather than to the target.
+        $proc = Get-Arg $a 'processName'
+        if ($proc) {
+            if ("$proc" -match '[\*\?\[\]]') {
+                throw "Refused: processName '$proc' contains a wildcard. Name one process exactly; Get-Process would otherwise match unrelated processes."
+            }
+            $params.ProcessName = $proc
+        }
         Log-Stderr "tcpk_audit start: $target -> $outDir"
         Invoke-TcpkAudit @params *>$null
         Log-Stderr "tcpk_audit done"
@@ -188,8 +288,7 @@ $script:ToolHandlers = @{
 
     'tcpk_get_findings' = {
         param($a)
-        $outDir = Get-Arg $a 'outDir'
-        if (-not $outDir) { throw "Missing required argument: outDir" }
+        $outDir = Resolve-SafeOutDir (Get-Arg $a 'outDir') 'tcpk_get_findings'
         # Where-Object drops the $null that Read-JsonFile returns for a missing file -- otherwise
         # @($null) is a 1-element array and the fallback below materializes one blank finding.
         $raw  = @(Read-JsonFile (Join-Path $outDir 'findings.json') | Where-Object { $_ })
@@ -207,7 +306,8 @@ $script:ToolHandlers = @{
         $sevFilter = Get-Arg $a 'severity'
         $ruleFilter = Get-Arg $a 'ruleId'
         $limit = [int](Get-Arg $a 'limit' 50)
-        $full = [bool](Get-Arg $a 'verbose' $false)
+        # Get-BoolArg, not [bool]: the string "false" is truthy in PowerShell.
+        $full = Get-BoolArg $a 'verbose' $false
         $res = $recs
         if ($sevFilter)  { $res = @($res | Where-Object { "$($_.sev)" -eq $sevFilter }) }
         if ($ruleFilter) { $res = @($res | Where-Object { "$($_.rule)" -like "*$ruleFilter*" }) }
@@ -224,8 +324,7 @@ $script:ToolHandlers = @{
 
     'tcpk_exploit_plan' = {
         param($a)
-        $outDir = Get-Arg $a 'outDir'
-        if (-not $outDir) { throw "Missing required argument: outDir" }
+        $outDir = Resolve-SafeOutDir (Get-Arg $a 'outDir') 'tcpk_get_findings'
         $plan = @(Read-JsonFile (Join-Path $outDir 'exploits.json'))
         return (@($plan) | ConvertTo-Json -Depth 6)
     }
@@ -236,11 +335,10 @@ $script:ToolHandlers = @{
         # NB: compare EXPLICITLY -- do NOT [bool]-coerce the raw arg. A JSON client that sends
         # the boolean as a string ("false"/"no"/"0") would otherwise open the gate, because
         # [bool] on any non-empty string is $true. Accept only real $true or the literal 'true'.
-        $av = Get-Arg $a 'authorized' $false
-        $authorized = if ($av -is [bool]) { $av } else { "$av".Trim() -ieq 'true' }
+        $authorized = Get-BoolArg $a 'authorized' $false
         if (-not $authorized) { throw "Refused: set authorized=true (a real boolean, or the string 'true') to confirm you have written authorization to test the target." }
         $module = Get-Arg $a 'module'
-        $outDir = Get-Arg $a 'outDir' (Join-Path (New-DefaultOutDir) 'poc')
+        $outDir = Resolve-SafeOutDir (Get-Arg $a 'outDir' (Join-Path (New-DefaultOutDir) 'poc')) 'tcpk_generate_poc' -ForWrite
         if (-not (Test-Path $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
         Enable-TcpkExploit -Acknowledge *>$null
         $result = switch ("$module") {
@@ -297,12 +395,13 @@ $script:ToolDefs = @(
             method = @{ type = 'string'; description = 'Optional "Namespace.Type::Method". Omit to list sink-bearing methods first.' }
         }; required = @('dll') } },
 
-    [ordered]@{ name = 'tcpk_audit'; description = 'Run the full TCPK audit (static + manifest + OS + creds + network + webview2 + logging + memory + anti-debug + recon + CVE). Writes reports and returns a summary with the outDir. Takes ~1-3 minutes.';
+    [ordered]@{ name = 'tcpk_audit'; description = 'Run the full TCPK audit (static + manifest + OS + creds + network + webview2 + logging + memory + anti-debug + recon + CVE). Writes reports and returns a summary with the outDir. Takes ~1-3 minutes. NOTE: an .msi target is unpacked by RUNNING the installer (msiexec /a), so it additionally requires runInstaller=true.';
         inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{
             target = @{ type = 'string'; description = 'MSIX file or install directory' }
             packageName = @{ type = 'string'; description = 'e.g. YourApp -- enables OS/registry/service checks' }
             processName = @{ type = 'string'; description = 'e.g. "YourApp" -- enables live-process checks if running' }
-            outDir = @{ type = 'string'; description = 'Output directory (default: temp)' }
+            outDir = @{ type = 'string'; description = 'Output directory. Must resolve inside the TCPK tool folder; UNC paths are refused.' }
+            runInstaller = @{ type = 'boolean'; description = 'Required ONLY for an .msi target. TCPK unpacks an .msi by running it (msiexec /a), which executes the installer''s own custom actions on this machine. Leave unset for any other target type.' }
         }; required = @('target') } },
 
     [ordered]@{ name = 'tcpk_get_findings'; description = 'Read findings from a completed audit outDir, ENRICHED through the same intel model the HTML/Excel reports use: each finding carries its computed CVSS v4.0, CWE, ATT&CK technique, OWASP TASVS control and a how-to-verify hint, plus the confidence ladder (Inferred / Confirmed / Confirmed (IL) / Confirmed (dynamic)). Filter by severity or ruleId.';

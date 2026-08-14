@@ -22,6 +22,11 @@ BeforeAll {
                     Evidence = 'DYNAMICBASE missing'; Description = 'd'; Cwe = @('CWE-119') }
     ) | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $script:OutDir 'findings.json') -Encoding UTF8
 
+    # A file that merely IS named .msi. The gate must refuse it on extension alone, before
+    # anything reads or executes it, so an empty file is a sufficient and safe fixture.
+    $script:MsiFixture = Join-Path $script:OutDir 'fixture.msi'
+    Set-Content -LiteralPath $script:MsiFixture -Value '' -Encoding UTF8
+
     $reqs = @(
         @{ jsonrpc = '2.0'; id = 1; method = 'initialize'; params = @{} }
         @{ jsonrpc = '2.0'; id = 2; method = 'tools/list'; params = @{} }
@@ -37,6 +42,20 @@ BeforeAll {
         @{ jsonrpc = '2.0'; id = 10; method = 'tools/call'; params = @{ name = 'tcpk_generate_poc'; arguments = @{ module = 'New-TcpkFridaTlsBypass'; authorized = 'false' } } }
         # id 11: a dir with NO findings.json must return zero findings, not one blank phantom.
         @{ jsonrpc = '2.0'; id = 11; method = 'tools/call'; params = @{ name = 'tcpk_get_findings'; arguments = @{ outDir = ([IO.Path]::GetTempPath()) } } }
+        # id 12: a UNC outDir must be refused BEFORE the path is opened. Opening it would make
+        # Windows perform SMB session setup and leak Net-NTLMv2 to the named host, and the tool
+        # would then answer with an ordinary empty result showing nothing happened.
+        @{ jsonrpc = '2.0'; id = 12; method = 'tools/call'; params = @{ name = 'tcpk_get_findings'; arguments = @{ outDir = '\\127.0.0.1\share' } } }
+        # id 13: an .msi target must be refused without runInstaller=true. Unpacking an .msi
+        # runs `msiexec /a`, which executes the installer's own custom actions on this machine.
+        @{ jsonrpc = '2.0'; id = 13; method = 'tools/call'; params = @{ name = 'tcpk_audit'; arguments = @{ target = $script:MsiFixture } } }
+        # id 14: same trap as 'authorized' -- the STRING "false" must not open the gate.
+        @{ jsonrpc = '2.0'; id = 14; method = 'tools/call'; params = @{ name = 'tcpk_audit'; arguments = @{ target = $script:MsiFixture; runInstaller = 'false' } } }
+        # id 15: a wildcard processName would attach the live-process checks to whatever else
+        # happens to be running.
+        @{ jsonrpc = '2.0'; id = 15; method = 'tools/call'; params = @{ name = 'tcpk_audit'; arguments = @{ target = $script:OutDir; processName = '*' } } }
+        # id 16: a write tool must not be steerable outside the tool folder.
+        @{ jsonrpc = '2.0'; id = 16; method = 'tools/call'; params = @{ name = 'tcpk_generate_poc'; arguments = @{ module = 'New-TcpkFridaTlsBypass'; authorized = $true; outDir = ([IO.Path]::GetTempPath()) } } }
     )
     $script:ReqCount = @($reqs).Count
     $reqFile = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-mcp-req-" + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.jsonl')
@@ -171,6 +190,36 @@ Describe 'safety + error handling' {
         $script:R['6'].result.isError | Should -BeTrue
         "$($script:R['6'].result.content[0].text)" | Should -Match 'Unknown tool'
     }
+    It 'refuses a UNC outDir before opening it (Net-NTLMv2 leak)' {
+        $r = $script:R['12']
+        $r | Should -Not -BeNullOrEmpty
+        "$($r.result.content[0].text)" | Should -Match '(?i)UNC and device paths'
+    }
+
+    It 'refuses an .msi target without runInstaller=true' {
+        $r = $script:R['13']
+        $r | Should -Not -BeNullOrEmpty
+        "$($r.result.content[0].text)" | Should -Match '(?i)msiexec /a'
+    }
+
+    It 'does NOT open the .msi gate when runInstaller arrives as the string "false"' {
+        $r = $script:R['14']
+        $r | Should -Not -BeNullOrEmpty
+        "$($r.result.content[0].text)" | Should -Match '(?i)msiexec /a'
+    }
+
+    It 'refuses a wildcard processName' {
+        $r = $script:R['15']
+        $r | Should -Not -BeNullOrEmpty
+        "$($r.result.content[0].text)" | Should -Match '(?i)wildcard'
+    }
+
+    It 'refuses a write outDir outside the tool folder, even when authorized' {
+        $r = $script:R['16']
+        $r | Should -Not -BeNullOrEmpty
+        "$($r.result.content[0].text)" | Should -Match '(?i)outside the tool folder'
+    }
+
     It 'reports a missing required argument as an error instead of crashing' {
         $script:R['8'].result.isError | Should -BeTrue
         "$($script:R['8'].result.content[0].text)" | Should -Match 'target'
