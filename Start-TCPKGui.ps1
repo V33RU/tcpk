@@ -3216,30 +3216,17 @@ function Get-GuiPeMap([string]$path) {
     } catch { return $null }
     finally { if ($br) { $br.Dispose() }; if ($fs) { $fs.Dispose() } }
 }
-# Shannon entropy per block (0.0-8.0). Capped at 10 MB, block size auto-scaled.
+# Block entropy now comes from the module (Get-TcpkBlockEntropy in TCPK/Private/_Entropy.ps1)
+# so it is reachable by Pester. The version that lived here read only the first 10 MB while
+# the caller had sized blocks to span the whole file, so on any target over 10 MB the strip
+# coloured one range and its click handler jumped to another. Same `& $mod { }` bridge the
+# PE reader and callsite map already use.
 function Get-GuiBlockEntropy([string]$path, [int]$blockSize) {
     if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return ,@() }
-    $total = [int64](Get-Item -LiteralPath $path).Length
-    if ($total -eq 0) { return ,@() }
-    if ($blockSize -lt 64) { $blockSize = 256 }
-    $readLen = [int][Math]::Min($total, [int64]10485760)
-    $buf = New-Object 'byte[]' $readLen
-    $fsr = [IO.File]::OpenRead($path)
-    try { [void]$fsr.Read($buf, 0, $readLen) } finally { $fsr.Dispose() }
-    $blocks = [int][Math]::Ceiling($readLen / $blockSize)
-    $result = New-Object 'double[]' $blocks
-    $log2 = [Math]::Log(2)
-    for ($bi = 0; $bi -lt $blocks; $bi++) {
-        $bs2 = $bi * $blockSize; $bl = [Math]::Min($blockSize, $readLen - $bs2)
-        $freq = New-Object 'int[]' 256
-        for ($i = 0; $i -lt $bl; $i++) { $freq[$buf[$bs2 + $i]]++ }
-        $ent = [double]0
-        for ($v = 0; $v -lt 256; $v++) {
-            if ($freq[$v] -gt 0) { $p = [double]$freq[$v] / $bl; $ent -= $p * [Math]::Log($p) / $log2 }
-        }
-        $result[$bi] = $ent
-    }
-    return ,$result
+    $m = @(Get-Module TCPK)
+    if (-not $m.Count) { return ,@() }
+    try { return ,(& $m[0] { param($p, $b) Get-TcpkBlockEntropy -Path $p -BlockSize $b } $path $blockSize) }
+    catch { return ,@() }
 }
 # XOR single-byte brute-force: try 0x01-0xFF, report printable ASCII runs >= $minStr.
 function Do-GuiXorScan([string]$path, [int64]$offset, [int]$length, [int]$minStr) {
