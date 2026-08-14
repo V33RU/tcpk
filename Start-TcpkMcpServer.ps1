@@ -329,6 +329,63 @@ $script:ToolHandlers = @{
         return (@($plan) | ConvertTo-Json -Depth 6)
     }
 
+    'tcpk_file_structure' = {
+        param($a)
+        # Parse a header with a declarative field table. Read-only and takes no outDir, so
+        # it needs no gate beyond the path check every tool does.
+        $pattern = Get-Arg $a 'pattern'
+        if (-not $pattern) {
+            return ((Get-TcpkFileStructure -ListPatterns | Select-Object Name, Fields) | ConvertTo-Json -Depth 4)
+        }
+        $target = Get-Arg $a 'target'
+        if (-not $target) { throw "Missing required argument: target" }
+        $base = [int64]0
+        $bt = "$(Get-Arg $a 'baseOffset' 0)"
+        if ($bt) { $base = if ($bt -match '^0x') { [Convert]::ToInt64($bt.Substring(2), 16) } else { [int64]$bt } }
+        $rows = @(Get-TcpkFileStructure -Path $target -Pattern $pattern -BaseOffset $base 2>$null)
+        return (($rows | Select-Object Name, Offset, Size, Type, Value, Status) | ConvertTo-Json -Depth 4)
+    }
+
+    'tcpk_embedded_blobs' = {
+        param($a)
+        $target = Get-Arg $a 'target'
+        if (-not $target) { throw "Missing required argument: target" }
+        $f = @(Test-TcpkEmbeddedBlobs -Path $target 2>$null 3>$null 4>$null 5>$null 6>$null)
+        return (($f | Select-Object RuleId, Severity, Title, File, Evidence) | ConvertTo-Json -Depth 5)
+    }
+
+    'tcpk_byte_search' = {
+        param($a)
+        $target = Get-Arg $a 'target'
+        if (-not $target) { throw "Missing required argument: target" }
+        $q = Get-Arg $a 'query'
+        if (-not $q) { throw "Missing required argument: query" }
+        $kind = "$(Get-Arg $a 'kind' 'auto')"
+        $max  = [int]"$(Get-Arg $a 'maxMatches' 200)"
+        $res = & $script:TcpkMod {
+            param($p, $qq, $k, $m) Find-TcpkByteMatches -Path $p -Query $qq -Kind $k -MaxMatches $m
+        } $target $q $kind $max
+        $hits = @($res.Matches | ForEach-Object {
+            [ordered]@{ offset = [int64]$_.Offset; hex = ('0x' + ([int64]$_.Offset).ToString('x')); kind = $_.Kind }
+        })
+        return ([ordered]@{ count = $hits.Count; truncated = [bool]$res.Truncated; matches = $hits } | ConvertTo-Json -Depth 4)
+    }
+
+    'tcpk_file_diff' = {
+        param($a)
+        $x = Get-Arg $a 'target'
+        $y = Get-Arg $a 'compareTo'
+        if (-not $x -or -not $y) { throw "tcpk_file_diff needs both target and compareTo." }
+        $r = & $script:TcpkMod { param($p, $q) Get-TcpkFileDiffSummary -PathA $p -PathB $q } $x $y
+        return ([ordered]@{
+            identical = [bool]$r.Identical; lengthA = [int64]$r.LengthA; lengthB = [int64]$r.LengthB
+            commonLength = [int64]$r.CommonLength; differingBytes = [int64]$r.DifferingBytes
+            firstDifference = [int64]$r.FirstDifference
+            firstDifferenceHex = $(if ($r.FirstDifference -ge 0) { '0x' + ([int64]$r.FirstDifference).ToString('x') } else { $null })
+            lengthDelta = [int64]$r.LengthDelta; truncated = [bool]$r.Truncated
+        } | ConvertTo-Json -Depth 3)
+    }
+
     'tcpk_generate_poc' = {
         param($a)
         # Gated: requires explicit authorization. Generates a PoC artifact only.
@@ -415,6 +472,32 @@ $script:ToolDefs = @(
 
     [ordered]@{ name = 'tcpk_exploit_plan'; description = 'Read the actionable exploit/CVE plan (matched CVEs + exploitable findings mapped to framework PoC modules) from a completed audit outDir.';
         inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{ outDir = @{ type = 'string' } }; required = @('outDir') } },
+
+    [ordered]@{ name = 'tcpk_file_structure'; description = 'Parse a binary header into named, decoded fields using a byte pattern (a flat table of name/offset/size/type). Call WITHOUT "pattern" to list the shipped patterns. Use baseOffset to parse a structure that is not at the start of the file, for example one located by tcpk_embedded_blobs. A field that does not fit the file is returned with status "out-of-range" and no value, never decoded from the following bytes.';
+        inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{
+            target = @{ type = 'string'; description = 'File to parse' }
+            pattern = @{ type = 'string'; description = 'Shipped pattern name, or a path to a pattern .json. Omit to list what is available.' }
+            baseOffset = @{ type = 'string'; description = 'Decimal or 0x-prefixed offset to apply the pattern at (default 0)' }
+        }; required = @() } },
+
+    [ordered]@{ name = 'tcpk_embedded_blobs'; description = 'Signature-scan a file or folder for formats embedded at arbitrary offsets: a PE, SQLite database, archive or private key sitting inside an installer or config blob, none of which appears in a directory listing. Every hit is structurally validated (a candidate PE must have an e_lfanew pointing at PE\0\0), and candidates that fail validation are counted rather than reported.';
+        inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{
+            target = @{ type = 'string'; description = 'File or folder to scan' }
+        }; required = @('target') } },
+
+    [ordered]@{ name = 'tcpk_byte_search'; description = 'Find every offset in a file matching a query. Kinds: auto (UTF-8 AND UTF-16LE, the default), ascii, utf16le, hex (e.g. "4D 5A"), regex. Prefer auto on a Windows binary: string literals are stored as UTF-16LE there, so an ASCII-only search reports nothing for text the file demonstrably contains.';
+        inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{
+            target = @{ type = 'string'; description = 'File to search' }
+            query = @{ type = 'string'; description = 'Text, hex bytes, or a regex' }
+            kind = @{ type = 'string'; description = 'auto | ascii | utf16le | hex | regex (default auto)' }
+            maxMatches = @{ type = 'integer'; description = 'Cap on matches returned (default 200); the reply says whether it truncated' }
+        }; required = @('target', 'query') } },
+
+    [ordered]@{ name = 'tcpk_file_diff'; description = 'Compare two files and report how many bytes differ, where the first difference is, and any length difference. A size mismatch is reported as lengthDelta rather than counted as differing bytes, so three changed bytes plus a 4 KB tail does not read as 4099 differences. "identical" requires equal length, no differing byte, and a complete scan.';
+        inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{
+            target = @{ type = 'string'; description = 'First file' }
+            compareTo = @{ type = 'string'; description = 'Second file' }
+        }; required = @('target', 'compareTo') } },
 
     [ordered]@{ name = 'tcpk_generate_poc'; description = 'GATED. Generate a proof-of-concept artifact (Frida TLS-bypass, proxy DLL, poisoned update manifest, COM-hijack template) for an authorized target. Requires authorized=true. Generates files only; does not attack.';
         inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{

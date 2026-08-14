@@ -65,6 +65,9 @@ function Invoke-TcpkAgenticApi {
             'POST /api/agent/hex'          { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHex -Path "$(if($b){$b.path})" -Offset ([int]("0" + "$(if($b){$b.offset})")) -Length ([int]("0" + "$(if($b){$b.length})")))) }
             'POST /api/agent/inspect'      { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHexInspect -Path "$(if($b){$b.path})" -Offset ([int64]("0" + "$(if($b){$b.offset})")))) }
             'POST /api/agent/hexfind'      { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHexFind -Path "$(if($b){$b.path})" -Query "$(if($b){$b.query})" -Kind "$(if($b){$b.kind})" -From ([int64]("0" + "$(if($b){$b.from})")))) }
+            'POST /api/agent/structure'    { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentStructure -Path "$(if($b){$b.path})" -Pattern "$(if($b){$b.pattern})" -Base ([int64]("0" + "$(if($b){$b.base})")))) }
+            'POST /api/agent/embedded'     { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentEmbedded -Path "$(if($b){$b.path})")) }
+            'POST /api/agent/filediff'     { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentFileDiff -A "$(if($b){$b.a})" -B "$(if($b){$b.b})")) }
             'POST /api/agent/strings'      { $b=$null; try { $b = $Request.Body | ConvertFrom-Json } catch {}; return (New-TcpkWebJson 200 (Get-TcpkAgentHexStrings -Path "$(if($b){$b.path})" -Min ([int]("0" + "$(if($b){$b.min})")) -Filter "$(if($b){$b.filter})" -Kind "$(if($b){$b.kind})")) }
             default                     { return (New-TcpkWebJson 404 @{ error = 'no such agent endpoint' }) }
         }
@@ -469,67 +472,96 @@ function Find-TcpkBytesIndex {
 # POST /api/agent/hexfind {path, query, kind, from} -- find the next 'hex' or 'ascii' match at
 # or after 'from'. Reads the whole file (size-guarded).
 function Get-TcpkAgentHexFind {
-    [CmdletBinding()] param([string]$Path, [string]$Query, [string]$Kind = 'ascii', [int64]$From = 0)
+    [CmdletBinding()] param([string]$Path, [string]$Query, [string]$Kind = 'auto', [int64]$From = 0)
     $p = Resolve-TcpkWebTarget $Path
     if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
     if ([string]::IsNullOrEmpty($Query)) { return @{ error = 'empty search' } }
-    $needle = $null
-    if ($Kind -eq 'hex') {
-        $hx = ($Query -replace '[^0-9a-fA-F]', '')
-        if ($hx.Length -lt 2 -or ($hx.Length % 2)) { return @{ error = 'hex needs an even number of hex digits' } }
-        $needle = [byte[]](0..(($hx.Length / 2) - 1) | ForEach-Object { [Convert]::ToByte($hx.Substring($_ * 2, 2), 16) })
-    } else {
-        $needle = [System.Text.Encoding]::ASCII.GetBytes($Query)
+
+    # Shared with the desktop GUI via Find-TcpkByteMatches. This used to carry its own copy
+    # of the matcher supporting 'hex' and 'ascii' only, which meant searching a Windows
+    # binary for a string it demonstrably contains returned nothing: Windows stores string
+    # literals as UTF-16LE. Two copies of the same matcher also meant fixing one left the
+    # other wrong, which is what happened.
+    $valid = @('auto', 'ascii', 'utf8', 'utf16le', 'hex', 'regex')
+    if (-not $Kind) { $Kind = 'auto' }
+    if ($valid -notcontains $Kind) { return @{ error = "unknown kind '$Kind'; use one of: $($valid -join ', ')" } }
+
+    $res = $null
+    try { $res = Find-TcpkByteMatches -Path $p -Query $Query -Kind $Kind -From $From -MaxMatches 200 }
+    catch { return @{ error = "$(("$($_.Exception.Message)" -split "`n")[0])" } }
+
+    $hits = @($res.Matches | ForEach-Object {
+        @{ offset = [int64]$_.Offset; hex = ('0x' + ([int64]$_.Offset).ToString('x')); length = $_.Length; kind = $_.Kind }
+    })
+    return @{
+        matches   = $hits
+        count     = $hits.Count
+        truncated = [bool]$res.Truncated
+        # -1 keeps the old contract for the existing "jump to next" caller.
+        offset    = $(if ($hits.Count) { [int64]$hits[0].offset } else { [int64]-1 })
     }
-    # NO SIZE CAP. This used to refuse anything over 300 MB and ReadAllBytes everything
-    # under it. Both are wrong: the refusal made the hex search useless on exactly the
-    # binaries worth searching, and the whole-file read spiked memory for a search that
-    # only ever needs a sliding window. Streamed with a (needleLen - 1) overlap so a match
-    # straddling a chunk boundary is still found. Byte offsets stay absolute.
-    $len = 0
-    try { $len = (Get-Item -LiteralPath $p -ErrorAction Stop).Length } catch { return @{ error = 'file not readable' } }
-    $chunk = 16MB
-    $ov    = [Math]::Max(0, $needle.Length - 1)
-    $pos   = [int64]$From
-    if ($pos -lt 0) { $pos = 0 }
-    $idx   = -1
-    $fs = $null
-    try {
-        $fs = [System.IO.FileStream]::new($p, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
-              ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
-        $buf = New-Object byte[] ($chunk + $ov)
-        while ($pos -lt $len) {
-            $fs.Position = $pos
-            $want = [int][Math]::Min($buf.Length, $len - $pos)
-            $got = 0
-            while ($got -lt $want) {
-                $r = $fs.Read($buf, $got, $want - $got)
-                if ($r -le 0) { break }
-                $got += $r
-            }
-            if ($got -le 0) { break }
-            $hay = $buf
-            if ($got -ne $buf.Length) { $hay = New-Object byte[] $got; [System.Array]::Copy($buf, 0, $hay, 0, $got) }
-            $hit = Find-TcpkBytesIndex -Hay $hay -Needle $needle -Start 0
-            if ($hit -ge 0) { $idx = $pos + $hit; break }
-            if ($got -lt $want) { break }
-            $pos += $chunk
-        }
-    } catch {
-    } finally { if ($fs) { $fs.Dispose() } }
-    @{ offset = $idx; size = $len; needleLen = $needle.Length }
 }
 
-# POST /api/agent/strings {path, min, filter, kind} -- extract printable ASCII + UTF-16LE
-# ("wide") strings with their byte offsets, so a name / URL / path / function name can be
-# clicked to jump into the hex view. 'filter' narrows to strings containing a substring
-# (case-insensitive) -- this is the "find a name" case. A regex over a Latin1 view keeps
-# every match's byte offset exact and is fast.
-#
-# NO SIZE CAP. This used to refuse anything over 300 MB outright, which meant the strings
-# view was unavailable on exactly the large binaries an analyst opens it for. The file is
-# now walked in bounded byte chunks with an overlap, and each chunk's match index is
-# rebased onto its absolute file offset so the hex-view jump target stays correct.
+# POST /api/agent/structure {path, pattern, base} -- apply a byte pattern and return the
+# decoded header rows. Same engine as the desktop Byte Pattern mode and Get-TcpkFileStructure.
+function Get-TcpkAgentStructure {
+    [CmdletBinding()] param([string]$Path, [string]$Pattern, [int64]$Base = 0)
+    if (-not $Pattern) {
+        # No pattern named: list what is available rather than erroring, so the UI can
+        # populate its dropdown from the same call.
+        $out = @()
+        try { $out = @(Get-TcpkFileStructure -ListPatterns | ForEach-Object { @{ name = $_.Name; fields = $_.Fields } }) } catch { }
+        return @{ patterns = $out }
+    }
+    $p = Resolve-TcpkWebTarget $Path
+    if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
+    try {
+        $rows = @(Get-TcpkFileStructure -Path $p -Pattern $Pattern -BaseOffset $Base | ForEach-Object {
+            @{ name = $_.Name; offset = [int64]$_.Offset; hex = ('0x' + ([int64]$_.Offset).ToString('x'))
+               size = $_.Size; type = $_.Type; value = "$($_.Value)"; status = $_.Status
+               color = ('#{0:x2}{1:x2}{2:x2}' -f $_.R, $_.G, $_.B) }
+        })
+        return @{ rows = $rows; count = $rows.Count; badRows = @($rows | Where-Object { $_.status -ne 'ok' }).Count }
+    } catch { return @{ error = "$(("$($_.Exception.Message)" -split "`n")[0])" } }
+}
+
+# POST /api/agent/embedded {path} -- signature scan for formats embedded at arbitrary offsets.
+function Get-TcpkAgentEmbedded {
+    [CmdletBinding()] param([string]$Path)
+    $p = Resolve-TcpkWebTarget $Path
+    if (-not $p) { return @{ error = 'path not found' } }
+    try {
+        $f = @(Test-TcpkEmbeddedBlobs -Path $p)
+        return @{
+            findings = @($f | ForEach-Object {
+                @{ rule = "$($_.RuleId)"; severity = "$($_.Severity)"; title = "$($_.Title)"
+                   file = "$($_.File)"; evidence = "$($_.Evidence)" }
+            })
+            count = @($f).Count
+        }
+    } catch { return @{ error = "$(("$($_.Exception.Message)" -split "`n")[0])" } }
+}
+
+# POST /api/agent/filediff {a, b} -- whole-file diff summary. The hex overlay only compares
+# the page on screen, so "no differences here" was indistinguishable from "identical files".
+function Get-TcpkAgentFileDiff {
+    [CmdletBinding()] param([string]$A, [string]$B)
+    $pa = Resolve-TcpkWebTarget $A
+    $pb = Resolve-TcpkWebTarget $B
+    if (-not $pa -or -not (Test-Path -LiteralPath $pa -PathType Leaf)) { return @{ error = 'first file not found' } }
+    if (-not $pb -or -not (Test-Path -LiteralPath $pb -PathType Leaf)) { return @{ error = 'comparison file not found' } }
+    try {
+        $r = Get-TcpkFileDiffSummary -PathA $pa -PathB $pb
+        return @{
+            identical = [bool]$r.Identical; lengthA = [int64]$r.LengthA; lengthB = [int64]$r.LengthB
+            commonLength = [int64]$r.CommonLength; differingBytes = [int64]$r.DifferingBytes
+            firstDifference = [int64]$r.FirstDifference
+            firstHex = $(if ($r.FirstDifference -ge 0) { '0x' + ([int64]$r.FirstDifference).ToString('x') } else { '' })
+            lengthDelta = [int64]$r.LengthDelta; truncated = [bool]$r.Truncated
+        }
+    } catch { return @{ error = "$(("$($_.Exception.Message)" -split "`n")[0])" } }
+}
+
 function Get-TcpkAgentHexStrings {
     [CmdletBinding()] param([string]$Path, [int]$Min = 4, [string]$Filter = '', [string]$Kind = 'both', [int]$Cap = 2000)
     $p = Resolve-TcpkWebTarget $Path
@@ -1586,7 +1618,7 @@ th,td{padding:7px 11px}
             <div><label>go to offset (hex)</label><input id="hxGoto" style="width:110px" placeholder="1a4"/></div>
             <button class="go mini" onclick="hexGoto()">Go</button>
             <div><label>find</label><input id="hxFind" style="width:150px" placeholder="pattern"/></div>
-            <select id="hxKind"><option value="ascii">ascii</option><option value="hex">hex</option></select>
+            <select id="hxKind" title="auto searches UTF-8 and UTF-16LE together; Windows stores string literals as UTF-16LE"><option value="auto">auto</option><option value="ascii">ascii</option><option value="utf16le">utf16le</option><option value="hex">hex</option><option value="regex">regex</option></select>
             <button class="go mini" onclick="hexFind()">Find next</button>
           </div>
           <div class="row" style="margin-top:6px;gap:8px;align-items:flex-end;flex-wrap:wrap">
