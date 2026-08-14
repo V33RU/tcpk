@@ -719,7 +719,7 @@ $dashCards.Controls.Add($dashMaxCard)
 
 # ===== Header (Top): added LAST so it docks ABOVE the cards =====
 $dashHeader = New-Object System.Windows.Forms.Panel
-$dashHeader.Dock = 'Top'; $dashHeader.Height = 56
+$dashHeader.Dock = 'Top'; $dashHeader.Height = 78
 $dashHeader.Padding = New-Object System.Windows.Forms.Padding(20, 10, 20, 0)
 $dashTitle = New-Object System.Windows.Forms.Label
 $dashTitle.Text = 'Audit summary'
@@ -731,6 +731,16 @@ $dashSub.Text = 'No audit run yet.'
 $dashSub.Dock = 'Top'; $dashSub.Height = 18
 $dashSub.Font = New-Object System.Drawing.Font('Segoe UI', 9)
 $dashSub.ForeColor = [System.Drawing.Color]::FromArgb(140, 145, 150)
+# Readiness verdict. The KPI cards and the assurance bar say what was FOUND; nothing said
+# whether the run was good enough to trust what it found. A packed binary makes most of the
+# static bucket return nothing and the report comes out short and tidy, which reads like
+# good news. Dock=Top stacks in reverse add order, so adding this BEFORE $dashSub puts it
+# directly beneath the subtitle and above the KPI cards.
+$dashReady = New-Object System.Windows.Forms.Label
+$dashReady.Dock = 'Top'; $dashReady.Height = 22; $dashReady.Text = ''
+$dashReady.Padding = New-Object System.Windows.Forms.Padding(8, 3, 0, 0)
+$dashReady.ForeColor = [System.Drawing.Color]::FromArgb(140, 145, 150)
+$dashHeader.Controls.Add($dashReady)
 $dashHeader.Controls.Add($dashSub)
 $dashHeader.Controls.Add($dashTitle)
 $tabDash.Controls.Add($dashHeader)
@@ -7294,9 +7304,27 @@ function Update-Dashboard {
     $tgt = "$($txtTarget.Text)"; if (-not $tgt) { $tgt = "$($txtPkg.Text)" }; if (-not $tgt) { $tgt = '(not set)' }
     if ($total -eq 0) {
         $dashSub.Text = 'No audit run yet.'
+        $dashReady.Text = ''
     } else {
         $maxTxt = if ($null -ne $maxScore) { ('{0:0.0}' -f $maxScore) } else { '-' }
         $dashSub.Text = ("{0}  --  {1} findings  --  {2} confirmed  --  {3} distinct rules  --  max CVSS {4}" -f (Split-Path $tgt -Leaf), $total, $confirmed, $rules.Count, $maxTxt)
+        # Verdict, not measurement. Get-TcpkCoverageSummaryLine already states the numbers
+        # elsewhere; this says what they mean, which is the part a reader cannot infer.
+        try {
+            $m = @(Get-Module TCPK)
+            if ($m.Count) {
+                $rd = & $m[0] { param($f) Get-TcpkReadinessLine -Findings $f } $script:LastFindings
+                if ($rd -and $rd.State -ne 'none') {
+                    $mark = switch ($rd.State) { 'complete' { [char]0x2713 } 'degraded' { '!' } default { [char]0x00D7 } }
+                    $dashReady.Text = "$mark $($rd.Text)"
+                    $dashReady.ForeColor = switch ($rd.State) {
+                        'complete'   { [System.Drawing.Color]::FromArgb(126, 217, 140) }
+                        'degraded'   { [System.Drawing.Color]::FromArgb(224, 176, 112) }
+                        default      { [System.Drawing.Color]::FromArgb(224, 108, 117) }
+                    }
+                } else { $dashReady.Text = '' }
+            }
+        } catch { $dashReady.Text = '' }
     }
 
     # --- Top findings table ---
@@ -7345,6 +7373,11 @@ function Update-Dashboard {
         if ($l) { $l.BackColor = $pal.TextBg; $l.ForeColor = $pal.LabelFg }
     }
     $dashSub.BackColor = $pal.TextBg; $dashSub.ForeColor = $dimC
+    # BackColor only, deliberately NOT ForeColor. This runs after the readiness verdict has
+    # already coloured the label green/amber/red by state, and adding $dashReady to the loop
+    # above would repaint it $pal.LabelFg on every theme pass, silently flattening the one
+    # thing the line exists to signal.
+    $dashReady.BackColor = $pal.TextBg
 }
 
 function Apply-UiTheme {

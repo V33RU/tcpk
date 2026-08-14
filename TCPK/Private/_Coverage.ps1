@@ -108,3 +108,113 @@ function Get-TcpkCoverageSummaryLine {
     "Coverage: {0} ran, {1} gated (no process), {2} need elevation, {3} quick-skip, {4} not implemented, {5} failed (of {6} checks)" -f `
         $t.ran, $t.gated, $t.needsElevation, $t.skippedQuick, $t.notImplemented, $t.failed, $t.total
 }
+
+# ---------------------------------------------------------------- readiness ----
+#
+# Get-TcpkCoverageSummaryLine above states the NUMBERS: "238 ran, 19 gated, 3 need
+# elevation...". This states what they MEAN. The distinction matters because a reader has
+# to already know what "19 gated" costs them, and most do not.
+#
+# The failure this guards against is the one that recurs everywhere in this codebase: a
+# result that looks clean because the checks that would have found something never ran. A
+# packed binary makes most of the static bucket return nothing, and the report comes out
+# SHORT and TIDY, which reads like good news.
+
+function Get-TcpkReadinessLine {
+<#
+.SYNOPSIS
+    A one-line verdict on whether an audit's coverage was good enough to trust.
+
+.DESCRIPTION
+    Reads the same coverage manifest Get-TcpkCoverageSummaryLine reports, and returns a
+    state plus a short reason.
+
+      complete    every check ran
+      degraded    some checks did not run, but for reasons an operator controls: no live
+                  process attached, no elevation. The result is real as far as it goes.
+      unreliable  something made checks unable to SEE the target: a failed check, or a
+                  scan-coverage finding reporting a packed binary or an unreadable subtree.
+                  A short report here is not evidence of a clean target.
+
+    Failed outranks gated, deliberately. A gated check is a known hole an operator opened
+    by not attaching a process; a failed check is one that was expected to work and did
+    not, so its silence means nothing at all.
+
+.PARAMETER Findings
+    Optional. When supplied, scan.incomplete-coverage findings are read for conditions that
+    make a clean result meaningless even though every check "ran": a packed binary, a bundle
+    over the extractor ceiling, a failed CVE lookup, an unreadable subtree.
+
+.OUTPUTS
+    [pscustomobject] State ('complete' | 'degraded' | 'unreliable' | 'none'), Text, Icon,
+                     Ran, Total, Reasons
+#>
+    [CmdletBinding()]
+    param([object[]]$Findings)
+
+    $cov = @(Get-TcpkCoverage)
+    if (-not $cov.Count) {
+        return [pscustomobject]@{
+            State = 'none'; Icon = ''; Text = 'No audit run yet.'
+            Ran = 0; Total = 0; Reasons = @()
+        }
+    }
+
+    $t = (New-TcpkCoverageManifest).totals
+    $reasons = New-Object 'System.Collections.Generic.List[string]'
+    $state = 'complete'
+
+    if ($t.failed -gt 0) {
+        $state = 'unreliable'
+        $reasons.Add("$($t.failed) check(s) FAILED")
+    }
+
+    # Test-TcpkScanCoverage (A44) reports what the scan could not READ, which is a different
+    # thing from a check being switched off. It emits ONE rule, scan.incomplete-coverage,
+    # and encodes the reason in the severity rather than in the rule id:
+    #   MEDIUM  a packed binary, an over-ceiling bundle, or a failed CVE lookup. Each
+    #           invalidates a whole family of results, so a short report means nothing.
+    #   LOW     an unreadable subtree, a capped text view, an exhausted check budget. A
+    #           bounded gap: what was read is still real.
+    #   INFO    deliberate limits only (depth caps, refused reparse points, dedup).
+    # Reading the severity is therefore reading its verdict, not re-deriving one.
+    $scan = @()
+    if ($Findings) {
+        $scan = @($Findings | Where-Object { "$($_.RuleId)" -eq 'scan.incomplete-coverage' })
+    }
+    $worst = ''
+    foreach ($f in $scan) {
+        $sv = "$($f.Severity)"
+        if ($sv -eq 'MEDIUM' -or $sv -eq 'HIGH' -or $sv -eq 'CRITICAL') { $worst = 'MEDIUM'; break }
+        if ($sv -eq 'LOW') { $worst = 'LOW' }
+    }
+    if ($worst -eq 'MEDIUM') {
+        $state = 'unreliable'
+        # Quote the check's own evidence rather than paraphrasing it: it already names the
+        # counts (how many binaries were packed, which bundle exceeded the ceiling).
+        $ev = "$(@($scan | Where-Object { "$($_.Severity)" -eq 'MEDIUM' })[0].Evidence)"
+        if ($ev) { $reasons.Add($ev) } else { $reasons.Add('the scan could not read part of the target') }
+    } elseif ($worst -eq 'LOW') {
+        if ($state -ne 'unreliable') { $state = 'degraded' }
+        $reasons.Add('part of the target was unreadable')
+    }
+
+    if ($state -ne 'unreliable') {
+        if ($t.gated -gt 0)          { $state = 'degraded'; $reasons.Add("$($t.gated) skipped (no live process)") }
+        if ($t.needsElevation -gt 0) { $state = 'degraded'; $reasons.Add("$($t.needsElevation) need elevation") }
+        if ($t.skippedQuick -gt 0)   { $state = 'degraded'; $reasons.Add("$($t.skippedQuick) skipped by the quick profile") }
+    }
+
+    $icon = switch ($state) { 'complete' { 'OK' } 'degraded' { '!' } default { 'X' } }
+    $text = switch ($state) {
+        'complete'   { "complete -- all $($t.total) checks ran" }
+        'degraded'   { "degraded -- " + ($reasons -join ', ') }
+        default      { "unreliable -- " + ($reasons -join '; ') + ". A short report here is not evidence of a clean target." }
+    }
+
+    return [pscustomobject]@{
+        State = $state; Icon = $icon; Text = $text
+        Ran = [int]$t.ran; Total = [int]$t.total; Reasons = $reasons.ToArray()
+    }
+}
+
