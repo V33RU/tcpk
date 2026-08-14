@@ -1,0 +1,13 @@
+[
+  { "name": "SIGNATURE",     "offset": 0,  "size": 4, "type": "bytes",  "color": "#3A7BD5" },
+  { "name": "VERSION_NEEDED","offset": 4,  "size": 2, "type": "leuint", "color": "#2EA064" },
+  { "name": "FLAGS",         "offset": 6,  "size": 2, "type": "leuint", "color": "#C87828" },
+  { "name": "COMPRESSION",   "offset": 8,  "size": 2, "type": "leuint", "color": "#A05ABE" },
+  { "name": "MOD_TIME",      "offset": 10, "size": 2, "type": "leuint", "color": "#C8505A" },
+  { "name": "MOD_DATE",      "offset": 12, "size": 2, "type": "leuint", "color": "#C8505A" },
+  { "name": "CRC32",         "offset": 14, "size": 4, "type": "bytes",  "color": "#3CAAAF" },
+  { "name": "COMPRESSED_SIZE","offset": 18,"size": 4, "type": "leuint", "color": "#B4A03C" },
+  { "name": "UNCOMPRESSED_SIZE","offset": 22,"size": 4,"type": "leuint","color": "#B4A03C" },
+  { "name": "NAME_LEN",      "offset": 26, "size": 2, "type": "leuint", "color": "#7882C8" },
+  { "name": "EXTRA_LEN",     "offset": 28, "size": 2, "type": "leuint", "color": "#7882C8" }
+]

@@ -1,6 +1,6 @@
 # TCPK - Check Catalogue
 
-Public cmdlets, grouped by bucket. This page covers 234 of the 259 that ship; run
+Public cmdlets, grouped by bucket. This page covers 235 of the 260 that ship; run
 `Get-TcpkInfo` or `Get-Command -Module TCPK` for the authoritative live list.
 **GATED** cmdlets require `Enable-TcpkExploit -Acknowledge`.
 
@@ -250,7 +250,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Get-TcpkReconStrings** - R11. Extract + categorize interesting literal strings from first-party binaries.
 - **Get-TcpkTargetProfile** - R00. Recon / fingerprint pass. Builds a target-application profile for the
 
-## Verify / triage  (20)
+## Verify / triage  (21)
 
 - **Confirm-TcpkCallsiteUsage** - Deterministic IL verification of callsites.* and deser.* findings: is the flagged API actually invoked, reachable, and fed by external input -- or a false positive?.
 - **Confirm-TcpkCallsites** - Phase-2 confirmation for dangerous-API callsite findings.
@@ -262,6 +262,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Expand-TcpkPyInstaller** - Carve the CArchive out of a PyInstaller-frozen .exe (and extract a cx_Freeze / py2exe library.zip) so the rest of TCPK can actually read the app's code surface.
 - **Expand-TcpkSingleFile** - Extract the managed assemblies bundled inside a .NET single-file (PublishSingleFile) apphost so the rest of TCPK can actually scan them.
 - **Get-TcpkCaptureInterface** - List the network capture interfaces available via the operator's installed Wireshark (tshark -D). For picking an interface for Invoke-TcpkPcapCapture.
+- **Get-TcpkFileStructure** - Apply a byte pattern to a file and return its header as named, decoded fields.
 - **Get-TcpkPcapBtFindings** - Analyse a Bluetooth / BLE packet capture for security findings.
 - **Get-TcpkPcapZigbeeFindings** - Analyse a Zigbee / IEEE 802.15.4 packet capture for security findings.
 - **Invoke-TcpkDecompile** - Drive ILSpy CLI to decompile and return source context for a method.
@@ -294,6 +295,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**234 of 259 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**235 of 260 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.8.0: 259 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.8.0: 260 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).

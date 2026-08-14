@@ -1,0 +1,9 @@
+[
+  { "name": "e_magic",   "offset": 0,    "size": 2, "type": "string", "color": "#3A7BD5" },
+  { "name": "e_cblp",    "offset": 2,    "size": 2, "type": "leuint", "color": "#2EA064" },
+  { "name": "e_cp",      "offset": 4,    "size": 2, "type": "leuint", "color": "#2EA064" },
+  { "name": "e_lfarlc",  "offset": 24,   "size": 2, "type": "leuint", "color": "#C87828" },
+  { "name": "e_ovno",    "offset": 26,   "size": 2, "type": "leuint", "color": "#C87828" },
+  { "name": "e_lfanew",  "offset": 60,   "size": 4, "type": "leuint", "color": "#C8505A" },
+  { "name": "dos_stub",  "offset": 64,   "size": 64,"type": "string", "color": "#7882C8" }
+]

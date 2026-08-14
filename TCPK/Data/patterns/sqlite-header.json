@@ -1,0 +1,11 @@
+[
+  { "name": "MAGIC",        "offset": 0,  "size": 16, "type": "string", "color": "#3A7BD5" },
+  { "name": "PAGE_SIZE",    "offset": 16, "size": 2,  "type": "beuint", "color": "#2EA064" },
+  { "name": "WRITE_VERSION","offset": 18, "size": 1,  "type": "leuint", "color": "#C87828" },
+  { "name": "READ_VERSION", "offset": 19, "size": 1,  "type": "leuint", "color": "#C87828" },
+  { "name": "RESERVED_SPACE","offset": 20,"size": 1,  "type": "leuint", "color": "#A05ABE" },
+  { "name": "CHANGE_COUNTER","offset": 24,"size": 4,  "type": "beuint", "color": "#C8505A" },
+  { "name": "SIZE_IN_PAGES","offset": 28, "size": 4,  "type": "beuint", "color": "#3CAAAF" },
+  { "name": "SCHEMA_COOKIE","offset": 40, "size": 4,  "type": "beuint", "color": "#B4A03C" },
+  { "name": "TEXT_ENCODING","offset": 56, "size": 4,  "type": "beuint", "color": "#7882C8" }
+]

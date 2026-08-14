@@ -24,7 +24,7 @@ the portable `tools\` layout, and PATH setup, see **[docs/INSTALL.md](docs/INSTA
 | **Windows PowerShell 5.1** (`powershell.exe`) | Ships with Windows | Yes |
 | The `TCPK\` module folder + `Start-TCPKGui.ps1` / `TCPK.bat` | The tool itself | Yes |
 
-That's it. No installs. All 259 cmdlets (174 detection checks across 19 buckets),
+That's it. No installs. All 260 cmdlets (174 detection checks across 19 buckets),
 recon, reports, and exploit-PoC **generation** run on pure PowerShell + built-in
 Windows tools (`reg.exe`, `schtasks.exe`, `.NET` BCL), so the static audit works
 **fully offline / air-gapped**.
