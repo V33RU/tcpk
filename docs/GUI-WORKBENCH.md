@@ -350,16 +350,34 @@ XOR decode, and data inspection.
     Orange = control chars, Purple = high/extended bytes.
   - Entropy heatmap strip alongside the hex.
 - **Right panel** -- mode-switchable analysis pane:
-  - **Data Inspector** -- click a hex row to see typed values (int8/16/
-    32/64, float, double, UTF-8/16) at that offset.
+  - **Data Inspector** -- click a hex row to see typed values at that
+    offset: int/uint 8/16/32/64 in both endians, float, double, ASCII,
+    unix epoch, plus GUID and FILETIME for Windows structures.
   - **PE Map** -- PE section layout with clickable navigation.
   - **XOR Decode** -- XOR brute-force / single-key decode toolkit.
   - **Byte Freq** -- byte frequency histogram.
   - **Bookmarks** -- save and jump to named offsets.
+  - **PE Detail** -- section, export and Rich-header detail tables.
+  - **Byte Pattern** -- apply a field table (name / offset / size / type)
+    and read the header as decoded rows, with each field tinted in the hex
+    view. Ships with sqlite-header, zip-local-header, pe-dos-header and
+    wav-header; "Load..." takes your own .json. "At offset" parses a
+    structure that is not at the start of the file, for example one located
+    by `Test-TcpkEmbeddedBlobs`. A field that does not fit the file shows
+    `<out-of-range>` in red rather than a value decoded from the following
+    bytes. Same engine as `Get-TcpkFileStructure`.
 
 **How to use:** Enter a file path and click "Load". Browse the hex view
 with Prev/Next or jump to an offset with "Go". Click "PE" to overlay PE
 section boundaries. Click "Strings" to extract all readable strings.
+
+Search takes a kind alongside the query: `auto` (the default, matching both
+UTF-8 and UTF-16LE), `ascii`, `utf16le`, `hex`, or `regex`. Prefer `auto` on
+a Windows binary -- string literals are stored as UTF-16LE there, so an
+ASCII-only search reports nothing for text the file demonstrably contains.
+`regex` runs over a latin1 byte view, so a match index is a byte offset
+exactly; for the same reason it cannot match UTF-16 text, where every other
+byte is 0x00.
 Click "Diff" to compare two binaries side-by-side. Use the right-panel
 Data Inspector to decode bytes at the cursor position.
 
