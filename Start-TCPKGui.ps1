@@ -401,16 +401,21 @@ $topPanel.Controls.Add($btnTheme)
 # NO hardcoded model lists. 'default' is just a starting suggestion you can overtype
 # with ANY model the provider exposes; "Test AI" loads the live list from your key.
 $script:AiPresets = @{
-    'ollama (local)' = @{ name='ollama';   default='qwen2.5-coder:7b'; needsKey=$false }
+    # `cloud` is tracked separately from `needsKey` on purpose. They are different
+    # questions: needsKey asks "does the operator have to type a credential", cloud asks
+    # "does the target's code leave this machine". Copilot is the case where they diverge,
+    # and conflating them is what made it unusable: the proxy needs no key, so the cloud
+    # consent was never set, so Resolve-TcpkLlmBackend threw before any request was sent.
+    'ollama (local)' = @{ name='ollama';   default='qwen2.5-coder:7b'; needsKey=$false; cloud=$false }
     # GitHub Copilot through the copilot-api proxy on localhost:4141. No key: the proxy
     # holds the GitHub auth. Still gated as cloud, because it forwards to GitHub.
-    'copilot (proxy)'= @{ name='copilot';  default='gpt-4o';            needsKey=$false }
-    'claude'         = @{ name='claude';    default='claude-sonnet-4-5'; needsKey=$true }
-    'openai'         = @{ name='openai';    default='gpt-4o';            needsKey=$true }
-    'gemini'         = @{ name='gemini';    default='gemini-2.0-flash';  needsKey=$true }
-    'grok'           = @{ name='grok';      default='grok-2-latest';     needsKey=$true }
-    'deepseek'       = @{ name='deepseek';  default='deepseek-chat';     needsKey=$true }
-    'custom'         = @{ name='custom';    default='';                  needsKey=$true }
+    'copilot (proxy)'= @{ name='copilot';  default='gpt-4o';            needsKey=$false; cloud=$true }
+    'claude'         = @{ name='claude';    default='claude-sonnet-4-5'; needsKey=$true; cloud=$true }
+    'openai'         = @{ name='openai';    default='gpt-4o';            needsKey=$true; cloud=$true }
+    'gemini'         = @{ name='gemini';    default='gemini-2.0-flash';  needsKey=$true; cloud=$true }
+    'grok'           = @{ name='grok';      default='grok-2-latest';     needsKey=$true; cloud=$true }
+    'deepseek'       = @{ name='deepseek';  default='deepseek-chat';     needsKey=$true; cloud=$true }
+    'custom'         = @{ name='custom';    default='';                  needsKey=$true; cloud=$true }
 }
 
 # When provider changes: pre-fill a sensible default model (overtypeable) + toggle key field.
@@ -6528,11 +6533,19 @@ function Set-AiConfigFromGui {
     # variable. Uses the call operator against the module, NOT Pester's InModuleScope:
     # that is a test-framework cmdlet and is undefined on a machine without Pester,
     # which is every stock Windows box the GUI actually ships to.
+    # Gate on CLOUD, not on needsKey. Those answer different questions and copilot is the
+    # provider where they split: the proxy holds the GitHub auth so no key is typed, but it
+    # forwards to GitHub so the target's code does leave the machine. Keying the consent off
+    # needsKey meant picking copilot never set the gate, Resolve-TcpkLlmBackend threw
+    # "is a cloud backend", Test-TcpkLlmConnection swallowed it, and the GUI reported
+    # Reachable=False having never opened a socket.
+    $isCloud = $true
+    if ($preset.PSObject.Properties['cloud'] -or $preset.ContainsKey('cloud')) { $isCloud = [bool]$preset.cloud }
     & (Get-Module TCPK) {
-        param($provider, $model, $key, $needsKey)
+        param($provider, $model, $key, $isCloud)
         Set-TcpkLlmConfig -Provider $provider -Model $model -ApiKey $key -Enabled $true | Out-Null
-        if ($needsKey) { $script:TcpkLlmCloudEnabled = $true }
-    } $provider $model $key $preset.needsKey
+        if ($isCloud) { $script:TcpkLlmCloudEnabled = $true }
+    } $provider $model $key $isCloud
     return $true
 }
 
@@ -7449,7 +7462,12 @@ $btnTestAi.Add_Click({
             $lblAiStatus.Text = "OK: $($r.Provider)/$($r.Model) responded.$modelNote"
         } else {
             $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85)
-            $lblAiStatus.Text = "Reachable=$($r.Reachable), model didn't reply -- pick a valid model from the dropdown.$modelNote"
+            # Show the REASON. "Reachable=False" alone cannot distinguish a missing cloud
+            # consent from a dead proxy from an SSO-unauthorised token.
+            $why = if ($r.PSObject.Properties['Error'] -and $r.Error) { ": $(("$($r.Error)" -split "`n")[0])" } else { '' }
+            $lblAiStatus.Text = if ($r.Reachable) {
+                "Reachable, model didn't reply -- pick a valid model from the dropdown.$modelNote"
+            } else { "Not reachable$why$modelNote" }
         }
     } catch {
         $lblAiStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 85, 85)

@@ -97,3 +97,82 @@ Describe 'Multi-provider / free-text model wiring' {
         $res.Chat  | Should -Be 'http://10.0.0.5:8000/v1/chat/completions'
     }
 }
+
+Describe 'Cloud consent is keyed off cloud, not off needsKey' {
+    # copilot is the provider where those two diverge: the proxy holds the GitHub auth so
+    # no key is typed, but it forwards to GitHub so the target's code does leave the box.
+    # Keying the GUI consent off needsKey meant picking copilot never set the gate,
+    # Resolve-TcpkLlmBackend threw "is a cloud backend", and the GUI reported
+    # Reachable=False having never opened a socket. The proxy log stayed empty, which is
+    # what made it look like the proxy was broken.
+    It 'copilot is a cloud provider that needs no key' {
+        InModuleScope TCPK {
+            $p = $script:TcpkLlmProviders['copilot']
+            $p.cloud | Should -BeTrue
+            $p.needsKey | Should -BeFalse
+        }
+    }
+
+    It 'refuses copilot until cloud is enabled, even with no key required' {
+        InModuleScope TCPK {
+            $script:TcpkLlmCloudEnabled = $false
+            Set-TcpkLlmConfig -Provider 'copilot' -Model 'gpt-4o' -ApiKey '' -Enabled $true | Out-Null
+            { Resolve-TcpkLlmBackend } | Should -Throw -ExpectedMessage '*cloud backend*'
+        }
+    }
+
+    It 'resolves copilot with NO key once cloud is enabled' {
+        InModuleScope TCPK {
+            $script:TcpkLlmCloudEnabled = $true
+            Set-TcpkLlmConfig -Provider 'copilot' -Model 'gpt-4o' -ApiKey '' -Enabled $true | Out-Null
+            $b = Resolve-TcpkLlmBackend
+            $b.Provider | Should -Be 'copilot'
+            $b.BaseUrl | Should -Be 'http://localhost:4141/v1'
+            # no key typed, so no Authorization header is sent; the proxy supplies its own
+            $b.Headers.ContainsKey('Authorization') | Should -BeFalse
+            $script:TcpkLlmCloudEnabled = $false
+        }
+    }
+}
+
+Describe 'Get-TcpkHttpErrorText' {
+    It 'returns the exception message when there is no response body' {
+        InModuleScope TCPK {
+            $rec = $null
+            try { throw 'plain failure' } catch { $rec = $_ }
+            Get-TcpkHttpErrorText $rec | Should -Match 'plain failure'
+        }
+    }
+
+    It 'appends an actionable hint when the body names SAML SSO' {
+        InModuleScope TCPK {
+            $rec = $null
+            try { throw 'Resource protected by organization SAML enforcement' } catch { $rec = $_ }
+            $t = Get-TcpkHttpErrorText $rec
+            $t | Should -Match 'Configure SSO'
+            # the raw text must survive alongside the hint, never be replaced by it
+            $t | Should -Match 'SAML enforcement'
+        }
+    }
+
+    It 'does not add the hint to an unrelated failure' {
+        InModuleScope TCPK {
+            $rec = $null
+            try { throw 'connection refused' } catch { $rec = $_ }
+            Get-TcpkHttpErrorText $rec | Should -Not -Match 'Configure SSO'
+        }
+    }
+}
+
+Describe 'Test-TcpkLlm carries the reason' {
+    It 'returns Error when the backend cannot even be resolved' {
+        InModuleScope TCPK {
+            $script:TcpkLlmCloudEnabled = $false
+            Set-TcpkLlmConfig -Provider 'copilot' -Model 'gpt-4o' -ApiKey '' -Enabled $true | Out-Null
+            $r = Test-TcpkLlm -WarningAction SilentlyContinue
+            $r.Reachable | Should -BeFalse
+            $r.Error | Should -Match 'cloud backend'
+        }
+    }
+}
+

@@ -255,3 +255,46 @@ function Invoke-TcpkLlmSkepticVote {
         Reasons  = $reasons.ToArray()
     }
 }
+
+# The useful part of an HTTP failure is the RESPONSE BODY, and PowerShell 5.1 does not put
+# it in the exception message: Invoke-RestMethod raises "The remote server returned an
+# error: (403) Forbidden." and leaves the body on the response stream. For a GitHub org
+# behind SAML SSO that body is the entire diagnosis, because it names the SSO grant the
+# token is missing and is the difference between a 30-second fix and an afternoon.
+function Get-TcpkHttpErrorText {
+    [CmdletBinding()] param([Parameter(Mandatory)]$ErrorRecord)
+
+    $msg = "$($ErrorRecord.Exception.Message)"
+    $body = ''
+
+    # PowerShell 7 pre-reads the body into ErrorDetails; 5.1 does not.
+    try { if ($ErrorRecord.ErrorDetails -and $ErrorRecord.ErrorDetails.Message) { $body = "$($ErrorRecord.ErrorDetails.Message)" } } catch { }
+
+    if (-not $body) {
+        try {
+            $resp = $ErrorRecord.Exception.Response
+            if ($resp) {
+                $st = $resp.GetResponseStream()
+                if ($st) {
+                    $sr = New-Object IO.StreamReader($st)
+                    try { $body = $sr.ReadToEnd() } finally { $sr.Dispose() }
+                }
+            }
+        } catch { }
+    }
+
+    if ($body) {
+        $body = ($body -replace '\s+', ' ').Trim()
+        if ($body.Length -gt 400) { $body = $body.Substring(0, 400) + '...' }
+        $msg = "$msg -- $body"
+    }
+
+    # One recognised case gets an actionable hint appended. Matched loosely and ALWAYS
+    # alongside the raw text above, never replacing it: GitHub's exact wording has changed
+    # before, so a miss must degrade to showing the real body rather than to silence.
+    if ($msg -match '(?i)saml|single.sign.on|\bSSO\b') {
+        $msg += "  [hint: this token is not authorised for the organisation. In GitHub, open the token, Configure SSO, and Authorize it for the org.]"
+    }
+    return $msg
+}
+
