@@ -2923,50 +2923,29 @@ function Get-GuiHexInspect([string]$path, [int64]$offset) {
     return $o.ToArray()
 }
 # Byte search: offset of the next 'hex'/'ascii' match at/after $from, or -1 (or negative code on error).
+# Thin bridge to Find-TcpkByteMatches in TCPK/Private/_ByteSearch.ps1. The matcher used to
+# live here and supported ascii + hex only, so searching a PE for a string it demonstrably
+# contains returned nothing: Windows stores string literals as UTF-16LE. TCPK's own string
+# extractor has always read utf16le views, so the search was the odd one out.
+# Returns the first offset at/after $from, or a negative code: -1 no match, -3 bad hex.
 function Find-GuiHexOffset([string]$path, [string]$query, [string]$kind, [int64]$from) {
     if (-not $path -or -not (Test-Path -LiteralPath $path -PathType Leaf)) { return [int64]-1 }
     if (-not $query) { return [int64]-1 }
-    $needle = $null
-    if ($kind -eq 'hex') {
-        $hx = ($query -replace '[^0-9a-fA-F]', ''); if ($hx.Length -lt 2 -or ($hx.Length % 2)) { return [int64]-3 }
-        $needle = [byte[]](0..(($hx.Length / 2) - 1) | ForEach-Object { [Convert]::ToByte($hx.Substring($_ * 2, 2), 16) })
-    } else { $needle = [System.Text.Encoding]::ASCII.GetBytes($query) }
-    $nlen = $needle.Length; if (-not $nlen) { return [int64]-1 }
-    # NO SIZE CAP (the old '-gt 300MB -> -2' refused the binaries this is most useful on)
-    # and no ReadAllBytes. Sliding window with a (nlen - 1) overlap, absolute offsets.
-    $flen = 0
-    try { $flen = (Get-Item -LiteralPath $path -ErrorAction Stop).Length } catch { return [int64]-1 }
-    $chunk = 16MB
-    $ov = [Math]::Max(0, $nlen - 1)
-    $pos = [int64]([Math]::Max([int64]0, $from))
-    $fs = $null
+    $m = @(Get-Module TCPK)
+    if (-not $m.Count) { return [int64]-1 }
     try {
-        $fs = [System.IO.FileStream]::new($path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read,
-              ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete))
-        $buf = New-Object byte[] ($chunk + $ov)
-        while ($pos -lt $flen) {
-            $fs.Position = $pos
-            $want = [int][Math]::Min($buf.Length, $flen - $pos)
-            $got = 0
-            while ($got -lt $want) {
-                $r = $fs.Read($buf, $got, $want - $got)
-                if ($r -le 0) { break }
-                $got += $r
-            }
-            if ($got -le 0) { break }
-            $lim = $got - $nlen
-            for ($i = 0; $i -le $lim; $i++) {
-                $ok = $true
-                for ($j = 0; $j -lt $nlen; $j++) { if ($buf[$i + $j] -ne $needle[$j]) { $ok = $false; break } }
-                if ($ok) { return [int64]($pos + $i) }
-            }
-            if ($got -lt $want) { break }
-            $pos += $chunk
-        }
+        $res = & $m[0] {
+            param($p, $q, $k, $f)
+            Find-TcpkByteMatches -Path $p -Query $q -Kind $k -From $f -MaxMatches 1
+        } $path $query $kind $from
     } catch {
+        # A malformed hex query throws rather than returning empty, so the two stay
+        # distinguishable instead of both surfacing as "no match".
+        if ("$($_.Exception.Message)" -match 'even number of hex digits') { return [int64]-3 }
         return [int64]-1
-    } finally { if ($fs) { $fs.Dispose() } }
-    return [int64]-1
+    }
+    if (-not $res -or -not $res.Matches -or -not @($res.Matches).Count) { return [int64]-1 }
+    return [int64](@($res.Matches)[0].Offset)
 }
 # Extract printable ASCII + UTF-16LE ("wide") strings with their byte offsets, so a name /
 # URL / path can be clicked to jump into the hex view. $filter narrows (case-insensitive
@@ -3403,12 +3382,15 @@ $txtHexFind.Location = New-Object System.Drawing.Point(462, 44); $txtHexFind.Siz
 $txtHexFind.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtHexFind.ForeColor = [System.Drawing.Color]::White
 $hexTop.Controls.Add($txtHexFind)
 $cmbHexKind = New-Object System.Windows.Forms.ComboBox
-$cmbHexKind.Location = New-Object System.Drawing.Point(618, 44); $cmbHexKind.Size = New-Object System.Drawing.Size(70, 24); $cmbHexKind.DropDownStyle = 'DropDownList'
+$cmbHexKind.Location = New-Object System.Drawing.Point(618, 44); $cmbHexKind.Size = New-Object System.Drawing.Size(88, 24); $cmbHexKind.DropDownStyle = 'DropDownList'
 $cmbHexKind.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbHexKind.ForeColor = [System.Drawing.Color]::White
-@('ascii', 'hex') | ForEach-Object { [void]$cmbHexKind.Items.Add($_) }; $cmbHexKind.SelectedIndex = 0
+# 'auto' first and selected by default: it searches utf8 AND utf16le, which is what an
+# operator searching a Windows binary almost always means. ascii-only was the old
+# behaviour and is kept for exact-byte work.
+@('auto', 'ascii', 'utf16le', 'hex', 'regex') | ForEach-Object { [void]$cmbHexKind.Items.Add($_) }; $cmbHexKind.SelectedIndex = 0
 $hexTop.Controls.Add($cmbHexKind)
 $btnHexFind = New-Object System.Windows.Forms.Button
-$btnHexFind.Text = "Find next"; $btnHexFind.Location = New-Object System.Drawing.Point(694, 42); $btnHexFind.Size = New-Object System.Drawing.Size(86, 26)
+$btnHexFind.Text = "Find next"; $btnHexFind.Location = New-Object System.Drawing.Point(712, 42); $btnHexFind.Size = New-Object System.Drawing.Size(86, 26)
 $btnHexFind.FlatStyle = 'Flat'; $btnHexFind.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexFind.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexFind)
 $lblHex = New-Object System.Windows.Forms.Label
