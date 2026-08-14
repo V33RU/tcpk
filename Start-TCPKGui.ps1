@@ -3346,6 +3346,23 @@ $btnHexDiff = New-Object System.Windows.Forms.Button
 $btnHexDiff.Text = "Diff..."; $btnHexDiff.Location = New-Object System.Drawing.Point(872, 10); $btnHexDiff.Size = New-Object System.Drawing.Size(72, 26)
 $btnHexDiff.FlatStyle = 'Flat'; $btnHexDiff.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexDiff.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexTop.Controls.Add($btnHexDiff)
+
+# Diff navigation. The existing overlay only compares the bytes under the CURRENT page, so
+# on two 5 MB builds differing at 0x3A0000 every page before it reports "diff: 0 bytes",
+# which reads exactly like "the files are identical". These find the difference instead of
+# waiting for you to scroll onto it. Hidden until a comparison file is chosen, since they
+# do nothing without one.
+$btnDiffPrev = New-Object System.Windows.Forms.Button
+$btnDiffPrev.Text = 'Prev diff'; $btnDiffPrev.Location = New-Object System.Drawing.Point(1080, 10); $btnDiffPrev.Size = New-Object System.Drawing.Size(74, 26)
+$btnDiffPrev.FlatStyle = 'Flat'; $btnDiffPrev.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnDiffPrev.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$btnDiffPrev.Visible = $false
+$hexTop.Controls.Add($btnDiffPrev)
+
+$btnDiffNext = New-Object System.Windows.Forms.Button
+$btnDiffNext.Text = 'Next diff'; $btnDiffNext.Location = New-Object System.Drawing.Point(1158, 10); $btnDiffNext.Size = New-Object System.Drawing.Size(74, 26)
+$btnDiffNext.FlatStyle = 'Flat'; $btnDiffNext.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnDiffNext.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$btnDiffNext.Visible = $false
+$hexTop.Controls.Add($btnDiffNext)
 $btnHexStrTog = New-Object System.Windows.Forms.Button
 $btnHexStrTog.Text = "Strings"; $btnHexStrTog.Location = New-Object System.Drawing.Point(948, 10); $btnHexStrTog.Size = New-Object System.Drawing.Size(72, 26)
 $btnHexStrTog.FlatStyle = 'Flat'; $btnHexStrTog.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60); $btnHexStrTog.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
@@ -4114,14 +4131,79 @@ $btnHexDiff.Add_Click({
     if ($script:HexDiffPath) {
         $script:HexDiffPath = ''; $btnHexDiff.Text = 'Diff...'
         $btnHexDiff.BackColor = [System.Drawing.Color]::FromArgb(60, 60, 60)
+        $btnDiffPrev.Visible = $false; $btnDiffNext.Visible = $false
         Load-GuiHex $script:HexOffset; return
     }
     $ddlg = New-Object System.Windows.Forms.OpenFileDialog; $ddlg.Filter = "All files (*.*)|*.*"; $ddlg.Title = "Select comparison file"
     if ($ddlg.ShowDialog() -ne 'OK') { return }
     $script:HexDiffPath = $ddlg.FileName
     $btnHexDiff.Text = 'X Diff'; $btnHexDiff.BackColor = [System.Drawing.Color]::FromArgb(192, 57, 43)
+    $btnDiffPrev.Visible = $true; $btnDiffNext.Visible = $true
     Load-GuiHex $script:HexOffset
+
+    # Answer "are these files different at all" up front, so a page showing no differences
+    # is never mistaken for the files matching.
+    $cur = $txtHexPath.Text.Trim()
+    if (-not $cur) { return }
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    [System.Windows.Forms.Application]::DoEvents()
+    try {
+        $m = @(Get-Module TCPK)
+        if ($m.Count) {
+            $sum = & $m[0] { param($a, $b) Get-TcpkFileDiffSummary -PathA $a -PathB $b } $cur $script:HexDiffPath
+            $script:HexDiffSummary = $sum
+            if ($sum.Identical) {
+                $lblHex.Text = "diff: files are IDENTICAL ($($sum.LengthA) bytes)"
+            } else {
+                $t = "diff: $($sum.DifferingBytes) differing byte(s) in the common $($sum.CommonLength)"
+                if ($sum.FirstDifference -ge 0) { $t += ", first at 0x$(([int64]$sum.FirstDifference).ToString('x'))" }
+                if ($sum.LengthDelta -ne 0) {
+                    $sign = if ($sum.LengthDelta -gt 0) { 'longer' } else { 'shorter' }
+                    $t += "; comparison file is $([Math]::Abs($sum.LengthDelta)) byte(s) $sign"
+                }
+                if ($sum.Truncated) { $t += " (scan truncated at $($sum.Scanned))" }
+                $lblHex.Text = $t
+            }
+        }
+    } catch {
+        $lblHex.Text = "diff: $(("$($_.Exception.Message)" -split "`n")[0])"
+    } finally { $form.Cursor = [System.Windows.Forms.Cursors]::Default }
 })
+
+$script:HexDiffSummary = $null
+# One handler for both directions: identical except for which way it steps and what it says
+# when there is nothing left, so the two cannot drift apart.
+$script:_diffJump = {
+    param([bool]$back)
+    $cur = $txtHexPath.Text.Trim()
+    if (-not $cur -or -not $script:HexDiffPath) { return }
+    # current +/- 1 so a repeated click advances instead of re-finding the same byte
+    $from = if ($back) { [int64]$script:HexHl - 1 } else { [int64]$script:HexHl + 1 }
+    if ($script:HexHl -lt 0) { $from = if ($back) { [int64]$script:HexSize } else { [int64]0 } }
+    $m = @(Get-Module TCPK)
+    if (-not $m.Count) { return }
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    [System.Windows.Forms.Application]::DoEvents()
+    $off = [int64]-1
+    try {
+        $off = & $m[0] {
+            param($a, $b, $f, $bk)
+            if ($bk) { Find-TcpkByteDifference -PathA $a -PathB $b -From $f -Backward }
+            else { Find-TcpkByteDifference -PathA $a -PathB $b -From $f }
+        } $cur $script:HexDiffPath $from $back
+    } catch { $off = [int64]-1 }
+    finally { $form.Cursor = [System.Windows.Forms.Cursors]::Default }
+
+    if ($off -lt 0) {
+        $where = if ($back) { 'before' } else { 'after' }
+        $lblHex.Text = "no further difference $where 0x$(([int64][Math]::Max(0, $script:HexHl)).ToString('x'))"
+        return
+    }
+    Do-GuiHexInspect $off
+    $lblHex.Text = "difference at 0x$(([int64]$off).ToString('x'))"
+}
+$btnDiffPrev.Add_Click({ & $script:_diffJump $true })
+$btnDiffNext.Add_Click({ & $script:_diffJump $false })
 # XOR brute-force scan
 $btnXorScan.Add_Click({
     $p = $txtHexPath.Text.Trim(); if (-not $p) { $lblXorInfo.Text = 'load a file first'; return }

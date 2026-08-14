@@ -386,7 +386,13 @@ ASCII-only search reports nothing for text the file demonstrably contains.
 `regex` runs over a latin1 byte view, so a match index is a byte offset
 exactly; for the same reason it cannot match UTF-16 text, where every other
 byte is 0x00.
-Click "Diff" to compare two binaries side-by-side. Use the right-panel
+Click "Diff..." to load a comparison file: differing bytes turn red, and a
+whole-file summary appears immediately (how many bytes differ, where the
+first one is, and any length difference reported separately from the byte
+count). "Prev diff" / "Next diff" jump straight to the next differing
+offset, so a change nowhere near the current page does not have to be
+scrolled to. Bytes past the end of the shorter file are counted as a length
+difference, not as thousands of differing bytes. Use the right-panel
 Data Inspector to decode bytes at the cursor position.
 
 ---
