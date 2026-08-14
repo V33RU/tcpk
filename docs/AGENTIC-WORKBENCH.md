@@ -310,6 +310,22 @@ use "Go" to jump to an offset, "Find next" to search for patterns, or
 
 ---
 
+**Search kinds.** The find box takes a kind alongside the query: `auto` (the
+default, matching both UTF-8 and UTF-16LE), `ascii`, `utf16le`, `hex`, or
+`regex`. Prefer `auto` on a Windows binary -- string literals are stored as
+UTF-16LE there, so an ASCII-only search reports nothing for text the file
+demonstrably contains. `regex` runs over a latin1 byte view, so a match index
+is exactly a byte offset; for the same reason it cannot match UTF-16 text.
+
+**Related endpoints.** Three routes expose the same engines the desktop Hex
+tab uses, so the workbench and the GUI cannot drift apart:
+
+| Route | Body | Returns |
+|-------|------|---------|
+| `POST /api/agent/structure` | `{path, pattern, base}` | A header parsed into named decoded fields. Omit `pattern` to list the shipped patterns, so a dropdown can be filled from the same call. A field that does not fit the file comes back with status `out-of-range` and no value, never one decoded from the following bytes. |
+| `POST /api/agent/embedded` | `{path}` | Formats embedded at arbitrary offsets (PE, SQLite, archive, private key), each structurally validated rather than matched on magic bytes alone. |
+| `POST /api/agent/filediff` | `{a, b}` | How many bytes two files differ by, where the first difference is, and any length delta. A size mismatch is reported as `lengthDelta` rather than counted as thousands of differing bytes. |
+
 ## Quick-start workflow
 
 1. **Connect** -- pick ollama (local) or a cloud agent.

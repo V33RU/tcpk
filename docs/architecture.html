@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TCPK v2.8.0 Architecture Flowchart</title>
+<title>TCPK v2.9.0 Architecture Flowchart</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -459,8 +459,8 @@
 <body>
 
 <div class="page">
-  <h1>TCPK v2.8.0 -- Architecture Flowchart</h1>
-  <p class="subtitle"><span>203 cmdlets</span> | 51 private helpers | 12 audit buckets | 4 UI surfaces</p>
+  <h1>TCPK v2.9.0 -- Architecture Flowchart</h1>
+  <p class="subtitle"><span>260 cmdlets</span> | 78 private helpers | 12 audit buckets | 4 UI surfaces</p>
 
   <div class="legend">
     <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Entry point / core</div>
@@ -510,7 +510,7 @@
       <div class="arrow">&#x2192;</div>
       <div class="node process">Invoke-TcpkAudit -Target ...</div>
     </div>
-    <div class="note">All 4 surfaces share the same module -- TCPK.psm1 loads Classes/ then Private/ then Public/ (sorted by path). 203 public functions are exported.</div>
+    <div class="note">All 4 surfaces share the same module -- TCPK.psm1 loads Classes/ then Private/ then Public/ (sorted by path). 260 public functions are exported.</div>
   </div>
 
   <!-- ===== SECTION 2: MODULE LOADING ===== -->
@@ -535,7 +535,7 @@
       </div>
       <div class="phase">
         <div class="phase-num">Step 3</div>
-        <div class="phase-title">Public/ (203 cmdlets)</div>
+        <div class="phase-title">Public/ (260 cmdlets)</div>
         <div class="phase-detail">Invoke-TcpkAudit<br>Test-Tcpk* (scanners)<br>Get-Tcpk* (queries)<br>Export-Tcpk* (reports)<br>Confirm-Tcpk* (verify)<br>Invoke-Tcpk* (exploit)<br>Start-TcpkAgentic</div>
       </div>
     </div>

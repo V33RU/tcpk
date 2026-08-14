@@ -2,6 +2,106 @@
 
 Release history for TCPK. Newest first.
 
+## v2.9.0
+
+Proof and honesty release. Two themes. Three new active probes prove a server-side
+control is missing rather than inferring it, and a run of "clean-looking" views
+turned out to be hiding how much they had dropped.
+
+**New cmdlets (254 -> 260)**
+
+- **Invoke-TcpkAuthMatrix** (K19) -- vertical authorization matrix. Replays one
+  captured request once per role with only the credential swapped. The first role is
+  the baseline and must be accepted, otherwise the capture is stale and every
+  comparison below it is a false pass, so the run stops and says so.
+- **Invoke-TcpkExpiryProbe** (K22) -- proves a server honours a token past the expiry
+  it issued. Both times come from the server: the deadline is the signed `exp`, the
+  current time is the response `Date` header. No local clock is consulted, which
+  removes "your clock was wrong" as a rebuttal. Does not wait out the window.
+- **Invoke-TcpkLogoutProbe** (K23) -- replays an authenticated request after the app's
+  own logout succeeds. The verdict depends on `-SessionModel`, because a stateless JWT
+  surviving logout is a documented trade-off while a server-side session surviving it
+  is a defect. A JWT with no usable `exp` that also survives is HIGH regardless: nothing
+  expires it and nothing revokes it.
+- **Test-TcpkEmbeddedBlobs** (A48) -- finds formats embedded at arbitrary offsets (PE,
+  SQLite, archive, private key). Structural validation is the whole check: the shipped
+  Mono.Cecil.dll alone contains four bare `MZ` sequences, so a match-only scan reports
+  three phantom executables in TCPK's own tools directory. Rejected candidates are
+  counted and surfaced.
+- **Invoke-TcpkJavaDecompile** -- real Java decompilation via CFR, the counterpart to
+  Invoke-TcpkDecompile. CFR and a JRE are resolved, never redistributed. "Not installed"
+  and "installed but produced nothing" are separate warnings.
+- **Get-TcpkFileStructure** -- applies a byte pattern (a flat table of name/offset/size/
+  type) and returns a header as decoded fields. Deliberately not a pattern language.
+  Ships patterns for SQLite, ZIP local header, PE DOS header and WAV, each verified
+  against a real file. `-BaseOffset` parses a structure located by Test-TcpkEmbeddedBlobs.
+
+**Fixed: views that hid how much they dropped**
+
+- Dashboard "Top findings" capped at 14 rows and never said so, so 14-of-14 and
+  14-of-212 rendered identically. The heading now carries the count.
+- The Hex entropy strip read only the first 10 MB while its caller had sized blocks to
+  span the whole file, so on any target over 10 MB the colours described one range and
+  the click handler jumped to another. Streaming removed the cap; peak memory dropped
+  from 10 MB to one block.
+- Pcap Conversations hid the real column header and hand-drew a substitute that could
+  not scroll. With 1200px of columns, scrolling right desynchronised every heading from
+  its data permanently.
+- Hex search offered ascii and hex only. Windows stores string literals as UTF-16LE, so
+  searching a binary for a string it demonstrably contains returned nothing. Kinds are
+  now auto (the default, both encodings), ascii, utf16le, hex, regex. The agentic UI
+  carried a second copy of the same matcher and had the identical defect.
+- The Dashboard gained a readiness verdict: complete / degraded / unreliable. The case
+  it exists for is a packed binary, where every check runs, the coverage totals read
+  100%, and the report is short and tidy because the scanners could see nothing.
+
+**Fixed: MCP security**
+
+- `tcpk_audit` executed an attacker-supplied MSI's custom actions. Expand-TcpkTarget
+  routes `.msi` to `msiexec /a`, an administrative install runs the package's own code,
+  and this handler removed both CLI safeguards by hardcoding `Acknowledge` and piping
+  through `*>$null`. Now requires `runInstaller=true`, decided by asking Get-Item for
+  the extension exactly as the dispatcher does.
+- `outDir` refused for UNC and device paths on every tool (opening `\host\share`
+  performs SMB session setup and leaks Net-NTLMv2 before the file-exists check returns),
+  and confined to the tool folder for the two tools that create things.
+- One boolean parser replaces four. `[bool]` on the string "false" is `$true` in
+  PowerShell; that was handled correctly once for `authorized` and then not reused.
+- `processName` rejects wildcards, which would attach live-process checks to unrelated
+  processes.
+
+**Fixed: Copilot never connected**
+
+The GUI enabled the cloud consent with `if ($needsKey)`. needsKey asks whether the
+operator types a credential; cloud asks whether the target's code leaves the machine.
+Every other cloud provider answers yes to both, so the conflation was invisible until
+copilot, which needs no key but is cloud. The gate never got set, the backend resolver
+threw before opening a socket, and the proxy log stayed empty. Test-TcpkLlm reported
+the reason on the warning stream, which the GUI does not display, so every failure
+looked like a bare "Reachable=False"; it now returns the reason and reads the HTTP
+response body, where a SAML SSO refusal actually names itself.
+
+**Hex tab**
+
+Data inspector gained GUID, FILETIME and int64 BE. New modes: Byte Pattern and Byte
+Map (one pixel per byte, blocks averaged rather than sampled because aliasing invents
+structure that is not there). Diff gained a whole-file summary and Prev/Next
+navigation, with a size mismatch reported as a length delta rather than counted as
+thousands of differing bytes.
+
+**Surfaces**
+
+MCP gained tcpk_byte_search, tcpk_embedded_blobs, tcpk_file_structure and
+tcpk_file_diff. The agentic UI gained /api/agent/structure, /embedded and /filediff.
+Byte Map is deliberately not exposed to MCP: it is a picture and a model cannot use one.
+
+**Other**
+
+Log-file tampering ACLs (`log.tamperable-file`, `log.tamperable-directory`). The eight
+new active-probe findings mapped to TASVS by exact rule id, not prefix, because the
+other 17 rules those cmdlets emit are refusals and clean results that must stay
+untagged. DVTA credited. Nine new test suites.
+
 ## v2.8.0
 
 Coverage and honesty release. The theme is that a check which cannot run must say
