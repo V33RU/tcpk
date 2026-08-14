@@ -105,6 +105,26 @@ entitlement as an OpenAI- and Anthropic-compatible server, and TCPK ships a pres
 To use a non-default port, pick **custom** instead and set `baseUrl` to
 `http://localhost:<port>/v1` in `Data\llm-config.json`.
 
+**If your organisation uses SAML SSO**, there is nothing to configure in TCPK. Step 1
+opens a browser device-flow login, and that browser goes through your identity provider
+exactly as signing in to GitHub normally does. The proxy holds the resulting session;
+TCPK never sees a credential, so SSO never reaches TCPK's side at all.
+
+(SSO would only become your problem on a path that authenticates with a personal access
+token. In an SSO-enforced org such a token must be explicitly authorised for that org:
+open the token in GitHub, choose **Configure SSO**, and authorise it. TCPK now detects
+that refusal and says so instead of reporting a bare failure.)
+
+**If Test AI fails**, the status label names the reason: a dead proxy, a wrong port, a
+provider that has not been consented to, or a token an SSO org has not authorised. One
+diagnostic is worth knowing because it splits the problem in half. Watch the proxy's own
+terminal while you click Test AI:
+
+- a `GET /v1/models` line appears -> the request reached the proxy, so the fault is
+  between the proxy and GitHub (auth, entitlement, network).
+- no line appears -> the request never left TCPK, so the fault is local (wrong port,
+  wrong provider selected, or the AI panel settings were not applied).
+
 **This is still a cloud path.** The endpoint is localhost, but the proxy forwards every
 request to GitHub, so decompiled IL leaves the machine exactly as it would with any
 hosted provider. TCPK gates it behind the same confirmation as Claude or OpenAI, and the

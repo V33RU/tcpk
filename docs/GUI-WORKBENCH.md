@@ -35,6 +35,10 @@ Every tab shares the same top bar:
 - **Online CVE** -- query OSV and NVD for live CVE data during the scan.
 - **AI-verify findings** -- enable AI agent verification (configure
   provider/model/API key on the same row).
+  Providers needing no key: `ollama (local)`, which is the only genuinely local one, and
+  `copilot (proxy)`, where the proxy holds the GitHub auth. Everything else takes a key.
+  **Test AI** reports why a connection failed rather than just that it did; see
+  [REQUIREMENTS.md](../REQUIREMENTS.md) for the Copilot and SSO setup.
 - **Font / Size / Theme** -- adjust the GUI appearance.
 - **Run Audit / Pause** -- start or pause the discovery scan.
 
