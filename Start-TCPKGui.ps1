@@ -3412,7 +3412,7 @@ $cmbHexMode = New-Object System.Windows.Forms.ComboBox
 $cmbHexMode.Location = New-Object System.Drawing.Point(8, 4); $cmbHexMode.Size = New-Object System.Drawing.Size(140, 22)
 $cmbHexMode.DropDownStyle = 'DropDownList'; $cmbHexMode.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48)
 $cmbHexMode.ForeColor = [System.Drawing.Color]::FromArgb(200, 205, 210); $cmbHexMode.FlatStyle = 'Flat'
-@('Data Inspector', 'PE Map', 'XOR Decode', 'Byte Freq', 'Bookmarks', 'PE Detail', 'Byte Pattern') | ForEach-Object { [void]$cmbHexMode.Items.Add($_) }; $cmbHexMode.SelectedIndex = 0
+@('Data Inspector', 'PE Map', 'XOR Decode', 'Byte Freq', 'Bookmarks', 'PE Detail', 'Byte Pattern', 'Byte Map') | ForEach-Object { [void]$cmbHexMode.Items.Add($_) }; $cmbHexMode.SelectedIndex = 0
 $hexInsHdr.Controls.Add($cmbHexMode)
 $hexInsPanel.Controls.Add($hexInsHdr)
 # Mode A: Data Inspector (default)
@@ -3690,6 +3690,148 @@ $lvHexPat.Font = New-Object System.Drawing.Font('Consolas', 9)
 $pnlPatMode.Controls.Add($lvHexPat); $lvHexPat.BringToFront()
 $hexInsPanel.Controls.Add($pnlPatMode)
 
+# Mode H: Byte Map -- one pixel per byte (or per averaged block), so the SHAPE of a file is
+# visible without reading an offset. Different question from the Byte Freq histogram, which
+# counts how often a VALUE occurs; this shows WHERE the file changes character, which is
+# what makes an embedded image, a run of padding or a packed region obvious at a glance.
+#
+# Sampling lives in Get-TcpkByteMapSamples so it is testable; this paints and translates a
+# click back to an offset via Get-TcpkByteMapOffset.
+$pnlMapMode = New-Object System.Windows.Forms.Panel
+$pnlMapMode.Dock = 'Fill'; $pnlMapMode.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30); $pnlMapMode.Visible = $false
+
+$hexMapTop = New-Object System.Windows.Forms.Panel
+$hexMapTop.Dock = 'Top'; $hexMapTop.Height = 56; $hexMapTop.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
+
+$lblMapCols = New-Object System.Windows.Forms.Label
+$lblMapCols.Text = 'Columns:'; $lblMapCols.Location = New-Object System.Drawing.Point(8, 8); $lblMapCols.AutoSize = $true
+$lblMapCols.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
+$hexMapTop.Controls.Add($lblMapCols)
+
+$cmbMapCols = New-Object System.Windows.Forms.ComboBox
+$cmbMapCols.Location = New-Object System.Drawing.Point(76, 5); $cmbMapCols.Size = New-Object System.Drawing.Size(120, 22)
+$cmbMapCols.DropDownStyle = 'DropDownList'; $cmbMapCols.FlatStyle = 'Flat'
+$cmbMapCols.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbMapCols.ForeColor = [System.Drawing.Color]::White
+@('64', '128', '256', '512') | ForEach-Object { [void]$cmbMapCols.Items.Add($_) }
+$cmbMapCols.SelectedIndex = 2
+$hexMapTop.Controls.Add($cmbMapCols)
+
+$btnMapDraw = New-Object System.Windows.Forms.Button
+$btnMapDraw.Text = 'Draw'; $btnMapDraw.Location = New-Object System.Drawing.Point(202, 4); $btnMapDraw.Size = New-Object System.Drawing.Size(58, 24)
+$btnMapDraw.FlatStyle = 'Flat'; $btnMapDraw.BackColor = [System.Drawing.Color]::FromArgb(40, 116, 166); $btnMapDraw.ForeColor = [System.Drawing.Color]::White
+$hexMapTop.Controls.Add($btnMapDraw)
+
+$lblMapInfo = New-Object System.Windows.Forms.Label
+$lblMapInfo.Text = 'Whole file. Click a pixel to jump there.'
+$lblMapInfo.Location = New-Object System.Drawing.Point(8, 32); $lblMapInfo.AutoSize = $true
+$lblMapInfo.ForeColor = [System.Drawing.Color]::FromArgb(140, 145, 150)
+$hexMapTop.Controls.Add($lblMapInfo)
+$pnlMapMode.Controls.Add($hexMapTop)
+
+$pnlMapCanvas = New-Object System.Windows.Forms.Panel
+$pnlMapCanvas.Dock = 'Fill'; $pnlMapCanvas.BackColor = [System.Drawing.Color]::FromArgb(18, 18, 18)
+$pnlMapMode.Controls.Add($pnlMapCanvas); $pnlMapCanvas.BringToFront()
+$hexInsPanel.Controls.Add($pnlMapMode)
+
+$script:MapData = $null
+$script:MapBmp = $null
+
+$btnMapDraw.Add_Click({
+    $fp = $txtHexPath.Text.Trim()
+    if (-not $fp) { $lblHex.Text = 'load a file first'; return }
+    $cols = [int]([string]$cmbMapCols.SelectedItem)
+    $form.Cursor = [System.Windows.Forms.Cursors]::WaitCursor
+    try {
+        $m = @(Get-Module TCPK)
+        if (-not $m.Count) { return }
+        $script:MapData = & $m[0] { param($f, $c) Get-TcpkByteMapSamples -Path $f -Columns $c -MaxRows 512 } $fp $cols
+    } catch {
+        $script:MapData = $null
+        $lblHex.Text = "byte map: $(("$($_.Exception.Message)" -split "`n")[0])"
+    } finally { $form.Cursor = [System.Windows.Forms.Cursors]::Default }
+
+    if ($script:MapBmp) { try { $script:MapBmp.Dispose() } catch { }; $script:MapBmp = $null }
+    $d = $script:MapData
+    if (-not $d -or $d.RowCount -le 0) { $lblMapInfo.Text = 'nothing to map'; $pnlMapCanvas.Invalidate(); return }
+
+    # Build the bitmap once, on click, rather than in the paint handler: a resize or a
+    # window drag repaints many times a second and re-reading the file each time would
+    # make the whole tab crawl.
+    # LockBits, not SetPixel. A 256x512 map is 131072 pixels, and SetPixel is a per-call
+    # marshalled transition: in PowerShell that is seconds of frozen UI. Filling a byte[]
+    # and copying it once keeps the inner loop to plain array writes.
+    $bmp = New-Object System.Drawing.Bitmap($d.Columns, $d.RowCount, [System.Drawing.Imaging.PixelFormat]::Format24bppRgb)
+    $rect = New-Object System.Drawing.Rectangle(0, 0, $d.Columns, $d.RowCount)
+    $bd = $bmp.LockBits($rect, [System.Drawing.Imaging.ImageLockMode]::WriteOnly, $bmp.PixelFormat)
+    try {
+        # Rows are padded to a 4-byte boundary, so the row start is r*Stride and NOT
+        # r*Columns*3. Using the latter skews every row after the first on any width that
+        # is not a multiple of 4.
+        $stride = $bd.Stride
+        $raw = New-Object 'byte[]' ($stride * $d.RowCount)
+        for ($r = 0; $r -lt $d.RowCount; $r++) {
+            $row = $d.Rows[$r]
+            $valid = if ($r -eq ($d.RowCount - 1)) { $d.LastRowValid } else { $d.Columns }
+            $base = $r * $stride
+            for ($c = 0; $c -lt $d.Columns; $c++) {
+                $p = $base + ($c * 3)
+                if ($c -lt $valid) {
+                    $v = [int]$row[$c]
+                    if ($v -eq 0) {
+                        # 0x00 as a visibly dark blue rather than pure black: long null runs
+                        # are the commonest thing in a binary and should read as "padding",
+                        # not as "nothing was drawn here". Format24bppRgb is B,G,R order.
+                        $raw[$p] = 34; $raw[$p + 1] = 22; $raw[$p + 2] = 18
+                    } else {
+                        $raw[$p] = [byte]$v; $raw[$p + 1] = [byte]$v; $raw[$p + 2] = [byte]$v
+                    }
+                } else {
+                    # Padding in the ragged final row: panel-coloured, so it reads as
+                    # absent rather than as a run of zero bytes that is really there.
+                    $raw[$p] = 30; $raw[$p + 1] = 30; $raw[$p + 2] = 30
+                }
+            }
+        }
+        [System.Runtime.InteropServices.Marshal]::Copy($raw, 0, $bd.Scan0, $raw.Length)
+    } finally { $bmp.UnlockBits($bd) }
+    $script:MapBmp = $bmp
+
+    $ratio = if ($d.Mode -eq 'exact') { '1 byte/pixel' } else { "$($d.BytesPerPixel) bytes/pixel (averaged)" }
+    $lblMapInfo.Text = "$($d.Columns) x $($d.RowCount), $ratio"
+    $pnlMapCanvas.Invalidate()
+})
+
+$pnlMapCanvas.Add_Paint({
+    $b = $script:MapBmp
+    if (-not $b) { return }
+    $g = $_.Graphics
+    # NearestNeighbor on purpose: this is data, not a photograph. Smoothing would blend
+    # neighbouring regions together and invent gradients across a boundary that is sharp.
+    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::NearestNeighbor
+    $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::Half
+    $w = $pnlMapCanvas.ClientSize.Width; $h = $pnlMapCanvas.ClientSize.Height
+    if ($w -le 0 -or $h -le 0) { return }
+    $g.DrawImage($b, 0, 0, $w, $h)
+})
+$pnlMapCanvas.Add_Resize({ $pnlMapCanvas.Invalidate() })
+
+$pnlMapCanvas.Add_MouseClick({
+    $d = $script:MapData; $b = $script:MapBmp
+    if (-not $d -or -not $b) { return }
+    $w = $pnlMapCanvas.ClientSize.Width; $h = $pnlMapCanvas.ClientSize.Height
+    if ($w -le 0 -or $h -le 0) { return }
+    # Invert the same stretch the paint handler applies, so the pixel picked is the pixel
+    # drawn under the cursor.
+    $c = [int][Math]::Floor($_.X * $d.Columns / $w)
+    $r = [int][Math]::Floor($_.Y * $d.RowCount / $h)
+    $m = @(Get-Module TCPK)
+    if (-not $m.Count) { return }
+    $off = & $m[0] { param($map, $cc, $rr) Get-TcpkByteMapOffset -Map $map -Column $cc -Row $rr } $d $c $r
+    if ($off -lt 0) { return }
+    Do-GuiHexInspect ([int64]$off)
+    $lblMapInfo.Text = "offset 0x$(([int64]$off).ToString('x'))"
+})
+
 $script:PatCustomFile = ''
 $btnPatLoad.Add_Click({
     $dlg = New-Object System.Windows.Forms.OpenFileDialog
@@ -3912,13 +4054,13 @@ $cmbHexMode.Add_SelectedIndexChanged({
     $mi = $cmbHexMode.SelectedIndex
     $pnlInsMode.Visible = ($mi -eq 0); $pnlPeMode.Visible = ($mi -eq 1); $pnlXorMode.Visible = ($mi -eq 2)
     $pnlFreqMode.Visible = ($mi -eq 3); $pnlBmkMode.Visible = ($mi -eq 4); $pnlPdMode.Visible = ($mi -eq 5)
-    $pnlPatMode.Visible = ($mi -eq 6)
-    $modePnls = @($pnlInsMode, $pnlPeMode, $pnlXorMode, $pnlFreqMode, $pnlBmkMode, $pnlPdMode, $pnlPatMode)
+    $pnlPatMode.Visible = ($mi -eq 6); $pnlMapMode.Visible = ($mi -eq 7)
+    $modePnls = @($pnlInsMode, $pnlPeMode, $pnlXorMode, $pnlFreqMode, $pnlBmkMode, $pnlPdMode, $pnlPatMode, $pnlMapMode)
     if ($mi -ge 0 -and $mi -lt $modePnls.Count) { $modePnls[$mi].BringToFront() }
     # PE Detail needs more horizontal space for its multi-column ListViews
     # PE Detail and Byte Pattern both carry multi-column tables; 300 would cut the
     # Value column off entirely (the pattern columns total 394).
-    $hexInsPanel.Width = if ($mi -eq 5 -or $mi -eq 6) { 440 } else { 300 }
+    $hexInsPanel.Width = if ($mi -eq 5 -or $mi -eq 6 -or $mi -eq 7) { 440 } else { 300 }
 })
 $btnPdAnalyze.Add_Click({
     $p = "$($txtHexPath.Text)".Trim()
@@ -6877,7 +7019,9 @@ function Apply-UiFont {
         @($sbomLblF, $txtSbomFilter),
         @($signLblF, $txtSignFilter),
         # Byte Pattern's "At offset:" is the same shape: AutoSize label, fixed-x box.
-        @($lblPatBase, $txtPatBase)
+        @($lblPatBase, $txtPatBase),
+        # Byte Map's "Columns:" likewise.
+        @($lblMapCols, $cmbMapCols)
     )) {
         try {
             $lbl = $pair[0]; $box = $pair[1]

@@ -366,6 +366,14 @@ XOR decode, and data inspection.
     by `Test-TcpkEmbeddedBlobs`. A field that does not fit the file shows
     `<out-of-range>` in red rather than a value decoded from the following
     bytes. Same engine as `Get-TcpkFileStructure`.
+  - **Byte Map** -- one pixel per byte, greyscale by value, so the shape of
+    the whole file is visible at a glance: embedded images, runs of padding
+    and packed regions stand out without reading an offset. Different
+    question from Byte Freq, which counts how often a value occurs rather
+    than where it sits. Click a pixel to jump there. Large files are
+    averaged into blocks and the ratio is shown, so an averaged view is
+    never mistaken for an exact one; nulls render dark blue rather than
+    black so padding reads as padding.
 
 **How to use:** Enter a file path and click "Load". Browse the hex view
 with Prev/Next or jump to an offset with "Go". Click "PE" to overlay PE
