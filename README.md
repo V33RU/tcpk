@@ -8,9 +8,47 @@
 
   PowerShell engine, WinForms GUI, an agentic AI workbench (loopback browser UI), and a native MCP server.
   Authorized testing only.
+
+  [![Black Hat Arsenal India 2026](https://img.shields.io/badge/Black%20Hat%20Arsenal-India%202026-black)](https://www.blackhat-india.com/arsenal-schedule)
+  [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+  ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d6)
+  ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE)
+
+  **Presented at Black Hat Arsenal, Black Hat India 2026, Bengaluru, 29 October.**
+
+  [Docs](https://v33ru.github.io/tcpk/) - [Real audit report (DVTA)](docs/samples/dvta/report.md) - [Check catalogue](docs/CHECKS.md)
 </div>
 
 ---
+
+Desktop apps ship secrets in config files, disable TLS certificate validation, and load DLLs
+from writable paths. Web scanners never see any of it. TCPK audits the binaries themselves
+(MSIX, .NET, Electron, native EXE), proves the real bugs by decompiling the IL, and writes the
+client-ready report.
+
+## Quick start
+
+```powershell
+git clone https://github.com/V33RU/tcpk.git
+cd tcpk
+.\TCPK.bat
+```
+
+That opens the GUI (keep the whole folder together). Accept the authorized-use prompt, pick a
+target, click **Run Audit**. Or drive the same engine from PowerShell:
+
+```powershell
+Import-Module .\TCPK\TCPK.psd1 -Force
+Invoke-TcpkAudit -Target 'C:\Path\To\App' -Acknowledge              # static + OS + network ...
+Invoke-TcpkAudit -Target 'C:\Path\To\App' -Acknowledge -EnableLlm   # + local AI triage
+```
+
+Reports land in `.\out\<target>_<date>\`: `index.html`, `report.xlsx`, `findings.json`,
+`sbom.cdx.json`, `report.sarif`, `intel.html`.
+
+Want to see the output before installing anything? Read
+[the full DVTA audit](docs/samples/dvta/report.md): 35 findings, 1 CRITICAL / 3 HIGH / 8 MEDIUM,
+with the evidence grade for every one. Nothing in it is fabricated.
 
 ## The tool
 
@@ -53,8 +91,8 @@ discovery-only) with decompile, local AI review, and an autonomous agent.
 plus Recon / Report.
 
 Full check catalogue in [`docs/CHECKS.md`](docs/CHECKS.md); the 55-case thick-client test plan is
-auto-correlated in the Excel **Checklist** sheet (53 of 55 automated). Full technical write-up in
-[`docs/index.html`](docs/index.html) (published as a free GitHub Pages site).
+auto-correlated in the Excel **Checklist** sheet (53 of 55 automated). Full technical write-up at
+[v33ru.github.io/tcpk](https://v33ru.github.io/tcpk/).
 
 ## Supported targets
 
@@ -62,20 +100,6 @@ Path-based: MSIX / AppX / `.msixbundle` / `.zip`, an installed or extracted fold
 portable `.exe` -- MSIX, MSI, ClickOnce, Squirrel, and portable apps alike (manifest checks
 auto-skip when absent). For thin clients it audits the client-side binaries; the remote API is a
 separate engagement.
-
-## Quick start
-
-**GUI:** double-click `TCPK.bat` (keep the whole folder together), accept the authorized-use
-prompt, pick a target, click **Run Audit**.
-
-**PowerShell:**
-```powershell
-Import-Module .\TCPK\TCPK.psd1 -Force
-Invoke-TcpkAudit -Target 'C:\Path\To\App' -Acknowledge              # static + OS + network ...
-Invoke-TcpkAudit -Target 'C:\Path\To\App' -Acknowledge -EnableLlm   # + local AI triage
-```
-Reports land in `.\out\<target>_<date>\`: `index.html`, `report.xlsx`, `findings.json`,
-`sbom.cdx.json`, `report.sarif`, `intel.html`.
 
 ## Requirements
 
