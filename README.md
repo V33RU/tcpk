@@ -95,7 +95,8 @@ hooks) install separately: see [docs/INSTALL.md](docs/INSTALL.md). The static au
 ## Authorized use only
 
 For security testing of software you own or are explicitly authorized to test. Provided **AS IS**,
-no warranty. See `DISCLAIMER.txt`.
+no warranty. See `DISCLAIMER.txt`. TCPK is MIT licensed; redistributed third-party components and
+their licences are listed in `NOTICE`.
 
 ---
 
