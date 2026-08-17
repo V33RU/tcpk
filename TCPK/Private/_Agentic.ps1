@@ -516,6 +516,11 @@ function Get-TcpkAgentStructure {
     $p = Resolve-TcpkWebTarget $Path
     if (-not $p -or -not (Test-Path -LiteralPath $p -PathType Leaf)) { return @{ error = 'file not found' } }
     try {
+        # Get-TcpkFileStructure emits ONE object per row (it deliberately does not forward the
+        # engine's comma-wrapped array), so this pipeline sees a row at a time. It did not
+        # always: when the wrapper was forwarded, every field arrived in a single iteration,
+        # [int64]$_.Offset threw on an Object[], and the catch below turned the whole panel
+        # into "error". BytePattern.Tests.ps1 pins the contract this relies on.
         $rows = @(Get-TcpkFileStructure -Path $p -Pattern $Pattern -BaseOffset $Base | ForEach-Object {
             @{ name = $_.Name; offset = [int64]$_.Offset; hex = ('0x' + ([int64]$_.Offset).ToString('x'))
                size = $_.Size; type = $_.Type; value = "$($_.Value)"; status = $_.Status

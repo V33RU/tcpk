@@ -990,7 +990,11 @@ function Invoke-TcpkAudit {
     $covLine = ''; $covGaps = ''
     try { $covLine = Get-TcpkCoverageSummaryLine } catch { }
     try {
-        $gapNames = @(Get-TcpkCoverage | Where-Object { $_.status -ne 'Ran' } | ForEach-Object { "$($_.name) [$($_.status)]" })
+        # Assign first: Get-TcpkCoverage comma-returns, and a comma-protected array is not
+        # unrolled by the pipeline, so piping the CALL gave Where-Object the whole array as
+        # one object and this line collapsed every gap into a single joined blob.
+        $cov = Get-TcpkCoverage
+        $gapNames = @($cov | Where-Object { $_.status -ne 'Ran' } | ForEach-Object { "$($_.name) [$($_.status)]" })
         if ($gapNames.Count) { $covGaps = ($gapNames -join ', ') }
     } catch { }
     $scope = [pscustomobject]@{

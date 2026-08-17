@@ -94,5 +94,12 @@ function Get-TcpkFileStructure {
     }
     if (-not $p.Fields.Count) { throw "Pattern '$Pattern' defines no fields." }
 
-    Resolve-TcpkBytePattern -Path $Path -Fields $p.Fields -BaseOffset $BaseOffset
+    # Assign, then emit. Resolve-TcpkBytePattern comma-returns so a one-field pattern stays an
+    # array INTERNALLY, but forwarding that wrapper out of a public cmdlet is a trap: a
+    # comma-protected array is not unrolled by the pipeline, so `Get-TcpkFileStructure ... |
+    # ForEach-Object` handed every row to a SINGLE iteration. Emitting the variable unrolls
+    # it, which is how every other TCPK cmdlet behaves -- one object per row. Callers wrap in
+    # @() when they need an array (a one-field pattern otherwise arrives as a scalar).
+    $rows = Resolve-TcpkBytePattern -Path $Path -Fields $p.Fields -BaseOffset $BaseOffset
+    $rows
 }

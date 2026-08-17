@@ -267,6 +267,20 @@ Describe 'Get-TcpkFileStructure: the public entry point' {
         { Get-TcpkFileStructure -Path $script:wav -Pattern $bad } | Should -Throw -ExpectedMessage '*is invalid*'
     }
 
+    It 'hands ONE row per field to a downstream pipeline, not the whole array at once' {
+        # Regression. Resolve-TcpkBytePattern comma-returns its rows so a one-field pattern
+        # stays an array, and a comma-protected array is not unrolled by the pipeline: the
+        # agentic UI piped this call straight into ForEach-Object and got every field in a
+        # SINGLE iteration, where [int64]$_.Offset threw on an Object[] and the panel came
+        # back as an error. Callers must assign first; this pins which shape they get.
+        $names = @(Get-TcpkFileStructure -Path $script:wav -Pattern 'wav-header' |
+                   ForEach-Object { "$($_.Name)" })
+        $names.Count | Should -BeGreaterThan 1
+        $names | Should -Contain 'SAMPLE_RATE'
+        # Each element is one field name, never several joined by the array's ToString.
+        @($names | Where-Object { $_ -match ' ' }).Count | Should -Be 0
+    }
+
     It 'parses a structure at an offset reported by the embedded-blob scanner' {
         $host2 = Join-Path $script:work 'embedded.bin'
         $pad = New-Object 'byte[]' 777

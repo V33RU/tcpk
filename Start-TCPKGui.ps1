@@ -3600,6 +3600,9 @@ $lblPdStatus.Text = 'Click Analyze to inspect the file loaded in the Hex view.'
 $lblPdStatus.ForeColor = [System.Drawing.Color]::FromArgb(140, 140, 140)
 $lblPdStatus.Padding = New-Object System.Windows.Forms.Padding(4, 1, 0, 0)
 $lblPdStatus.Font = New-Object System.Drawing.Font('Segoe UI', 7.5)
+# Same reason as the Rich hint: this becomes "Loaded: <name> | <arch> | <subsystem> | ..."
+# once a file is analysed, which is far longer than the placeholder it is sized for.
+$lblPdStatus.Add_TextChanged({ Fit-UiHintLabel $lblPdStatus })
 $pnlPdMode.Controls.Add($lblPdStatus)
 
 $pdMain = New-Object System.Windows.Forms.TabControl
@@ -3642,6 +3645,10 @@ $lblPiRichHint = New-Object System.Windows.Forms.Label; $lblPiRichHint.Dock = 'F
 $lblPiRichHint.Padding = New-Object System.Windows.Forms.Padding(4, 0, 0, 0); $lblPiRichHint.ForeColor = $piMuted
 $lblPiRichHint.Text = 'Compiler/linker fingerprint in the DOS stub (XOR-encoded).'
 $lblPiRichHint.Font = New-Object System.Drawing.Font('Segoe UI', 7.5); $pdRichHdr.Controls.Add($lblPiRichHint)
+# Analyze replaces this placeholder with a sentence roughly twice as long, long after
+# Apply-UiFont sized the panel. Re-fit on the text change as well, or the header stays at
+# the height the SHORT text needed and the real hint is clipped into the table below it.
+$lblPiRichHint.Add_TextChanged({ Fit-UiHintPanel $pdRichHdr $lblPiRichHint })
 $pdTabRich.Controls.Add($pdRichHdr)
 $lvPiRich = New-Object System.Windows.Forms.ListView
 $lvPiRich.Dock = 'Fill'; $lvPiRich.View = 'Details'; $lvPiRich.FullRowSelect = $true; $lvPiRich.GridLines = $true
@@ -3695,12 +3702,11 @@ $lblPatBase.Text = 'At offset:'; $lblPatBase.Location = New-Object System.Drawin
 $lblPatBase.ForeColor = [System.Drawing.Color]::FromArgb(180, 185, 190)
 $hexPatTop.Controls.Add($lblPatBase)
 
-# x=76 for the same reason the SBOM filter box uses it: an AutoSize label starting at x=8
-# grows over a box placed too close once Apply-UiFont scales the form up.
+# These three x/y values only describe the row at Segoe UI 9. Apply-UiFont re-lays the whole
+# row (Set-UiRow) after any font change, which is what keeps the box clear of the AutoSize
+# label on its left and the Apply button on its right. An earlier version reflowed only the
+# box and left Apply on a constant, so at 12pt and up the box slid under the button.
 $txtPatBase = New-Object System.Windows.Forms.TextBox
-# Width 120 to match the reflow floor in Apply-UiFont: that helper clamps a reflowed box
-# to Math::Max(120, ...), so a narrower box would be GROWN on the first font change and
-# pushed under the Apply button. Apply moves right accordingly.
 $txtPatBase.Location = New-Object System.Drawing.Point(76, 31); $txtPatBase.Size = New-Object System.Drawing.Size(120, 22)
 $txtPatBase.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $txtPatBase.ForeColor = [System.Drawing.Color]::White
 $txtPatBase.Text = '0'
@@ -7093,6 +7099,121 @@ function Apply-ModernStyle {
     }
 }
 
+# --- Font-change relayout ---------------------------------------------------------------
+# Every Location/Size constant in this file was authored against Segoe UI 9, but the DEFAULT
+# UI font is Cascadia Mono 10 and the Size dropdown goes higher still. A monospace face is
+# wider per character at the same point size, so no single ratio fixes this: after the font
+# changes the layout has to be MEASURED again. Without that a caption clips ('Load...'
+# renders as 'Load..'), a one-line hint wraps to two and its fixed-height panel cuts the
+# second line off onto the table below it, and a ListView column truncates its own header
+# ('ToolId' -> 'To..').
+#
+# Everything here only ever GROWS a control, so the authored numbers stay the floor and a
+# smaller font can never squeeze the layout tighter than it was designed for. The one
+# exception is Fit-UiHintPanel, which SETS a height -- see the note there.
+
+function Measure-UiTextWidth([string]$text, $font) {
+    if (-not $text -or -not $font) { return 0 }
+    try { return [System.Windows.Forms.TextRenderer]::MeasureText($text, $font).Width } catch { return 0 }
+}
+
+function Fit-UiCaption($ctl, [int]$pad = 16) {
+    # Grow a fixed-size Button or Label to its caption. Never shrinks: the authored width is
+    # deliberate spacing, not a measurement. AutoSize controls already size themselves.
+    #
+    # Buttons and labels ONLY. A ComboBox reports its selected item as .Text, so fitting one
+    # would size the control to whatever happens to be picked -- load a pattern with a long
+    # filename and the dropdown would grow and shove the button beside it off the panel.
+    if (-not $ctl) { return }
+    if (-not ($ctl -is [System.Windows.Forms.Button] -or $ctl -is [System.Windows.Forms.Label])) { return }
+    try {
+        if ($ctl.AutoSize) { return }
+        $w = (Measure-UiTextWidth "$($ctl.Text)" $ctl.Font) + $pad
+        if ($w -gt $ctl.Width) { $ctl.Width = $w }
+    } catch { }
+}
+
+function Set-UiRow($controls, [int]$top, [int]$gap = 6, [int]$vgap = 5) {
+    # Lay a toolbar row out as a ROW instead of as separate constants that happen to agree at
+    # one font size. Runs left-to-right from the first control's own Left (so the panel's
+    # indent survives), fits each caption, and vertically centres every control on the
+    # tallest in the row -- a ComboBox and a TextBox take their height from the font while a
+    # Button keeps the height it was given, which is why they drift apart otherwise.
+    # Returns the y for the next row.
+    $ctls = @($controls | Where-Object { $_ })
+    if (-not $ctls.Count) { return $top }
+    try {
+        foreach ($c in $ctls) { Fit-UiCaption $c }
+        $h = 0
+        foreach ($c in $ctls) { if ($c.Height -gt $h) { $h = $c.Height } }
+        $x = $ctls[0].Left
+        foreach ($c in $ctls) {
+            $c.Left = $x
+            $c.Top  = $top + [int](($h - $c.Height) / 2)
+            $x = $c.Left + $c.Width + $gap
+        }
+        return ($top + $h + $vgap)
+    } catch { return $top }
+}
+
+function Grow-UiPanel($panel, [int]$bottom, [int]$pad = 4) {
+    if (-not $panel) { return }
+    try { if (($bottom + $pad) -gt $panel.Height) { $panel.Height = $bottom + $pad } } catch { }
+}
+
+function Get-UiWrapHeight($label, [int]$width) {
+    # Height the label's CURRENT text needs at its CURRENT font, wrapped to $width.
+    if (-not $label -or $width -lt 40) { return 0 }
+    try {
+        $sz = New-Object System.Drawing.Size($width, 0)
+        return [System.Windows.Forms.TextRenderer]::MeasureText(
+            "$($label.Text)", $label.Font, $sz, [System.Windows.Forms.TextFormatFlags]::WordBreak).Height
+    } catch { return 0 }
+}
+
+function Fit-UiHintPanel($panel, $label, [int]$pad = 6) {
+    # A Dock=Fill label inside a Dock=Top panel of fixed Height. Once the font grows the text
+    # wraps and every line past the first is clipped by the panel, which is how a hint ends
+    # up sitting on top of the table under it. SET rather than grown, because this text
+    # changes at run time (Analyze replaces the placeholder with a much longer sentence) and
+    # a panel that only ever grew would keep the tallest text's gap forever after.
+    if (-not $panel -or -not $label) { return }
+    try {
+        $h = Get-UiWrapHeight $label ($panel.ClientSize.Width - $label.Padding.Horizontal)
+        if ($h -gt 0) { $panel.Height = [Math]::Max(20, $h + $pad) }
+    } catch { }
+}
+
+function Fit-UiHintLabel($label, [int]$pad = 4) {
+    # Same problem for a Dock=Top label with a fixed Height and no panel around it.
+    if (-not $label) { return }
+    try {
+        $h = Get-UiWrapHeight $label ($label.ClientSize.Width - $label.Padding.Horizontal)
+        if ($h -gt 0) { $label.Height = [Math]::Max(16, $h + $pad) }
+    } catch { }
+}
+
+function Fit-UiListHeaders($root, [int]$pad = 14) {
+    # A column narrower than its own header renders 'To..' where it says 'ToolId'. Grow every
+    # Details-view column to its header at the current font. Never shrinks: the authored
+    # width is sized for the DATA, which is usually wider than the header.
+    if (-not $root) { return }
+    $queue = [System.Collections.Generic.Queue[System.Windows.Forms.Control]]::new()
+    $queue.Enqueue($root)
+    while ($queue.Count -gt 0) {
+        $ctl = $queue.Dequeue()
+        try {
+            if ($ctl -is [System.Windows.Forms.ListView] -and $ctl.View -eq 'Details') {
+                foreach ($col in $ctl.Columns) {
+                    $w = (Measure-UiTextWidth "$($col.Text)" $ctl.Font) + $pad
+                    if ($w -gt $col.Width) { $col.Width = $w }
+                }
+            }
+        } catch { }
+        foreach ($child in $ctl.Controls) { $queue.Enqueue($child) }
+    }
+}
+
 function Apply-UiFont {
     $name = "$($cmbFont.SelectedItem)"; if (-not $name) { $name = $script:DefaultFontName }
     if (-not $name) { $name = 'Cascadia Mono' }
@@ -7122,11 +7243,7 @@ function Apply-UiFont {
     foreach ($pair in @(
         @($hardLblF, $txtHardFilter),
         @($sbomLblF, $txtSbomFilter),
-        @($signLblF, $txtSignFilter),
-        # Byte Pattern's "At offset:" is the same shape: AutoSize label, fixed-x box.
-        @($lblPatBase, $txtPatBase),
-        # Byte Map's "Columns:" likewise.
-        @($lblMapCols, $cmbMapCols)
+        @($signLblF, $txtSignFilter)
     )) {
         try {
             $lbl = $pair[0]; $box = $pair[1]
@@ -7139,6 +7256,28 @@ function Apply-UiFont {
             }
         } catch { }
     }
+
+    # The Hex tab's right-hand inspector panels are laid out as rows rather than reflowed one
+    # control at a time. Byte Pattern's "At offset:" row was the visible failure: the box had
+    # a 120 px floor, so once the widened label pushed it right its trailing edge slid UNDER
+    # the Apply button. Three constants agreeing at one font size is not a layout.
+    $y = Set-UiRow @($cmbPatName, $btnPatLoad) 5
+    $y = Set-UiRow @($lblPatBase, $txtPatBase, $btnPatApply) $y
+    Grow-UiPanel $hexPatTop $y
+
+    $y = Set-UiRow @($lblMapCols, $cmbMapCols, $btnMapDraw) 4
+    $y = Set-UiRow @($lblMapInfo) $y
+    Grow-UiPanel $hexMapTop $y
+
+    $y = Set-UiRow @($btnPdAnalyze, $lblPdNote) 3
+    Grow-UiPanel $pdToolbar $y
+
+    # PE Detail's two prose lines. Both are one line at Segoe UI 9 and two at anything wider,
+    # and both had a fixed height that clipped the second line into the table below.
+    Fit-UiHintPanel $pdRichHdr $lblPiRichHint
+    Fit-UiHintLabel $lblPdStatus
+
+    Fit-UiListHeaders $form
 
     [System.Windows.Forms.Application]::DoEvents()
 }
