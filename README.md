@@ -9,12 +9,9 @@
   PowerShell engine, WinForms GUI, an agentic AI workbench (loopback browser UI), and a native MCP server.
   Authorized testing only.
 
-  [![Black Hat Arsenal India 2026](https://img.shields.io/badge/Black%20Hat%20Arsenal-India%202026-black)](https://www.blackhat-india.com/arsenal-schedule)
   [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
   ![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d6)
   ![PowerShell](https://img.shields.io/badge/PowerShell-5.1%20%7C%207%2B-5391FE)
-
-  **Presented at Black Hat Arsenal, Black Hat India 2026, Bengaluru, 29 October.**
 
   [Docs](https://v33ru.github.io/tcpk/) - [Real audit report (DVTA)](docs/samples/dvta/report.md) - [Check catalogue](docs/CHECKS.md)
 </div>
