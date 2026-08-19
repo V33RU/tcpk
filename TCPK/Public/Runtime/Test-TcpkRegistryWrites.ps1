@@ -31,9 +31,13 @@ function Test-TcpkRegistryWrites {
     PID of the process to trace.
 
 .PARAMETER Seconds
-    Capture duration in seconds. Default 30. Set to 0 to return immediately after
-    starting the session (useful for scripted orchestration -- stop the session
-    manually with logman stop).
+    Capture duration in seconds. Default 30.
+
+    -Seconds 0 does NOT leave the session running. It was documented that way and never
+    behaved that way: the finally block stops the session regardless, so 0 simply means a
+    zero-length window. For scripted orchestration drive the engine directly instead --
+    Start-TcpkEtwCapture, your own wait, Stop-TcpkEtwCapture, Read-TcpkEtwEvents -- which is
+    what this cmdlet now does internally.
 
 .PARAMETER Include
     Regex patterns. A path must match at least one to be considered. Applied on top of this
