@@ -2,6 +2,53 @@
 
 Release history for TCPK. Newest first.
 
+## Unreleased
+
+ProcMon-equivalent rework. The three ETW checks were one piece of code copied three
+times, and the duplication was the defect: a rule fixed in one was silently not fixed
+in the other two.
+
+**New cmdlets (260 -> 261)**
+
+- **Invoke-TcpkActivityTrace** (E24) -- one ETW capture window, analysed three ways.
+  Starts a single logman session carrying both the kernel file and kernel registry
+  providers, then runs the DLL-probe, file-write and registry-write analysers over the
+  same capture. `-Include` / `-Exclude` regex filters, `-IncludeChildren`, `-KeepEtl`,
+  and `-Check` to pick analysers. Emits an `activity-trace.window` scope line stating
+  the event count, the PIDs covered and any provider that failed to attach.
+
+**Fixed**
+
+- **The audit made you exercise the app three times.** `Test-TcpkDllSearchTrace`,
+  `Test-TcpkRegistryWrites` and `Test-TcpkFileActivity` each opened their own 30 second
+  session and ran in sequence. The first two subscribe to the SAME provider, so a DLL
+  probe and the write that followed it came from different windows and could never be
+  correlated. The audit now runs one window.
+- **Child process activity was discarded.** Every check filtered on the exact target
+  PID, so a thick client that spawns a helper, updater or renderer had all of that
+  child's file and registry activity dropped. `-IncludeChildren` covers the process
+  tree, and the audit passes it. The limit is stated rather than hidden: a child that
+  both starts and exits inside the window is still missed.
+- **The capture was deleted even when parsing failed.** That is the one case where the
+  operator wants the .etl, since re-recording costs another full exercise cycle. It is
+  now retained on a parse failure regardless of `-KeepEtl`, and its path is named in the
+  finding.
+- **No way to narrow or silence.** Filters were hardcoded regexes. `-Include` and
+  `-Exclude` apply on top of each check's own rules. Exclude beats Include, and an
+  invalid pattern keeps the event rather than manufacturing a clean result.
+- Evidence now names the PID that actually raised the event, which may be a child,
+  rather than always naming the target.
+
+**Internal**
+
+- New `_Etw.ps1` (capture: session, process tree, one-pass ETL parse, operator filter)
+  and `_EtwRules.ps1` (the three analysers as pure functions over parsed records).
+  Rule ids, severities, CWEs and finding text are carried over unchanged.
+- The three cmdlets are now thin wrappers over that engine, 298 lines lighter.
+- **These checks now have a test suite, and could not have had one before.** Capture and
+  analysis were the same function, so testing meant admin rights, a live ETW session and
+  a 30 second sleep. 23 cases in `EtwActivity.Tests.ps1` feed synthetic records instead.
+
 ## v2.9.0
 
 Proof and honesty release. Two themes. Three new active probes prove a server-side

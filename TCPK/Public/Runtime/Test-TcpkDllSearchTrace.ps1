@@ -12,71 +12,90 @@ function Test-TcpkDllSearchTrace {
 
     Requires admin. Operator should exercise the app during the window.
 
+    The capture is now shared: this cmdlet keeps its own single-provider session for standalone
+    use, but Invoke-TcpkActivityTrace runs one window across both providers and dispatches to
+    every analyser, which is what the audit uses. The rule logic lives in _EtwRules.ps1 so a fix
+    applies to both paths instead of only the one that was edited.
+
+.PARAMETER Include
+    Regex patterns. A path must match at least one to be considered. Applied on top of this
+    check's own rules, never instead of them.
+
+.PARAMETER Exclude
+    Regex patterns. A matching path is dropped. Exclude beats Include.
+
+.PARAMETER IncludeChildren
+    Also attribute events raised by child processes of the target.
+
+.PARAMETER KeepEtl
+    Keep the .etl instead of deleting it. A capture costs the operator a full exercise window;
+    re-reading it in Windows Performance Analyzer beats re-recording it. Kept unconditionally
+    when parsing fails, which is exactly when it is wanted.
+
 .OUTPUTS
     [TcpkFinding]
 #>
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'ByName')]
     param(
-        [Parameter(Mandatory)][string]$ProcessName,
-        [int]$Seconds = 30
+        [Parameter(Mandatory, ParameterSetName = 'ByName')][string]$ProcessName,
+        [Parameter(Mandatory, ParameterSetName = 'ById')][int]$ProcessId,
+        [int]$Seconds = 30,
+        [string[]]$Include,
+        [string[]]$Exclude,
+        [switch]$IncludeChildren,
+        [switch]$KeepEtl
     )
 
     if (-not (Assert-TcpkWindows 'Test-TcpkDllSearchTrace')) { return }
     if (-not (Test-TcpkIsAdmin)) {
         New-TcpkSkippedFinding -RuleId 'dll-search.skipped-no-admin' `
-            -Title 'DLL-search ETW trace skipped (admin required)'
+            -Title 'DLL search-order ETW trace skipped (admin required)'
         return
     }
 
-    $proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue | Select-Object -First 1
+    $proc = if ($PSCmdlet.ParameterSetName -eq 'ByName') {
+        Get-Process -Name ($ProcessName -replace '\.exe$', '') -ErrorAction SilentlyContinue | Select-Object -First 1
+    } else {
+        Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    }
     if (-not $proc) {
-        New-TcpkSkippedFinding -RuleId 'dll-search.no-process' `
-            -Title "Process '$ProcessName' not running"
+        $who = if ($PSCmdlet.ParameterSetName -eq 'ByName') { $ProcessName } else { "pid $ProcessId" }
+        New-TcpkSkippedFinding -RuleId 'dll-search.no-process' -Title "Process not found: $who"
         return
     }
 
-    $sess = "TCPK-DllSearch-$([Guid]::NewGuid().ToString().Substring(0,8))"
-    $etl  = Join-Path (Get-TcpkWorkDir -Kind 'trace') "$sess.etl"
-    $started = $false
+    $sess = Start-TcpkEtwCapture -Provider @('Microsoft-Windows-Kernel-File') -Label 'DllSearch'
+    if (-not $sess.Started) {
+        New-TcpkSkippedFinding -RuleId 'dll-search.etw-start-failed' `
+            -Title 'Could not start the ETW session' -Reason $sess.Reason
+        return
+    }
 
     try {
-        $out = & logman create trace $sess -p Microsoft-Windows-Kernel-File 0xffffffff 0xff -o $etl -ets 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            New-TcpkSkippedFinding -RuleId 'dll-search.etw-start-failed' `
-                -Title "Could not start ETW session: $LASTEXITCODE" -Reason ($out -join ' ')
-            return
-        }
-        $started = $true
-        Write-Information -MessageData "  Capturing $Seconds s of file-event ETW for PID $($proc.Id)..." -InformationAction Continue
-        Start-Sleep -Seconds $Seconds
+        Write-Information -MessageData ("  Capturing {0}s of ETW for {1} (pid {2}) -- exercise the app now..." -f $Seconds, $proc.ProcessName, $proc.Id) -InformationAction Continue
+        if ($Seconds -gt 0) { Start-Sleep -Seconds $Seconds }
     } finally {
-        if ($started) { & logman stop $sess -ets 2>&1 | Out-Null }
+        Stop-TcpkEtwCapture -Session $sess
     }
 
-    if (-not (Test-Path $etl)) { return }
-    try { $events = Get-WinEvent -Path $etl -Oldest -ErrorAction Stop } catch {
+    $pids = [System.Collections.Generic.HashSet[int]]::new()
+    [void]$pids.Add($proc.Id)
+    if ($IncludeChildren) {
+        foreach ($p in (Get-TcpkProcessTreeId -ProcessId $proc.Id)) { [void]$pids.Add($p) }
+    }
+
+    $events = $null
+    try { $events = Read-TcpkEtwEvents -Etl $sess.Etl -ProcessIds $pids }
+    catch {
+        # The ETL is KEPT here regardless of -KeepEtl. A parse failure is the one case where
+        # the operator most wants the capture, and the previous version deleted it.
         New-TcpkSkippedFinding -RuleId 'dll-search.etw-parse-failed' `
-            -Title 'Cannot parse captured ETL' -Reason $_.Exception.Message
-        Remove-Item $etl -Force -ErrorAction SilentlyContinue
+            -Title 'Cannot parse the captured ETL' `
+            -Reason "$($_.Exception.Message) -- capture retained at $($sess.Etl)"
         return
     }
-    foreach ($e in $events) {
-        try { $xml = [xml]$e.ToXml() } catch { continue }
-        try { $epid = $xml.Event.System.Execution.ProcessID } catch { continue }
-        if (-not $epid -or [int]$epid -ne $proc.Id) { continue }
-        $file = $null; $st = $null
-        try {
-            $file = ($xml.Event.EventData.Data | Where-Object Name -eq 'FileName').'#text'
-            $st   = ($xml.Event.EventData.Data | Where-Object Name -eq 'Status').'#text'
-        } catch { }
-        if ($file -and $st -and $file -match '\.dll$' -and $st -eq '0xC0000034') {
-            New-TcpkFinding -Module 'runtime' -RuleId 'dll-search.name-not-found' `
-                -Severity 'HIGH' -Confidence 'Confirmed' `
-                -Title "$($proc.Name) probed $file and got NAME NOT FOUND" `
-                -File $file -Evidence "PID=$epid status=$st" `
-                -Cwe @('CWE-427') `
-                -Fix 'Patch the call site to use a full path or LOAD_LIBRARY_SEARCH_SYSTEM32.'
-        }
-    }
-    Remove-Item $etl -Force -ErrorAction SilentlyContinue
+
+    ConvertTo-TcpkDllSearchFinding -Events $events -ProcName $proc.ProcessName -Include $Include -Exclude $Exclude
+
+    [void](Remove-TcpkEtl -Etl $sess.Etl -Keep:$KeepEtl)
 }

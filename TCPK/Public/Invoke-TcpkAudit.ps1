@@ -603,9 +603,13 @@ function Invoke-TcpkAudit {
     }
     # ETW and memory dump only when explicitly requested via -EnableDeepRuntime
     if ($EnableDeepRuntime -and $ProcessName) {
-        _RunCheck 'Test-TcpkDllSearchTrace'          { Test-TcpkDllSearchTrace          -ProcessName $ProcessName -Seconds 30 }
-        _RunCheck 'Test-TcpkRegistryWrites'          { Test-TcpkRegistryWrites          -ProcessName $ProcessName -Seconds 30 }
-        _RunCheck 'Test-TcpkFileActivity'            { Test-TcpkFileActivity            -ProcessName $ProcessName -Seconds 30 }
+        # ONE capture window across both providers, dispatched to all three analysers. This was
+        # three sequential 30s captures, which cost the operator three separate exercise cycles
+        # for one question, and because the DLL-probe and file-write checks read the SAME
+        # provider from DIFFERENT windows, a probe and the write that followed it could never be
+        # correlated. -IncludeChildren because a thick client that spawns a helper does most of
+        # the interesting work in the child, and exact-PID filtering discarded all of it.
+        _RunCheck 'Invoke-TcpkActivityTrace'         { Invoke-TcpkActivityTrace         -ProcessName $ProcessName -Seconds 30 -IncludeChildren }
         _RunCheck 'Test-TcpkMemoryDump'              { Test-TcpkMemoryDump              -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkMemorySecrets'           { Test-TcpkMemorySecrets           -ProcessName $ProcessName }
     }

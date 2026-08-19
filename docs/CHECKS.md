@@ -136,8 +136,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkTokenCaches** - D05. MSAL / ADAL / custom OAuth token cache files under the target path. KNOWN GAP: the well-known per-user locations MSAL and ADAL actually write to (%LOCALAPPDATA%\.IdentityService\, %USERPROFILE%\.azure\) are not scanned, so this finds nothing for an MSAL-based app.
 - **Test-TcpkWebViewCreds** - D06. WebView2 Edge user profile -- saved login state.
 
-## E - Runtime / live process  (21)
+## E - Runtime / live process  (22)
 
+- **Invoke-TcpkActivityTrace** - E24. One ETW capture window analysed three ways: DLL probes, file writes, registry writes. Replaces three separate 30s captures, so the app is exercised once and a DLL probe can be correlated with the write that followed it. Supports -Include / -Exclude filters, -IncludeChildren and -KeepEtl.
 - **Test-TcpkChildProcesses** - E14. Direct child processes spawned by the target.
 - **Test-TcpkComObjects** - E06. COM objects registered in HKCR\CLSID pointing at the target.
 - **Test-TcpkDllSearchTrace** - E08. ETW capture of NAME NOT FOUND DLL probes during a window.
@@ -295,6 +296,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**235 of 260 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**236 of 261 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.9.0: 260 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.9.0: 261 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
