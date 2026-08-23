@@ -213,8 +213,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkSelfIntegrityCheck** - J02. Self-integrity verification markers.
 - **Test-TcpkTimingAntiDebug** - J04. Timing-based anti-debug markers (RDTSC, QueryPerformanceCounter).
 
-## K - Exploitation (GATED, off by default)  (28)
+## K - Exploitation (GATED, off by default)  (29)
 
+- **Invoke-TcpkParamTamper** - K24. Mutates one parameter of a captured request (price, quantity, boolean flag, role, limit) and sends three requests per parameter: baseline, tampered, and a bogus control. An endpoint that accepts the bogus value too reports NOT CONCLUSIVE rather than a false positive.
 - **New-TcpkProxyDll** - K01. Generate a proxy-DLL source scaffold for a flagged phantom-import.
 - **New-TcpkFridaTlsBypass** - K02. Generate a Frida JS script template that bypasses a flagged TLS validation callback.
 - **New-TcpkPoisonedUpdateManifest** - K03. Generate a TEMPLATE update-manifest that demonstrates an unsigned-update supply-chain finding.
@@ -296,6 +297,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**236 of 261 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**237 of 262 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.9.0: 261 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.9.0: 262 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).

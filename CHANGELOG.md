@@ -4,6 +4,25 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Invoke-TcpkParamTamper (K24)** and the response body it needed.
+
+`New-TcpkHttpSnapshot` returned Status, Len, Hash, a 256-char BodyHead, Redirect,
+ServerDate and ElapsedMs, so everything downstream decided by hash equality and
+status code. That cannot answer verbose-error disclosure, session fixation or
+parameter tampering. It now also returns `BodyText`, `BodyBytes` and `Headers`,
+with `-MaxBodyBytes` and `-RetainSensitive`. Additive; both existing callers are
+untouched.
+
+The tamper probe sends three requests per parameter: baseline, tampered, and a
+bogus control no correct server should accept. The control is what makes the
+verdict defensible. Without it an endpoint that returns 200 to anything reads as
+"tampering accepted" on every parameter it has, so that case reports NOT
+CONCLUSIVE instead. Classes covered are price, quantity, boolean entitlement
+flags, role and page limit, across query parameters, JSON body leaves and form
+fields. Path segments, cookies and headers are excluded on purpose: a tampered
+cookie is indistinguishable from a broken session.
+
+
 ProcMon-equivalent rework. The three ETW checks were one piece of code copied three
 times, and the duplication was the defect: a rule fixed in one was silently not fixed
 in the other two.
