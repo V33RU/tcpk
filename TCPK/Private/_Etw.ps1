@@ -44,11 +44,9 @@ function Get-TcpkProcessTreeId {
     for ($d = 0; $d -lt $MaxDepth -and $frontier.Count; $d++) {
         $next = New-Object 'System.Collections.Generic.List[int]'
         foreach ($p in $all) {
-            $ppid = 0
-            try { $ppid = [int]$p.ParentProcessId } catch { continue }
+            $ppid = [int]$p.ParentProcessId
             if ($frontier -notcontains $ppid) { continue }
-            $cpid = 0
-            try { $cpid = [int]$p.ProcessId } catch { continue }
+            $cpid = [int]$p.ProcessId
             # A PID is reused after the process dies, so a self-parent or an already-seen id
             # would loop forever. Add() returning false is the guard.
             if ($cpid -eq $ppid) { continue }
@@ -140,9 +138,9 @@ function Read-TcpkEtwEvents {
     $out = New-Object 'System.Collections.Generic.List[object]'
     if (-not (Test-Path -LiteralPath $Etl)) { return $out }
 
-    $events = $null
-    try { $events = Get-WinEvent -Path $Etl -Oldest -ErrorAction Stop }
-    catch { throw }
+    # Deliberately not caught. A parse failure has to reach the caller, which decides to keep
+    # the .etl and say so in a Skipped finding.
+    $events = Get-WinEvent -Path $Etl -Oldest -ErrorAction Stop
 
     foreach ($e in $events) {
         $xml = $null
