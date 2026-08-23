@@ -31,7 +31,7 @@ function Get-TcpkNormalizedBodyHash {
 # Low-level sender shared by the JWT probe and the request replayer. Arbitrary method +
 # headers + body. Never follows redirects (a 401 must not be masked by a login redirect).
 # Returns the canonical snapshot:
-#   @{ Status; Len; Hash; BodyHead; Redirect; ServerDate; ElapsedMs }
+#   @{ Status; Len; Hash; BodyHead; BodyText; BodyBytes; Headers; Redirect; ServerDate; ElapsedMs }
 # Status 0 on a transport error. Body preview and any headers are credential-redacted.
 # ServerDate is the response Date header as UTC [datetime], or $null when absent; it is
 # the only clock a vendor cannot dispute, so expiry checks compare against it and never
@@ -42,6 +42,19 @@ function Get-TcpkNormalizedBodyHash {
 # This is the ONLY place a socket is opened. Anything a new check needs off the wire
 # (headers, timing, full body) has to be added here, and additively: three call sites
 # read the existing keys positionally by name and must keep working untouched.
+#
+# BodyText, BodyBytes and Headers exist because deciding by Status + Hash alone cannot
+# answer three whole question classes. Verbose-error disclosure needs the body to regex.
+# Session fixation needs Set-Cookie off a response the replayer itself elicited. Parameter
+# tampering needs a body differential to make a verdict defensible rather than a guess at
+# what a status code meant.
+#
+# REDACTION AND -RetainSensitive. Headers and BodyText are credential-redacted like BodyHead,
+# so anything a finding prints is safe. That makes them useless for COMPARING two responses:
+# redaction is deterministic, so two different session cookies both become the same marker
+# and compare equal, which would report session fixation on an app that rotates correctly.
+# -RetainSensitive returns them unredacted for exactly that case. A caller using it compares
+# the values and must never put one in a finding.
 function New-TcpkHttpSnapshot {
     [CmdletBinding()]
     param(
@@ -50,7 +63,9 @@ function New-TcpkHttpSnapshot {
         [hashtable]$Headers,
         [byte[]]$Body,
         [string[]]$VolatileFieldRegex,
-        [int]$TimeoutSec = 15
+        [int]$TimeoutSec = 15,
+        [int]$MaxBodyBytes = 65536,
+        [switch]$RetainSensitive
     )
     $handler = [System.Net.Http.HttpClientHandler]::new()
     $handler.AllowAutoRedirect = $false
@@ -85,6 +100,39 @@ function New-TcpkHttpSnapshot {
             $s = Get-TcpkRedact -Text $s
             $preview = $s.Substring(0, [Math]::Min(256, $s.Length))
         }
+        # Full body, capped. Separate from BodyHead, which keeps its 256-char contract because
+        # existing findings quote it and their expected output is pinned by tests.
+        # Array.Copy, not $bytes[0..n]. A range index on a byte[] returns Object[] in
+        # PowerShell, and GetString would then throw on every body over the cap.
+        $bodyBytes = $bytes
+        if ($bytes.Length -gt $MaxBodyBytes) {
+            $bodyBytes = New-Object 'byte[]' $MaxBodyBytes
+            [Array]::Copy($bytes, 0, $bodyBytes, 0, $MaxBodyBytes)
+        }
+        $bodyText = ''
+        if ($bodyBytes.Length -gt 0) {
+            $bodyText = [Text.Encoding]::UTF8.GetString($bodyBytes)
+            if (-not $RetainSensitive) { $bodyText = Get-TcpkRedact -Text $bodyText }
+        }
+
+        # Response headers plus content headers in one case-insensitive map. Both matter: a
+        # Set-Cookie is on the response, a Content-Type is on the content, and a caller should
+        # not have to know which.
+        $hdrs = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([StringComparer]::OrdinalIgnoreCase)
+        foreach ($src in @($resp.Headers, $resp.Content.Headers)) {
+            if (-not $src) { continue }
+            try {
+                foreach ($kv in $src) {
+                    $val = ($kv.Value -join ', ')
+                    if (-not $RetainSensitive) { $val = Get-TcpkRedact -Text $val }
+                    # Repeated headers (several Set-Cookie) join rather than overwrite, or the
+                    # probe that needs the session cookie silently gets whichever came last.
+                    if ($hdrs.ContainsKey($kv.Key)) { $hdrs[$kv.Key] = $hdrs[$kv.Key] + ', ' + $val }
+                    else { $hdrs[$kv.Key] = $val }
+                }
+            } catch { }
+        }
+
         $redirect = $null
         if ($status -ge 300 -and $status -lt 400 -and $resp.Headers.Location) { $redirect = "$($resp.Headers.Location)" }
 
@@ -108,13 +156,21 @@ function New-TcpkHttpSnapshot {
             Len        = $bytes.Length
             Hash       = Get-TcpkNormalizedBodyHash -Body $bytes -VolatileFieldRegex $VolatileFieldRegex
             BodyHead   = $preview
+            BodyText   = $bodyText
+            BodyBytes  = $bodyBytes
+            Headers    = $hdrs
             Redirect   = $redirect
             ServerDate = $serverDate
             ElapsedMs  = [int]$sw.ElapsedMilliseconds
         }
     } catch {
         $sw.Stop()
-        return @{ Status = 0; Len = 0; Hash = 'sha256:error'; BodyHead = "<transport-error: $(("$($_.Exception.Message)" -split "`n")[0])>"; Redirect = $null; ServerDate = $null; ElapsedMs = [int]$sw.ElapsedMilliseconds }
+        # Every key present on the error path too, so no caller has to test for existence.
+        return @{ Status = 0; Len = 0; Hash = 'sha256:error'
+            BodyHead = "<transport-error: $(("$($_.Exception.Message)" -split "`n")[0])>"
+            BodyText = ''; BodyBytes = [byte[]]@()
+            Headers = (New-Object 'System.Collections.Generic.Dictionary[string,string]' ([StringComparer]::OrdinalIgnoreCase))
+            Redirect = $null; ServerDate = $null; ElapsedMs = [int]$sw.ElapsedMilliseconds }
     } finally { $client.Dispose() }
 }
 

@@ -120,6 +120,76 @@ Describe 'New-TcpkHttpSnapshot: the added ServerDate / ElapsedMs keys' {
     }
 }
 
+Describe 'New-TcpkHttpSnapshot: the added BodyText / BodyBytes / Headers keys' {
+    # Deciding by Status plus Hash alone cannot answer verbose-error disclosure, session
+    # fixation or parameter tampering. The first needs the body to regex, the second needs
+    # Set-Cookie off a response the replayer itself elicited, the third needs a body
+    # differential. All three were unbuildable until the snapshot carried these.
+
+    It 'returns the whole body, not just the 256-char head' {
+        InModuleScope TCPK -Parameters @{ url = "$($script:base)/open" } {
+            param($url)
+            $s = New-TcpkHttpSnapshot -Method GET -Url $url
+            $s.BodyText | Should -Not -BeNullOrEmpty
+            $s.BodyText.Length | Should -BeGreaterOrEqual $s.BodyHead.Length
+            $s.BodyBytes.Length | Should -Be $s.Len
+        }
+    }
+
+    It 'returns response headers in a case-insensitive map' {
+        InModuleScope TCPK -Parameters @{ url = "$($script:base)/open" } {
+            param($url)
+            $h = (New-TcpkHttpSnapshot -Method GET -Url $url).Headers
+            $h.Count | Should -BeGreaterThan 0
+            # A caller must not have to guess the casing the server sent.
+            $h.ContainsKey('date') | Should -BeTrue
+            $h.ContainsKey('DATE') | Should -BeTrue
+        }
+    }
+
+    It 'merges content headers into the same map as response headers' {
+        # Content-Type lives on the content, Set-Cookie on the response. A caller should not
+        # need to know which, so both land in one map.
+        InModuleScope TCPK -Parameters @{ url = "$($script:base)/open" } {
+            param($url)
+            (New-TcpkHttpSnapshot -Method GET -Url $url).Headers.ContainsKey('Content-Type') | Should -BeTrue
+        }
+    }
+
+    It 'caps the body at -MaxBodyBytes and keeps it a real byte array' {
+        # A range index on a byte[] returns Object[] in PowerShell, which would make GetString
+        # throw on every response over the cap. Len stays the TRUE length so a caller can tell
+        # the body was truncated.
+        InModuleScope TCPK -Parameters @{ url = "$($script:base)/open" } {
+            param($url)
+            $s = New-TcpkHttpSnapshot -Method GET -Url $url -MaxBodyBytes 4
+            $s.BodyBytes.Length | Should -Be 4
+            $s.BodyBytes.GetType().Name | Should -Be 'Byte[]'
+            $s.Len | Should -BeGreaterThan 4
+        }
+    }
+
+    It 'redacts by default and returns raw only under -RetainSensitive' {
+        # Redaction is deterministic, so two different session cookies redact to the same
+        # marker and compare equal. A fixation probe run on redacted values would report
+        # every app as vulnerable. That is why the opt-out exists.
+        InModuleScope TCPK -Parameters @{ url = "$($script:base)/open" } {
+            param($url)
+            $plain = New-TcpkHttpSnapshot -Method GET -Url $url -RetainSensitive
+            $plain.BodyText | Should -Match 'PROTECTED'
+        }
+    }
+
+    It 'returns the new keys on a transport error too' {
+        InModuleScope TCPK {
+            $s = New-TcpkHttpSnapshot -Method GET -Url 'http://127.0.0.1:1/nope' -TimeoutSec 2
+            foreach ($k in 'BodyText', 'BodyBytes', 'Headers') { $s.ContainsKey($k) | Should -BeTrue }
+            $s.BodyBytes.Length | Should -Be 0
+            $s.Headers.Count | Should -Be 0
+        }
+    }
+}
+
 Describe 'Invoke-TcpkExpiryProbe: safety gates' {
     It 'refuses without -ConfirmActive' {
         { Invoke-TcpkExpiryProbe -Url "$($script:base)/no-expiry-check" -Header "Authorization: Bearer $($script:expiredJwt)" -Target $script:hostAllow } |
