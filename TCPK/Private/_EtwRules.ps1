@@ -16,6 +16,7 @@ function ConvertTo-TcpkDllSearchFinding {
 
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($ev in $Events) {
+        if ($ev.Kind -ne 'file') { continue }
         $file = $ev.Path
         if (-not $file -or -not $ev.Status) { continue }
         # STATUS_OBJECT_NAME_NOT_FOUND against a .dll is the whole signal: the loader asked a
@@ -45,6 +46,7 @@ function ConvertTo-TcpkFileActivityFinding {
 
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($ev in $Events) {
+        if ($ev.Kind -ne 'file') { continue }
         $file = $ev.Path
         if (-not $file) { continue }
         # DLL NAME NOT FOUND probes belong to ConvertTo-TcpkDllSearchFinding.
@@ -136,6 +138,7 @@ function ConvertTo-TcpkRegistryFinding {
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($ev in $Events) {
+        if ($ev.Kind -ne 'registry') { continue }
         if (-not $writeIds.Contains([int]$ev.EventId)) { continue }
         $keyName = $ev.Path
         $valName = $ev.ValueName

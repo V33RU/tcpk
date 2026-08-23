@@ -58,9 +58,9 @@ Describe 'ConvertTo-TcpkDllSearchFinding' {
     It 'reports only a .dll that returned STATUS_OBJECT_NAME_NOT_FOUND' {
         InModuleScope TCPK {
             $ev = @(
-                [pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\app\missing.dll'; Status='0xC0000034'; ValueName=$null }
-                [pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\app\present.dll'; Status='0x0';        ValueName=$null }
-                [pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\app\notes.txt';   Status='0xC0000034'; ValueName=$null }
+                [pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\app\missing.dll'; Status='0xC0000034'; ValueName=$null }
+                [pscustomobject]@{ Kind='file'; EventId=12; ProcessId=100; Path='C:\app\present.dll'; Status='0x0';        ValueName=$null }
+                [pscustomobject]@{ Kind='file'; EventId=12; ProcessId=100; Path='C:\app\notes.txt';   Status='0xC0000034'; ValueName=$null }
             )
             $f = @(ConvertTo-TcpkDllSearchFinding -Events $ev -ProcName 'app')
             $f.Count | Should -Be 1
@@ -72,7 +72,7 @@ Describe 'ConvertTo-TcpkDllSearchFinding' {
 
     It 'names the PID that actually raised the event, which may be a child' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=12; ProcessId=4242; Path='C:\app\x.dll'; Status='0xC0000034'; ValueName=$null })
+            $ev = @([pscustomobject]@{ EventId=12; Kind='file'; ProcessId=4242; Path='C:\app\x.dll'; Status='0xC0000034'; ValueName=$null })
             (@(ConvertTo-TcpkDllSearchFinding -Events $ev -ProcName 'app')[0]).Evidence | Should -Match 'PID=4242'
         }
     }
@@ -80,7 +80,7 @@ Describe 'ConvertTo-TcpkDllSearchFinding' {
     It 'deduplicates a probe repeated in a loop' {
         InModuleScope TCPK {
             $ev = 1..5 | ForEach-Object {
-                [pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\app\x.dll'; Status='0xC0000034'; ValueName=$null }
+                [pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\app\x.dll'; Status='0xC0000034'; ValueName=$null }
             }
             @(ConvertTo-TcpkDllSearchFinding -Events @($ev) -ProcName 'app').Count | Should -Be 1
         }
@@ -88,7 +88,7 @@ Describe 'ConvertTo-TcpkDllSearchFinding' {
 
     It 'honours Exclude' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\app\x.dll'; Status='0xC0000034'; ValueName=$null })
+            $ev = @([pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\app\x.dll'; Status='0xC0000034'; ValueName=$null })
             @(ConvertTo-TcpkDllSearchFinding -Events $ev -ProcName 'app' -Exclude @('\\app\\')).Count | Should -Be 0
         }
     }
@@ -97,7 +97,7 @@ Describe 'ConvertTo-TcpkDllSearchFinding' {
 Describe 'ConvertTo-TcpkFileActivityFinding' {
     It 'grades a credential-named write HIGH and Confirmed' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\Users\bob\AppData\Roaming\app\token.dat'; Status='0x0'; ValueName=$null })
+            $ev = @([pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\Users\bob\AppData\Roaming\app\token.dat'; Status='0x0'; ValueName=$null })
             $f = @(ConvertTo-TcpkFileActivityFinding -Events $ev -ProcName 'app')
             $f.Count | Should -Be 1
             $f[0].RuleId | Should -Be 'file.write-credential-name'
@@ -108,7 +108,7 @@ Describe 'ConvertTo-TcpkFileActivityFinding' {
 
     It 'grades a plain user-writable-path write INFO and Inferred, since most apps do it legitimately' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\Users\bob\AppData\Local\app\cache.bin'; Status='0x0'; ValueName=$null })
+            $ev = @([pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\Users\bob\AppData\Local\app\cache.bin'; Status='0x0'; ValueName=$null })
             $f = @(ConvertTo-TcpkFileActivityFinding -Events $ev -ProcName 'app')
             $f[0].RuleId | Should -Be 'file.write-user-writable-path'
             $f[0].Severity | Should -Be 'INFO'
@@ -120,7 +120,7 @@ Describe 'ConvertTo-TcpkFileActivityFinding' {
         # Both analysers read the same provider over the same capture now, so a probe leaking
         # in here would double-count every hijack candidate as a write as well.
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\Temp\missing.dll'; Status='0xC0000034'; ValueName=$null })
+            $ev = @([pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\Temp\missing.dll'; Status='0xC0000034'; ValueName=$null })
             @(ConvertTo-TcpkFileActivityFinding -Events $ev -ProcName 'app').Count | Should -Be 0
         }
     }
@@ -128,8 +128,8 @@ Describe 'ConvertTo-TcpkFileActivityFinding' {
     It 'skips OS and ETW noise paths' {
         InModuleScope TCPK {
             $ev = @(
-                [pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\Windows\System32\kernel32.dll'; Status='0x0'; ValueName=$null }
-                [pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\Temp\TCPK-Activity-ab12cd34.etl'; Status='0x0'; ValueName=$null }
+                [pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\Windows\System32\kernel32.dll'; Status='0x0'; ValueName=$null }
+                [pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\Temp\TCPK-Activity-ab12cd34.etl'; Status='0x0'; ValueName=$null }
             )
             @(ConvertTo-TcpkFileActivityFinding -Events $ev -ProcName 'app').Count | Should -Be 0
         }
@@ -137,7 +137,7 @@ Describe 'ConvertTo-TcpkFileActivityFinding' {
 
     It 'flags a write outside the install tree when InstallDir is known' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=12; ProcessId=100; Path='\Device\HarddiskVolume2\Data\out.bin'; Status='0x0'; ValueName=$null })
+            $ev = @([pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='\Device\HarddiskVolume2\Data\out.bin'; Status='0x0'; ValueName=$null })
             $f = @(ConvertTo-TcpkFileActivityFinding -Events $ev -ProcName 'app' -InstallDir 'c:\program files\app')
             $f.Count | Should -Be 1
             $f[0].RuleId | Should -Be 'file.write-outside-install'
@@ -146,7 +146,7 @@ Describe 'ConvertTo-TcpkFileActivityFinding' {
 
     It 'reports nothing at all when InstallDir is unknown and the path is unremarkable' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=12; ProcessId=100; Path='C:\Data\out.bin'; Status='0x0'; ValueName=$null })
+            $ev = @([pscustomobject]@{ EventId=12; Kind='file'; ProcessId=100; Path='C:\Data\out.bin'; Status='0x0'; ValueName=$null })
             @(ConvertTo-TcpkFileActivityFinding -Events $ev -ProcName 'app').Count | Should -Be 0
         }
     }
@@ -156,8 +156,8 @@ Describe 'ConvertTo-TcpkRegistryFinding' {
     It 'reads only write-shaped event ids, not reads or opens' {
         InModuleScope TCPK {
             $ev = @(
-                [pscustomobject]@{ EventId=5;  ProcessId=100; Path='\REGISTRY\MACHINE\Software\Microsoft\Windows\CurrentVersion\Run'; ValueName='App'; Status=$null }
-                [pscustomobject]@{ EventId=10; ProcessId=100; Path='\REGISTRY\MACHINE\Software\Microsoft\Windows\CurrentVersion\Run'; ValueName='App'; Status=$null }
+                [pscustomobject]@{ Kind='registry'; EventId=5;  ProcessId=100; Path='\REGISTRY\MACHINE\Software\Microsoft\Windows\CurrentVersion\Run'; ValueName='App'; Status=$null }
+                [pscustomobject]@{ Kind='registry'; EventId=10; ProcessId=100; Path='\REGISTRY\MACHINE\Software\Microsoft\Windows\CurrentVersion\Run'; ValueName='App'; Status=$null }
             )
             @(ConvertTo-TcpkRegistryFinding -Events $ev -ProcName 'app').Count | Should -Be 1
         }
@@ -165,7 +165,7 @@ Describe 'ConvertTo-TcpkRegistryFinding' {
 
     It 'grades a credential-named value HIGH under reg.write.credential' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=5; ProcessId=100; Path='\REGISTRY\USER\S-1-5-21\Software\Acme'; ValueName='ApiToken'; Status=$null })
+            $ev = @([pscustomobject]@{ Kind='registry'; EventId=5; ProcessId=100; Path='\REGISTRY\USER\S-1-5-21\Software\Acme'; ValueName='ApiToken'; Status=$null })
             $f = @(ConvertTo-TcpkRegistryFinding -Events $ev -ProcName 'app')
             $f[0].RuleId | Should -Be 'reg.write.credential'
             $f[0].Severity | Should -Be 'HIGH'
@@ -174,7 +174,7 @@ Describe 'ConvertTo-TcpkRegistryFinding' {
 
     It 'grades a persistence path INFO and Inferred, not a finding in its own right' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=13; ProcessId=100; Path='\REGISTRY\MACHINE\System\CurrentControlSet\Services\AcmeSvc'; ValueName=''; Status=$null })
+            $ev = @([pscustomobject]@{ Kind='registry'; EventId=13; ProcessId=100; Path='\REGISTRY\MACHINE\System\CurrentControlSet\Services\AcmeSvc'; ValueName=''; Status=$null })
             $f = @(ConvertTo-TcpkRegistryFinding -Events $ev -ProcName 'app')
             $f[0].RuleId | Should -Be 'reg.write.persistence-path'
             $f[0].Severity | Should -Be 'INFO'
@@ -184,7 +184,7 @@ Describe 'ConvertTo-TcpkRegistryFinding' {
 
     It 'ignores a write to an unremarkable key' {
         InModuleScope TCPK {
-            $ev = @([pscustomobject]@{ EventId=5; ProcessId=100; Path='\REGISTRY\USER\S-1-5-21\Software\Acme\WindowPos'; ValueName='Left'; Status=$null })
+            $ev = @([pscustomobject]@{ Kind='registry'; EventId=5; ProcessId=100; Path='\REGISTRY\USER\S-1-5-21\Software\Acme\WindowPos'; ValueName='Left'; Status=$null })
             @(ConvertTo-TcpkRegistryFinding -Events $ev -ProcName 'app').Count | Should -Be 0
         }
     }
@@ -192,7 +192,7 @@ Describe 'ConvertTo-TcpkRegistryFinding' {
     It 'deduplicates the same op on the same key and value' {
         InModuleScope TCPK {
             $ev = 1..4 | ForEach-Object {
-                [pscustomobject]@{ EventId=5; ProcessId=100; Path='\REGISTRY\MACHINE\Software\Microsoft\Windows\CurrentVersion\Run'; ValueName='App'; Status=$null }
+                [pscustomobject]@{ Kind='registry'; EventId=5; ProcessId=100; Path='\REGISTRY\MACHINE\Software\Microsoft\Windows\CurrentVersion\Run'; ValueName='App'; Status=$null }
             }
             @(ConvertTo-TcpkRegistryFinding -Events @($ev) -ProcName 'app').Count | Should -Be 1
         }
@@ -210,6 +210,49 @@ Describe 'Get-TcpkProcessTreeId' {
     It 'returns a set, so a repeated call cannot double-count a PID' {
         InModuleScope TCPK {
             (Get-TcpkProcessTreeId -ProcessId $PID).GetType().Name | Should -Be 'HashSet`1'
+        }
+    }
+}
+
+Describe 'Analysers do not read the other provider' {
+    # Invoke-TcpkActivityTrace runs one session carrying the file AND registry providers, so
+    # every analyser now sees both kinds of record. Before Kind existed, a registry key called
+    # ApiToken matched the file analyser's credential-name pattern and was reported as a file
+    # write, and a file event that happened to carry event id 5, 6, 13 or 14 was reported as a
+    # registry write. Both were invented findings with the wrong rule id.
+
+    It 'does not report a registry key as a credential-named file write' {
+        InModuleScope TCPK {
+            $ev = @([pscustomobject]@{ Kind='registry'; EventId=5; ProcessId=100
+                    Path='\REGISTRY\USER\S-1-5-21\Software\Acme\ApiToken'; ValueName='v'; Status=$null })
+            @(ConvertTo-TcpkFileActivityFinding -Events $ev -ProcName 'app').Count | Should -Be 0
+        }
+    }
+
+    It 'does not report a file path as a registry write when the event id collides' {
+        InModuleScope TCPK {
+            $ev = @([pscustomobject]@{ Kind='file'; EventId=5; ProcessId=100
+                    Path='C:\Users\bob\AppData\Local\app\password.dat'; ValueName=$null; Status='0x0' })
+            @(ConvertTo-TcpkRegistryFinding -Events $ev -ProcName 'app').Count | Should -Be 0
+        }
+    }
+
+    It 'does not treat a registry key ending in .dll as a hijack probe' {
+        InModuleScope TCPK {
+            $ev = @([pscustomobject]@{ Kind='registry'; EventId=5; ProcessId=100
+                    Path='\REGISTRY\MACHINE\Software\Acme\loader.dll'; ValueName='p'; Status='0xC0000034' })
+            @(ConvertTo-TcpkDllSearchFinding -Events $ev -ProcName 'app').Count | Should -Be 0
+        }
+    }
+
+    It 'still reports each kind through its own analyser from one mixed capture' {
+        InModuleScope TCPK {
+            $mixed = @(
+                [pscustomobject]@{ Kind='file'; EventId=12; ProcessId=100; Path='C:\app\x.dll'; Status='0xC0000034'; ValueName=$null }
+                [pscustomobject]@{ Kind='registry'; EventId=5; ProcessId=100; Path='\REGISTRY\MACHINE\Software\Microsoft\Windows\CurrentVersion\Run'; ValueName='App'; Status=$null }
+            )
+            @(ConvertTo-TcpkDllSearchFinding -Events $mixed -ProcName 'app').Count | Should -Be 1
+            @(ConvertTo-TcpkRegistryFinding -Events $mixed -ProcName 'app').Count | Should -Be 1
         }
     }
 }

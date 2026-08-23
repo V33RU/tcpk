@@ -168,9 +168,12 @@ function Read-TcpkEtwEvents {
             }
         }
 
-        $path = $null
-        if ($fields.ContainsKey('FileName')) { $path = $fields['FileName'] }
-        elseif ($fields.ContainsKey('KeyName')) { $path = $fields['KeyName'] }
+        # Kind records WHICH provider named the path, and it is load-bearing once one session
+        # carries two providers. Without it a registry key called ApiToken reaches the file
+        # analyser, matches its credential-name pattern, and is reported as a file write.
+        $path = $null; $kind = 'other'
+        if ($fields.ContainsKey('FileName')) { $path = $fields['FileName']; $kind = 'file' }
+        elseif ($fields.ContainsKey('KeyName')) { $path = $fields['KeyName']; $kind = 'registry' }
 
         $val = $null
         if ($fields.ContainsKey('ValueName')) { $val = $fields['ValueName'] }
@@ -179,6 +182,7 @@ function Read-TcpkEtwEvents {
 
         $out.Add([pscustomobject]@{
             EventId     = [int]$e.Id
+            Kind        = $kind
             ProcessId   = $epid
             Provider    = "$($e.ProviderName)"
             TimeCreated = $e.TimeCreated
