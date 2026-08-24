@@ -128,9 +128,9 @@ function Invoke-TcpkSweep {
         appName = "$AppName"; generated = $genUtc
         targetCount = $set.Count; totalFindings = $merged.Count
         perTarget = $rows
-    } | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath (Join-Path $OutDir 'sweep-summary.json') -Encoding UTF8
+    }) | Save-TcpkJson -Path (Join-Path $OutDir 'sweep-summary.json') -Depth 6
 
-    ($merged | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath (Join-Path $OutDir 'sweep-findings.json') -Encoding UTF8
+    $merged | Save-TcpkJson -Path (Join-Path $OutDir 'sweep-findings.json') -Depth 6
 
     # self-contained HTML summary (ASCII only -- report-output rule)
     $sevColor = @{ CRITICAL='#f85149'; HIGH='#db6d28'; MEDIUM='#d29922'; LOW='#3fb950'; INFO='#8b949e' }

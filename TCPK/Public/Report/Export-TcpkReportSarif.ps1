@@ -34,12 +34,7 @@ function Export-TcpkReportSarif {
     begin { $all = New-Object 'System.Collections.Generic.List[object]' }
     process { foreach ($f in $Findings) { if ($f) { $all.Add($f) } } }
     end {
-        # tool version, derived (no hardcoded 5th copy)
-        $ver = try {
-            $v = (Get-Module TCPK | Select-Object -First 1).Version
-            if (-not $v -and $script:TcpkRoot) { $v = (Import-PowerShellDataFile -Path (Join-Path $script:TcpkRoot 'TCPK.psd1')).ModuleVersion }
-            if ($v) { "$v" } else { '2.7.1' }
-        } catch { '2.7.1' }
+        $ver = Get-TcpkModuleVersion
 
         $levelOf = @{ CRITICAL='error'; HIGH='error'; MEDIUM='warning'; LOW='note'; INFO='note' }
         $bandScore = @{ CRITICAL='9.5'; HIGH='8.0'; MEDIUM='5.5'; LOW='2.0'; INFO='0.0' }
@@ -104,7 +99,7 @@ function Export-TcpkReportSarif {
                         name           = 'TCPK'
                         fullName       = 'TCPK -- Thick Client Pentest Kit'
                         version        = $ver
-                        informationUri = 'https://github.com/'
+                        informationUri = 'https://v33ru.github.io/tcpk/'
                         rules          = $rules.ToArray()
                     } }
                     results          = @($results)
@@ -114,7 +109,7 @@ function Export-TcpkReportSarif {
         }
 
         $json = $sarif | ConvertTo-Json -Depth 20
-        Set-Content -LiteralPath $OutFile -Value $json -Encoding UTF8
+        Save-TcpkText -Text $json -Path $OutFile
         Write-TcpkInfo "SARIF written: $OutFile ($($all.Count) results, $($rules.Count) rules)"
     }
 }

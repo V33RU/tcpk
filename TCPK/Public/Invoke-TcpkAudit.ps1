@@ -926,8 +926,8 @@ function Invoke-TcpkAudit {
     Write-Information -MessageData "  Extracting interesting strings (recon)..." -InformationAction Continue
     $rsSw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        $reconStrings = Get-TcpkReconStrings -Path $expanded
-        $reconStrings | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $OutDir 'strings.json') -Encoding UTF8
+        $reconStrings = Get-TcpkReconStrings -Path Save-TcpkJson -Value $expanded
+        $reconStrings -Path (Join-Path $OutDir 'strings.json') -Depth 4
         Write-Information -MessageData ("  strings.json: {0} URLs, {1} paths, {2} reg keys, {3} IPs, {4} emails, {5} cmd refs" -f `
             @($reconStrings.Urls).Count, @($reconStrings.FilePaths).Count, @($reconStrings.RegistryKeys).Count, `
             @($reconStrings.IpAddresses).Count, @($reconStrings.Emails).Count, @($reconStrings.Commands).Count) -InformationAction Continue
@@ -940,8 +940,8 @@ function Invoke-TcpkAudit {
 
     # --- attack-surface map (synthesized entry-point view; Batch C deliverable) ---
     try {
-        $surface = $findingsFull | Get-TcpkAttackSurface
-        $surface | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutDir 'attack-surface.json') -Encoding UTF8
+        $surface = Save-TcpkJson -Value $findingsFull | Get-TcpkAttackSurface
+        $surface -Path (Join-Path $OutDir 'attack-surface.json') -Depth 6
         $catSummary = (@($surface.Categories) | ForEach-Object { "$($_.Label)=$($_.Count)" }) -join '; '
         $all.Add( (New-TcpkFinding -Module 'recon' -RuleId 'attacksurface.summary' `
             -Severity 'INFO' -Confidence 'Confirmed' `
@@ -974,8 +974,8 @@ function Invoke-TcpkAudit {
 
     # --- exploit plan (CVE matches + exploitable findings -> actionable items) ---
     try {
-        $plan = @(Get-TcpkExploitPlan -Findings $findingsFull -CveMatches $cveMatches -Path $expanded)
-        $plan | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'exploits.json') -Encoding UTF8
+        $plan = @(Get-TcpkExploitPlan -Findings $findingsFull -CveMatches Save-TcpkJson -Value $cveMatches -Path $expanded)
+        $plan -Path (Join-Path $OutDir 'exploits.json') -Depth 5
         $expModules = @($plan | Where-Object { $_.Module }).Count
         Write-Information -MessageData "  exploits.json: $(@($plan).Count) actionable items ($expModules with a framework exploit module)" -InformationAction Continue
         Write-TcpkLog -Level SUCCESS -Component 'exploit.plan' -Message "$(@($plan).Count) items, $expModules with a module" | Out-Null
@@ -1030,7 +1030,7 @@ function Invoke-TcpkAudit {
         try { Get-TcpkPeHardening -Path $expanded }
         catch { Write-TcpkLog -Level ERROR -Component 'hardening' -Message $_.Exception.Message | Out-Null }
     })
-    try { $hardening | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'hardening.json') -Encoding UTF8 }
+    try { Save-TcpkJson -Value $hardening -Path (Join-Path $OutDir 'hardening.json') -Depth 5 }
     catch { Write-TcpkLog -Level ERROR -Component 'hardening.json' -Message $_.Exception.Message | Out-Null }
 
     # Per-DLL signing matrix (signed / not signed -- information only) for the Excel
@@ -1039,7 +1039,7 @@ function Invoke-TcpkAudit {
         try { Get-TcpkSigningMatrix -Path $expanded }
         catch { Write-TcpkLog -Level ERROR -Component 'signing' -Message $_.Exception.Message | Out-Null }
     })
-    try { $signing | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutDir 'signing.json') -Encoding UTF8 }
+    try { Save-TcpkJson -Value $signing -Path (Join-Path $OutDir 'signing.json') -Depth 5 }
     catch { Write-TcpkLog -Level ERROR -Component 'signing.json' -Message $_.Exception.Message | Out-Null }
 
     # CveChecked gates the report's "matched live against OSV" wording. It must reflect whether

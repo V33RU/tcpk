@@ -241,7 +241,7 @@ function Get-TcpkOsvCache {
 function Save-TcpkOsvCache {
     [CmdletBinding()] param([Parameter(Mandatory)]$Cache)
     $p = Get-TcpkOsvCachePath
-    try { ([pscustomobject]$Cache) | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $p -Encoding UTF8 -ErrorAction Stop } catch { }
+    try { ([pscustomobject]Save-TcpkJson -Value $Cache) -Path $p -Depth 8 -ErrorAction Stop } catch { }
 }
 
 function Get-TcpkOsvCacheKey { param([string]$Ecosystem, [string]$Name, [string]$Version)

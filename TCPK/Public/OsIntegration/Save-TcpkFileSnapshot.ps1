@@ -47,8 +47,8 @@ function Save-TcpkFileSnapshot {
             }
         }
     }
-    Confirm-TcpkParentDir -FilePath $OutFile
-    $snap | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $OutFile -Encoding UTF8
+    Confirm-TcpkParentDir -FilePath Save-TcpkJson -Value $OutFile
+    $snap -Path $OutFile -Depth 4
 
     New-TcpkFinding -Module 'os' -RuleId 'fs.snapshot' `
         -Severity 'INFO' -Confidence 'Confirmed' `

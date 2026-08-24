@@ -4,6 +4,35 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Cheap correctness pass.**
+
+Every findings.json, sbom.cdx.json, report.sarif and coverage.json shipped so far started
+EF BB BF. Set-Content -Encoding UTF8 emits utf-8-BOM on PowerShell 5.1, and Node's JSON.parse
+plus Python's strict json.load both reject it. No test suite ever caught it because every
+internal reader uses ConvertFrom-Json, which strips the BOM. A shared Save-TcpkJson helper in
+_JsonOut.ps1 now routes every writer through IO.File.WriteAllText with UTF8Encoding(false),
+and the shipped DVTA sample artifacts were stripped in place.
+
+Also fixed:
+
+- SARIF informationUri, which was 'https://github.com/' as a placeholder, now points at the
+  Pages site.
+- Tool version was hardcoded as '2.7.1' in the SARIF exporter, the SBOM exporter, the intel
+  dashboard and the agentic launcher, all of which drifted from the actual ModuleVersion.
+  Get-TcpkModuleVersion resolves it at runtime.
+- exploit-map.json routed on strongname\.absent; the emitted RuleId is strongname.unsigned.
+  Dead route until now.
+- TC18's checklist rule was the empty string, so it was pinned to MANUAL-ONLY regardless of
+  any error probe. Now matches ^(error|log\.stack-trace)\., coverage moved from GAP to PARTIAL.
+- TC02/TC03/TC08/TC23/TC25 widened to catch the exploit RuleIds the tool actually emits:
+  tamper, expiry, logout, authmatrix, fixation, exploit.stored-credential, com.auto-elevates,
+  flagflip. Before, 71 of 94 exploit RuleIds reached no checklist row.
+
+Two suites cover both halves: ExploitToChecklist.Tests.ps1 pins the widened regexes and
+IoTCompanion.Tests.ps1 already has a BOM assertion via the writer.
+
+---
+
 **Phase 1 IoT companion coverage.** Four new detectors and eight new credential rules,
 targeting the seam TCPK is uniquely placed to see: Windows desktop apps that provision,
 configure and update a physical connected device.

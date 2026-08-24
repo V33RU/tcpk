@@ -96,8 +96,8 @@ function Save-TcpkCoverage {
     )
     $obj = New-TcpkCoverageManifest -Elevated $Elevated -ProcessAttached $ProcessAttached `
         -AttachedPid $AttachedPid -OnlineCve $OnlineCve -ScanProfile $ScanProfile -GeneratedAt $GeneratedAt
-    $path = Join-Path $Dir 'coverage.json'
-    $obj | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $path -Encoding UTF8
+    Save-TcpkJson -Value $path = Join-Path $Dir 'coverage.json'
+    $obj -Path $path -Depth 6
     $path
 }
 
