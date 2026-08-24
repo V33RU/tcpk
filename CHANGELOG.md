@@ -4,6 +4,34 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Phase 1 IoT companion coverage.** Four new detectors and eight new credential rules,
+targeting the seam TCPK is uniquely placed to see: Windows desktop apps that provision,
+configure and update a physical connected device.
+
+- **Test-TcpkFirmwareImages** (A49). Reports device firmware shipped inside the install
+  tree: UF2, DFU suffix, ELF, Intel HEX, Motorola SREC, raw .bin and ZIP flash bundles.
+  Reads header magic where a single value settles the format so a .bin with the wrong
+  content is not miscalled. Escalates to HIGH when the resting DACL grants write to a
+  non-admin group.
+- **Test-TcpkDeviceComm** (A50). Enumerates the device-communication channels a binary
+  references: serial (System.IO.Ports and native SetupComm), USB HID, WinUSB, libusb,
+  BLE central role, classic Bluetooth SPP, and DeviceIoControl to a vendor driver. Reads
+  .NET IL and native PE imports. Inferred; a runtime trace closes it.
+- **Test-TcpkDiscoveryProtocols** (A51). mDNS/Bonjour, SSDP/UPnP, WS-Discovery, ONVIF,
+  LLMNR/NetBIOS, and generic UDP broadcast usage in the client. Names the surface a LAN
+  tester can respond to.
+- **Test-TcpkShippedTooling** (D09). Signed vendor programming CLIs bundled next to the
+  GUI: esptool, espefuse, ST-LINK_CLI, JLink, OpenOCD, dfu-util, avrdude, nrfjprog and
+  more. Fuse and secure-boot writers grade HIGH because they are permanent operations.
+- **secrets.json** gains eight IoT / cloud credential rules: AWS IoT and ATS endpoints,
+  Azure IoT Hub connection strings and SAS tokens, GCP IoT registries, MQTT URLs with
+  embedded credentials, Particle.io tokens, and Espressif provisioning PoP strings.
+
+All four cmdlets run inside `Invoke-TcpkAudit` next to the existing static detectors.
+Eight Pester cases in `IoTCompanion.Tests.ps1` use synthetic firmware and fake vendor
+binaries, so they run without Windows.
+
+
 **Invoke-TcpkParamTamper (K24)** and the response body it needed.
 
 `New-TcpkHttpSnapshot` returned Status, Len, Hash, a 256-char BodyHead, Redirect,

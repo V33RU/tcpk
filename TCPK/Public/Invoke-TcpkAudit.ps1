@@ -397,6 +397,10 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkCsvInjection'        { Test-TcpkCsvInjection        -Path $expanded }
     _RunCheck 'Test-TcpkAppStack'            { Test-TcpkAppStack            -Path $expanded }
     _RunCheck 'Test-TcpkQtSurface'           { Test-TcpkQtSurface           -Path $expanded }
+    _RunCheck 'Test-TcpkDeviceComm'          { Test-TcpkDeviceComm          -Path $expanded }
+    _RunCheck 'Test-TcpkDiscoveryProtocols'  { Test-TcpkDiscoveryProtocols  -Path $expanded }
+    _RunCheck 'Test-TcpkFirmwareImages'      { Test-TcpkFirmwareImages      -Path $expanded }
+    _RunCheck 'Test-TcpkShippedTooling'      { Test-TcpkShippedTooling      -Path $expanded }
 
     # ----- Single-file (.NET PublishSingleFile): extract bundled assemblies + re-scan -----
     # A single-file apphost embeds all managed assemblies inside the .exe, so the

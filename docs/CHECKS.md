@@ -14,6 +14,10 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 
 ## A - Static binary analysis  (60)
 
+- **Test-TcpkDeviceComm** - A50. Device-communication surface: serial, USB HID/WinUSB/libusb, BLE, Bluetooth Classic and DeviceIoControl driver calls. Reads .NET IL and native PE imports; emits one finding per channel referenced.
+- **Test-TcpkDiscoveryProtocols** - A51. Local-network discovery protocols the client speaks: mDNS, SSDP/UPnP, WS-Discovery, ONVIF, LLMNR/NetBIOS, vendor UDP broadcast.
+- **Test-TcpkFirmwareImages** - A49. Firmware images shipped inside the install tree (UF2, DFU, ELF, Intel HEX, SREC, raw .bin, ZIP flash bundles). Escalates to HIGH when the resting DACL is user-writable.
+- **Test-TcpkShippedTooling** - D09. Vendor programming CLIs shipped inside the install tree (esptool, espefuse, ST-LINK, J-Link, OpenOCD, dfu-util, avrdude, nrfjprog, and 15 others). Fuse and secure-boot writers grade HIGH; flashers and debuggers grade MEDIUM.
   It also reports three conditions where every check ran to completion and the results still are not evidence, because the bytes examined were not the application code. **Packed** (a protector was confirmed, so the text-level checks read the stub and a low finding count is not a clean result), **bundle-too-large** (a .NET single-file apphost above the extractor ceiling, so its assemblies were never carved and the managed surface is absent rather than clean), and **native-only** (a non-managed stack, so the IL provers had nothing to parse). The first two raise the finding to MEDIUM and rewrite the title to say UNRELIABLE or INCOMPLETE, because a whole family of checks is invalidated rather than one subtree being missed. Native-only stays LOW: the native checks did run and their results stand.
 - **Get-TcpkPeHardening** - Per-DLL binary-hardening matrix (ASLR / DEP / CFG / HighEntropyVA / ...).
 - **Get-TcpkSigningMatrix** - Per-DLL code-signing matrix (signed / not signed -- information only; SIGNED / CATALOG / UNSIGNED / TAMPERED / UNTRUSTED + signer). Drives the GUI 'DLL Signing' tab, HTML signing table and Excel 'DLL Signing' sheet.
@@ -297,6 +301,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**237 of 262 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**241 of 266 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.9.0: 262 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.9.0: 266 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
