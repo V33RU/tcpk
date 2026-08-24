@@ -4,6 +4,14 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkCefSharp (A52).** CefSharp is the .NET Chromium embedding used across
+industrial and engineering software, and its JavaScript-to-native bridge is the same
+class as Android's addJavascriptInterface. Detects four things: RegisterJsObject /
+JavascriptObjectRepository (HIGH Confirmed), CefSettings.RemoteDebuggingPort (HIGH),
+WebSecurityDisabled and --disable-web-security (HIGH), and file-scheme cross-access
+(MEDIUM). Also emits a scope-only INFO when the assembly embeds CefSharp but nothing
+higher fires. Text-based; first-party CefSharp assemblies are skipped by name.
+
 **Cheap correctness pass.**
 
 Every findings.json, sbom.cdx.json, report.sarif and coverage.json shipped so far started

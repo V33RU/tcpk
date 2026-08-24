@@ -401,6 +401,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkDiscoveryProtocols'  { Test-TcpkDiscoveryProtocols  -Path $expanded }
     _RunCheck 'Test-TcpkFirmwareImages'      { Test-TcpkFirmwareImages      -Path $expanded }
     _RunCheck 'Test-TcpkShippedTooling'      { Test-TcpkShippedTooling      -Path $expanded }
+    _RunCheck 'Test-TcpkCefSharp'            { Test-TcpkCefSharp            -Path $expanded }
 
     # ----- Single-file (.NET PublishSingleFile): extract bundled assemblies + re-scan -----
     # A single-file apphost embeds all managed assemblies inside the .exe, so the

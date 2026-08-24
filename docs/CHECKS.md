@@ -14,6 +14,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 
 ## A - Static binary analysis  (60)
 
+- **Test-TcpkCefSharp** - A52. Detects CefSharp / CEF JavaScript-to-native bridge registration, remote-debugging port, WebSecurityDisabled and file-scheme cross-access. HIGH on the bridge and disabled-security flags; INFO scope-only when CefSharp is embedded but nothing higher fires.
 - **Test-TcpkDeviceComm** - A50. Device-communication surface: serial, USB HID/WinUSB/libusb, BLE, Bluetooth Classic and DeviceIoControl driver calls. Reads .NET IL and native PE imports; emits one finding per channel referenced.
 - **Test-TcpkDiscoveryProtocols** - A51. Local-network discovery protocols the client speaks: mDNS, SSDP/UPnP, WS-Discovery, ONVIF, LLMNR/NetBIOS, vendor UDP broadcast.
 - **Test-TcpkFirmwareImages** - A49. Firmware images shipped inside the install tree (UF2, DFU, ELF, Intel HEX, SREC, raw .bin, ZIP flash bundles). Escalates to HIGH when the resting DACL is user-writable.
@@ -301,6 +302,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**241 of 266 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**242 of 267 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.9.0: 266 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.9.0: 267 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
