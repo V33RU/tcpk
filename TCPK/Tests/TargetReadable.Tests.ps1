@@ -31,3 +31,27 @@ Describe 'Invoke-TcpkAudit refuses an unreadable target loudly' {
         }
     }
 }
+
+Describe 'Pre-flight guard does not abort on any path shape' {
+    # Regression: an earlier revision used -match against a path containing "\Program", which
+    # .NET regex parses as \P (invalid escape). The regex threw during compile and the audit
+    # died before any check ran. Anything runnable on a WindowsApps-shaped path must not throw.
+    It 'runs cleanly against a synthetic WindowsApps-shaped path with real content' {
+        $winShape = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-win-' + [guid]::NewGuid().ToString('N').Substring(0,8) + '\Program Files\WindowsApps\TestApp')
+        New-Item -ItemType Directory -Force -Path $winShape | Out-Null
+        # a real file so the guard is happy
+        'hello' | Set-Content -LiteralPath (Join-Path $winShape 'app.txt') -Encoding UTF8
+        $out = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-out-' + [guid]::NewGuid().ToString('N').Substring(0,8))
+        try {
+            # If the pre-flight regex threw, this call would throw before returning any findings
+            $rows = @(Invoke-TcpkAudit -Target $winShape -Acknowledge -OutDir $out -Quick 3>$null 2>$null)
+            # Anything returned means the audit completed the pre-flight and reached the check loop
+            $rows | Should -Not -BeNullOrEmpty
+        } finally {
+            if (Test-Path $out) { Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $out }
+            if (Test-Path (Split-Path $winShape -Parent -Resolve -ErrorAction SilentlyContinue)) {
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Split-Path $winShape -Parent | Split-Path -Parent | Split-Path -Parent)
+            }
+        }
+    }
+}

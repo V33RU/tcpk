@@ -4,6 +4,15 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Fix a bad regex in the pre-flight guard that aborted the whole audit on any Windows
+target.** The guard used `-match '(?i)\Program Files\WindowsApps\'`. .NET regex parses
+`\P` as an invalid Unicode-property escape and throws on compile, before the check loop
+ran. The user saw "audit complete -- 0 findings" and no findings.json, which read as
+"target was empty" but was actually the audit dying at line 218. Switched to `-like` (no
+regex, backslashes are literal) and wrapped the whole pre-flight in try/catch, so any
+future mistake here degrades to "assume readable, run everything" instead of taking the
+audit down.
+
 **Version rolled back to 2.7.1 to match the last actual release.** The manifest ran ahead
 of the last tag ever since it was bumped to 2.9.0 without a release cut. The banner said
 2.9.0 while the Latest release on GitHub said 2.7.1. The rule going forward is the one

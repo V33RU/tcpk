@@ -205,17 +205,33 @@ function Invoke-TcpkAudit {
     # recursive walk. Every downstream check would then see zero files and the audit would
     # print "audit complete -- 0 findings" without ever having read a byte. That is exactly
     # the false-clean the tool exists to prevent.
-    $sawAny = $false
-    if (Test-Path -LiteralPath $expanded -PathType Container) {
-        try {
-            $sawAny = [bool](Get-ChildItem -LiteralPath $expanded -File -Recurse -ErrorAction SilentlyContinue |
-                Select-Object -First 1)
-        } catch { $sawAny = $false }
-    } elseif (Test-Path -LiteralPath $expanded -PathType Leaf) {
+    #
+    # The whole block is wrapped in try/catch as defense in depth: an earlier revision used
+    # -match with a path containing '\Program', which .NET regex parses as an invalid \P
+    # escape and throws on compile. That killed the entire audit before any check ran. A guard
+    # that can abort the run it exists to protect is worse than no guard, so any failure here
+    # degrades to "assume readable, run everything, and trust the coverage summary" instead.
+    $sawAny = $true                # default: run checks; only the guard downgrades this
+    try {
+        $sawAny = $false
+        if (Test-Path -LiteralPath $expanded -PathType Container) {
+            try {
+                $sawAny = [bool](Get-ChildItem -LiteralPath $expanded -File -Recurse -ErrorAction SilentlyContinue |
+                    Select-Object -First 1)
+            } catch { $sawAny = $false }
+        } elseif (Test-Path -LiteralPath $expanded -PathType Leaf) {
+            $sawAny = $true
+        }
+    } catch {
+        # If the guard itself fails, keep going. The coverage line will still say what ran.
+        Write-TcpkInfo "Target-readable pre-flight errored ($($_.Exception.Message)); continuing with the audit."
         $sawAny = $true
     }
     if (-not $sawAny) {
-        $isWinApps = ("$expanded" -match '(?i)\Program Files\WindowsApps\')
+        # -like, not -match: the path contains literal backslashes, and -match would
+        # need every one escaped ('\Program' would parse as an invalid \P escape and
+        # throw ArgumentException during regex compile, aborting the whole audit).
+        $isWinApps = ("$expanded" -like '*\Program Files\WindowsApps\*')
         $reason = if ($isWinApps) {
             'Target is under Program Files\WindowsApps, which grants read only to TrustedInstaller and SYSTEM. An elevated Administrator PowerShell still gets Access Denied. Copy the folder to a readable location and re-target, or supply the .msix package before install and let Expand-TcpkTarget unpack it.'
         } else {
