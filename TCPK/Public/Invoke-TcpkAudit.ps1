@@ -200,6 +200,37 @@ function Invoke-TcpkAudit {
     # --- collected findings ---
     $all = New-Object 'System.Collections.Generic.List[TcpkFinding]'
 
+    # Pre-flight: can we actually READ the target? Program Files\WindowsApps grants read to
+    # TrustedInstaller and SYSTEM only, so an admin PowerShell still gets Access Denied on the
+    # recursive walk. Every downstream check would then see zero files and the audit would
+    # print "audit complete -- 0 findings" without ever having read a byte. That is exactly
+    # the false-clean the tool exists to prevent.
+    $sawAny = $false
+    if (Test-Path -LiteralPath $expanded -PathType Container) {
+        try {
+            $sawAny = [bool](Get-ChildItem -LiteralPath $expanded -File -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 1)
+        } catch { $sawAny = $false }
+    } elseif (Test-Path -LiteralPath $expanded -PathType Leaf) {
+        $sawAny = $true
+    }
+    if (-not $sawAny) {
+        $isWinApps = ("$expanded" -match '(?i)\Program Files\WindowsApps\')
+        $reason = if ($isWinApps) {
+            'Target is under Program Files\WindowsApps, which grants read only to TrustedInstaller and SYSTEM. An elevated Administrator PowerShell still gets Access Denied. Copy the folder to a readable location and re-target, or supply the .msix package before install and let Expand-TcpkTarget unpack it.'
+        } else {
+            'The target directory returned zero files to Get-ChildItem. Either the path is empty, or the ACL blocks reading. Nothing was scanned.'
+        }
+        $all.Add((New-TcpkFinding -Module 'meta' -RuleId 'scan.target-unreadable' `
+            -Severity 'HIGH' -Confidence 'Confirmed' `
+            -Title "Target unreadable, no analysis was performed" `
+            -File $expanded -Evidence "path=$expanded winapps=$isWinApps" `
+            -Description $reason `
+            -Fix 'Re-run against a readable copy. See the finding description for the specific reason.'))
+        Write-TcpkInfo "Target $expanded returned zero files. Emitting scan.target-unreadable and stopping. See the finding for the fix."
+        # Fall through to reporting so the finding lands in HTML / JSON / SARIF instead of being lost.
+    }
+
     # Quick profile: skip the slow, whole-machine OS-integration / persistence enumeration
     # (these scan the SYSTEM, not the target) so a fast pass focuses on the app itself.
     # Full/Standard leave this empty -> every check runs (unchanged default behavior).

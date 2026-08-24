@@ -305,4 +305,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 ---
 **243 of 268 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.9.0: 268 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.7.1: 268 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).

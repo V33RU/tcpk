@@ -4,6 +4,18 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Version rolled back to 2.7.1 to match the last actual release.** The manifest ran ahead
+of the last tag ever since it was bumped to 2.9.0 without a release cut. The banner said
+2.9.0 while the Latest release on GitHub said 2.7.1. The rule going forward is the one
+already written down: never bump ModuleVersion without a tag in the same commit.
+
+**Audit refuses an unreadable target instead of reporting 0 findings.** A real run against
+C:\Program Files\WindowsApps\ConfigurePro_* printed "audit complete -- 0 findings" and
+produced no findings.json, because the WindowsApps ACL grants read only to TrustedInstaller
+and SYSTEM; an elevated Administrator still gets Access Denied on the recursive walk. New
+HIGH scan.target-unreadable finding fires when Get-ChildItem returns zero files, with a
+specific WindowsApps message. Guarded by TargetReadable.Tests.ps1.
+
 **Test-TcpkUpdateChannel (A53).** Firmware-updater desktop apps ship the same three
 under-tested surfaces every time: a release-channel selector (release/beta/dev/nightly),
 an update endpoint held in a config file, and a locally persisted "current version" the

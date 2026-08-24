@@ -122,4 +122,4 @@ their licences are listed in `NOTICE`.
 
 ---
 
-TCPK v2.9.0 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
+TCPK v2.7.1 - see [`README.txt`](README.txt) for the full manual and `docs/` for methodology.
