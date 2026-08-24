@@ -44,8 +44,8 @@ function Save-TcpkRegistrySnapshot {
             $snap[$kp] = $vals
         }
     }
-    Confirm-TcpkParentDir -FilePath Save-TcpkJson -Value $OutFile
-    $snap -Path $OutFile -Depth 6
+    Confirm-TcpkParentDir -FilePath $OutFile
+    Save-TcpkJson -Value $snap -Path $OutFile -Depth 6
 
     New-TcpkFinding -Module 'os' -RuleId 'registry.snapshot' `
         -Severity 'INFO' -Confidence 'Confirmed' `

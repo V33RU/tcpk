@@ -66,8 +66,8 @@ function Set-TcpkLlmConfig {
     if ($PSBoundParameters.ContainsKey('BaseUrl'))     { $cfg | Add-Member baseUrl $BaseUrl -Force }
     if ($PSBoundParameters.ContainsKey('ApiKey'))      { $cfg | Add-Member apiKey $ApiKey -Force }
     if ($PSBoundParameters.ContainsKey('Enabled'))     { $cfg | Add-Member enabled $Enabled -Force }
-    if ($PSBoundParameters.ContainsKey('Temperature')) { $cfg | Add-Member temperature Save-TcpkJson -Value $Temperature -Force }
-    $cfg -Path (Get-TcpkLlmConfigPath) -Depth 6
+    if ($PSBoundParameters.ContainsKey('Temperature')) { $cfg | Add-Member temperature $Temperature -Force }
+    Save-TcpkJson -Value $cfg -Path (Get-TcpkLlmConfigPath) -Depth 6
     $script:TcpkLlmConfig = $cfg
     return $cfg
 }

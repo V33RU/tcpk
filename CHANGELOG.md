@@ -4,6 +4,18 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Fix the BOM-migration regex that ate the previous line at 8 sites.** The migration in
+`d391aa6` used a regex with `[\s\S]{0,50}?` in the value capture. That allowed the match
+to cross a newline, so at 8 sites the rewriter consumed the assignment line before each
+`ConvertTo-Json` pipeline and produced two garbled lines like `Save-TcpkJson -Value $path
+= Join-Path $Dir 'coverage.json'` and `$obj -Path $path -Depth 6`. The audit died with
+parse errors on the first affected file loaded (`_Coverage.ps1`, `_Llm.ps1`, `_Osv.ps1`,
+`Invoke-TcpkAudit.ps1`, `Save-TcpkFileSnapshot.ps1`, `Save-TcpkRegistrySnapshot.ps1`).
+The brace balance checker did not catch it because the braces still balanced.
+
+Every corrupted site restored to a proper `Save-TcpkJson -Value $x -Path $p -Depth n`
+call on its own line.
+
 **Fix a bad regex in the pre-flight guard that aborted the whole audit on any Windows
 target.** The guard used `-match '(?i)\Program Files\WindowsApps\'`. .NET regex parses
 `\P` as an invalid Unicode-property escape and throws on compile, before the check loop

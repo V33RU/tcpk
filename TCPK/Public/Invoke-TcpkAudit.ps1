@@ -975,8 +975,8 @@ function Invoke-TcpkAudit {
     Write-Information -MessageData "  Extracting interesting strings (recon)..." -InformationAction Continue
     $rsSw = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        $reconStrings = Get-TcpkReconStrings -Path Save-TcpkJson -Value $expanded
-        $reconStrings -Path (Join-Path $OutDir 'strings.json') -Depth 4
+        $reconStrings = Get-TcpkReconStrings -Path $expanded
+        Save-TcpkJson -Value $reconStrings -Path (Join-Path $OutDir 'strings.json') -Depth 4
         Write-Information -MessageData ("  strings.json: {0} URLs, {1} paths, {2} reg keys, {3} IPs, {4} emails, {5} cmd refs" -f `
             @($reconStrings.Urls).Count, @($reconStrings.FilePaths).Count, @($reconStrings.RegistryKeys).Count, `
             @($reconStrings.IpAddresses).Count, @($reconStrings.Emails).Count, @($reconStrings.Commands).Count) -InformationAction Continue
@@ -989,8 +989,8 @@ function Invoke-TcpkAudit {
 
     # --- attack-surface map (synthesized entry-point view; Batch C deliverable) ---
     try {
-        $surface = Save-TcpkJson -Value $findingsFull | Get-TcpkAttackSurface
-        $surface -Path (Join-Path $OutDir 'attack-surface.json') -Depth 6
+        $surface = $findingsFull | Get-TcpkAttackSurface
+        Save-TcpkJson -Value $surface -Path (Join-Path $OutDir 'attack-surface.json') -Depth 6
         $catSummary = (@($surface.Categories) | ForEach-Object { "$($_.Label)=$($_.Count)" }) -join '; '
         $all.Add( (New-TcpkFinding -Module 'recon' -RuleId 'attacksurface.summary' `
             -Severity 'INFO' -Confidence 'Confirmed' `
@@ -1023,8 +1023,8 @@ function Invoke-TcpkAudit {
 
     # --- exploit plan (CVE matches + exploitable findings -> actionable items) ---
     try {
-        $plan = @(Get-TcpkExploitPlan -Findings $findingsFull -CveMatches Save-TcpkJson -Value $cveMatches -Path $expanded)
-        $plan -Path (Join-Path $OutDir 'exploits.json') -Depth 5
+        $plan = @(Get-TcpkExploitPlan -Findings $findingsFull -CveMatches $cveMatches -Path $expanded)
+        Save-TcpkJson -Value $plan -Path (Join-Path $OutDir 'exploits.json') -Depth 5
         $expModules = @($plan | Where-Object { $_.Module }).Count
         Write-Information -MessageData "  exploits.json: $(@($plan).Count) actionable items ($expModules with a framework exploit module)" -InformationAction Continue
         Write-TcpkLog -Level SUCCESS -Component 'exploit.plan' -Message "$(@($plan).Count) items, $expModules with a module" | Out-Null
