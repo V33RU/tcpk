@@ -4,6 +4,20 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkUpdateChannel (A53).** Firmware-updater desktop apps ship the same three
+under-tested surfaces every time: a release-channel selector (release/beta/dev/nightly),
+an update endpoint held in a config file, and a locally persisted "current version" the
+client uses in its comparison. Test-TcpkUpdateFlow (F02) already covers signature
+verification. This one covers the config-side attack surface. Five rules:
+
+- update.channel-selectable        MEDIUM when the config file is user-writable, INFO otherwise
+- update.endpoint-in-writable-config  HIGH when a discovered update URL sits in a Users-writable file
+- update.endpoint-plaintext        HIGH for any http:// update URL in config
+- update.endpoint-in-config        MEDIUM when neither of the above but a URL is present
+- update.state-in-writable-path    MEDIUM when the client persists its own "current version"
+- update.device-fanout             INFO scope only, when the binaries reference connected-device
+                                    updates alongside app updates
+
 **Test-TcpkCefSharp (A52).** CefSharp is the .NET Chromium embedding used across
 industrial and engineering software, and its JavaScript-to-native bridge is the same
 class as Android's addJavascriptInterface. Detects four things: RegisterJsObject /
