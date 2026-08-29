@@ -1,0 +1,18 @@
+{
+  "id": "user.hardcoded-slack-webhook",
+  "title": "Hardcoded Slack incoming-webhook URL",
+  "severity": "HIGH",
+  "type": "file-regex",
+  "cwe": [
+    "CWE-798"
+  ],
+  "description": "A Slack incoming-webhook URL is present in an application resource. Anyone with the URL can post to that channel until the webhook is rotated.",
+  "fix": "Rotate the webhook in the Slack app configuration, then move it to a runtime secret (environment variable or a secret store) rather than a shipped resource.",
+  "match": {
+    "glob": "**/*.config",
+    "regex": "https://hooks\\.slack\\.com/services/T[A-Z0-9]{8,}/B[A-Z0-9]{8,}/[A-Za-z0-9]{20,}",
+    "prefilter": [
+      "hooks.slack.com"
+    ]
+  }
+}

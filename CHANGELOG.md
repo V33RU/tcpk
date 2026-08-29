@@ -4,6 +4,35 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkUserRules (A54) - user-authored check format, phase 1.**
+
+Anyone can now add a detection without touching PowerShell. Drop a JSON rule into
+`TCPK/Data/rules/` (or pass `-ExtraPath` a directory of engagement-specific rules) and
+TCPK runs it alongside the built-in checks. The full schema and worked examples live in
+`docs/EXTENDING.md`. `README.md` gains a top-level `## Extending` section pointing at it.
+
+Phase 1 supports one check type: `file-regex`, which is glob + regex over file contents.
+That shape covers roughly the same ground as `secrets.json`: hardcoded credentials in
+resources, dangerous config values, embedded URLs. Future phases will add registry,
+PE-import and .NET IL call-site check types under the same schema.
+
+Sandboxed by construction. A rule can match. A rule cannot execute anything, load a
+DLL, spawn a process or reach the network. That property is enforced by the loader
+refusing every field it does not recognise, so an accidental (or malicious) `"run":
+"powershell.exe"` line fails at load time rather than being silently ignored. Malformed
+rules surface as Skipped `rules.malformed` findings; a duplicate rule id is refused
+with a Skipped finding naming the duplicate.
+
+JSON, not YAML. PowerShell 5.1 has `ConvertFrom-Json` built in; YAML would need
+vendoring YamlDotNet, which is a non-system DLL inside a tool that flags non-system
+DLLs.
+
+`Read-TcpkUserRule`, `Get-TcpkUserRules` and `Convert-TcpkGlobToRegex` are the three
+private helpers, in `TCPK/Private/_UserRules.ps1`. 17 Pester cases in
+`UserRules.Tests.ps1` cover schema refusals (unknown field, unknown severity, bad
+regex, duplicate id, malformed JSON), glob semantics (`**` any depth, `*` single
+segment, `\` normalised to `/`), and end-to-end matching against synthetic files.
+
 **Manifest: FunctionsToExport is an explicit list of 279 names, ProjectUri filled in.**
 Was @('*') + empty. Under Install-Module (or any consumer that reads the psd1 without
 loading the module) a cmdlet not listed here is effectively invisible. New Pester test

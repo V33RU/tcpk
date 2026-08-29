@@ -53,7 +53,7 @@ with the evidence grade for every one. Nothing in it is fabricated.
 ![TCPK GUI](assets/tcpk-gui.png)
 
 Point it at an MSIX package, an installed folder, or a single `.exe`, click **Run Audit**, and
-TCPK runs 279 cmdlets across 19 buckets (174 of them detection checks), streams findings live, and writes HTML + Excel
+TCPK runs 280 cmdlets across 19 buckets (174 of them detection checks), streams findings live, and writes HTML + Excel
 reports. Every finding carries a confidence label, a **computed CVSS v4.0** base score, CWE,
 MITRE ATT&CK, and an OWASP TASVS mapping. The same engine drives the CLI, a native **MCP
 server**, and an **agentic AI workbench** (`TCPK-Agentic.bat` -- loopback, token-gated,
@@ -105,6 +105,10 @@ Windows 10/11, PowerShell 5.1 or 7+. Admin only for some deep runtime checks. Op
 needs [Ollama](https://ollama.com) + a pulled model (e.g. `qwen2.5-coder:7b`).
 Optional tools per tab (Wireshark for pcap, mitmproxy for intercept, frida for runtime
 hooks) install separately: see [docs/INSTALL.md](docs/INSTALL.md). The static audit needs none of them.
+
+## Extending
+
+Add a detection without writing PowerShell: drop a JSON rule into `TCPK/Data/rules/`. See [docs/EXTENDING.md](docs/EXTENDING.md) for the schema and worked examples.
 
 ## Resources
 
