@@ -304,6 +304,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**244 of 269 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**244 of 279 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.7.1: 269 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.7.1: 279 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).

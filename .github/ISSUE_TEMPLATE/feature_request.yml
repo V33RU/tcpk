@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a new detection, a new cmdlet, or a change to an existing one
+labels: ['enhancement', 'triage']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to detect or do
+      description: The security question or workflow. Not the proposed solution yet.
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested
+    attributes:
+      label: How you think TCPK should support it
+      description: A rule name, a cmdlet signature, or a rough shape. Optional.
+
+  - type: dropdown
+    id: bucket
+    attributes:
+      label: Which bucket would this fit
+      options:
+        - 'A - Static / discovery'
+        - 'B - MSIX / packaging'
+        - 'C - OS integration'
+        - 'D - Credentials'
+        - 'E - Runtime / live'
+        - 'F - Network'
+        - 'G - WebView2'
+        - 'H - Logging'
+        - 'I - Memory'
+        - 'J - Anti-debug / anti-tamper'
+        - 'K - Exploit (gated)'
+        - 'Report / GUI / MCP / other'
+        - 'Not sure'
+
+  - type: textarea
+    id: precedent
+    attributes:
+      label: Precedent or evidence (optional)
+      description: A CVE, blog post, or vendor advisory that shows the class exists in real desktop software.

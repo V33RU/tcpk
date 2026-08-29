@@ -1,0 +1,105 @@
+name: Bug report
+description: An audit or cmdlet did not behave as expected
+labels: ['bug', 'triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. TCPK is Windows-only PowerShell, so a few environment
+        details up front save a round-trip. If you think you found a vulnerability
+        IN TCPK itself (not a finding against a target), please use SECURITY.md
+        instead.
+
+  - type: input
+    id: tcpk-version
+    attributes:
+      label: TCPK version
+      description: Output of `(Get-Module TCPK).Version` or the git commit hash if from a checkout
+      placeholder: '2.7.1 or e6b8d99'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: powershell-version
+    attributes:
+      label: PowerShell version
+      options:
+        - 'Windows PowerShell 5.1'
+        - 'PowerShell 7.x'
+        - 'Other (say in the description)'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: windows-version
+    attributes:
+      label: Windows edition
+      options:
+        - 'Windows 10'
+        - 'Windows 11'
+        - 'Windows Server 2019 / 2022 / 2025'
+        - 'Other'
+
+  - type: dropdown
+    id: target-type
+    attributes:
+      label: Target type
+      options:
+        - 'MSIX / AppX / .msixbundle'
+        - 'MSI installer'
+        - 'Installed folder (Program Files, WindowsApps, custom path)'
+        - 'Single .exe (portable / ClickOnce / Squirrel)'
+        - 'ZIP of the above'
+        - 'Not applicable (helper cmdlet, GUI issue, etc.)'
+    validations:
+      required: true
+
+  - type: input
+    id: cmdlet
+    attributes:
+      label: Cmdlet or entry point involved
+      description: e.g. Invoke-TcpkAudit, Test-TcpkFirmwareImages, TCPK.bat GUI
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened
+      description: Paste the full error message if there was one. If the audit "completed with 0 findings" but you think it should have found something, say so.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Exact commands. If a specific target file is required, describe it (public sample if possible).
+      placeholder: |
+        1. Import-Module .\TCPK\TCPK.psd1 -Force
+        2. Invoke-TcpkAudit -Target 'C:\path\to\sample' -Acknowledge
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: runtime-log
+    attributes:
+      label: Runtime log (optional but very useful)
+      description: If the audit reached the reports directory, paste the tail of `runtime.log` from that directory.
+      render: shell
+
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Authorization
+      options:
+        - label: 'The target described above is one I am authorized to test.'
+          required: true

@@ -4,6 +4,24 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Manifest: FunctionsToExport is an explicit list of 279 names, ProjectUri filled in.**
+Was @('*') + empty. Under Install-Module (or any consumer that reads the psd1 without
+loading the module) a cmdlet not listed here is effectively invisible. New Pester test
+`ManifestExports.Tests.ps1` diffs the list against `TCPK/Public/**/*.ps1` on every run and
+fails loudly with which cmdlet is missing or extra. Description bumped to reflect the true
+cmdlet count.
+
+**.github/SECURITY.md + issue templates.** The `.github/` folder had only `ci.yml`, so
+anyone hitting a bug on Windows had nowhere to file it. Adds:
+- SECURITY.md with the coordinated-disclosure route (private security advisory or email)
+  and a specific in-scope vs out-of-scope list, so ordinary "TCPK found a bug in an app"
+  reports do not clog the security channel
+- ISSUE_TEMPLATE/bug_report.yml as a form asking for TCPK version, PowerShell version,
+  Windows edition, target type (MSIX / MSI / folder / .exe), the cmdlet involved, and
+  optional runtime.log paste. Authorization checkbox is required
+- ISSUE_TEMPLATE/feature_request.yml for detector or cmdlet proposals with bucket picker
+- config.yml turning off blank issues and routing security reports to the private advisory
+
 **Mono.Cecil now ships inside the module** at `TCPK/lib/Cecil/`, not in a repo-root sibling.
 `Install-Module` packages the `TCPK/` folder only, so the old sibling at
 `tools/ILSpy/Mono.Cecil.dll` disappeared under any published install and every IL-based
