@@ -35,7 +35,7 @@ The exact folder names TCPK probes:
 | procdump | `tools\Procdump\` |
 | ilspycmd | `tools\ilspycmd\` |
 | cfr.jar | `tools\cfr\` (needs a JRE on PATH) |
-| Mono.Cecil | `tools\ILSpy\` (already shipped) |
+| Mono.Cecil | `TCPK\lib\Cecil\` (already shipped, inside the module) |
 
 Those names are matched exactly. `tools\Wireshark\` works on Windows because its file
 system is case-insensitive, but keep to the casing above.

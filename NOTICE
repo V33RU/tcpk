@@ -13,8 +13,8 @@ clarity; they impose no redistribution obligation on this repository.
 1. Mono.Cecil 0.11.5 -- REDISTRIBUTED (MIT License)
 ================================================================================
 
-TCPK ships four unmodified Mono.Cecil assemblies under tools/ILSpy/. They are
-used to read .NET IL for the decompiler and for IL-level verification of
+TCPK ships four unmodified Mono.Cecil assemblies under TCPK/lib/Cecil/. They
+are used to read .NET IL for the decompiler and for IL-level verification of
 client-side controls (see TCPK/Private/_Decompile.ps1).
 
 Project    : Mono.Cecil
@@ -23,18 +23,18 @@ Version    : 0.11.5.0
 Source     : Official NuGet package Mono.Cecil 0.11.5 (lib/net40), unmodified.
 
 Files and SHA256:
-  tools/ILSpy/Mono.Cecil.dll
+  TCPK/lib/Cecil/Mono.Cecil.dll
     71c8b01208ab37a5164f5bacd69054899db9fc00f2da87dbd07dc1ee40fc06a8
-  tools/ILSpy/Mono.Cecil.Mdb.dll
+  TCPK/lib/Cecil/Mono.Cecil.Mdb.dll
     d65e445a02dc2d2a189d19745f14368c6a24d05914e36bbc7ed9732962998ea5
-  tools/ILSpy/Mono.Cecil.Pdb.dll
+  TCPK/lib/Cecil/Mono.Cecil.Pdb.dll
     8e221211df8a917d69145239b71b71c87e61761fb0c96d5e997964c172dda4c0
-  tools/ILSpy/Mono.Cecil.Rocks.dll
+  TCPK/lib/Cecil/Mono.Cecil.Rocks.dll
     9db3edaa8bc6ccd7ac6e2517c743591658bd6bdd436a146e0eda101d30a1332e
 
-Note on the directory name: the folder is named tools/ILSpy/ for historical
-reasons. ILSpy itself is NOT bundled and NOT used. Only the Mono.Cecil
-assemblies listed above are present.
+Note: TCPK does NOT bundle ILSpy or dnSpy. Only the four Mono.Cecil assemblies
+listed above are present, and they now live INSIDE the module (TCPK/lib/Cecil/)
+so they travel with Install-Module rather than depending on a sibling path.
 
 --------------------------------------------------------------------------------
 

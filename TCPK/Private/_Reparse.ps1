@@ -183,6 +183,11 @@ function Reset-TcpkScanStats {
         # supply-chain surface was not tested at all, not that it came back clean.
         CveLookupFailedCount  = 0
         CveLookupFailedSample = (New-Object 'System.Collections.Generic.List[string]')
+        # Mono.Cecil could not be loaded, so every IL-based verdict (crypto misuse, TLS
+        # accept-all, taint) silently returned nothing. The report should say so rather than
+        # ship without the flagship Confirmed (IL) findings and read as clean.
+        CecilMissingCount    = 0
+        CecilMissingSample   = (New-Object 'System.Collections.Generic.List[string]')
     }
 }
 
@@ -242,6 +247,10 @@ function Add-TcpkScanSkip {
         'CveLookupFailed' {
             $s.CveLookupFailedCount++
             if ($ItemPath -and $s.CveLookupFailedSample.Count -lt $script:TcpkScanSampleCap) { $s.CveLookupFailedSample.Add($ItemPath) }
+        }
+        'CecilMissing' {
+            $s.CecilMissingCount++
+            if ($ItemPath -and $s.CecilMissingSample.Count -lt $script:TcpkScanSampleCap) { $s.CecilMissingSample.Add($ItemPath) }
         }
     }
 }

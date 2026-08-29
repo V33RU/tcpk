@@ -8,7 +8,13 @@
 BeforeAll {
     $root = Split-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) -Parent
     $script:Server = Join-Path $root 'Start-TcpkMcpServer.ps1'
-    $script:Cecil  = Join-Path $root 'tools\ILSpy\Mono.Cecil.dll'
+    # Prefer the in-module location; fall back to the legacy sibling. See NOTICE and
+    # TCPK/Private/_Decompile.ps1 for why the DLLs moved into the module.
+    $script:Cecil  = if (Test-Path (Join-Path $root 'TCPK\lib\Cecil\Mono.Cecil.dll')) {
+        Join-Path $root 'TCPK\lib\Cecil\Mono.Cecil.dll'
+    } else {
+        Join-Path $root 'tools\ILSpy\Mono.Cecil.dll'
+    }
 
     # A synthetic "completed audit" outDir: findings.json in the shape Invoke-TcpkAudit writes.
     $script:OutDir = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-mcp-" + [guid]::NewGuid().ToString('N').Substring(0, 8))

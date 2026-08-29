@@ -4660,7 +4660,7 @@ function Show-DecNativePe([string]$path) {
 }
 
 function Load-DecAssembly([string]$path) {
-    if (-not (Ensure-DecCecil)) { $lblDecStatus.Text = 'Mono.Cecil not available (tools\ILSpy\Mono.Cecil.dll missing).'; return }
+    if (-not (Ensure-DecCecil)) { $lblDecStatus.Text = 'Mono.Cecil not available (looked in TCPK\lib\Cecil\Mono.Cecil.dll and legacy tools\ILSpy\).'; return }
     $path = "$path".Trim('"').Trim()
     if (-not $path -or -not (Test-Path -LiteralPath $path)) { $lblDecStatus.Text = "File not found: $path"; return }
     # A native binary has no IL, so instead of a dead end give the analysis that DOES

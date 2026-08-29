@@ -4,6 +4,22 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Mono.Cecil now ships inside the module** at `TCPK/lib/Cecil/`, not in a repo-root sibling.
+`Install-Module` packages the `TCPK/` folder only, so the old sibling at
+`tools/ILSpy/Mono.Cecil.dll` disappeared under any published install and every IL-based
+verdict silently degraded to `null`. Moved the four DLLs (Cecil, Rocks, Pdb, Mdb) into
+the module. Resolver in `_Decompile.ps1` now checks the in-module path FIRST, keeps the
+legacy sibling as a fallback, and the two ILSpy install paths after that.
+
+Silent degradation ended: `Initialize-TcpkCecil` failure now emits
+`Add-TcpkScanSkip -Kind CecilMissing` once per audit. Test-TcpkScanCoverage reports it as
+MEDIUM `scan.incomplete-coverage` with a title that names the missing capability
+("IL prover was NOT LOADED"), so the report cannot be mistaken for a clean managed target.
+
+NOTICE, REQUIREMENTS, docs/INSTALL, docs/index.html and the GUI Decompiler status line all
+point at the new path. Old sibling reference kept in the resolver and one test to protect
+existing checkouts.
+
 **Invoke-TcpkFirmwarePlantProbe (K25).** Dynamic sibling to Test-TcpkFirmwareImages (A49).
 Backs up a shipped firmware image, optionally appends 4 sentinel bytes ('TCPK') so any
 signature check fails, launches the vendor updater, and observes via the shared ETW

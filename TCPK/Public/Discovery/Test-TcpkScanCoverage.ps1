@@ -79,8 +79,11 @@ function Test-TcpkScanCoverage {
     # no vulnerable dependencies produces. TCPK ships no offline CVE data, so there is no
     # fallback -- an unreachable lookup means the supply-chain surface was never tested.
     $cveFail    = [int]$s.CveLookupFailedCount
+    # Mono.Cecil could not be loaded; the flagship IL prover produced nothing this run.
+    # Every Confirmed (IL) verdict class (crypto misuse, TLS accept-all, taint) is absent.
+    $cecilMiss  = [int]$s.CecilMissingCount
     if (($unreadable + $depth + $reparse + $viewCap + $viewDedup + $budgetOut + $wmiFail +
-         $packed + $bigBundle + $nativeOnly + $cveFail) -eq 0) { return }
+         $packed + $bigBundle + $nativeOnly + $cveFail + $cecilMiss) -eq 0) { return }
 
     $parts = New-Object 'System.Collections.Generic.List[string]'
     if ($unreadable) { $parts.Add("$unreadable directory(ies) unreadable") }
@@ -94,6 +97,7 @@ function Test-TcpkScanCoverage {
     if ($bigBundle)  { $parts.Add("$bigBundle single-file bundle(s) above the extractor size ceiling, so their assemblies were never carved") }
     if ($nativeOnly) { $parts.Add("$nativeOnly non-managed stack(s) the IL provers cannot read") }
     if ($cveFail)    { $parts.Add("$cveFail CVE lookup(s) could not reach OSV/NVD, so those components were never checked") }
+    if ($cecilMiss)  { $parts.Add("Mono.Cecil unavailable, IL-prover verdicts (crypto, TLS callback, taint) were not produced") }
     $summary = $parts -join '; '
 
     $sample = New-Object 'System.Collections.Generic.List[string]'
@@ -108,6 +112,7 @@ function Test-TcpkScanCoverage {
     foreach ($p in @($s.BundleTooLargeSample)){ $sample.Add("bundle-too-large: $p") }
     foreach ($p in @($s.NativeOnlySample))    { $sample.Add("native-only: $p") }
     foreach ($p in @($s.CveLookupFailedSample)){ $sample.Add("cve-lookup-failed: $p") }
+    foreach ($p in @($s.CecilMissingSample))  { $sample.Add("cecil-missing: $p") }
     $sampleTxt = (@($sample) | Select-Object -First 12) -join ' ; '
 
     # Unreadable directories and a capped text view are the classes that represent an
@@ -121,7 +126,7 @@ function Test-TcpkScanCoverage {
     # confirmed above the ceiling. NativeOnly alone stays LOW, because a native target is a
     # correct and expected use of the tool rather than a degraded run of it -- the native
     # checks (PE hardening, unsafe CRT, imports) do apply and did run.
-    if ($packed -gt 0 -or $bigBundle -gt 0 -or $cveFail -gt 0) { $sev = 'MEDIUM' }
+    if ($packed -gt 0 -or $bigBundle -gt 0 -or $cveFail -gt 0 -or $cecilMiss -gt 0) { $sev = 'MEDIUM' }
     elseif ($nativeOnly -gt 0 -and $sev -eq 'INFO') { $sev = 'LOW' }
 
     $advice = 'Reparse points and depth-capped subtrees are deliberate limits, not errors.'
@@ -167,6 +172,14 @@ function Test-TcpkScanCoverage {
             'disassembler (Ghidra / IDA / radare2), or for a frozen Python target decompile the ' +
             'recovered bytecode and re-scan the sources.')
     }
+    if ($cecilMiss -gt 0) {
+        $advice = ('Mono.Cecil could not be loaded, so the flagship IL prover produced nothing ' +
+            'this run: no Confirmed (IL) crypto verdicts, no accept-all TLS callback proofs, no ' +
+            'interprocedural taint. Every check that emits Confirmed (IL) fell back to Inferred ' +
+            'or emitted nothing at all, which is byte-for-byte what a clean managed target ' +
+            'looks like. Confirm the DLLs sit at TCPK\lib\Cecil\Mono.Cecil.dll (they ship ' +
+            'with the module), or install ILSpy which is checked as a fallback. Then re-run.')
+    }
     # These two are last, so they win when several classes fired. Both mean the checks ran to
     # completion against bytes that are not the application, which is the failure mode most
     # easily mistaken for a clean result.
@@ -203,6 +216,7 @@ function Test-TcpkScanCoverage {
     # the static results for this target cannot be trusted.
     $title = "Scan coverage was incomplete: $summary"
     if ($nativeOnly -gt 0) { $title = "Static results are PARTIAL: non-managed target, IL analysis unavailable -- $summary" }
+    if ($cecilMiss -gt 0)  { $title = "IL prover was NOT LOADED: Mono.Cecil missing, every Confirmed (IL) verdict absent -- $summary" }
     if ($bigBundle -gt 0)  { $title = "Static results are INCOMPLETE: single-file bundle skipped for size, managed assemblies never scanned -- $summary" }
     if ($cveFail -gt 0)    { $title = "Dependency CVE surface was NOT tested: the CVE lookup could not reach OSV/NVD -- $summary" }
     if ($packed -gt 0)     { $title = "Static results are UNRELIABLE: target is packed, text-level checks never saw the real code -- $summary" }

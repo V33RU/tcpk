@@ -1,19 +1,37 @@
-# Mono.Cecil bridge: extract IL / method bodies from .NET assemblies for the
-# LLM code-judgment layer. Uses the Mono.Cecil that ships with the ILSpy install.
-# Degrades gracefully (returns $null) if Cecil isn't available.
+# Mono.Cecil bridge: extract IL / method bodies from .NET assemblies. Cecil ships INSIDE
+# the module at TCPK\lib\Cecil\ so it travels with Install-Module and every git-checkout
+# install shape. The legacy sibling path (repo-root\tools\ILSpy\) is a fallback for
+# operators who still have that layout on disk.
+#
+# Silent degradation was the old failure mode: if Cecil could not be loaded, every IL-based
+# check just returned $null and the report shipped without any of the tool's flagship
+# Confirmed (IL) verdicts. The audit now emits scan.incomplete-coverage HIGH via
+# Add-TcpkScanSkip 'CecilMissing' when Initialize-TcpkCecil fails, so the report SAYS the
+# IL prover was unavailable rather than hiding it.
 
 $script:TcpkCecilLoaded = $false
+$script:TcpkCecilMissingLogged = $false
 
 function Initialize-TcpkCecil {
     [CmdletBinding()] param()
     if ($script:TcpkCecilLoaded) { return $true }
     $candidates = @(
+        # 1. IN-MODULE (canonical). Ships inside TCPK\lib\Cecil\ so it survives Install-Module.
+        (Join-Path $script:TcpkRoot 'lib\Cecil\Mono.Cecil.dll'),
+        # 2. Legacy sibling: an older git checkout with the DLLs at repo-root\tools\ILSpy\.
+        (Join-Path $script:TcpkRoot '..\tools\ILSpy\Mono.Cecil.dll'),
+        # 3. External ILSpy installations, kept for operators who already have one.
         "$env:LOCALAPPDATA\Programs\ILSpy\Mono.Cecil.dll",
-        "$env:ProgramFiles\ILSpy\Mono.Cecil.dll",
-        (Join-Path $script:TcpkRoot '..\tools\ILSpy\Mono.Cecil.dll')
+        "$env:ProgramFiles\ILSpy\Mono.Cecil.dll"
     )
     $cecil = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if (-not $cecil) { return $false }
+    if (-not $cecil) {
+        if (-not $script:TcpkCecilMissingLogged) {
+            $script:TcpkCecilMissingLogged = $true
+            try { Add-TcpkScanSkip -Kind 'CecilMissing' -ItemPath 'Mono.Cecil not found; IL-prover verdicts will not be produced' } catch { }
+        }
+        return $false
+    }
     try {
         Add-Type -Path $cecil -ErrorAction Stop
         $script:TcpkCecilLoaded = $true
