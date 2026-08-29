@@ -219,8 +219,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkSelfIntegrityCheck** - J02. Self-integrity verification markers.
 - **Test-TcpkTimingAntiDebug** - J04. Timing-based anti-debug markers (RDTSC, QueryPerformanceCounter).
 
-## K - Exploitation (GATED, off by default)  (29)
+## K - Exploitation (GATED, off by default)  (30)
 
+- **Invoke-TcpkFirmwarePlantProbe** - K25. Backs up a shipped firmware image, optionally appends a 4-byte marker so any signature check fails, launches the vendor updater, and observes via ETW whether the updater's process tree reads the file at flash time. Restores from backup in the finally block. Three gates: Enable-TcpkExploit, -ConfirmActive, -AllowDevicePresent for AppendMarker mode. Confirmed (dynamic) when the read is observed.
 - **Invoke-TcpkParamTamper** - K24. Mutates one parameter of a captured request (price, quantity, boolean flag, role, limit) and sends three requests per parameter: baseline, tampered, and a bogus control. An endpoint that accepts the bogus value too reports NOT CONCLUSIVE rather than a false positive.
 - **New-TcpkProxyDll** - K01. Generate a proxy-DLL source scaffold for a flagged phantom-import.
 - **New-TcpkFridaTlsBypass** - K02. Generate a Frida JS script template that bypasses a flagged TLS validation callback.
@@ -303,6 +304,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**243 of 268 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**244 of 269 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.7.1: 268 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (v2.7.1: 269 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).

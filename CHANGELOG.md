@@ -4,6 +4,30 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Invoke-TcpkFirmwarePlantProbe (K25).** Dynamic sibling to Test-TcpkFirmwareImages (A49).
+Backs up a shipped firmware image, optionally appends 4 sentinel bytes ('TCPK') so any
+signature check fails, launches the vendor updater, and observes via the shared ETW
+kernel-file trace whether the updater's process tree reads the file at flash time.
+Restores from backup in the finally block before returning, verified byte-for-byte
+against the pre-tamper hash.
+
+Three gates layered so no single missed check can touch the file:
+- Enable-TcpkExploit -Acknowledge (session)
+- -ConfirmActive (per-invocation)
+- -AllowDevicePresent (required only in AppendMarker mode; operator assertion that no
+  real device is connected which could accept a tampered image if the updater ignores
+  the marker)
+
+Verdicts:
+- firmware.plant.read-confirmed        HIGH Confirmed (dynamic), read observed
+- firmware.plant.tampered-read         CRITICAL Confirmed (dynamic), AppendMarker + read
+- firmware.plant.not-read              INFO, no read in the window
+- firmware.plant.no-admin / .no-image / .no-updater / .etw-start-failed / .launch-failed / .exception  Skipped
+
+Six Pester cases pin the safety gates and confirm the firmware file stays byte-identical
+when a gate rejects the call. The observation half needs Windows admin and a live
+updater, so it stays out of CI.
+
 **Fix the BOM-migration regex that ate the previous line at 8 sites.** The migration in
 `d391aa6` used a regex with `[\s\S]{0,50}?` in the value capture. That allowed the match
 to cross a newline, so at 8 sites the rewriter consumed the assignment line before each
