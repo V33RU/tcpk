@@ -3,7 +3,34 @@ name: ci
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'assets/**'
+      - 'NOTICE'
+      - 'LICENSE'
+      - 'DISCLAIMER.txt'
+      - 'CHANGELOG.md'
+      - 'README.txt'
+      - '.gitignore'
+      - '.gitattributes'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'assets/**'
+      - 'NOTICE'
+      - 'LICENSE'
+      - 'DISCLAIMER.txt'
+      - 'CHANGELOG.md'
+      - 'README.txt'
+
+# Cancel a run when a newer commit lands on the same ref. Prevents the queue
+# from stacking up when several commits arrive in quick succession, which
+# happens whenever a batch of small edits gets pushed one at a time.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   windows:
