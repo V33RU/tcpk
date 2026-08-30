@@ -4,6 +4,28 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Attribution debt paid: `cef.js-bridge-registered` and `firmware.image-shipped` downgraded from
+Confirmed to Inferred.** Both rules emitted `Confirmed` on evidence that was pattern-based, not
+proof-based:
+
+- `cef.js-bridge-registered` fires when the literal string `RegisterJsObject` or
+  `JavascriptObjectRepository` appears in a PE. That proves the assembly references the type;
+  it does not prove the call is reached. Confidence is now Inferred. Promotion to Confirmed
+  requires an IL call-graph trace (`Invoke-TcpkDecompile` or the AI-verify layer).
+- `firmware.image-shipped` fires when a file with a firmware extension has the right magic
+  bytes. That proves the file exists in that shape; it does not prove the vendor updater loads
+  it, or that it is flashed without a signature check. Confidence is now Inferred.
+  `Invoke-TcpkFirmwarePlantProbe` (K25) promotes to Confirmed (dynamic) when the read is
+  observed.
+- `firmware.image-writable` STAYS Confirmed because both facts it rests on (file exists,
+  DACL grants non-admin write) are directly observed here. Description tightened so the
+  boundary between what is proven (writable primitive) and what is inference (unsigned flash
+  outcome) is on the page.
+
+Attribution ladder discipline: `Confirmed` is reserved for facts the rule directly observes,
+not for downstream framing the description implies. Two Pester tests updated to pin the new
+labels.
+
 **Test-TcpkUserRules (A54) - user-authored check format, phase 1.**
 
 Anyone can now add a detection without touching PowerShell. Drop a JSON rule into

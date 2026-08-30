@@ -51,6 +51,15 @@ Describe 'Test-TcpkFirmwareImages' {
         $f[0].Evidence | Should -Match 'kind=UF2'
     }
 
+    It 'grades firmware.image-shipped as Inferred (file existence Confirmed, attack primitive is inference)' {
+        # Attribution ladder: this rule proves the file exists. It does not prove the vendor
+        # updater reads it or flashes it unsigned. Confidence is Inferred; Invoke-TcpkFirmwarePlantProbe (K25)
+        # promotes to Confirmed (dynamic) when the read is observed.
+        $f = @(Test-TcpkFirmwareImages -Path $script:work | Where-Object { $_.RuleId -eq 'firmware.image-shipped' })
+        $f.Count | Should -BeGreaterThan 0
+        foreach ($row in $f) { $row.Confidence | Should -Be 'Inferred' }
+    }
+
     It 'reports the ELF and the Intel HEX text file' {
         $rows = @(Test-TcpkFirmwareImages -Path $script:work)
         ($rows | Where-Object { $_.File -like '*firmware.elf' }).Evidence | Should -Match 'kind=ELF'

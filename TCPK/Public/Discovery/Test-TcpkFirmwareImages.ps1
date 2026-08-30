@@ -99,22 +99,43 @@ function Test-TcpkFirmwareImages {
             }
         } catch { }
 
-        $sev = if ($writable) { 'HIGH' } else { 'MEDIUM' }
+        $sev  = if ($writable) { 'HIGH' } else { 'MEDIUM' }
         $rule = if ($writable) { 'firmware.image-writable' } else { 'firmware.image-shipped' }
+        # Attribution ladder: 'firmware.image-writable' is Confirmed because both facts it
+        # rests on (the file exists at this path, the DACL grants non-admin write) are
+        # directly observed by this rule. 'firmware.image-shipped' has only the file-exists
+        # fact directly observed; the claim that the vendor's updater LOADS it and flashes it
+        # without a signature check is inference. K25 Invoke-TcpkFirmwarePlantProbe promotes
+        # the shipped case to Confirmed (dynamic) when the read is observed.
+        $conf = if ($writable) { 'Confirmed' } else { 'Inferred' }
         $evParts = @("kind=$kind", "ext=$ext", "size=$len")
         if ($mismatch) { $evParts += 'header=missing' }
         if ($writable) { $evParts += 'writable-by-users=true' }
 
+        $desc = if ($writable) {
+            ('A firmware image is present in the install tree AND the resting DACL grants write ' +
+             'to a non-admin group. Both facts are directly observed here. The exploit outcome ' +
+             '(a modified image is flashed to the physical device on the next update) requires ' +
+             'the vendor updater to READ this file and to flash it without a signature check. ' +
+             'That second half is not proven by this rule; run Invoke-TcpkFirmwarePlantProbe ' +
+             '(K25) to confirm dynamically. Local write on a firmware image that the updater ' +
+             'does read and flash unsigned is the primitive Evil PLC and TRITON traced from an ' +
+             'engineering workstation into controller code.')
+        } else {
+            ('A firmware image is present in the install tree. Only this fact is directly ' +
+             'observed here (file exists, header magic matches). Whether the vendor updater ' +
+             'actually reads it at flash time, and whether it verifies a vendor signature over ' +
+             'the payload, is INFERENCE. Confidence is Inferred until Invoke-TcpkFirmwarePlantProbe ' +
+             '(K25) runs and reports a read by the updater PID, or Test-TcpkUpdateFlow (F02) ' +
+             'reports missing signature primitives near the update code path.')
+        }
+
         New-TcpkFinding -Module 'discovery' -RuleId $rule `
-            -Severity $sev -Confidence 'Confirmed' `
+            -Severity $sev -Confidence $conf `
             -Title "$($f.Name) is a device firmware image ($kind)" `
             -File $f.FullName -Evidence ($evParts -join ' ') `
             -Cwe @('CWE-494') `
-            -Description ('A firmware image sits inside the install tree. If the desktop tool that flashes ' +
-                'or updates a device reads its payload from this path without verifying a vendor signature, ' +
-                'local write on this file becomes remote code on the device. This is the exact seam Evil PLC ' +
-                'and TRITON traced from an engineering workstation into controller code.' +
-                $(if ($writable) { ' The resting DACL grants write to a non-admin group, so no elevation is needed to plant a modified image.' } else { '' })) `
+            -Description $desc `
             -Fix ('Verify a vendor signature on every image before it is transmitted to the device, and ' +
                 'restrict the image directory ACL to the installer identity (SYSTEM or the vendor service account). ' +
                 'A code-signed image the desktop tool refuses to flash on signature failure closes the whole class.')

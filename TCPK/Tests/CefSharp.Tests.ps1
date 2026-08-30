@@ -36,14 +36,17 @@ AfterAll {
 }
 
 Describe 'Test-TcpkCefSharp' {
-    It 'reports a bridge registration as HIGH Confirmed' {
+    It 'reports a bridge registration as HIGH Inferred (string presence, not proven call site)' {
+        # Attribution ladder: this rule sees the API name in the PE. It does not run an IL
+        # trace to prove the call is reached, so Confidence is Inferred. Promoting to Confirmed
+        # requires an IL call-graph check (Invoke-TcpkDecompile / AI-verify).
         InModuleScope TCPK -Parameters @{ p = $script:bridge } {
             param($p)
             $rows = @(Test-TcpkCefSharp -Path $p)
             $r = $rows | Where-Object { $_.RuleId -eq 'cef.js-bridge-registered' }
             $r | Should -Not -BeNullOrEmpty
             $r.Severity | Should -Be 'HIGH'
-            $r.Confidence | Should -Be 'Confirmed'
+            $r.Confidence | Should -Be 'Inferred'
         }
     }
 

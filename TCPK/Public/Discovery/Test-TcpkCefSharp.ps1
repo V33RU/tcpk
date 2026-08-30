@@ -12,8 +12,11 @@ function Test-TcpkCefSharp {
 
     Detected here, in one pass over each PE:
 
-      cef.js-bridge-registered   HIGH  RegisterJsObject or JavascriptObjectRepository.Register
-                                       is called. The renderer has a bridge into managed code.
+      cef.js-bridge-registered   HIGH Inferred  The literal string RegisterJsObject or
+                                       JavascriptObjectRepository appears in the assembly. That
+                                       is textual evidence of the API reference; a proven call
+                                       site requires an IL check that this rule does not run,
+                                       so Confidence is Inferred not Confirmed.
 
       cef.remote-debugging-enabled  HIGH   CefSettings.RemoteDebuggingPort is set. DevTools is
                                        reachable on localhost with no authentication, so any
@@ -32,10 +35,12 @@ function Test-TcpkCefSharp {
       cef.uses-cefsharp          INFO   Assembly references CefSharp but none of the flags
                                        above matched. Scoping only.
 
-    This is INFERENCE. String presence in an assembly proves the type is referenced, not that
-    it is reached at runtime. Confidence = Inferred on the config-flag rules and Confirmed on
-    the bridge-registered rule, since a call to RegisterJsObject in shipped IL is the observed
-    behaviour rather than a possibility.
+    This is INFERENCE. String presence in an assembly proves the assembly REFERENCES the type,
+    not that the call is reached at runtime. Every rule here emits Confidence = Inferred; an
+    IL check that traces from the type reference to an actual call site would justify
+    Confirmed, and it is not run here. The static Confirmed grade is reserved for facts the
+    file alone proves (a shipped firmware image existing on disk, a user-writable DACL); a
+    call-graph reachability claim is not one of those.
 
 .PARAMETER Path
     Install directory or a single .NET assembly.
@@ -87,20 +92,22 @@ function Test-TcpkCefSharp {
                 if (-not $seen.Add($key)) { continue }
                 $fileHadHigher = $true
                 New-TcpkFinding -Module 'discovery' -RuleId 'cef.js-bridge-registered' `
-                    -Severity 'HIGH' -Confidence 'Confirmed' `
-                    -Title "$($pe.Name) registers a JavaScript-to-native bridge ($api)" `
-                    -File $pe.FullName -Evidence "api=$api" `
+                    -Severity 'HIGH' -Confidence 'Inferred' `
+                    -Title "$($pe.Name) references the CefSharp JS-to-native bridge API ($api)" `
+                    -File $pe.FullName -Evidence "api=$api (string reference in the PE; call site not traced)" `
                     -Cwe @('CWE-749') `
-                    -Description ('The assembly calls into the CefSharp bridge that exposes .NET objects ' +
-                        'to the embedded browser. Every method on the registered object becomes callable ' +
-                        'from any JavaScript in any frame the renderer processes. If the browser loads any ' +
-                        'HTML that is not fully first-party (a help page, a payment redirect, a documentation ' +
-                        'iframe, a login redirect back from an IdP, or an XSS in vendor content) that code ' +
-                        'now runs against process-privileged .NET.') `
-                    -Fix ('Prefer JavascriptObjectRepository with async bindings and NameConverter set to a ' +
-                        'strict subset; register a purpose-built bridge object with only the methods you want ' +
-                        'to expose, not a domain type. Consider CEF ExtensionSettings and process-per-site to ' +
-                        'contain a compromised renderer.')
+                    -Description ('The assembly REFERENCES the CefSharp bridge that exposes .NET objects to ' +
+                        'the embedded browser. The literal API name (' + $api + ') is present in the PE, so ' +
+                        'the type is imported. This rule does NOT prove that the call is reached at runtime; ' +
+                        'that would require an IL call-graph trace. Confidence is Inferred until that IL check ' +
+                        'runs. If the call IS reached, every method on the registered bridge object becomes ' +
+                        'callable from any JavaScript the renderer processes: a documentation iframe, a login ' +
+                        'redirect back from an IdP, an XSS in vendor content, all reach process-privileged .NET.') `
+                    -Fix ('Confirm the call site with an IL decompiler (Invoke-TcpkDecompile) or the AI-verify ' +
+                        'layer, then: prefer JavascriptObjectRepository with async bindings and NameConverter ' +
+                        'set to a strict subset; register a purpose-built bridge with only the methods you want ' +
+                        'to expose, not a domain type; consider CEF ExtensionSettings and process-per-site so ' +
+                        'a compromised renderer is contained.')
                 break
             }
         }
