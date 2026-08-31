@@ -4,6 +4,38 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkMqttSurface (A57) - MQTT client surface, static.** New Discovery cmdlet covering
+MQTTnet, uPLibrary.Networking.M2Mqtt, System.Net.Mqtt (archived Xamarin), paho.mqtt (Python),
+Eclipse Paho C (native), and esp-mqtt (companion firmware). Emits 13 rules including
+`mqtt.hardcoded-credentials` (CRITICAL, `WithCredentials("user","pass")` literal pair),
+`mqtt.cleartext-uri` (HIGH, `mqtt://` or `tcp://host:1883`), `mqtt.tls-explicit-disable`
+(HIGH, `UseTls=false`), `mqtt.mqttnet-tls-absent` (HIGH, `WithTcpServer` present with no
+`WithTls` / `MqttClientTlsOptions` reference), `mqtt.paho-python-tls-absent` (HIGH,
+`.connect()` without `.tls_set()` in the same .py), `mqtt.tls-verify-off` (HIGH,
+`WithAllowUntrustedCertificates(true)` / `WithIgnoreCertificateChainErrors(true)` /
+`tls_insecure_set(True)`), `mqtt.static-clientid` (HIGH, `WithClientId("literal")` with no
+Guid/uuid/random neighbour, session-hijack primitive on the broker), `mqtt.root-wildcard-subscribe`
+(HIGH for root `#`/`+`, MEDIUM for scoped wildcards), `mqtt.esp-transport-tcp` (HIGH,
+esp-mqtt `MQTT_TRANSPORT_OVER_TCP` with no `OVER_SSL` sibling), `mqtt.paho-c-nontls-build`
+(HIGH, `paho-mqtt3c.dll` present without the `paho-mqtt3cs.dll` TLS sibling), and
+`mqtt.systemnetmqtt-unmaintained` (MEDIUM, archived Xamarin client). Every rule gated on
+a per-file MQTT-library anchor to keep noise off unrelated files.
+
+**Test-TcpkProvisioningPoP (A58) - IoT provisioning PoP, static.** New Discovery cmdlet
+that surfaces shipped commissioning secrets across the six provisioning stacks a Windows
+companion app talks to: ESP-IDF Wi-Fi provisioning (`prov.esp.security0` HIGH,
+`prov.esp.pop-hardcoded` HIGH, `prov.esp.default-pop-sentinel` HIGH for `abcd1234`,
+`prov.esp.security2-creds-hardcoded` HIGH), AWS IoT Fleet Provisioning (a `claim.crt` +
+`claim.key` pair alongside a `$aws/certificates/create` topic anchor is
+`prov.aws.claim-cert-shipped` HIGH), Azure DPS symmetric-key attestation
+(`prov.azure.dps-symkey-hardcoded` HIGH, `SecurityProviderSymmetricKey` + a 32/64-byte
+base64 literal), Matter/CHIP (`prov.matter.passcode-hardcoded` HIGH,
+`prov.matter.sample-pin` HIGH for CHIP SDK 20202021 / 12345678, `prov.matter.qr-shipped`
+MEDIUM), Zigbee (`prov.zigbee.default-tclk` CRITICAL for `ZigBeeAlliance09`,
+`prov.zigbee.install-code-hardcoded` HIGH), and BLE SMP Just-Works fallback
+(`prov.ble.just-works-fallback` MEDIUM). Every rule gated on a per-file family anchor
+except `prov.aws.claim-cert-shipped` which is directory-scoped.
+
 **Test-TcpkBlePairing (A56) - BLE pairing model, static.** New Discovery cmdlet that extends
 A50 Test-TcpkDeviceComm from "the app speaks BLE" to "here is the pairing ceremony it does
 and here is why it is weak". Reports 12 conditions across the WinRT stack (`DevicePairingProtectionLevel.None`,

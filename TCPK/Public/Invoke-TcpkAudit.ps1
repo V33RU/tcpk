@@ -446,6 +446,8 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkQtSurface'           { Test-TcpkQtSurface           -Path $expanded }
     _RunCheck 'Test-TcpkDeviceComm'          { Test-TcpkDeviceComm          -Path $expanded }
     _RunCheck 'Test-TcpkBlePairing'          { Test-TcpkBlePairing          -Path $expanded }
+    _RunCheck 'Test-TcpkMqttSurface'         { Test-TcpkMqttSurface         -Path $expanded }
+    _RunCheck 'Test-TcpkProvisioningPoP'     { Test-TcpkProvisioningPoP     -Path $expanded }
     _RunCheck 'Test-TcpkDiscoveryProtocols'  { Test-TcpkDiscoveryProtocols  -Path $expanded }
     _RunCheck 'Test-TcpkFirmwareImages'      { Test-TcpkFirmwareImages      -Path $expanded }
     _RunCheck 'Test-TcpkFirmwareManifest'    { Test-TcpkFirmwareManifest    -Path $expanded }
