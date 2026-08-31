@@ -447,6 +447,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkDeviceComm'          { Test-TcpkDeviceComm          -Path $expanded }
     _RunCheck 'Test-TcpkDiscoveryProtocols'  { Test-TcpkDiscoveryProtocols  -Path $expanded }
     _RunCheck 'Test-TcpkFirmwareImages'      { Test-TcpkFirmwareImages      -Path $expanded }
+    _RunCheck 'Test-TcpkFirmwareManifest'    { Test-TcpkFirmwareManifest    -Path $expanded }
     _RunCheck 'Test-TcpkShippedTooling'      { Test-TcpkShippedTooling      -Path $expanded }
     _RunCheck 'Test-TcpkCefSharp'            { Test-TcpkCefSharp            -Path $expanded }
     _RunCheck 'Test-TcpkUpdateChannel'       { Test-TcpkUpdateChannel       -Path $expanded }

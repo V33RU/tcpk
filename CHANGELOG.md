@@ -4,6 +4,15 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkFirmwareManifest (A55) - static firmware-manifest parser.** New Discovery cmdlet that
+reads JSON firmware manifests (files carrying both a version-like and a URL-like field) and reports
+five conditions the vendor updater would trust the manifest for: `firmware.manifest.plaintext-url`
+(HIGH, http:// artifact URL, MITM substitution), `firmware.manifest.no-signature` (HIGH, no
+signature field of any recognised alias), `firmware.manifest.hash-only` (MEDIUM, integrity without
+authenticity), `firmware.manifest.weak-hash` (HIGH, MD5/SHA1/CRC32/xxhash), `firmware.manifest.no-rollback-guard`
+(LOW, no minVersion/previousVersion). The shape gate (version-like AND url-like) keeps unrelated
+JSON out of the report. Static complement to `Invoke-TcpkFirmwarePlantProbe` (K25).
+
 **Attribution debt paid: `cef.js-bridge-registered` and `firmware.image-shipped` downgraded from
 Confirmed to Inferred.** Both rules emitted `Confirmed` on evidence that was pattern-based, not
 proof-based:

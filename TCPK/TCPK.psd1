@@ -171,6 +171,7 @@
         'Test-TcpkFileActivity',
         'Test-TcpkFirewallRules',
         'Test-TcpkFirmwareImages',
+        'Test-TcpkFirmwareManifest',
         'Test-TcpkFolderAcls',
         'Test-TcpkGoRustDeps',
         'Test-TcpkGrpcSurface',
