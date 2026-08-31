@@ -445,6 +445,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkAppStack'            { Test-TcpkAppStack            -Path $expanded }
     _RunCheck 'Test-TcpkQtSurface'           { Test-TcpkQtSurface           -Path $expanded }
     _RunCheck 'Test-TcpkDeviceComm'          { Test-TcpkDeviceComm          -Path $expanded }
+    _RunCheck 'Test-TcpkBlePairing'          { Test-TcpkBlePairing          -Path $expanded }
     _RunCheck 'Test-TcpkDiscoveryProtocols'  { Test-TcpkDiscoveryProtocols  -Path $expanded }
     _RunCheck 'Test-TcpkFirmwareImages'      { Test-TcpkFirmwareImages      -Path $expanded }
     _RunCheck 'Test-TcpkFirmwareManifest'    { Test-TcpkFirmwareManifest    -Path $expanded }
@@ -538,6 +539,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkInstallerPlanting'   { Test-TcpkInstallerPlanting   -Path $expanded }
     _RunCheck 'Test-TcpkMsiCustomActions'   { Test-TcpkMsiCustomActions    -Path $expanded }
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
+    _RunCheck 'Test-TcpkVendorDriverAcl'     { Test-TcpkVendorDriverAcl     -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $idTerms -Path $expanded }
     # All name-targeted checks are app-aware: they take the FULL derived term set so
     # they find data keyed by product code / CLSID / brand name / vendor, not just one

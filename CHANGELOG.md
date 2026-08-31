@@ -4,6 +4,34 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkBlePairing (A56) - BLE pairing model, static.** New Discovery cmdlet that extends
+A50 Test-TcpkDeviceComm from "the app speaks BLE" to "here is the pairing ceremony it does
+and here is why it is weak". Reports 12 conditions across the WinRT stack (`DevicePairingProtectionLevel.None`,
+`Encryption` without `EncryptionAndAuthentication`, `PairAsync` with no protection literal,
+`ConfirmOnly`-only DevicePairingKinds, auto-accept via zero-arg `Accept()`, hardcoded 4/6-digit
+passkey near call site, 32-hex-character LTK/IRK near key-material anchor), 32feet.NET
+(hardcoded PIN near BluetoothSecurity, `Confirm=true` with no address check), Qt
+(`pairingConfirmation(true)`), native Win32 Bluetooth (`BLUETOOTH_MITM_PROTECTION_NOT_REQUIRED`),
+and firmware SDK markers (Nordic `.lesc=0`/`.mitm=0`, TI `GAPBOND_SECURE_CONNECTION_NONE`,
+Silabs BGAPI `noinputnooutput`). Gated on a BLE anchor in the same file so unrelated
+`DevicePairingProtectionLevel` usage (Wi-Fi Direct, Miracast, USB pickers) cannot fire. All
+findings Inferred except the shape gate itself; a live BT-HCI capture or Frida hook promotes
+each to Confirmed.
+
+**Test-TcpkVendorDriverAcl (C19) - vendor kernel driver attack surface.** New OsIntegration
+cmdlet that combines what C14 (Test-TcpkKernelDrivers), C05 (Test-TcpkInstallDirAcl) and C18
+(Test-TcpkServiceBinaryAcl) look at separately, so a .sys that is a real kernel PE AND sitting
+on a user-writable file/folder AND registered as a Type 1/2 service becomes a single visible
+LPE primitive. Every rule is gated on `driver.kernel-pe-confirmed` (MZ/PE + IMAGE_SUBSYSTEM_NATIVE
++ at least one import from ntoskrnl / hal / wdfldr / storport / netio / ndis / fltmgr / ksecdd)
+so a .sys extension alone cannot fire it. Rules include `driver.sys-file-dacl-writable`,
+`driver.sys-folder-dacl-writable`, `driver.service-regkey-dacl-writable`,
+`driver.imagepath-outside-system32`, `driver.inf-registers-kernel-service`,
+`driver.inf-missing-catalog`, `driver.installer-disables-dse` (bcdedit /set testsigning on in
+a shipped script), `driver.vendor-known-package` (Silabs / WCH / FTDI / ST / Segger / Nordic /
+Microchip / Razer / ASUS / Gigabyte / MSI dictionary), and `driver.jungo-windriver-shipped`
+(windrvr6.sys - BYOVD staple).
+
 **Test-TcpkFirmwareManifest (A55) - static firmware-manifest parser.** New Discovery cmdlet that
 reads JSON firmware manifests (files carrying both a version-like and a URL-like field) and reports
 five conditions the vendor updater would trust the manifest for: `firmware.manifest.plaintext-url`
