@@ -4,6 +4,17 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkDotenvSecrets (A60) - shipped .env file secret-name scanner.** New Discovery
+cmdlet that parses shipped `.env` / `.env.local` / `.env.production` as `KEY=VALUE` and
+flags credentials by KEY NAME (closes the low-entropy blind spot Test-TcpkEntropySecrets
+leaves open). `cfg.dotenv-secret-name` HIGH per line whose key matches a curated pattern
+(`*_PASSWORD`, `*_SECRET`, `*_API_KEY`, `AWS_SECRET_ACCESS_KEY`, `STRIPE_SECRET_KEY`,
+`JWT_SECRET`, `GITHUB_TOKEN`, `SMTP_PASSWORD`, `MQTT_PASSWORD`, ...) with a non-placeholder
+value. `cfg.dotenv-secret-url-embedded` CRITICAL when a value is a URL that carries
+`user:pass@` in the authority. `cfg.dotenv-shipped-in-release` LOW inventory for every
+`.env` under the tree, downgraded to note for `.env.example` / `.env.sample` /
+`.env.template`. Values masked in evidence.
+
 **Test-TcpkHostNameResolution (C21) - LLMNR / NBT-NS host posture + shipped bare-hostname
 config surface.** New OsIntegration cmdlet. `host.llmnr-enabled` MEDIUM reads
 `HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient\EnableMulticast` and fires when it

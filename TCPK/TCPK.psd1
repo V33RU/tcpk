@@ -161,6 +161,7 @@
         'Test-TcpkDllSideload',
         'Test-TcpkDnsLeakage',
         'Test-TcpkDotnetHostHijack',
+        'Test-TcpkDotenvSecrets',
         'Test-TcpkDpapiBlobs',
         'Test-TcpkElectron',
         'Test-TcpkElectronFuses',
