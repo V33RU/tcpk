@@ -4,6 +4,14 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**pipe-dacl.null - Test-TcpkNamedPipeDacl extension.** New HIGH rule that fires when a
+pipe's SDDL contains `D:NO_ACCESS_CONTROL` — the pipe was created with
+`lpSecurityAttributes=NULL` (or with a security descriptor whose DACL is not present).
+Windows treats that as "grant everything to everyone", so any process on the box can
+connect, write, and modify the ACL of the IPC endpoint. Distinct from the existing
+`pipe-dacl.weak` rule: this one names the primitive (NULL DACL) rather than an explicit
+ACE. Historically dominant thick-client-service LPE shape (KB4014981-class).
+
 **creds.securestring-reversible - Test-TcpkSecureStringUsage extension.** The Memory cmdlet
 now scans every shipped .ps1/.psm1 for three reversible-SecureString shapes:
 `ConvertTo-SecureString "<literal>" -AsPlainText -Force` (SecureString wrapped around a

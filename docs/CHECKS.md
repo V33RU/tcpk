@@ -169,7 +169,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkMailslotsAlpc** - E07. Mailslots and ALPC ports.
 - **Test-TcpkMemoryDump** - E09. Dump the process and scan the dump for secrets.
 - **Test-TcpkNamedObjects** - E15. Named kernel objects (mutex/event/section) -- squatting / race surface.
-- **Test-TcpkNamedPipeDacl** - E05. Named pipe DACL inspection (TCAWin gap).
+- **Test-TcpkNamedPipeDacl** - E05. Named pipe DACL inspection. Emits `pipe-dacl.null` HIGH when the SDDL contains `D:NO_ACCESS_CONTROL` (pipe created with lpSecurityAttributes=NULL, grants everything to everyone by construction, KB4014981-class), and `pipe-dacl.weak` HIGH when an ACE grants Everyone / Authenticated Users / Users / INTERACTIVE Write / ChangePermissions / FullControl.
 - **Test-TcpkNamedPipes** - E04. Named pipes whose name suggests a relationship to the target.
 - **Test-TcpkProcessDacl** - E15. Running-process DACL -- injectable by low-privileged users?
 - **Test-TcpkProcessEnvSecrets** - E16. Secrets in a running process's environment block (read-only).
