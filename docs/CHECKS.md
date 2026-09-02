@@ -90,6 +90,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 ## B - MSIX manifest  (9)
 
 - **Test-TcpkMsixAppInstaller** - B05. AppInstaller (auto-update) declaration in AppxManifest.xml.
+- **Test-TcpkMsixAppInstallerFile** - B10. Parses shipped `.appinstaller` XML files (distinct from B05 which only reads the uap5 pointer inside AppxManifest.xml). Rules: `msix.appinstaller.plaintext-uri` HIGH (any Uri attribute is http://), `msix.appinstaller.hotpath-uri` HIGH (HotPath / HotSource / SharedContentPath / RepairPackage / OptionalPackage / ContentGroupMap - live-file patch into the installed dir under the signed package identity), `msix.appinstaller.force-update-any-version` HIGH (allows downgrade to a known-vulnerable older release), `msix.appinstaller.silent-update` MEDIUM (OnLaunch ShowPrompt=false + UpdateBlocksActivation=false), `msix.appinstaller.dependency-cross-domain` MEDIUM (a `<Dependencies>\<Package>` Uri host differs from MainPackage / MainBundle host), `msix.appinstaller.self-uri-mismatch` MEDIUM (root `<AppInstaller Uri>` host differs from MainPackage host).
 - **Test-TcpkMsixCapabilities** - B01. Risky capabilities declared in AppxManifest.xml.
 - **Test-TcpkMsixComServers** - B06. COM server registrations in AppxManifest.xml.
 - **Test-TcpkMsixDeclaredVsUsed** - B08. Declared-vs-used capability cross-check.

@@ -4,6 +4,17 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkMsixAppInstallerFile (B10) - `.appinstaller` XML parser.** New Manifest cmdlet
+that parses shipped `.appinstaller` XML files (distinct from B05 Test-TcpkMsixAppInstaller
+which only reads the `uap5:Extension` pointer inside AppxManifest.xml). Emits 6 rules
+including `msix.appinstaller.plaintext-uri` HIGH per plaintext URI, `msix.appinstaller.hotpath-uri`
+HIGH for HotPath / HotSource / SharedContentPath / RepairPackage / OptionalPackage /
+ContentGroupMap (live-file patch into the installed dir under the signed package identity),
+`msix.appinstaller.force-update-any-version` HIGH (downgrade attack), `msix.appinstaller.silent-update`
+MEDIUM (no user prompt on launch update), `msix.appinstaller.dependency-cross-domain` MEDIUM
+(third-party dependency host), `msix.appinstaller.self-uri-mismatch` MEDIUM (root Uri host
+differs from MainPackage host).
+
 **packer.licensing-drm - Test-TcpkPacker extension.** New MEDIUM rule that fires when the
 PE links against a commercial licensing / DRM runtime: Wibu Systems CodeMeter
 (`WibuCm32/64.dll`, `WibuCmLIF.dll`, `WibuCmPKCS11.dll`), Thales Sentinel LDK

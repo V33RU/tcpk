@@ -205,6 +205,7 @@
         'Test-TcpkMqttSurface',
         'Test-TcpkMsiCustomActions',
         'Test-TcpkMsixAppInstaller',
+        'Test-TcpkMsixAppInstallerFile',
         'Test-TcpkMsixCapabilities',
         'Test-TcpkMsixComServers',
         'Test-TcpkMsixDeclaredVsUsed',
