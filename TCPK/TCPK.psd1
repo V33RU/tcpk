@@ -220,6 +220,7 @@
         'Test-TcpkOAuthState',
         'Test-TcpkPInvokeSurface',
         'Test-TcpkPacker',
+        'Test-TcpkPdbPathLeak',
         'Test-TcpkPageFile',
         'Test-TcpkPeExports',
         'Test-TcpkPeImports',

@@ -4,6 +4,17 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkPdbPathLeak (A59) - PE debug-directory PDB path leakage.** New Discovery cmdlet
+that scans every shipped PE for the CodeView RSDS marker (`52 53 44 53`), skips the fixed
+20-byte GUID + Age header, and reads the null-terminated ASCII PdbPath. Present in every
+unstripped MSVC / clang release even when the .pdb file is not shipped, so this closes the
+gap that Test-TcpkDevArtifacts leaves open. Rules: `pe.debug.pdb-path-userprofile` MEDIUM
+when the path lives under `C:\Users\<name>\` (developer account leak),
+`pe.debug.pdb-path-unc` MEDIUM when it is a UNC path (build-server hostname leak),
+`pe.debug.pdb-path-repo` LOW when it names a `\src\` / `\repo\` / `\projects\` segment,
+and `pe.debug.pdb-path-leak` LOW otherwise. Scan capped at 32 MB per PE (RSDS lives in
+.rdata, first few MB of any real binary) so a 300 MB installer does not page.
+
 **pipe-dacl.null - Test-TcpkNamedPipeDacl extension.** New HIGH rule that fires when a
 pipe's SDDL contains `D:NO_ACCESS_CONTROL` — the pipe was created with
 `lpSecurityAttributes=NULL` (or with a security descriptor whose DACL is not present).
