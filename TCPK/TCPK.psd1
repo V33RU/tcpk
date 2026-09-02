@@ -235,6 +235,7 @@
         'Test-TcpkProgramDataAcls',
         'Test-TcpkProtocolHandlers',
         'Test-TcpkProvisioningPoP',
+        'Test-TcpkPwshProfileAcl',
         'Test-TcpkQtSurface',
         'Test-TcpkReflectionLoading',
         'Test-TcpkRegistryAcl',

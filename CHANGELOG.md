@@ -4,6 +4,16 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkPwshProfileAcl (C20) - PowerShell profile auto-load ACL check.** New OsIntegration
+cmdlet that inspects the six canonical PowerShell profile paths (5.1 x64, 5.1 x86 SysWOW64,
+7.x AllUsers, plus the CurrentUser 5.1 and 7.x paths under `%USERPROFILE%\Documents`) and
+flags any of them whose DACL — or, if the file does not exist yet, the containing directory —
+grants a non-admin principal (Users / Authenticated Users / Everyone / INTERACTIVE) a right
+that permits code injection. Emits `loadpoint.pwsh-profile.file-writable` (HIGH),
+`loadpoint.pwsh-profile.dir-writable` (HIGH), and `loadpoint.pwsh-profile.hijack-source`
+(MEDIUM) for existing profiles that dot-source or Import-Module a path that lives in a
+user-writable folder or that does not exist. ATT&CK T1546.013.
+
 **Test-TcpkMqttSurface (A57) - MQTT client surface, static.** New Discovery cmdlet covering
 MQTTnet, uPLibrary.Networking.M2Mqtt, System.Net.Mqtt (archived Xamarin), paho.mqtt (Python),
 Eclipse Paho C (native), and esp-mqtt (companion firmware). Emits 13 rules including
