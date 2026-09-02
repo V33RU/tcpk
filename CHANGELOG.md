@@ -4,6 +4,18 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkJsSourceMap (A61) - shipped JavaScript source-map exposure.** New Discovery
+cmdlet with three rules. `js.sourcemap.shipped` MEDIUM when a `.js.map` sibling ships
+next to a shipped `.js` (DevTools reconstructs original TS/JSX including comments,
+private class names and inline endpoints). `js.sourcemap.comment-inline` MEDIUM when a
+shipped `.js` has a `//# sourceMappingURL=` comment. `js.sourcemap.datauri` HIGH when the
+sourceMappingURL is `data:application/json;base64,...` (pre-bundle source embedded
+verbatim; the exposure is inescapable). Skips known third-party paths (node_modules
+sub-trees for react / @babel / @types / typescript / electron, site-packages/,
+resources/electron/, vendor/) so first-party signal is not drowned in vendor noise. For
+`.js` above 2 MB the sourceMappingURL scan tails the last 64 KB (that comment is the
+last thing every bundler emits).
+
 **crypto.iv-equals-key - Test-TcpkCryptoMisuse extension.** Two regex-driven flavours
 that fire HIGH Confirmed when the same identifier (`.Key = key; .IV = key`) or the same
 byte-array literal (`.Key = new byte[]{1..16}; .IV = new byte[]{1..16}`) is assigned to

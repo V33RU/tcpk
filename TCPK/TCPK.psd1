@@ -190,6 +190,7 @@
         'Test-TcpkJavaBundle',
         'Test-TcpkJavaNativeLoad',
         'Test-TcpkJavaSigning',
+        'Test-TcpkJsSourceMap',
         'Test-TcpkJwt',
         'Test-TcpkKernelDrivers',
         'Test-TcpkKeyMaterial',
