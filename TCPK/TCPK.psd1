@@ -179,6 +179,7 @@
         'Test-TcpkGrpcSurface',
         'Test-TcpkGuiInspector',
         'Test-TcpkHandleDacl',
+        'Test-TcpkHostNameResolution',
         'Test-TcpkHandleEnumeration',
         'Test-TcpkHollowingApis',
         'Test-TcpkIfeoHijack',

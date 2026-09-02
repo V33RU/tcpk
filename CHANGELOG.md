@@ -4,6 +4,17 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkHostNameResolution (C21) - LLMNR / NBT-NS host posture + shipped bare-hostname
+config surface.** New OsIntegration cmdlet. `host.llmnr-enabled` MEDIUM reads
+`HKLM\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient\EnableMulticast` and fires when it
+is not `0` (default Windows). `host.nbtns-enabled` MEDIUM walks every interface under
+`HKLM\...\NetBT\Parameters\Interfaces` and fires when any `NetbiosOptions` is not `2`.
+`host.mdns-enabled` LOW checks `Dnscache\Parameters\EnableMDNS` (Win10 2004+).
+`cfg.bare-hostname-endpoint` MEDIUM per shipped config that names a backend by bare
+hostname via URI (`mqtt://broker`) or key form (`"Host": "db01"`); skips localhost,
+loopback aliases, numeric IPs and any FQDN. Combined the host + config rules describe
+the classical thick-client-on-hostile-LAN NTLM-capture chain.
+
 **fuses.node-options-env-enabled - Test-TcpkElectronFuses extension.** New HIGH rule that
 emits when Fuse[2] `EnableNodeOptionsEnvironmentVariable` is on. The signed Electron app
 will read `NODE_OPTIONS` from the environment on the next launch, so any local code

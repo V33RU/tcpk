@@ -545,6 +545,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkVendorDriverAcl'     { Test-TcpkVendorDriverAcl     -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkPwshProfileAcl'      { Test-TcpkPwshProfileAcl }
+    _RunCheck 'Test-TcpkHostNameResolution'  { Test-TcpkHostNameResolution -Path $expanded }
     _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $idTerms -Path $expanded }
     # All name-targeted checks are app-aware: they take the FULL derived term set so
     # they find data keyed by product code / CLSID / brand name / vendor, not just one
