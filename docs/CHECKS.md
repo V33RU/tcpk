@@ -37,7 +37,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkClickOnce** - A29. ClickOnce deployment hijack surface detection.
 - **Test-TcpkCodeIntegrity** - A15. AppxMetadata\CodeIntegrity.cat signature status.
 - **Test-TcpkCrashReporter** - A47. Electron / Crashpad crash-reporting exposure (T1005). Electron apps use Crashpad, not Windows Error Reporting, so the WER checks do not apply to them and this one does. Recovers crashReporter.start() config (uploadToServer, submitURL, extra{}) from app.asar and loose first-party JS, and inspects the Crashpad database under the app's own userData directory for dumps and a weak ACL. Attribution is by construction: the database lives inside %APPDATA%\<productName>\Crashpad, so no other product's crash data is examined.
-- **Test-TcpkCryptoMisuse** - A13. Crypto-misuse hunter -- hardcoded key material + weak KDF / padding.
+- **Test-TcpkCryptoMisuse** - A13. Crypto-misuse hunter -- hardcoded key material + weak KDF / padding. Also emits `crypto.iv-equals-key` HIGH Confirmed when the SAME identifier is assigned to both `.Key` and `.IV` within 512 chars in the source text, OR when the same byte-array literal is used for both - the AES-GCM nonce-reuse / CBC deterministic-encryption failure mode.
 - **Test-TcpkCsvInjection** - A39. CSV / spreadsheet formula injection on export (CWE-1236): export sink with no formula-character neutralization.
 - **Test-TcpkDebugFlags** - A16. Debug switches, security-disabling flags, and backdoor markers.
 - **Test-TcpkDeserialization** - A10. Static heuristic for unsafe .NET deserialization patterns.

@@ -93,6 +93,65 @@ function Test-TcpkCryptoMisuse {
             }
         }
 
+        # ---- crypto.iv-equals-key: two flavours -------------------------------------
+        # a) Same variable/identifier assigned to both Key and IV within the same 512-char
+        #    window: '.Key = X ... .IV = X' or '.IV = X ... .Key = X'. Catches C#, VB,
+        #    PowerShell, F# and any other .NET language whose property-set syntax leaves
+        #    literals in the IL text. Under AES-GCM this is nonce reuse (catastrophic);
+        #    under CBC it collapses to a deterministic-encryption oracle because the same
+        #    plaintext always encrypts to the same first block.
+        $sameIdRx = '(?is)\.\s*Key\s*=\s*([A-Za-z_][A-Za-z0-9_.]*)\s*[;\r\n].{0,512}?\.\s*IV\s*=\s*([A-Za-z_][A-Za-z0-9_.]*)\s*[;\r\n]|\.\s*IV\s*=\s*([A-Za-z_][A-Za-z0-9_.]*)\s*[;\r\n].{0,512}?\.\s*Key\s*=\s*([A-Za-z_][A-Za-z0-9_.]*)\s*[;\r\n]'
+        foreach ($m in [regex]::Matches($text, $sameIdRx)) {
+            # Two branch-shapes: (Key first, IV second) captures groups 1+2, (IV first, Key
+            # second) captures groups 3+4. Extract the pair whichever branch fired.
+            $a = if ($m.Groups[1].Success -and $m.Groups[1].Value) { $m.Groups[1].Value } else { $m.Groups[4].Value }
+            $b = if ($m.Groups[2].Success -and $m.Groups[2].Value) { $m.Groups[2].Value } else { $m.Groups[3].Value }
+            if (-not $a -or -not $b) { continue }
+            if ($a -ne $b) { continue }
+            # Skip a common false-positive shape: '.Key = new byte[16]' + '.IV = new byte[16]'
+            # would not reach here (the captured identifier would be 'new' - not a valid
+            # C# identifier for a property assignment - and 'new' equals 'new' would still
+            # fire). Reject 'new' explicitly.
+            if ($a -in 'new','null','default') { continue }
+            New-TcpkFinding -Module 'static' -RuleId 'crypto.iv-equals-key' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title "IV = Key: same identifier '$a' assigned to both Key and IV in $($pe.Name)" `
+                -File $pe.FullName -Evidence "Key = $a ... IV = $a (within 512 chars)" `
+                -Cwe @('CWE-323','CWE-329','CWE-1204') `
+                -Description ('The same identifier is assigned to both the Key and IV properties of a ' +
+                    "symmetric cipher within a 512-char window. Under GCM (or any AEAD) this is nonce " +
+                    'reuse and the CATASTROPHIC failure mode: the authentication key is recoverable ' +
+                    "from two ciphertexts encrypted under the same (Key, IV) pair. Under CBC it collapses " +
+                    "to a deterministic-encryption oracle - identical plaintext blocks always encrypt to " +
+                    "identical ciphertext blocks. Confirmed for what the source text literally says; the " +
+                    "IL prover in Get-TcpkCryptoVerdicts is authoritative for compiled binaries.") `
+                -Fix 'Generate a fresh random IV per encryption via RandomNumberGenerator.GetBytes and store it prepended to the ciphertext. Never derive IV = Key.'
+            break   # one finding per PE is enough scope info; a real .NET codebase does not repeat this
+        }
+        # b) Same byte-array LITERAL near both Key and IV setters. Catches the shape
+        #    'aes.Key = new byte[]{1,2,...16}; aes.IV = new byte[]{1,2,...16}' with the
+        #    same content on both sides.
+        $litRx = '(?is)\.\s*Key\s*=\s*new\s+[Bb]yte\s*\[\s*\]\s*\{([^}]{16,200})\}.{0,512}?\.\s*IV\s*=\s*new\s+[Bb]yte\s*\[\s*\]\s*\{([^}]{16,200})\}|\.\s*IV\s*=\s*new\s+[Bb]yte\s*\[\s*\]\s*\{([^}]{16,200})\}.{0,512}?\.\s*Key\s*=\s*new\s+[Bb]yte\s*\[\s*\]\s*\{([^}]{16,200})\}'
+        foreach ($m in [regex]::Matches($text, $litRx)) {
+            $x = if ($m.Groups[1].Success -and $m.Groups[1].Value) { $m.Groups[1].Value } else { $m.Groups[4].Value }
+            $y = if ($m.Groups[2].Success -and $m.Groups[2].Value) { $m.Groups[2].Value } else { $m.Groups[3].Value }
+            if (-not $x -or -not $y) { continue }
+            # Normalise whitespace before comparing.
+            $xn = ($x -replace '\s+','')
+            $yn = ($y -replace '\s+','')
+            if ($xn -ne $yn) { continue }
+            New-TcpkFinding -Module 'static' -RuleId 'crypto.iv-equals-key' `
+                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Title "IV = Key (literal): the same byte-array is assigned to both in $($pe.Name)" `
+                -File $pe.FullName -Evidence ("bytes[0..40]=" + $xn.Substring(0, [Math]::Min(40, $xn.Length)) + '...') `
+                -Cwe @('CWE-323','CWE-329','CWE-1204') `
+                -Description ('The same byte-array literal is assigned to both the Key and IV of a ' +
+                    'symmetric cipher within a 512-char window. Deterministic-encryption / nonce-reuse ' +
+                    'primitive; see the identifier-shape rule above for the failure mode under GCM vs CBC.') `
+                -Fix 'Generate a fresh random IV per encryption via RandomNumberGenerator.GetBytes and store it prepended to the ciphertext. Never derive IV from the Key.'
+            break
+        }
+
         # ---- 3) IL-PROVEN weak crypto (Confirmed): read the actual construction / constant ----
         # A source-string regex rarely survives compilation (a hardcoded key becomes a
         # newarr + InitializeArray; ECB becomes ldc.i4.2 + set_Mode). Reading the IL proves

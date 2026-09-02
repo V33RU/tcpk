@@ -4,6 +4,15 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**crypto.iv-equals-key - Test-TcpkCryptoMisuse extension.** Two regex-driven flavours
+that fire HIGH Confirmed when the same identifier (`.Key = key; .IV = key`) or the same
+byte-array literal (`.Key = new byte[]{1..16}; .IV = new byte[]{1..16}`) is assigned to
+both the Key and IV of a symmetric cipher within a 512-char window in the source text.
+Under AES-GCM this is nonce reuse and the catastrophic failure mode - the authentication
+key is recoverable from two ciphertexts encrypted under the same (Key, IV). Under CBC it
+collapses to a deterministic-encryption oracle. The IL prover in Get-TcpkCryptoVerdicts
+remains authoritative for compiled binaries.
+
 **Test-TcpkDotenvSecrets (A60) - shipped .env file secret-name scanner.** New Discovery
 cmdlet that parses shipped `.env` / `.env.local` / `.env.production` as `KEY=VALUE` and
 flags credentials by KEY NAME (closes the low-entropy blind spot Test-TcpkEntropySecrets
