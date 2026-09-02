@@ -61,7 +61,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkJwt** - A14. Embedded JSON Web Token (JWT) discovery + weakness analysis.
 - **Test-TcpkMsixPsf** - A33. Package Support Framework (PSF) script injection in MSIX packages.
 - **Test-TcpkNativeInterop** - A18. Native interop -- unsafe Marshal / pointer patterns.
-- **Test-TcpkPacker** - A22. Packer / obfuscator detection -- and the inverse: source-recoverable
+- **Test-TcpkPacker** - A22. Packer / obfuscator detection -- and the inverse: source-recoverable. Also emits `packer.licensing-drm` MEDIUM when the PE links against a commercial licensing / DRM runtime (Wibu Systems CodeMeter `WibuCm*.dll`, Thales Sentinel LDK `hasp_windows*.dll` / `haspds_*.dll` / `sntl_adminapi_*.dll`, SafeNet HASP HL `hasp4_*` / `aksclt*` / `aksfridge`, Flexera FlexNet `lmgr11.dll` / `flexnet.dll`, SoftwareShield SmartLicense). These wrappers dominate enterprise thick clients but their section names drift across product versions, so import-DLL basename is the stable fingerprint. Marks the PE `PackedOpaque` so downstream string / callsite / entropy checks are graded UNRELIABLE rather than clean.
 - **Test-TcpkPeExports** - A04. PE export surface enumeration (for proxy-DLL planning).
 - **Test-TcpkPeImports** - A03 -- Phantom DLL imports (DLL hijack candidates).
 - **Test-TcpkPeMitigations** - A02 -- PE compile-time mitigations (ASLR, DEP, CFG, HighEntropyVA). NOT in the default audit (opt-in / compliance use): the audit reports hardening as posture in the DLL Mitigation Matrix (Get-TcpkPeHardening), not as findings.

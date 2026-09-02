@@ -134,6 +134,42 @@ function Test-TcpkPacker {
 
     $upxExe = if ($Unpack) { (Get-Command upx -ErrorAction SilentlyContinue).Source } else { $null }
 
+    # Licensing / DRM protector import-DLL signatures. Distinct from the RE-scene packer
+    # map below because these products dominate real enterprise thick clients (industrial
+    # machine control, engineering seats, medical devices, node-locked SDKs), yet the section
+    # names they leave behind vary across product versions. Import-DLL basenames are the
+    # stable fingerprint: the wrapping runtime dynamically links against a small set of
+    # per-vendor DLLs by name at every runtime, regardless of where the encryption stub is
+    # laid out in the PE. Basenames are matched case-insensitive.
+    $licensingDllMap = @{
+        # Wibu Systems - CodeMeter / CmActLicense
+        'wibucm32.dll'       = 'Wibu Systems CodeMeter'
+        'wibucm64.dll'       = 'Wibu Systems CodeMeter'
+        'wibucmlif.dll'      = 'Wibu Systems CodeMeter'
+        'wibucmpkcs11.dll'   = 'Wibu Systems CodeMeter'
+        # Thales / SafeNet / Aladdin - Sentinel LDK (formerly HASP SRM)
+        'hasp_windows.dll'         = 'Thales Sentinel LDK'
+        'hasp_windows_x64.dll'     = 'Thales Sentinel LDK'
+        'hasp_net_windows.dll'     = 'Thales Sentinel LDK'
+        'hasp_rt.exe'              = 'Thales Sentinel LDK'
+        'haspds_windows.dll'       = 'Thales Sentinel LDK'
+        'haspds_windows_x64.dll'   = 'Thales Sentinel LDK'
+        'sntl_adminapi_windows.dll'         = 'Thales Sentinel LDK Admin API'
+        'sntl_adminapi_net_windows.dll'     = 'Thales Sentinel LDK Admin API'
+        # SafeNet legacy HASP HL / HASP4
+        'hasp4_32.dll'  = 'SafeNet HASP HL / HASP4'
+        'hasp4_64.dll'  = 'SafeNet HASP HL / HASP4'
+        'aksclt32.dll'  = 'SafeNet HASP HL'
+        'aksclt64.dll'  = 'SafeNet HASP HL'
+        'aksfridge.dll' = 'SafeNet HASP HL'
+        # Flexera / Revenera FlexNet Publisher (formerly Macrovision)
+        'lmgr11.dll'    = 'Flexera FlexNet Publisher'
+        'lmgr9.dll'     = 'Flexera FlexNet Publisher'
+        'flexnet.dll'   = 'Flexera FlexNet Publisher'
+        # SoftwareShield SmartLicense
+        'ssuiwzd.dll'   = 'SoftwareShield SmartLicense'
+    }
+
     # Packer / protector section-name signatures
     $packerSecs = @{
         'UPX0'='UPX'; 'UPX1'='UPX'; 'UPX2'='UPX'; '.UPX0'='UPX'
@@ -219,6 +255,40 @@ function Test-TcpkPacker {
                 }
                 $packerFound = $true
                 break
+            }
+        }
+
+        # 1b) Licensing / DRM wrapper import-DLL check. Runs even when the section-name
+        # check missed (product-version drift changes section names but not the DLLs the
+        # runtime links against). Skipped when the section-name check already fired so we
+        # do not double-report the same wrapper.
+        if (-not $packerFound) {
+            $drmHit = $null; $drmDll = ''
+            foreach ($imp in $info.Imports) {
+                $mod = "$($imp.Module)".ToLowerInvariant()
+                if ($licensingDllMap.ContainsKey($mod)) {
+                    $drmHit = $licensingDllMap[$mod]
+                    $drmDll = $mod
+                    break
+                }
+            }
+            if ($drmHit) {
+                New-TcpkFinding -Module 'static' -RuleId 'packer.licensing-drm' `
+                    -Severity 'MEDIUM' -Confidence 'Confirmed' `
+                    -Title "$($pe.Name) is wrapped by a licensing / DRM protector ($drmHit)" `
+                    -File $pe.FullName -Evidence "imports $drmDll" `
+                    -Cwe @('CWE-656') `
+                    -Description ("The PE links against a runtime DLL that belongs to a commercial " +
+                        "licensing / DRM protector. These wrappers dominate real enterprise thick clients " +
+                        "(industrial machine control, engineering / CAD seats, medical devices, node-locked " +
+                        "SDKs) and change the whole audit picture: strings, callsites, TLS-bypass and entropy " +
+                        "checks read the wrapper stub rather than the application, so a low finding count is " +
+                        "NOT a clean result. This finding is scope information for the operator, not a defect. " +
+                        "TCPK's RE-scene packer map (Themida / VMProtect / UPX / etc.) misses this class of " +
+                        "protector because their section names vary across product versions.") `
+                    -Fix 'No fix required. Obtain a licensed unwrapped copy of the application from the vendor for audit (each protector has a vendor-authorised debug / dry-run mode), or scope the engagement to dynamic analysis in a licensed VM.'
+                try { Add-TcpkScanSkip -Kind 'PackedOpaque' -ItemPath "$($pe.FullName) ($drmHit)" } catch { }
+                $packerFound = $true
             }
         }
 

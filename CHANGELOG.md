@@ -4,6 +4,19 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**packer.licensing-drm - Test-TcpkPacker extension.** New MEDIUM rule that fires when the
+PE links against a commercial licensing / DRM runtime: Wibu Systems CodeMeter
+(`WibuCm32/64.dll`, `WibuCmLIF.dll`, `WibuCmPKCS11.dll`), Thales Sentinel LDK
+(`hasp_windows*.dll`, `hasp_net_windows.dll`, `haspds_windows*.dll`,
+`sntl_adminapi_*.dll`), SafeNet legacy HASP HL (`hasp4_32/64.dll`, `aksclt32/64.dll`,
+`aksfridge.dll`), Flexera / Revenera FlexNet Publisher (`lmgr9/11.dll`, `flexnet.dll`)
+and SoftwareShield SmartLicense (`ssuiwzd.dll`). These wrappers dominate real enterprise
+thick clients (industrial machine control, engineering seats, medical devices,
+node-locked SDKs) but the current RE-scene packer map (Themida / VMProtect / UPX etc.)
+misses them because their section names drift across product versions; import-DLL basename
+is the stable fingerprint. Marks the PE `PackedOpaque` so downstream string / callsite
+/ entropy checks are graded UNRELIABLE rather than clean.
+
 **Test-TcpkPdbPathLeak (A59) - PE debug-directory PDB path leakage.** New Discovery cmdlet
 that scans every shipped PE for the CodeView RSDS marker (`52 53 44 53`), skips the fixed
 20-byte GUID + Age header, and reads the null-terminated ASCII PdbPath. Present in every
