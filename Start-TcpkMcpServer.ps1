@@ -518,7 +518,12 @@ $script:ToolDefs = @(
 # artifacts). Only tcpk_cve_match reaches the network (OSV / NVD).
 # ---------------------------------------------------------------------------
 $script:ToolWrites      = @('tcpk_audit')
-$script:ToolDestructive = @('tcpk_generate_poc')
+# tcpk_audit is destructive too, not just a writer: on a .msi target it dispatches to
+# 'msiexec /a', which runs the installer's AdminExecuteSequence (arbitrary vendor code
+# from an attacker-supplied .msi). The runInstaller=true gate at the top of the handler
+# is the real safety, but marking destructive here means an MCP client that skips prompts
+# for non-destructive tools still shows one for tcpk_audit.
+$script:ToolDestructive = @('tcpk_audit','tcpk_generate_poc')
 $script:ToolNetwork     = @('tcpk_cve_match')
 foreach ($d in $script:ToolDefs) {
     $n = "$($d.name)"
