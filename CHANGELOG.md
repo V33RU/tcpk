@@ -4,6 +4,18 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Test-TcpkNugetConfigCreds (A62) - shipped nuget.config credential leak.** New Discovery
+cmdlet that parses every `nuget.config` in the install tree and fires three rules.
+`supply.nuget.cleartext-password` CRITICAL when a `<packageSourceCredentials>` block
+carries `<add key="ClearTextPassword" value="..."/>` — anyone with the installer holds a
+live credential to a private NuGet feed, cannot be rotated without breaking every install.
+`supply.nuget.dpapi-password` HIGH when the DPAPI-encrypted `Password` variant is
+shipped — only reversible on the origin machine + user context, but any tester with
+execution in that context does the unprotect and gets the plaintext. `supply.nuget.private-feed`
+LOW inventory rule for every `<packageSources>` entry pointing outside `api.nuget.org`
+(scope information about the supply chain). Placeholder values (`${env:X}`, `changeme`,
+`YOUR_PASSWORD`) are skipped.
+
 **Test-TcpkJsSourceMap (A61) - shipped JavaScript source-map exposure.** New Discovery
 cmdlet with three rules. `js.sourcemap.shipped` MEDIUM when a `.js.map` sibling ships
 next to a shipped `.js` (DevTools reconstructs original TS/JSX including comments,

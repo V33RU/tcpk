@@ -220,6 +220,7 @@
         'Test-TcpkNamedObjects',
         'Test-TcpkNamedPipeDacl',
         'Test-TcpkNamedPipes',
+        'Test-TcpkNugetConfigCreds',
         'Test-TcpkNativeInterop',
         'Test-TcpkOAuthState',
         'Test-TcpkPInvokeSurface',

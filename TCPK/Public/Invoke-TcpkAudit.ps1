@@ -412,6 +412,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkMsixAppInstallerFile'{ Test-TcpkMsixAppInstallerFile -Path $expanded }
     _RunCheck 'Test-TcpkDotenvSecrets'       { Test-TcpkDotenvSecrets       -Path $expanded }
     _RunCheck 'Test-TcpkJsSourceMap'         { Test-TcpkJsSourceMap         -Path $expanded }
+    _RunCheck 'Test-TcpkNugetConfigCreds'    { Test-TcpkNugetConfigCreds    -Path $expanded }
     _RunCheck 'Test-TcpkDependencyConfusion' { Test-TcpkDependencyConfusion  -Path $expanded }
     _RunCheck 'Test-TcpkGoRustDeps'          { Test-TcpkGoRustDeps          -Path $expanded }
     _RunCheck 'Test-TcpkEmbeddedScripts'     { Test-TcpkEmbeddedScripts     -Path $expanded }
