@@ -4,6 +4,16 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**creds.securestring-reversible - Test-TcpkSecureStringUsage extension.** The Memory cmdlet
+now scans every shipped .ps1/.psm1 for three reversible-SecureString shapes:
+`ConvertTo-SecureString "<literal>" -AsPlainText -Force` (SecureString wrapped around a
+hardcoded plaintext credential), `ConvertFrom-SecureString -Key @(<literal bytes>)`
+(serialised ciphertext with the exact literal key needed to reverse it in the same file),
+and `ConvertTo-SecureString "<b64>" -Key @(<literal bytes>)` (encrypted blob plus its
+literal key in one statement). Emits HIGH Confirmed. Variable-arg forms (`$key`,
+`$plaintext`, `Read-Host -AsSecureString`) are skipped so false positives stay at zero;
+the trade-off is documented in the cmdlet's DESCRIPTION.
+
 **Test-TcpkPwshProfileAcl (C20) - PowerShell profile auto-load ACL check.** New OsIntegration
 cmdlet that inspects the six canonical PowerShell profile paths (5.1 x64, 5.1 x86 SysWOW64,
 7.x AllUsers, plus the CurrentUser 5.1 and 7.x paths under `%USERPROFILE%\Documents`) and

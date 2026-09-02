@@ -216,7 +216,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkClipboardSecrets** - I05. Clipboard secret monitoring during a test session (polls for passwords, API keys, tokens).
 - **Test-TcpkMemorySecrets** - I04. Live-memory secret scan (read-only) of a running process.
 - **Test-TcpkPageFile** - I02. Page file / hibernation file secrecy hygiene.
-- **Test-TcpkSecureStringUsage** - I03. SecureString / ProtectedData usage in first-party code.
+- **Test-TcpkSecureStringUsage** - I03. SecureString / ProtectedData usage in first-party code. Also scans shipped .ps1/.psm1 for reversible-SecureString shapes and emits `creds.securestring-reversible` HIGH on: `ConvertTo-SecureString "<literal>" -AsPlainText -Force` (hardcoded plaintext credential), `ConvertFrom-SecureString -Key @(<literal bytes>)` (serialised ciphertext + its exact key in one file), and `ConvertTo-SecureString "<b64>" -Key @(<literal bytes>)` (encrypted blob and its literal key together). Fires only on literal args; variable-arg forms are skipped to hold false positives at zero.
 - **Test-TcpkWerPolicy** - I01. Windows Error Reporting LocalDumps per-app policy for the target executable. LocalDumps is not enabled by default and requires admin, so an absent key emits nothing by design: that is machine posture the vendor cannot fix. Not applicable to Electron apps, which use Crashpad.
 
 ## J - Anti-debug  (4)
