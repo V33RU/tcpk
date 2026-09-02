@@ -4,6 +4,15 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**fuses.node-options-env-enabled - Test-TcpkElectronFuses extension.** New HIGH rule that
+emits when Fuse[2] `EnableNodeOptionsEnvironmentVariable` is on. The signed Electron app
+will read `NODE_OPTIONS` from the environment on the next launch, so any local code
+running as the user sets `NODE_OPTIONS=--require ./x.js` and gets arbitrary JavaScript
+under the signed app identity - no need to spawn the binary with special args. Combined
+with a user-writable install directory (Squirrel's default `%LOCALAPPDATA%` layout) this
+is a straightforward LPE / persistence primitive. Previous coverage flagged fuses 0, 1,
+3, 4 only; the fuse table description at the top of the cmdlet is updated to list [2].
+
 **Test-TcpkMsixAppInstallerFile (B10) - `.appinstaller` XML parser.** New Manifest cmdlet
 that parses shipped `.appinstaller` XML files (distinct from B05 Test-TcpkMsixAppInstaller
 which only reads the `uap5:Extension` pointer inside AppxManifest.xml). Emits 6 rules

@@ -12,9 +12,10 @@ function Test-TcpkElectronFuses {
     directly from the binary, these findings are Confirmed facts, not leads.
 
     Insecure states flagged (FuseV1 order):
-      [0] RunAsNode = on                      -> ELECTRON_RUN_AS_NODE node-exec LOLBin
-      [1] EnableCookieEncryption = off        -> cookies (incl. auth tokens) stored plaintext
-      [3] EnableNodeCliInspectArguments = on  -> --inspect debug port -> code execution
+      [0] RunAsNode = on                             -> ELECTRON_RUN_AS_NODE node-exec LOLBin
+      [1] EnableCookieEncryption = off               -> cookies (incl. auth tokens) stored plaintext
+      [2] EnableNodeOptionsEnvironmentVariable = on  -> NODE_OPTIONS=--require ./x.js LPE under signed identity
+      [3] EnableNodeCliInspectArguments = on         -> --inspect debug port -> code execution
       [4] EnableEmbeddedAsarIntegrityValidation = off -> app.asar tamperable (no integrity)
     A posture INFO finding lists the full wire for the remaining fuses.
 
@@ -103,6 +104,21 @@ function Test-TcpkElectronFuses {
             -Evidence "RunAsNode=1 (fuses=$f)" -Cwe @('CWE-489','CWE-94') `
             -Description 'The RunAsNode fuse is enabled, so the app binary can be relaunched as a general Node.js interpreter via the ELECTRON_RUN_AS_NODE environment variable, letting a local attacker execute arbitrary Node code under the (often signed) app identity -- a living-off-the-land / defense-evasion primitive.' `
             -Fix 'Disable the RunAsNode fuse unless the app genuinely needs ELECTRON_RUN_AS_NODE.'
+    }
+    if ((& $at 2) -eq '1') {
+        New-TcpkFinding -Module 'static' -RuleId 'fuses.node-options-env-enabled' `
+            -Severity 'HIGH' -Confidence 'Confirmed' `
+            -Title 'Electron NodeOptionsEnvironmentVariable fuse is ON (NODE_OPTIONS honoured)' -File $wireExe.FullName `
+            -Evidence "EnableNodeOptionsEnvironmentVariable=1 (fuses=$f)" -Cwe @('CWE-94','CWE-427') `
+            -Description ('The EnableNodeOptionsEnvironmentVariable fuse is enabled, so the app reads the ' +
+                'NODE_OPTIONS environment variable at startup. A local attacker (any code running as the ' +
+                'user - malware, an unrelated companion, or a scheduled task) sets NODE_OPTIONS=--require ' +
+                './payload.js and lands arbitrary JavaScript under the signed app identity on the next ' +
+                'launch. Distinct from fuses.run-as-node-enabled: this one does not require the attacker ' +
+                'to spawn the binary in a special way; the vendor launcher / shortcut / auto-start is ' +
+                'enough. Combined with a user-writable install directory (Squirrel installs to ' +
+                '%LOCALAPPDATA% by default) this is a straightforward LPE / persistence primitive.') `
+            -Fix 'Disable the EnableNodeOptionsEnvironmentVariable fuse in @electron/fuses at build time. NODE_OPTIONS is a Node.js debugging convenience with no legitimate need in a released Electron app.'
     }
     if ((& $at 3) -eq '1') {
         New-TcpkFinding -Module 'static' -RuleId 'fuses.node-inspect-enabled' `
