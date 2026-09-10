@@ -93,7 +93,78 @@ function Test-TcpkCryptoMisuse {
             }
         }
 
-        # ---- crypto.iv-equals-key: two flavours -------------------------------------
+            # ---- crypto.rsa-pkcs1v15-encrypt ------------------------------------------
+        # RSA encryption with PKCS#1 v1.5 padding enables a Bleichenbacher / adaptive
+        # chosen-ciphertext oracle against any endpoint whose decryption error leaks.
+        # Modern .NET defaults to OAEP; PKCS#1v1.5 has to be explicitly asked for by:
+        #   * RSA.Encrypt(data, RSAEncryptionPadding.Pkcs1)
+        #   * RSACryptoServiceProvider.Encrypt(data, fOAEP:false)  (managed API)
+        #   * RSACryptoServiceProvider::Encrypt with a false operand at the fOAEP slot
+        #     visible in IL. String scan of the shipped assembly text.
+        $pkcs1Rx = @(
+            '(?i)RSAEncryptionPadding\.Pkcs1\b',
+            '(?is)\.Encrypt\s*\([^)]*?,\s*RSAEncryptionPadding\.Pkcs1\s*\)',
+            '(?is)\.Encrypt\s*\([^)]*?,\s*(?:false|0)\s*\)\s*;.*?RSACryptoServiceProvider',
+            '(?is)RSACryptoServiceProvider[^;\r\n]{0,200}\.Encrypt\s*\([^)]*?,\s*(?:false|0)\s*\)'
+        )
+        foreach ($rx in $pkcs1Rx) {
+            $m = [regex]::Match($text, $rx)
+            if ($m.Success) {
+                New-TcpkFinding -Module 'static' -RuleId 'crypto.rsa-pkcs1v15-encrypt' `
+                    -Severity 'MEDIUM' -Confidence 'Inferred' `
+                    -Title "RSA encryption with PKCS#1 v1.5 padding in $($pe.Name)" `
+                    -File $pe.FullName -Evidence ($m.Value -replace '\s+',' ').Trim() `
+                    -Cwe @('CWE-780','CWE-327') `
+                    -Description ('The .NET managed code asks for RSA encryption with PKCS#1 v1.5 padding ' +
+                        '(RSAEncryptionPadding.Pkcs1 or the legacy fOAEP:false argument on ' +
+                        'RSACryptoServiceProvider.Encrypt). PKCS#1 v1.5 encryption is Bleichenbacher-attackable ' +
+                        'against any endpoint that leaks decryption-error status; every implementation is ' +
+                        'expected to move to OAEP for confidentiality. Inferred because the string match ' +
+                        'does not prove the call site is reached in a real flow; the IL prover in ' +
+                        'Get-TcpkCryptoVerdicts is authoritative when the call graph reaches the sink.') `
+                    -Fix 'Switch to RSAEncryptionPadding.OaepSHA256 (or the fOAEP:true overload on RSACryptoServiceProvider). PKCS#1 v1.5 signatures are still acceptable for signature (with a strong hash); PKCS#1 v1.5 ENCRYPTION is not.'
+                break
+            }
+        }
+
+        # ---- crypto.password-hash-cost-low ---------------------------------------
+        # BCrypt.Net-Next / BCrypt.Net: WorkFactor / BCryptWorkFactor parameter <= 10 (2025 floor is
+        # 12). Argon2 (Konscious.Security.Cryptography.Argon2) memoryCost / MemorySize <= 8192 KB.
+        # Scrypt (scrypt.net) cost N <= 16384 or (r < 8 and p < 1).
+        $weakCostShapes = @(
+            @{ Rx='(?is)(?:BCrypt(?:Net)?[^;\r\n]{0,60}\.HashPassword\s*\([^)]*?,\s*|WorkFactor\s*=\s*|BCryptWorkFactor\s*=\s*|new\s+BCryptOpenBSD[^;\r\n]{0,60}\.HashPassword\s*\([^)]*?,\s*)(\d{1,2})\b';
+               Lib='BCrypt';   MaxOk=11 }
+            @{ Rx='(?is)Argon2[a-zA-Z]*[^;\r\n]{0,200}\.MemorySize\s*=\s*(\d{2,7})\b';
+               Lib='Argon2';   MaxOk=15360 }   # >= 15 MB is roughly the current floor
+            @{ Rx='(?is)(?:scrypt|Scrypt)\.HashPasswordAsync?[^;\r\n]{0,200}?,\s*(\d{1,7})\s*,';
+               Lib='scrypt N'; MaxOk=32767 }
+        )
+        foreach ($shape in $weakCostShapes) {
+            $m = [regex]::Match($text, $shape.Rx)
+            if (-not $m.Success) { continue }
+            $val = 0
+            for ($gi = 1; $gi -lt $m.Groups.Count; $gi++) {
+                if ($m.Groups[$gi].Success -and $m.Groups[$gi].Value -match '^\d+$') { $val = [int]$m.Groups[$gi].Value; break }
+            }
+            if ($val -le 0) { continue }
+            if ($val -gt $shape.MaxOk) { continue }
+            New-TcpkFinding -Module 'static' -RuleId 'crypto.password-hash-cost-low' `
+                -Severity 'MEDIUM' -Confidence 'Inferred' `
+                -Title "Password hash cost below the 2025 floor ($($shape.Lib)=$val) in $($pe.Name)" `
+                -File $pe.FullName -Evidence ($m.Value -replace '\s+',' ').Trim() `
+                -Cwe @('CWE-916','CWE-327') `
+                -Description ("A $($shape.Lib) call in the shipped code uses a cost parameter of $val, at or " +
+                    "below the widely-cited 2025 floor. That makes an offline attack on a stolen hash " +
+                    "database dramatically cheaper (bcrypt cost 10 is roughly 100 hashes/s per GPU core; " +
+                    "cost 12 is 25 hashes/s per GPU core, 4x slower). Inferred because the string match " +
+                    "does not prove this specific call site is reached at password-setting time.") `
+                -Fix ("Raise the cost to a modern floor: BCrypt WorkFactor >= 12, Argon2 MemorySize >= " +
+                    "65536 (64 MB) with Iterations >= 3, scrypt N >= 131072. Re-hash existing passwords on " +
+                    'next successful login.')
+            break
+        }
+
+    # ---- crypto.iv-equals-key: two flavours -------------------------------------
         # a) Same variable/identifier assigned to both Key and IV within the same 512-char
         #    window: '.Key = X ... .IV = X' or '.IV = X ... .Key = X'. Catches C#, VB,
         #    PowerShell, F# and any other .NET language whose property-set syntax leaves

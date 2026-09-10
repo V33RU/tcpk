@@ -453,6 +453,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkBlePairing'          { Test-TcpkBlePairing          -Path $expanded }
     _RunCheck 'Test-TcpkMqttSurface'         { Test-TcpkMqttSurface         -Path $expanded }
     _RunCheck 'Test-TcpkProvisioningPoP'     { Test-TcpkProvisioningPoP     -Path $expanded }
+    _RunCheck 'Test-TcpkIotCloudCreds'       { Test-TcpkIotCloudCreds       -Path $expanded }
     _RunCheck 'Test-TcpkDiscoveryProtocols'  { Test-TcpkDiscoveryProtocols  -Path $expanded }
     _RunCheck 'Test-TcpkFirmwareImages'      { Test-TcpkFirmwareImages      -Path $expanded }
     _RunCheck 'Test-TcpkFirmwareManifest'    { Test-TcpkFirmwareManifest    -Path $expanded }
@@ -544,11 +545,13 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkAppInitDlls'         { Test-TcpkAppInitDlls         -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkRegistryLoadPoints'  { Test-TcpkRegistryLoadPoints  -Path $expanded }
     _RunCheck 'Test-TcpkInstallerPlanting'   { Test-TcpkInstallerPlanting   -Path $expanded }
+    _RunCheck 'Test-TcpkInstallerHostsWrite' { Test-TcpkInstallerHostsWrite -Path $expanded }
     _RunCheck 'Test-TcpkMsiCustomActions'   { Test-TcpkMsiCustomActions    -Path $expanded }
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkVendorDriverAcl'     { Test-TcpkVendorDriverAcl     -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkPwshProfileAcl'      { Test-TcpkPwshProfileAcl }
     _RunCheck 'Test-TcpkHostNameResolution'  { Test-TcpkHostNameResolution -Path $expanded }
+    _RunCheck 'Test-TcpkPersistenceLoadPoints' { Test-TcpkPersistenceLoadPoints -Path $expanded }
     _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $idTerms -Path $expanded }
     # All name-targeted checks are app-aware: they take the FULL derived term set so
     # they find data keyed by product code / CLSID / brand name / vendor, not just one
@@ -562,6 +565,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkServiceBinaryAcl'    { Test-TcpkServiceBinaryAcl    -NameLike $idTerms }
         _RunCheck 'Test-TcpkServicePermissions'  { Test-TcpkServicePermissions  -NameLike $idTerms }
         _RunCheck 'Test-TcpkUnquotedServicePath' { Test-TcpkUnquotedServicePath -NameLike $idTerms }
+        _RunCheck 'Test-TcpkUninstallStringHijack' { Test-TcpkUninstallStringHijack -NameLike $idTerms }
         _RunCheck 'Test-TcpkAutoStart'           { Test-TcpkAutoStart           -NameLike $idTerms }
         _RunCheck 'Test-TcpkProgramDataAcls'     { Test-TcpkProgramDataAcls     -NameLike $idTerms }
         _RunCheck 'Test-TcpkScheduledTaskAcl'    { Test-TcpkScheduledTaskAcl    -NameLike $idTerms }
