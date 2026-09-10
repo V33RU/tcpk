@@ -1,0 +1,38 @@
+{
+  "schema": {
+    "version": 1,
+    "source": "TCPK-curated basename subset of well-known BYOVD-flagged drivers (LOLDrivers project: github.com/magicsword-io/LOLDrivers).",
+    "notes": "Basenames only. SHA-256 hashes are DELIBERATELY OMITTED here because no invented hashes are ever shipped in TCPK per the prime directive. To fire the SHA-256 branch of driver.byovd-loldrivers-match, place a full LOLDrivers export at TCPK/Data/loldrivers-full.json (or set -LolDriversPath on the cmdlet); the cmdlet computes each shipped .sys hash and looks it up there. This curated file is the always-on basename floor.",
+    "external-full-set": "https://raw.githubusercontent.com/magicsword-io/LOLDrivers/main/drivers.json (filter Category='vulnerable' or 'malicious')",
+    "generated": "2026-09-10"
+  },
+  "entries": [
+    { "name": "windrvr6.sys",       "vendor": "Jungo WinDriver",              "why": "Arbitrary physical memory / MSR / port IO IOCTLs. Also caught by driver.jungo-windriver-shipped." },
+    { "name": "capcom.sys",         "vendor": "Capcom",                       "why": "Kernel-mode exec-any-pointer IOCTL (the original BYOVD case)." },
+    { "name": "gdrv.sys",           "vendor": "Gigabyte",                     "why": "Arbitrary physmem write - abused by Slingshot, RobbinHood, Uroburos." },
+    { "name": "rzpnk.sys",          "vendor": "Razer Synapse",                "why": "Arbitrary MSR write (CVE-2017-9769)." },
+    { "name": "asrdrv101.sys",      "vendor": "ASRock",                       "why": "Arbitrary physmem / MSR IOCTLs." },
+    { "name": "asrdrv102.sys",      "vendor": "ASRock",                       "why": "Same family as asrdrv101; version drift." },
+    { "name": "asrdrv104.sys",      "vendor": "ASRock",                       "why": "Same family." },
+    { "name": "asusio.sys",         "vendor": "ASUS Aura Sync",               "why": "Arbitrary physmem IOCTLs." },
+    { "name": "asusio2.sys",        "vendor": "ASUS Aura Sync",               "why": "Same family." },
+    { "name": "atillk64.sys",       "vendor": "ASUS AI Suite",                "why": "MSR / port IO IOCTLs." },
+    { "name": "iomap64.sys",        "vendor": "MSI Live Update",              "why": "Arbitrary physmem IOCTLs." },
+    { "name": "nvflash.sys",        "vendor": "Nvidia flash utility",         "why": "Arbitrary MSR / physmem IOCTLs." },
+    { "name": "rtcore64.sys",       "vendor": "MSI Afterburner",              "why": "Arbitrary MSR / physmem - used in RobbinHood, PatchGuard-bypass PoCs." },
+    { "name": "rtcore32.sys",       "vendor": "MSI Afterburner",              "why": "Same family, 32-bit." },
+    { "name": "amifldrv64.sys",     "vendor": "AMI",                          "why": "Arbitrary physmem / port IO IOCTLs." },
+    { "name": "phymemx64.sys",      "vendor": "PhysMem tool",                 "why": "Direct physmem read/write IOCTLs." },
+    { "name": "physmem.sys",        "vendor": "physmem",                      "why": "Same family." },
+    { "name": "speedfan.sys",       "vendor": "SpeedFan",                     "why": "MSR read/write IOCTLs." },
+    { "name": "bs_i2c.sys",         "vendor": "Broadcom",                     "why": "Arbitrary port IO." },
+    { "name": "bsmi.sys",           "vendor": "Broadcom",                     "why": "Arbitrary MSR / SMI." },
+    { "name": "atszio.sys",         "vendor": "AMD ATSZIO",                   "why": "MSR / port IO." },
+    { "name": "amdpowerprofiler.sys","vendor": "AMD Power Profiler",           "why": "MSR read/write." },
+    { "name": "dbutil_2_3.sys",     "vendor": "Dell BIOSConnect",             "why": "Arbitrary I/O port + MSR write (CVE-2021-21551)." },
+    { "name": "dbutildrv2.sys",     "vendor": "Dell BIOSConnect",             "why": "Same family as dbutil_2_3." },
+    { "name": "procexp152.sys",     "vendor": "Sysinternals Process Explorer","why": "Historic CVE-2019-16098-shape kernel read/write on old versions." },
+    { "name": "acefile.sys",        "vendor": "Zemana AntiMalware",           "why": "Arbitrary code exec in kernel via IOCTL." },
+    { "name": "hw.sys",             "vendor": "generic hardware-access tool", "why": "Arbitrary physmem." }
+  ]
+}

@@ -101,6 +101,37 @@ function Test-TcpkNamedPipeDacl {
                 -File $pipe.FullName -Evidence $sddlErr `
                 -Description 'The pipe accepted the client connect but GetSecurityDescriptorSddlForm threw, so the NULL-DACL check could not run against this pipe. The pipe-dacl.null / pipe-dacl.weak result for this pipe is unassessed rather than clean.'
         }
+        # pipe-dacl.owner-non-admin: the pipe owner has implicit WRITE_DAC + WRITE_OWNER
+        # regardless of what the DACL says (Windows security model). If the owner SID is
+        # anything other than SYSTEM / BUILTIN\Administrators / TrustedInstaller, that
+        # principal can rewrite the DACL and grant themselves any right - so a
+        # locked-down explicit DACL is not the real perimeter here.
+        try {
+            $owner = $ac.GetOwner([Security.Principal.SecurityIdentifier])
+            $ownerSid = "$($owner.Value)"
+            $adminSids = @(
+                'S-1-5-18',           # SYSTEM
+                'S-1-5-32-544',       # BUILTIN\Administrators
+                'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464'  # TrustedInstaller
+            )
+            if ($ownerSid -and -not ($adminSids -contains $ownerSid) -and -not ($ownerSid -like 'S-1-5-80-*')) {
+                $ownerName = ''
+                try { $ownerName = "$($ac.GetOwner([Security.Principal.NTAccount]).Value)" } catch { }
+                New-TcpkFinding -Module 'runtime' -RuleId 'pipe-dacl.owner-non-admin' `
+                    -Severity 'MEDIUM' -Confidence 'Confirmed' `
+                    -Title "Named pipe owner is non-admin: $($pipe.Name) -> $ownerName" `
+                    -File $pipe.FullName -Evidence "owner-sid=$ownerSid; owner-name=$ownerName" `
+                    -Cwe @('CWE-732','CWE-269') `
+                    -Description ('The pipe SD owner is not SYSTEM / BUILTIN\Administrators / TrustedInstaller. ' +
+                        'The owner has implicit WRITE_DAC and WRITE_OWNER (Windows security model), so a ' +
+                        "locked-down DACL is not the real perimeter for this pipe: whoever owns it can rewrite " +
+                        'the ACL and grant themselves any right. Common cause on thick-client services is a ' +
+                        'CreateNamedPipe call from an early-boot phase where the impersonation token was the ' +
+                        'installing user instead of SYSTEM.') `
+                    -Fix 'Create the pipe from a SYSTEM-context service, or call SetSecurityInfo / SetNamedSecurityInfo to reassign the owner to SYSTEM after creation.'
+            }
+        } catch { }
+
         $isNullDacl = ($sddl -and $sddl -cmatch 'D:NO_ACCESS_CONTROL')
         if ($isNullDacl) {
             New-TcpkFinding -Module 'runtime' -RuleId 'pipe-dacl.null' `

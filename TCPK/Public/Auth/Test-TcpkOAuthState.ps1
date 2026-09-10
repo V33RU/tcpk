@@ -62,9 +62,45 @@ function Test-TcpkOAuthState {
 
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
+    # PKCE-missing detection is per-FILE, not per-line: a native OAuth client that speaks
+    # authorization_code flow but never references code_verifier / code_challenge is
+    # missing PKCE. Per RFC 8252 (OAuth 2.0 for Native Apps) every desktop client MUST
+    # use PKCE, so this is a real finding for shipped fat-clients.
+    $authCodeShapeRx = '(?i)(response_type\s*[=:]\s*[''"]?code\b|grant_type\s*[=:]\s*[''"]?authorization_code|RedeemAuthorizationCodeAsync|AuthorizationCodeReceived|ExchangeCodeAsync|token_endpoint.{0,200}?code)'
+    $pkceShapeRx     = '(?i)(code_verifier|code_challenge|WithPkce|WithProofKey|CryptographicallyRandomString|CodeChallengeMethod|GeneratePkceValues)'
+
     foreach ($src in $srcFiles) {
         try { $lines = Get-Content $src.FullName -ErrorAction Stop } catch { continue }
         $lineCount = $lines.Count
+        $fileText  = $lines -join "`n"
+
+        # oauth.pkce-missing (per file). Skip files whose only auth-code mention is
+        # inside a comment (heuristic: at least one non-commented line has the shape).
+        $hasAuthCode = $false
+        foreach ($ln in $lines) {
+            if ($ln.TrimStart() -match '^(?://|#|/\*|\*|'')') { continue }
+            if ($ln -match $authCodeShapeRx) { $hasAuthCode = $true; break }
+        }
+        if ($hasAuthCode -and $fileText -notmatch $pkceShapeRx) {
+            $loc = "$($src.FullName):file"
+            if ($seen.Add("pkce-missing|$loc")) {
+                New-TcpkFinding -Module 'auth' -RuleId 'oauth.pkce-missing' `
+                    -Severity 'MEDIUM' -Confidence 'Inferred' `
+                    -Title "$($src.Name) speaks OAuth authorization_code flow with no PKCE tokens" `
+                    -File $src.FullName -Evidence 'authorization_code flow shape present; code_verifier / code_challenge absent from the same file' `
+                    -Cwe @('CWE-1275','CWE-345') `
+                    -Description ('The file contains an authorization_code OAuth flow (response_type=code, ' +
+                        'grant_type=authorization_code, or a code-exchange call) but does not reference PKCE ' +
+                        '(code_verifier / code_challenge / WithPkce / GeneratePkceValues). RFC 8252 (OAuth 2.0 ' +
+                        'for Native Apps) mandates PKCE for every desktop / mobile / installed client because ' +
+                        'authorization codes intercepted from a custom-scheme redirect URI can be replayed ' +
+                        'against the token endpoint without PKCE. Inferred because PKCE may be added by a ' +
+                        'wrapper module in another file; verify by grepping the whole install tree.') `
+                    -Fix ('Use PKCE for every native / desktop OAuth flow. In MSAL: WithPkce() on the ' +
+                        'authorization request. In IdentityModel.OidcClient: Options.Policy.RequireIdentityTokenSignature ' +
+                        '+ code_challenge_method=S256. Do not fall back to plain code_challenge_method=plain.')
+            }
+        }
 
         for ($i = 0; $i -lt $lineCount; $i++) {
             $line = $lines[$i]

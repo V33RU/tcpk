@@ -127,6 +127,40 @@ function Test-TcpkUpdateChannel {
                 -Fix 'Ship the update endpoint compiled into a signed binary and never read it from an editable file. Where the endpoint must be configurable (per-tenant clouds), put the file under an ACL that only SYSTEM and the vendor service account can write.'
         }
 
+        # 2b. telemetry endpoint present in this config; DACL-check the file.
+        # Rewrite target for a local attacker who wants to exfil app state or replace an
+        # analytics ingest with an attacker-controlled listener. Two shapes:
+        #   (a) a keyed telemetry / metrics / analytics URL, e.g. "TelemetryUrl":"https://..."
+        #   (b) a vendor-branded ingest host (app-insights / datadog / sentry / etc.)
+        $telemKeyedRx = '(?i)(TelemetryUrl|MetricsEndpoint|AnalyticsUrl|IngestUrl|CollectorUrl|TelemetryEndpoint)\s*[":=]\s*["]?(https?://[^\s"<>]+)'
+        $telemHostRx  = '(?i)(https?://(?:[a-z0-9\-\.]+\.)?(?:applicationinsights\.azure\.com|in\.appinsights\.azure\.com|datadoghq\.com|sentry\.io|newrelic\.com|google-analytics\.com|api\.segment\.io|api\.mixpanel\.com|api\.amplitude\.com|amplitude\.com|bugsnag\.com|rollbar\.com|honeycomb\.io)(?:/[^\s"<>]*)?)'
+        $telemSeen = New-Object 'System.Collections.Generic.HashSet[string]'
+        $telemHits = @()
+        foreach ($tm in [regex]::Matches($text, $telemKeyedRx)) { $telemHits += $tm.Groups[2].Value }
+        foreach ($tm in [regex]::Matches($text, $telemHostRx))  { $telemHits += $tm.Groups[1].Value }
+        foreach ($tUrl in $telemHits) {
+            if (-not $tUrl) { continue }
+            if ($telemSeen.Contains($tUrl)) { continue }
+            [void]$telemSeen.Add($tUrl)
+            $isHttp = $tUrl -match '^http://'
+            $sev  = if ($writable) { 'MEDIUM' } elseif ($isHttp) { 'MEDIUM' } else { 'LOW' }
+            $rule = if ($writable) { 'telemetry.endpoint-in-writable-config' }
+                    elseif ($isHttp) { 'telemetry.endpoint-plaintext' }
+                    else { 'telemetry.endpoint-in-config' }
+            New-TcpkFinding -Module 'discovery' -RuleId $rule `
+                -Severity $sev -Confidence 'Confirmed' `
+                -Title "Telemetry endpoint in $($f.Name): $tUrl" `
+                -File $f.FullName -Evidence "url=$tUrl writable=$writable http=$isHttp" `
+                -Cwe @('CWE-829','CWE-201') `
+                -Description ("A telemetry / analytics endpoint is present in $($f.Name). writable=$writable, http=$isHttp. " +
+                    'A user-writable config lets a local attacker redirect the ingest to their own listener, ' +
+                    'which then receives every subsequent app event (state, PII in event payloads, internal ' +
+                    'endpoint names) and can also correlate the app user with an attacker-owned analytics ' +
+                    'account. Distinct from update.endpoint-in-writable-config: this changes what LEAVES the ' +
+                    'box, not what runs on it.') `
+                -Fix 'Compile the telemetry endpoint into a signed binary (or store it under a machine-scope registry key with an admin-only ACL). If tenant-configurable, ACL the file to SYSTEM + vendor service account write only, and validate the URL host against an allow-list at load time.'
+        }
+
         # 3. state stored in config
         if ($text -match $stateRx) {
             $sev = if ($writable) { 'MEDIUM' } else { 'LOW' }

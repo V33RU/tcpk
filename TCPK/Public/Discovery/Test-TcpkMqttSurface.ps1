@@ -321,6 +321,37 @@ function Test-TcpkMqttSurface {
                     "and complicates LWT-based device-state tracking.") `
                 -Fix 'Set a modest keepalive (30-60s) or leave the MQTT default 60s.'
         }
+
+        # ---- mqtt.retained-will-secret (MEDIUM, Inferred) ---------------------------
+        # Retained Last-Will-and-Testament with a payload that looks like a credential.
+        # If the client sets WithWillRetain(true) AND WithWillPayload("...token...")
+        # inside 512 chars of each other, the broker STORES the will on the topic and
+        # replays it to every future subscriber. If that payload includes a token /
+        # password / apikey / bearer / secret, every next MQTT subscriber gets a copy.
+        # Only fires when the payload literal actually contains a credential-shaped
+        # substring - a retained will with a benign device-name status is legitimate.
+        $willRx = '(?is)\.WithWillRetain\s*\(\s*true\s*\).{0,512}?\.WithWillPayload\s*\(\s*"([^"\r\n]{1,300})"|\.WithWillPayload\s*\(\s*"([^"\r\n]{1,300})".{0,512}?\.WithWillRetain\s*\(\s*true\s*\)'
+        $secretInPayloadRx = '(?i)(token|secret|apikey|api[_-]?key|bearer|password|passwd|pwd|user(?:name)?|jwt|sess(?:ion)?[_-]?id)'
+        foreach ($m in [regex]::Matches($text, $willRx)) {
+            $payload = if ($m.Groups[1].Success -and $m.Groups[1].Value) { $m.Groups[1].Value } else { $m.Groups[2].Value }
+            if (-not $payload) { continue }
+            if ($payload -notmatch $secretInPayloadRx) { continue }
+            $masked = if ($payload.Length -le 4) { '***' } else { $payload.Substring(0, 2) + '***' + $payload.Substring($payload.Length - 2, 2) }
+            New-TcpkFinding -Module 'discovery' -RuleId 'mqtt.retained-will-secret' `
+                -Severity 'MEDIUM' -Confidence 'Inferred' `
+                -Title "$($f.Name) publishes a RETAINED will payload that looks credential-shaped" `
+                -File $f.FullName -Evidence "WithWillRetain(true) + WithWillPayload(""$masked"") within 512 chars" `
+                -Cwe @('CWE-522','CWE-312') `
+                -Description ('MQTT retained messages are stored by the broker and replayed to every future ' +
+                    'subscriber of the topic. When the client sets WithWillRetain(true) with a payload that ' +
+                    'contains a credential-shaped substring (token / secret / apikey / bearer / password / ' +
+                    'jwt / session-id), any downstream subscriber of the will topic sees the credential in ' +
+                    'perpetuity. Legitimate retained wills carry a status enum (online / offline) or a ' +
+                    'device name; a credential payload is either an accidental publish or the app treating ' +
+                    'the broker as a credential store.') `
+                -Fix 'Set WithWillRetain(false) if the will is a status marker; the broker will still deliver it to currently-connected subscribers. If a persistent per-device state is required, use a non-retained publish to a private topic with an ACL. Never place a credential in the will payload.'
+            break
+        }
     }
 
     # ---- mqtt.paho-c-nontls-build (HIGH, Inferred) ---------------------------------

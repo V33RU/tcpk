@@ -140,17 +140,26 @@ function Test-TcpkDllSideload {
             $delayNote = ' At least one importer DELAY-loads this DLL, which resolves at the first call rather than at process start, so the search runs against the process state at that moment and after any start-up integrity check.'
         }
 
+        # Copy-paste hint: the operator can generate a real proxy-DLL scaffold via
+        # New-TcpkProxyDll pointed at the FIRST importer (its export list tells the
+        # scaffold which forwarders to emit). The scaffold is generated only when the
+        # operator explicitly opts in (Enable-TcpkExploit), so leaving the command in
+        # the finding is documentation, not an implicit exploit-gen trigger.
+        $scaffoldHint = "Reproduce: Enable-TcpkExploit; New-TcpkProxyDll -Path '$($h.FirstFile)' -OutDir <lab-dir>"
+
         New-TcpkFinding -Module 'static' -RuleId 'dllsearch.sideload-candidate' `
             -Severity $sev -Confidence 'Confirmed' `
             -Title "DLL sideload target: $dll (imported by $($imps.Count) module(s))" `
             -File $h.FirstFile `
-            -Evidence "$dll not shipped in app dir; importers: $impTxt; dir writable=$dirWritable" `
+            -Evidence "$dll not shipped in app dir; importers: $impTxt; dir writable=$dirWritable | $scaffoldHint" `
             -Cwe @('CWE-427') `
             -Description ('A first-party module imports a DLL that is a well-known side-loading ' +
                 'target (used in real APT campaigns). The DLL is not shipped in the ' +
                 'application directory, so an attacker can plant a proxy DLL that loads the ' +
                 'real system DLL while executing arbitrary code. ' + $writeNote + $delayNote +
-                ' (ATT&CK T1574.002 DLL Side-Loading).') `
+                ' (ATT&CK T1574.002 DLL Side-Loading). To reproduce in an authorised lab, ' +
+                'the finding Evidence contains a copy-paste New-TcpkProxyDll invocation ' +
+                'that produces a compilable scaffold with the correct forwarders.') `
             -Fix 'Ship the DLL with the application, use SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32), or sign the application and enforce code integrity.'
     }
 }
