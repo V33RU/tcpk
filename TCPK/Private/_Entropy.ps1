@@ -18,6 +18,38 @@ function Get-TcpkShannonEntropy {
     return [Math]::Round($h, 3)
 }
 
+# Shannon entropy in BITS PER BYTE (0.0 - 8.0) over a byte array already in memory.
+#
+# WHY THIS EXISTS SEPARATELY. Get-TcpkShannonEntropy measures bits per CHARACTER of a
+# string, and Get-TcpkBlockEntropy streams a FILE by path. Neither fits live process
+# memory: a region read with ReadProcessMemory is a byte[] that must not be decoded to
+# text (a decode collapses the 256-value alphabet and skews the result) and must not be
+# spilled to a temp file just to be measured.
+#
+# Reference points for a committed executable region:
+#   ~0.0-1.0  a long run of a single value (padding, zeroed pages)
+#   ~5.5-6.7  compiled x86/x64 machine code, including JIT output. Opcode structure and
+#             repeated register encodings keep real code well under the ceiling.
+#   ~7.2-8.0  compressed, encrypted or packed content. Executable memory measuring here
+#             is not plain machine code.
+function Get-TcpkByteEntropy {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowEmptyCollection()][byte[]]$Bytes)
+
+    if ($null -eq $Bytes -or $Bytes.Length -eq 0) { return 0.0 }
+    $freq = New-Object 'int[]' 256
+    foreach ($b in $Bytes) { $freq[$b]++ }
+    $len = [double]$Bytes.Length
+    $h = 0.0
+    for ($i = 0; $i -lt 256; $i++) {
+        $c = $freq[$i]
+        if ($c -eq 0) { continue }
+        $p = $c / $len
+        $h -= $p * [Math]::Log($p, 2)
+    }
+    return [Math]::Round($h, 3)
+}
+
 # base64url -> bytes (JWT segments). Returns $null on failure.
 function Convert-TcpkFromB64Url {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Text)

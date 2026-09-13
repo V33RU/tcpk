@@ -34,8 +34,12 @@ function Test-TcpkMemoryRegions {
                           default, so RWX in a modern .NET process is no longer
                           the expected shape and is worth a question.
 
-    Read-only. Opens the process with PROCESS_QUERY_INFORMATION only, the minimum
-    VirtualQueryEx requires, and never reads or writes region contents.
+    Read-only, and never writes to the target. The region WALK opens the process with
+    PROCESS_QUERY_INFORMATION only, the minimum VirtualQueryEx requires. The entropy
+    pass that calibrates the result needs to measure bytes, so it opens a SECOND handle
+    with PROCESS_VM_READ and reads up to 64 KB from each flagged executable region. That
+    pass is skipped with -NoEntropy, and it degrades to silence if the read handle is
+    denied: the RWX and private-exec findings are emitted either way.
 
 .PARAMETER ProcessName
     Process name (no .exe) to inspect.
@@ -43,11 +47,16 @@ function Test-TcpkMemoryRegions {
 .PARAMETER ProcessId
     Specific PID to inspect, instead of resolving by name.
 
+.PARAMETER NoEntropy
+    Skip the entropy pass and keep the query-only handle footprint. Use when the
+    engagement forbids reading target memory, or to avoid a second OpenProcess on a
+    sensitive target. The RWX and private-exec findings are unaffected.
+
 .OUTPUTS
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string]$ProcessName, [int]$ProcessId)
+    param([string]$ProcessName, [int]$ProcessId, [switch]$NoEntropy)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkMemoryRegions')) { return }
 
@@ -154,6 +163,8 @@ function Test-TcpkMemoryRegions {
             $total = 0
             $rwxSample = New-Object 'System.Collections.Generic.List[string]'
             $privSample = New-Object 'System.Collections.Generic.List[string]'
+            # Flagged regions retained for the entropy pass after this loop.
+            $flagged = New-Object 'System.Collections.Generic.List[object]'
 
             for ($i = 0; ($i + 3) -lt $flat.Count; $i += 4) {
                 $base = [int64]$flat[$i]
@@ -180,9 +191,81 @@ function Test-TcpkMemoryRegions {
                         $privSample.Add(("0x{0:X} ({1} KB, prot 0x{2:X})" -f $base, [int]($size / 1KB), $prot))
                     }
                 }
+
+                # Retain for the entropy pass: executable, and either writable or not
+                # backed by an image, is exactly the set worth measuring.
+                if (($isRwx -or -not $isImage) -and $flagged.Count -lt 16) {
+                    $flagged.Add([pscustomobject]@{ Base = $base; Size = $size; Prot = $prot; IsRwx = $isRwx })
+                }
+            }
+
+            # ---- entropy pass over the flagged executable regions ---------------
+            # WHY. The JIT-module check above is a PROXY for "is code generation expected
+            # in this process", and the comments there already concede it is not proof
+            # either way. Entropy measures the region itself instead of inferring from the
+            # module list. Compiled machine code, JIT output included, carries opcode
+            # structure and repeated register encodings and sits around 5.5-6.7 bits/byte.
+            # Compressed, encrypted or packed content approaches 8.0. An executable region
+            # measuring above 7.2 is not plain machine code, whatever the module list says.
+            #
+            # This needs PROCESS_VM_READ, which the region walk deliberately does not take.
+            # A second handle is opened only for this pass, and the pass degrades to
+            # silence if it is denied: the RWX and private-exec findings below are emitted
+            # either way, so a protected process loses calibration, never the finding.
+            $entropyBy = @{}
+            $entropyNote = ''
+            if (-not $NoEntropy -and $flagged.Count -gt 0 -and ('Tcpk.MemRead' -as [type])) {
+                $rh = [IntPtr]::Zero
+                try { $rh = [Tcpk.MemRead]::Open($p.Id, $false) } catch { }
+                if ($rh -ne [IntPtr]::Zero) {
+                    try {
+                        foreach ($fr in $flagged) {
+                            $want = [int][Math]::Min([int64]65536, [int64]$fr.Size)
+                            if ($want -lt 512) { continue }
+                            $bytes = $null
+                            try { $bytes = [Tcpk.MemRead]::ReadBytes($rh, $fr.Base, $want) } catch { $bytes = $null }
+                            if ($null -eq $bytes -or $bytes.Length -lt 512) { continue }
+                            $entropyBy[$fr.Base] = Get-TcpkByteEntropy -Bytes $bytes
+                        }
+                    } finally {
+                        try { [void][Tcpk.MemRead]::CloseHandle($rh) } catch { }
+                    }
+                }
+                if ($entropyBy.Count -gt 0) {
+                    $maxEnt = (@($entropyBy.Values) | Measure-Object -Maximum).Maximum
+                    $entropyNote = "; entropy max=$maxEnt over $($entropyBy.Count) sampled region(s)"
+                }
             }
 
             $jitLabel = if ($hasJit) { ($jitFound -join '+') } else { 'none' }
+
+            # High-entropy executable memory: reported separately because it is the one
+            # observation here that a JIT runtime does NOT explain away.
+            $hot = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($k in $entropyBy.Keys) {
+                if ($entropyBy[$k] -ge 7.2) {
+                    $hot.Add(("0x{0:X} = {1} bits/byte" -f [int64]$k, $entropyBy[$k]))
+                }
+            }
+            if ($hot.Count -gt 0) {
+                New-TcpkFinding -Module 'runtime' -RuleId 'memregion.high-entropy-exec' `
+                    -Severity 'MEDIUM' -Confidence 'Confirmed' `
+                    -Title "$($p.Name): $($hot.Count) executable region(s) measure as packed or encrypted, not machine code" `
+                    -File "$($p.Name) (PID $($p.Id))" `
+                    -Evidence (($hot -join '; ') + "; jit=$jitLabel") `
+                    -Cwe @('CWE-1327') `
+                    -Description ('Executable memory in this process measures at or above 7.2 bits/byte. ' +
+                        'Compiled machine code does not look like this: x86/x64 code carries opcode ' +
+                        'structure and repeated register encodings that hold real code, including JIT ' +
+                        'output, well below 7 bits/byte. Content at this level is compressed, encrypted ' +
+                        'or packed. In executable memory that means either a packer that has not yet ' +
+                        'unpacked its payload, or data that is not code occupying an executable page. ' +
+                        'Unlike the RWX and private-exec observations above, a JIT runtime does not ' +
+                        'explain this one: V8 and the CLR emit ordinary machine code, not high-entropy ' +
+                        'blobs. Entropy is a discriminator, not proof of malice. Confirm by dumping the ' +
+                        'region with Save-TcpkMemoryRegion and inspecting it.') `
+                    -Fix 'Dump the region with Save-TcpkMemoryRegion and identify the content. If the product legitimately ships a packer or an encrypted asset cache, confirm those pages do not need to be executable: data should live in non-executable memory. If the content is unaccounted for, treat it as the priority finding and trace what wrote it.'
+            }
 
             $jitNote = if ($hasJit) {
                 # V8 / Electron special-case: every Chromium-derived app holds RWX V8 code-space
@@ -211,7 +294,7 @@ function Test-TcpkMemoryRegions {
                     -Severity $sev -Confidence 'Confirmed' `
                     -Title "$($p.Name): $rwxCount writable-executable region(s), $([int]($rwxBytes / 1KB)) KB" `
                     -File "$($p.Name) (PID $($p.Id))" `
-                    -Evidence ("rwx=$rwxCount ($([int]($rwxBytes / 1KB)) KB); jit=$jitLabel; " + ($rwxSample -join '; ')) `
+                    -Evidence ("rwx=$rwxCount ($([int]($rwxBytes / 1KB)) KB); jit=$jitLabel; " + ($rwxSample -join '; ') + $entropyNote) `
                     -Cwe @('CWE-119', 'CWE-1327') `
                     -Description ('The process holds memory that is simultaneously writable and executable. ' +
                         $jitNote) `
@@ -224,7 +307,7 @@ function Test-TcpkMemoryRegions {
                     -Severity $sev -Confidence 'Confirmed' `
                     -Title "$($p.Name): $privExecCount executable region(s) not backed by an image, $([int]($privExecBytes / 1KB)) KB" `
                     -File "$($p.Name) (PID $($p.Id))" `
-                    -Evidence ("private-exec=$privExecCount ($([int]($privExecBytes / 1KB)) KB); jit=$jitLabel; " + ($privSample -join '; ')) `
+                    -Evidence ("private-exec=$privExecCount ($([int]($privExecBytes / 1KB)) KB); jit=$jitLabel; " + ($privSample -join '; ') + $entropyNote) `
                     -Cwe @('CWE-1327') `
                     -Description ('Executable memory not backed by a mapped image file. Loaded modules are ' +
                         'MEM_IMAGE; private executable memory is either JIT output or code that arrived ' +

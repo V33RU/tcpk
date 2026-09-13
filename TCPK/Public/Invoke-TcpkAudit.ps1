@@ -394,6 +394,9 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkRegistryCredentialStore' { Test-TcpkRegistryCredentialStore -Path $expanded }
     _RunCheck 'Test-TcpkEndpoints'           { Test-TcpkEndpoints           -Path $expanded }
     _RunCheck 'Test-TcpkDeserialization'     { Test-TcpkDeserialization     -Path $expanded }
+    _RunCheck 'Test-TcpkDeserBinder'         { Test-TcpkDeserBinder         -Path $expanded }
+    _RunCheck 'Test-TcpkComInterop'          { Test-TcpkComInterop          -Path $expanded }
+    _RunCheck 'Test-TcpkAssemblyBindingTrust' { Test-TcpkAssemblyBindingTrust -Path $expanded }
     _RunCheck 'Test-TcpkCallsites'           { Test-TcpkCallsites           -Path $expanded }
     _RunCheck 'Test-TcpkSqlInjection'       { Test-TcpkSqlInjection        -Path $expanded }
     _RunCheck 'Test-TcpkTlsBypass'           { Test-TcpkTlsBypass           -Path $expanded }
@@ -405,14 +408,21 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkHollowingApis'     { Test-TcpkHollowingApis       -Path $expanded }
     _RunCheck 'Test-TcpkAmsiSurface'       { Test-TcpkAmsiSurface         -Path $expanded }
     _RunCheck 'Test-TcpkNativeInterop'       { Test-TcpkNativeInterop       -Path $expanded }
+    _RunCheck 'Test-TcpkUnsafeIl'            { Test-TcpkUnsafeIl            -Path $expanded }
+    _RunCheck 'Test-TcpkPInvokeImportMap'    { Test-TcpkPInvokeImportMap    -Path $expanded }
     _RunCheck 'Test-TcpkJavaBundle'          { Test-TcpkJavaBundle          -Path $expanded }
     _RunCheck 'Test-TcpkJavaSigning'         { Test-TcpkJavaSigning         -Path $expanded }
     _RunCheck 'Test-TcpkDevArtifacts'        { Test-TcpkDevArtifacts        -Path $expanded }
     _RunCheck 'Test-TcpkPdbPathLeak'         { Test-TcpkPdbPathLeak         -Path $expanded }
     _RunCheck 'Test-TcpkMsixAppInstallerFile'{ Test-TcpkMsixAppInstallerFile -Path $expanded }
+    _RunCheck 'Test-TcpkMsixIntegrity'       { Test-TcpkMsixIntegrity       -Path $expanded }
+    _RunCheck 'Test-TcpkElectronUpdaterFeed' { Test-TcpkElectronUpdaterFeed -Path $expanded }
+    _RunCheck 'Test-TcpkSqliteWalResidue'    { Test-TcpkSqliteWalResidue    -Path $expanded }
     _RunCheck 'Test-TcpkDotenvSecrets'       { Test-TcpkDotenvSecrets       -Path $expanded }
     _RunCheck 'Test-TcpkJsSourceMap'         { Test-TcpkJsSourceMap         -Path $expanded }
     _RunCheck 'Test-TcpkNugetConfigCreds'    { Test-TcpkNugetConfigCreds    -Path $expanded }
+    _RunCheck 'Test-TcpkPythonCallsites'     { Test-TcpkPythonCallsites     -Path $expanded }
+    _RunCheck 'Test-TcpkCertBundle'          { Test-TcpkCertBundle          -Path $expanded }
     _RunCheck 'Test-TcpkDependencyConfusion' { Test-TcpkDependencyConfusion  -Path $expanded }
     _RunCheck 'Test-TcpkGoRustDeps'          { Test-TcpkGoRustDeps          -Path $expanded }
     _RunCheck 'Test-TcpkEmbeddedScripts'     { Test-TcpkEmbeddedScripts     -Path $expanded }
@@ -552,6 +562,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkPwshProfileAcl'      { Test-TcpkPwshProfileAcl }
     _RunCheck 'Test-TcpkHostNameResolution'  { Test-TcpkHostNameResolution -Path $expanded }
     _RunCheck 'Test-TcpkPersistenceLoadPoints' { Test-TcpkPersistenceLoadPoints -Path $expanded }
+    _RunCheck 'Test-TcpkComMachineDefaults'  { Test-TcpkComMachineDefaults }
     _RunCheck 'Test-TcpkTrustStore'          { Test-TcpkTrustStore          -NameLike $idTerms -Path $expanded }
     # All name-targeted checks are app-aware: they take the FULL derived term set so
     # they find data keyed by product code / CLSID / brand name / vendor, not just one
@@ -563,6 +574,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkFirewallRules'       { Test-TcpkFirewallRules       -NameLike $idTerms -Path $expanded }
         _RunCheck 'Test-TcpkAvExclusions'        { Test-TcpkAvExclusions        -NameLike $idTerms -Path $expanded }
         _RunCheck 'Test-TcpkServiceBinaryAcl'    { Test-TcpkServiceBinaryAcl    -NameLike $idTerms }
+        _RunCheck 'Test-TcpkMailslotDacl'        { Test-TcpkMailslotDacl        -NameLike $idTerms }
         _RunCheck 'Test-TcpkServicePermissions'  { Test-TcpkServicePermissions  -NameLike $idTerms }
         _RunCheck 'Test-TcpkUnquotedServicePath' { Test-TcpkUnquotedServicePath -NameLike $idTerms }
         _RunCheck 'Test-TcpkUninstallStringHijack' { Test-TcpkUninstallStringHijack -NameLike $idTerms }
@@ -682,6 +694,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Invoke-TcpkActivityTrace'         { Invoke-TcpkActivityTrace         -ProcessName $ProcessName -Seconds 30 -IncludeChildren }
         _RunCheck 'Test-TcpkMemoryDump'              { Test-TcpkMemoryDump              -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkMemorySecrets'           { Test-TcpkMemorySecrets           -ProcessName $ProcessName }
+        _RunCheck 'Invoke-TcpkManagedCarve'          { Invoke-TcpkManagedCarve          -ProcessName $ProcessName }
     }
 
     # Stop the instance TCPK launched (-LaunchTarget); the live checks that needed it are done.
@@ -715,6 +728,7 @@ function Invoke-TcpkAudit {
     # ----- Bucket H (logging / telemetry, 3 cmdlets) -----
     _RunCheck 'Test-TcpkLogFiles'              { Test-TcpkLogFiles              -Path $expanded }
     _RunCheck 'Test-TcpkLogInjection'          { Test-TcpkLogInjection          -Path $expanded }
+    _RunCheck 'Test-TcpkLogConfigPosture'      { Test-TcpkLogConfigPosture      -Path $expanded }
     _RunCheck 'Test-TcpkSecurityEventLogging'  { Test-TcpkSecurityEventLogging  -Path $expanded }
     _RunCheck 'Test-TcpkTelemetrySdks'     { Test-TcpkTelemetrySdks     -Path $expanded }
     _RunCheck 'Test-TcpkPiiInLogs'         { Test-TcpkPiiInLogs         -Path $expanded }

@@ -118,10 +118,21 @@ function Get-TcpkSinkPreconditions {
         default       { 'UNTESTED' }
     }
 
+    # SevCap MUST be CRITICAL here, and that is not cosmetic.
+    #
+    # New-TcpkPrecondition defaults SevCap to 'HIGH', and Resolve-TcpkPreconditions applies
+    # that cap for every CONFIRMED precondition: rank(HIGH)=3 < rank(CRITICAL)=4, so a
+    # CRITICAL candidate whose three preconditions are all ESTABLISHED was silently capped
+    # to HIGH. The three elements below are meant to gate severity by their STATE
+    # (REFUTED suppresses, UNTESTED caps at MEDIUM), never to impose a ceiling of their own
+    # when they are confirmed. Passing CRITICAL makes the cap a no-op so only the state
+    # logic applies. Without this, wiring a CRITICAL command-injection or deserialization
+    # finding through this helper quietly downgrades it, and the intent is visible in
+    # TCPK/Tests/SinkTaint.Tests.ps1 ('CRITICAL candidate with all established is not capped').
     @(
-        New-TcpkPrecondition -Name 'sink-source-external'   -State $srcState  -Evidence $SinkAnalysis.SourceDetail
-        New-TcpkPrecondition -Name 'sink-path-unobstructed' -State $pathState  -Evidence $pathEvidence
-        New-TcpkPrecondition -Name 'sink-boundary-crossed'  -State $bndState   -Evidence $SinkAnalysis.BoundaryDetail
+        New-TcpkPrecondition -Name 'sink-source-external'   -State $srcState  -Evidence $SinkAnalysis.SourceDetail   -SevCap 'CRITICAL'
+        New-TcpkPrecondition -Name 'sink-path-unobstructed' -State $pathState -Evidence $pathEvidence                -SevCap 'CRITICAL'
+        New-TcpkPrecondition -Name 'sink-boundary-crossed'  -State $bndState  -Evidence $SinkAnalysis.BoundaryDetail -SevCap 'CRITICAL'
     )
 }
 

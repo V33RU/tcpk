@@ -1158,6 +1158,187 @@ function Get-TcpkCallsiteSinkApiRegex {
 # completed per method by Get-TcpkMethodTaintedLocals (tainted-local dataflow), both
 # kept PRECISE (direct assignment from a known source/tainted-returning call only) so
 # the win in recall does not re-introduce false positives. $null if Cecil unavailable.
+# Does a real neutralizer stand between the tainted value and this sink?
+#
+# WHY THE BIAS IS ONE-DIRECTIONAL. A 'neutralized' verdict maps to REFUTED in
+# Get-TcpkSinkPreconditions, which caps the finding at INFO. Claiming neutralization
+# wrongly therefore BURIES a real command injection, which is strictly worse than the
+# current behaviour of over-claiming. Every ambiguous case here must resolve to "not
+# neutralized". The taint engine above is interprocedural while this check is confined to
+# one method body, so a guard living in a validation helper is MISSED: that direction
+# over-reports, which is the safe direction and matches the bias this file already states.
+#
+# WHAT COUNTS. Only two shapes are accepted, both of which constrain the WHOLE value:
+#   arglist          ProcessStartInfo.ArgumentList, where the runtime escapes each element
+#                    per the CommandLineToArgvW rules, so a metacharacter inside an element
+#                    cannot split it into a second argument.
+#   allowlist-regex  An anchored Regex.IsMatch whose literal pattern starts '^' and ends
+#                    '$', AND whose result actually branches around the sink.
+#
+# WHAT DOES NOT COUNT, and is recorded as a weak control on a still-established path:
+# quoting by concatenation (an embedded quote closes it), deny-lists (Replace/Trim/
+# Substring), unanchored regex ('[a-z]+' matches "a & calc.exe"), a regex whose result is
+# never branched on, URL encoders in front of a process sink, and UseShellExecute=false on
+# its own (the callee still parses its own command line).
+function Get-TcpkIlNeutralizer {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Instrs,
+        [Parameter(Mandatory)][int]$SinkIndex,
+        [Parameter(Mandatory)][AllowNull()][object]$SinkRef
+    )
+
+    $none = [pscustomobject]@{ Kind = 'none'; Name = ''; Detail = '' }
+    if (-not $Instrs -or $SinkIndex -lt 0 -or $SinkIndex -ge $Instrs.Count) { return $none }
+
+    $sinkIns = $Instrs[$SinkIndex]
+    $sinkOffset = 0
+    try { $sinkOffset = [int]$sinkIns.Offset } catch { return $none }
+
+    # HARD DISQUALIFIER. Process.Start(String) puts the tainted value in the FILE NAME.
+    # No argument escaping can help, so never claim neutralization for that overload.
+    if ($SinkRef) {
+        $sinkName = ''; $sinkDecl = ''; $paramCount = -1
+        try { $sinkName = "$($SinkRef.Name)"; $sinkDecl = "$($SinkRef.DeclaringType.FullName)" } catch { }
+        try { $paramCount = @($SinkRef.Parameters).Count } catch { $paramCount = -1 }
+        if ($sinkName -eq 'Start' -and $sinkDecl -eq 'System.Diagnostics.Process' -and $paramCount -eq 1) {
+            return [pscustomobject]@{ Kind = 'none'; Name = ''
+                Detail = 'Process.Start(String) overload: the tainted value is the file name, which no argument escaping protects' }
+        }
+    }
+
+    $weak = New-Object 'System.Collections.Generic.List[string]'
+    $sawArgList = $false; $sawSetArguments = $false; $sawShellExec = $false; $sawShellTarget = $false
+    $anchoredGuard = $null
+
+    for ($k = 0; $k -lt $Instrs.Count; $k++) {
+        $ins = $Instrs[$k]
+        $op = ''
+        try { $op = "$($ins.OpCode.Name)" } catch { continue }
+
+        # A shell target anywhere in the method disqualifies argv separation: cmd.exe and
+        # the script hosts re-parse their own command line, so argument boundaries do not
+        # stop injection into what they subsequently interpret.
+        if ($op -eq 'ldstr') {
+            $lit = ''
+            try { $lit = "$($ins.Operand)" } catch { $lit = '' }
+            $litLower = $lit.ToLowerInvariant()
+            foreach ($sh in @('cmd.exe', 'powershell.exe', 'pwsh.exe', 'cscript.exe', 'wscript.exe', '/c ', '-command')) {
+                if ($litLower.Contains($sh)) { $sawShellTarget = $true; break }
+            }
+        }
+
+        if ($op -ne 'call' -and $op -ne 'callvirt') { continue }
+        $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+        if ($null -eq $mref) { continue }
+        $mn = ''; $dt = ''
+        try { $mn = "$($mref.Name)"; $dt = "$($mref.DeclaringType.FullName)" } catch { continue }
+
+        if ($dt -eq 'System.Diagnostics.ProcessStartInfo') {
+            if ($mn -eq 'get_ArgumentList')   { $sawArgList = $true }
+            if ($mn -eq 'set_Arguments')      { $sawSetArguments = $true }
+            if ($mn -eq 'set_UseShellExecute') { $sawShellExec = $true }
+            continue
+        }
+
+        # ---- deny-list / cosmetic sanitizers: recorded, never neutralizing -------
+        if ($k -lt $SinkIndex) {
+            if ($dt -eq 'System.String' -and ($mn -eq 'Replace' -or $mn -eq 'Trim' -or $mn -eq 'Substring')) {
+                if ($weak.Count -lt 4) { $weak.Add("String.$mn") }
+            }
+            if ($dt -eq 'System.Text.RegularExpressions.Regex' -and $mn -eq 'Replace') {
+                if ($weak.Count -lt 4) { $weak.Add('Regex.Replace') }
+            }
+            if ($dt -eq 'System.Uri' -and $mn -like 'Escape*') {
+                if ($weak.Count -lt 4) { $weak.Add("Uri.$mn (URL encoder, no effect on command-line parsing)") }
+            }
+        }
+
+        # ---- N2: anchored allow-list regex that dominates the sink ---------------
+        if ($k -lt $SinkIndex -and $dt -eq 'System.Text.RegularExpressions.Regex' -and $mn -eq 'IsMatch') {
+            # The pattern is the ldstr immediately preceding the call (skip nop), the same
+            # constant-recovery technique the TypeNameHandling walker uses.
+            $arg = $ins.Previous
+            while ($arg -and "$($arg.OpCode.Name)" -eq 'nop') { $arg = $arg.Previous }
+            $pat = ''
+            if ($arg -and "$($arg.OpCode.Name)" -eq 'ldstr') {
+                try { $pat = "$($arg.Operand)" } catch { $pat = '' }
+            }
+            if (-not $pat) {
+                if ($weak.Count -lt 4) { $weak.Add('Regex.IsMatch (pattern not a literal; cannot be judged)') }
+                continue
+            }
+            if (-not ($pat.StartsWith('^') -and $pat.EndsWith('$'))) {
+                if ($weak.Count -lt 4) { $weak.Add('Regex.IsMatch (pattern not anchored ^...$, so it constrains only a substring)') }
+                continue
+            }
+            # Dominance: a conditional branch between the guard and the sink must either
+            # jump PAST the sink, or the path between it and the sink must abort. Without
+            # this the guard may be testing something else entirely, which is the single
+            # largest false-refutation risk.
+            $dominates = $false
+            for ($b = $k + 1; $b -lt $SinkIndex; $b++) {
+                $bi = $Instrs[$b]
+                $bop = ''
+                try { $bop = "$($bi.OpCode.Name)" } catch { continue }
+                if ($bop -eq 'throw' -or $bop -eq 'ret') { $dominates = $true; break }
+                if ($bop -notlike 'br*' -and $bop -notlike 'b*') { continue }
+                $tgt = $bi.Operand -as [Mono.Cecil.Cil.Instruction]
+                if ($null -eq $tgt) { continue }
+                $tOff = -1
+                try { $tOff = [int]$tgt.Offset } catch { continue }
+                if ($tOff -gt $sinkOffset) { $dominates = $true; break }
+            }
+            if ($dominates) {
+                $anchoredGuard = $pat
+            } else {
+                if ($weak.Count -lt 4) { $weak.Add('Regex.IsMatch (anchored, but its result does not branch around the sink)') }
+            }
+        }
+    }
+
+    $weakDetail = ''
+    if ($weak.Count) { $weakDetail = 'Weak or non-applicable controls seen: ' + ($weak -join ', ') + '.' }
+
+    if ($anchoredGuard) {
+        $shown = $anchoredGuard
+        if ($shown.Length -gt 60) { $shown = $shown.Substring(0, 60) + '...' }
+        return [pscustomobject]@{
+            Kind   = 'allowlist-regex'
+            Name   = "Regex.IsMatch(anchored) $shown"
+            Detail = ('An anchored allow-list pattern constrains the whole value and its result branches ' +
+                      'around the sink. ' + $weakDetail).Trim()
+        }
+    }
+
+    if ($sawArgList -and -not $sawSetArguments) {
+        if ($sawShellTarget) {
+            return [pscustomobject]@{ Kind = 'none'; Name = ''
+                Detail = ('ArgumentList is used, but a shell or script-host target appears in this method, ' +
+                          'so argument separation does not prevent the callee re-parsing its own command ' +
+                          'line. ' + $weakDetail).Trim() }
+        }
+        if ($sawShellExec) {
+            return [pscustomobject]@{ Kind = 'none'; Name = ''
+                Detail = ('ArgumentList is used but UseShellExecute is assigned in this method; argv ' +
+                          'separation does not apply when the shell performs the launch. ' + $weakDetail).Trim() }
+        }
+        return [pscustomobject]@{
+            Kind   = 'arglist'
+            Name   = 'ProcessStartInfo.ArgumentList'
+            Detail = ('Arguments are supplied as discrete list elements, which the runtime escapes ' +
+                      'individually, so a metacharacter inside a value cannot split it into another ' +
+                      'argument. ' + $weakDetail).Trim()
+        }
+    }
+
+    if ($sawSetArguments -and $weak.Count) {
+        return [pscustomobject]@{ Kind = 'none'; Name = ''
+            Detail = ('Arguments assigned as a single string. ' + $weakDetail).Trim() }
+    }
+    return [pscustomobject]@{ Kind = 'none'; Name = ''; Detail = $weakDetail }
+}
+
 function Get-TcpkCallsiteUsage {
     [CmdletBinding()]
     param(
@@ -1307,11 +1488,30 @@ function Get-TcpkCallsiteUsage {
                     else { $argKind = 'unknown' }
                 }
 
+                # Neutralizer pass. Only run on a TAINTED site: a constant or unknown
+                # argument has nothing to neutralize, and skipping those keeps the extra
+                # instruction walk off the common path. Materialised to plain strings here
+                # because the Cecil assembly is disposed at the audit boundary and these
+                # objects outlive it.
+                $neutKind = 'none'; $neutName = ''; $neutDetail = ''
+                if ($argKind -eq 'tainted') {
+                    $nz = $null
+                    try { $nz = Get-TcpkIlNeutralizer -Instrs $instrs -SinkIndex $i -SinkRef $mref } catch { $nz = $null }
+                    if ($nz) {
+                        $neutKind   = "$($nz.Kind)"
+                        $neutName   = "$($nz.Name)"
+                        $neutDetail = "$($nz.Detail)"
+                    }
+                }
+
                 $sites.Add([pscustomobject]@{
-                    Enclosing = "$($t.FullName)::$($m.Name)"
-                    Reachable = [bool]$reach
-                    ArgKind   = $argKind
-                    Target    = "$($mref.DeclaringType.Name)::$($mref.Name)"
+                    Enclosing       = "$($t.FullName)::$($m.Name)"
+                    Reachable       = [bool]$reach
+                    ArgKind         = $argKind
+                    Target          = "$($mref.DeclaringType.Name)::$($mref.Name)"
+                    NeutralizerKind = $neutKind
+                    Neutralizer     = $neutName
+                    NeutralizerNote = $neutDetail
                 })
                 if ($sites.Count -ge $Max) { break }
             }
@@ -1321,13 +1521,20 @@ function Get-TcpkCallsiteUsage {
         $tnt = @($sites | Where-Object { $_.ArgKind -eq 'tainted' }).Count
         $dyn = @($sites | Where-Object { $_.ArgKind -in 'dynamic','tainted' }).Count
         $con = @($sites | Where-Object { $_.ArgKind -eq 'constant' }).Count
+        # A tainted site counts as neutralized only when the guard was actually proven.
+        # AllTaintedNeutralized is the one that can safely demote a finding: it requires
+        # EVERY tainted site to be guarded, so one unguarded path keeps the finding at full
+        # severity even when a sibling call site is clean.
+        $ntz = @($sites | Where-Object { $_.ArgKind -eq 'tainted' -and $_.NeutralizerKind -ne 'none' }).Count
         return [pscustomobject]@{
-            CallSiteCount = $sites.Count
-            AnyReachable  = [bool](@($sites | Where-Object { $_.Reachable }).Count)
-            AnyDynamic    = [bool]$dyn
-            AnyTainted    = [bool]$tnt
-            AllConstant   = ($sites.Count -gt 0 -and $dyn -eq 0 -and $con -gt 0)
-            Sites         = $sites.ToArray()
+            CallSiteCount         = $sites.Count
+            AnyReachable          = [bool](@($sites | Where-Object { $_.Reachable }).Count)
+            AnyDynamic            = [bool]$dyn
+            AnyTainted            = [bool]$tnt
+            AllConstant           = ($sites.Count -gt 0 -and $dyn -eq 0 -and $con -gt 0)
+            AnyNeutralized        = [bool]$ntz
+            AllTaintedNeutralized = ($tnt -gt 0 -and $ntz -eq $tnt)
+            Sites                 = $sites.ToArray()
         }
     } finally {
         # $asm is cached by Get-TcpkCecilAssembly; disposed at the audit boundary

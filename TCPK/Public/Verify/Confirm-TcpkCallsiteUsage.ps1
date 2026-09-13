@@ -124,6 +124,10 @@ function Confirm-TcpkCallsiteUsage {
             if (-not $spec) { $f; continue }
 
             $total = 0; $anyReach = $false; $anyDyn = $false; $anyConst = $false; $anyTaint = $false
+            # Neutralizer accounting. Demotion requires EVERY usage that carried taint to
+            # report all of its tainted sites guarded; one unguarded usage keeps the
+            # finding at full strength.
+            $taintUsages = 0; $neutUsages = 0; $neutLabel = ''
             foreach ($sink in $spec.Sinks) {
                 $u = $null
                 $gp = @{ DllPath = $f.File; TypeFragment = $sink.T; Injection = [bool]$spec.Inj }
@@ -136,6 +140,17 @@ function Confirm-TcpkCallsiteUsage {
                 if ($u.AnyDynamic)   { $anyDyn   = $true }
                 if ($u.AnyTainted)   { $anyTaint = $true }
                 if ($u.AllConstant)  { $anyConst = $true }
+                if ($u.AnyTainted) {
+                    $taintUsages++
+                    if ($u.AllTaintedNeutralized) {
+                        $neutUsages++
+                        if (-not $neutLabel) {
+                            foreach ($st in @($u.Sites)) {
+                                if ("$($st.ArgKind)" -eq 'tainted' -and "$($st.Neutralizer)") { $neutLabel = "$($st.Neutralizer)"; break }
+                            }
+                        }
+                    }
+                }
             }
 
             if ($total -eq 0) {
@@ -143,11 +158,23 @@ function Confirm-TcpkCallsiteUsage {
                 $f.Severity   = 'INFO'
                 $f.Description = "$($f.Description) [TCPK IL: the flagged API is not actually invoked in $leaf (call/newobj absent) -- the rule matched a string/type reference, not a call site.]"
             }
+            elseif ($spec.Inj -and $anyTaint -and $taintUsages -gt 0 -and $neutUsages -eq $taintUsages) {
+                # Proven taint, but a proven neutralizer stands between the source and EVERY
+                # tainted sink. Only two shapes reach here (see Get-TcpkIlNeutralizer): an
+                # anchored allow-list regex that branches around the sink, and
+                # ProcessStartInfo.ArgumentList with no shell target and no single-string
+                # Arguments assignment. Everything ambiguous is reported as unguarded, so
+                # this demotion is taken only on positive evidence that the value is
+                # constrained, never on absence of evidence.
+                $f.Confidence = 'Likely-FP (IL)'
+                $f.Severity   = 'INFO'
+                $f.Description = "$($f.Description) [TCPK IL: external input reaches the sink across $total call site(s), but a neutralizer constrains the value at every tainted site ($neutLabel). The taint is real; the injection is not, because the guard admits only values that cannot alter command structure. Verify the guard still holds if the code changes.]"
+            }
             elseif ($spec.Inj -and $anyTaint) {
                 # proven taint: an external-input source in the method, or a caller
                 # parameter, flows into a reachable sink -> a real data-flow bug.
                 $f.Confidence = 'Confirmed (IL)'
-                $f.Description = "$($f.Description) [TCPK IL: reachable call where external input reaches the sink ($total call site(s)) -- the method reads an external source (file/registry/network/IPC/HTTP request) or a caller parameter flows into the argument. Treat as a real injectable path and review.]"
+                $f.Description = "$($f.Description) [TCPK IL: reachable call where external input reaches the sink ($total call site(s)) -- the method reads an external source (file/registry/network/IPC/HTTP request) or a caller parameter flows into the argument. No neutralizer was proven between source and sink. Treat as a real injectable path and review.]"
             }
             elseif ($spec.Inj -and -not $anyDyn -and $anyConst) {
                 $r = if ($rank.ContainsKey("$($f.Severity)")) { [Math]::Max(0, $rank["$($f.Severity)"] - 1) } else { 1 }
