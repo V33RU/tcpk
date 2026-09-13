@@ -37,11 +37,39 @@ function Test-TcpkMsixCapabilities {
         'videosLibrary'             = 'LOW'
         'musicLibrary'              = 'LOW'
         'removableStorage'          = 'LOW'
+        # DeviceCapability entries. These sit in the same Capabilities element and are
+        # returned by the same walk, but had no severity here so they were ignored even
+        # once the name resolved. Privacy-sensitive hardware is graded above physical
+        # channels because consent is user-visible and the data is personal.
+        'webcam'                    = 'MEDIUM'
+        'microphone'                = 'MEDIUM'
+        'location'                  = 'MEDIUM'
+        'bluetooth'                 = 'LOW'
+        'serialcommunication'       = 'LOW'
+        'usb'                       = 'LOW'
+        'humaninterfacedevice'      = 'LOW'
+        'pointOfService'            = 'LOW'
     }
 
     $declared = @()
     if ($m.Package.Capabilities) {
-        $declared = @($m.Package.Capabilities.ChildNodes | ForEach-Object { $_.Name })
+        # Read the Name ATTRIBUTE, not the element name.
+        #
+        # $_.Name on an XmlElement is the .NET XmlNode.Name property, which returns the
+        # qualified TAG name: 'Capability', 'rescap:Capability', 'uap:Capability',
+        # 'DeviceCapability'. PowerShell's XML adapter gives intrinsic members precedence
+        # over a same-named attribute, so the capability identity ('runFullTrust',
+        # 'broadFileSystemAccess', 'bluetooth') lives only in the Name attribute and was
+        # never being read. Every lookup below keys on that identity, so a tag name matches
+        # nothing. GetAttribute is used first and $_.Name kept as a fallback so this is
+        # correct regardless of which semantics the host applies. Comment and whitespace
+        # nodes have no GetAttribute; they throw and are dropped by the filter.
+        $declared = @($m.Package.Capabilities.ChildNodes | ForEach-Object {
+            $capName = ''
+            try { $capName = "$($_.GetAttribute('Name'))" } catch { $capName = '' }
+            if (-not $capName) { try { $capName = "$($_.Name)" } catch { $capName = '' } }
+            $capName
+        } | Where-Object { $_ })
     }
     foreach ($c in $declared) {
         if ($risky.ContainsKey($c)) {
