@@ -4,6 +4,51 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**11 new detectors, crash minimizer, sink neutralizer analysis.**
+
+Managed metadata: `Test-TcpkUnsafeIl` reads unsafe IL opcodes and CLR CorFlags from the
+shipping assembly, covering what `Test-TcpkNativeInterop` cannot because its C#-source
+needles (`stackalloc`, `Marshal.Copy`) do not survive compilation.
+`Test-TcpkPInvokeImportMap` reads the real native import surface from ImplMap, which a
+PE-import scan never sees because the CLR resolves a `[DllImport]` lazily.
+`Test-TcpkDeserBinder` answers whether a formatter sink has a `SerializationBinder` at all,
+which is what decides exploitability. `Test-TcpkComInterop` reads client-side COM
+consumption. `Test-TcpkAssemblyBindingTrust` covers `<codeBase>` to remote/UNC,
+`loadFromRemoteSources`, legacy CAS policy and probing-path escape.
+
+Live memory: `Invoke-TcpkManagedCarve` carves a managed assembly out of private memory and
+proves it by parsing it, closing the fileless `Assembly.Load(byte[])` case that disk-based
+decompilers cannot reach. `Save-TcpkMemoryRegion` turns a flagged address into an artifact.
+`Test-TcpkMemoryRegions` gains an entropy pass: machine code sits near 6 bits/byte and
+packed content near 8, a discriminator the JIT-module check cannot provide.
+
+Fuzzing: `Invoke-TcpkCrashMinimize` delta-debugs a crash to a minimal trigger while holding
+the exit code constant, after first checking the crash reproduces at all. A crash that does
+not replay is now reported as such instead of being carried forward as confirmed.
+
+Sink neutralizer analysis: `Get-TcpkIlNeutralizer` answers whether a guard stands between a
+tainted source and a command sink. Only `ProcessStartInfo.ArgumentList` and an anchored
+regex that branches around the sink count as neutralization; deny-lists, unanchored
+patterns and URL encoders are recorded without demoting, because a wrong neutralized
+verdict caps a real injection at INFO.
+
+Also: `Test-TcpkLogConfigPosture`, `Test-TcpkSqliteWalResidue`, `Test-TcpkCertBundle`,
+`Test-TcpkElectronUpdaterFeed`, `Test-TcpkPythonCallsites`, `Test-TcpkMsixIntegrity`,
+`Test-TcpkComMachineDefaults`, `Test-TcpkMailslotDacl`.
+
+**Fixes.** Preconditions defaulted `SevCap` to HIGH, so a CRITICAL candidate with every
+precondition established was silently capped to HIGH; the existing test asserting otherwise
+was failing. Crash findings hardcoded CWE-787 (out-of-bounds write) on every fault
+including divide-by-zero and near-NULL reads, now reduced to CWE-20. `Invoke-TcpkInputFuzz`
+knew 3 of 8 fault codes, so heap corruption and stack overflow were recorded as clean
+exits. `Test-TcpkDeserialization` now gates on the BSJB marker (46 fewer false positives on
+a real tree), `Test-TcpkPdbPathLeak` aggregates by directory (was 771 findings on one
+target), and `Test-TcpkPeMitigations` only requires CFG where the toolchain can emit it.
+
+**Docs.** Cmdlet counts in README, REQUIREMENTS and CHECKS.md were stale in four places
+(280 / 260 / 235-of-260 / 245-of-280) and are now 316 with 212 detectors. The checklist
+claim read "53 of 55 automated"; the file measures 31 AUTO, 23 PARTIAL, 1 GAP.
+
 **Test-TcpkNugetConfigCreds (A62) - shipped nuget.config credential leak.** New Discovery
 cmdlet that parses every `nuget.config` in the install tree and fires three rules.
 `supply.nuget.cleartext-password` CRITICAL when a `<packageSourceCredentials>` block

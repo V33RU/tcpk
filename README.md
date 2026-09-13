@@ -53,7 +53,7 @@ with the evidence grade for every one. Nothing in it is fabricated.
 ![TCPK GUI](assets/tcpk-gui.png)
 
 Point it at an MSIX package, an installed folder, or a single `.exe`, click **Run Audit**, and
-TCPK runs 280 cmdlets across 19 buckets (174 of them detection checks), streams findings live, and writes HTML + Excel
+TCPK runs 316 cmdlets across 19 buckets (212 of them detection checks), streams findings live, and writes HTML + Excel
 reports. Every finding carries a confidence label, a **computed CVSS v4.0** base score, CWE,
 MITRE ATT&CK, and an OWASP TASVS mapping. The same engine drives the CLI, a native **MCP
 server**, and an **agentic AI workbench** (`TCPK-Agentic.bat` -- loopback, token-gated,
@@ -89,7 +89,7 @@ discovery-only) with decompile, local AI review, and an autonomous agent.
 plus Recon / Report.
 
 Full check catalogue in [`docs/CHECKS.md`](docs/CHECKS.md); the 55-case thick-client test plan is
-auto-correlated in the Excel **Checklist** sheet (53 of 55 automated). Full technical write-up at
+auto-correlated in the Excel **Checklist** sheet (31 of 55 fully automated, 23 partial, 1 gap). Full technical write-up at
 [v33ru.github.io/tcpk](https://v33ru.github.io/tcpk/).
 
 ## Supported targets

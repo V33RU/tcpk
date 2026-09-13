@@ -1,6 +1,6 @@
 # TCPK - Check Catalogue
 
-Public cmdlets, grouped by bucket. This page covers 235 of the 260 that ship; run
+Public cmdlets, grouped by bucket. This page covers a subset of the 316 that ship; run
 `Get-TcpkInfo` or `Get-Command -Module TCPK` for the authoritative live list.
 **GATED** cmdlets require `Enable-TcpkExploit -Acknowledge`.
 
@@ -12,7 +12,16 @@ For thin-client apps it audits the **client-side binaries** only -- the remote s
 is out of scope (separate web/API engagement), as is the thin-client terminal OS/appliance
 (run TCPK where the Windows PE binaries live, e.g. a Citrix/RDP published-app host).
 
-## A - Static binary analysis  (60)
+## A - Static binary analysis  (68)
+
+- **Test-TcpkUnsafeIl** - A68. Unsafe/unverifiable IL opcodes (`localloc`, `cpblk`, `initblk`, `calli`) and CLR header CorFlags, read from the shipping assembly. Complements Test-TcpkNativeInterop, whose C#-source needles (`stackalloc`, `Marshal.Copy`) do not survive compilation. Rules: `interop.unsafe-il`, `pe.corflags-mixed-mode`, `pe.corflags-32bit-required`. Confidence `Confirmed (IL)`.
+- **Test-TcpkPInvokeImportMap** - A69. The assembly's real native import surface, read from the ImplMap metadata table. A `[DllImport]` never reaches the PE import table (the CLR resolves it lazily), so a PE-import scan cannot see it. Rules: `interop.pinvoke-surface`, `interop.pinvoke-unsafe-native` (escalates when the full allocate+write+execute triad is declared), `interop.pinvoke-unqualified-module` (search-order plantable module).
+- **Test-TcpkDeserBinder** - A71. Whether a type-reconstructing formatter sink is actually guarded by a `SerializationBinder`. Absence assembly-wide is what makes the sink exploitable; a call-site scan is silent about it. Rules: `deser.binder-absent` (HIGH), `deser.binder-present` (INFO, de-escalation evidence).
+- **Test-TcpkComInterop** - A72. The target's own COM consumption: `[ComImport]` RCW surface and late-bound activation. TCPK's other COM checks read the registry server side; this reads the client. Literal-argument gate keeps hardcoded ProgIDs at INFO. Rules: `com.interop-rcw-surface`, `com.late-bound-activation`, `com.bind-to-moniker`, `com.get-active-object`.
+- **Test-TcpkAssemblyBindingTrust** - A70. Assembly load redirection and CLR trust downgrades in shipped `.config`. Rules: `dotnet.codebase-remote` (HIGH, `<codeBase href>` to http/UNC), `dotnet.load-from-remote-sources`, `dotnet.legacy-security-policy`, `dotnet.probing-path-escape`, `dotnet.publisher-policy-disabled`. A bare `bindingRedirect` is deliberately not reported.
+- **Test-TcpkCertBundle** - A65. Certificates and key material shipped in the install tree: embedded private keys, SHA-1 signatures, weak RSA sizes, expired and near-expiry certs, self-signed roots. Skips OS CA bundles.
+- **Test-TcpkElectronUpdaterFeed** - A67. electron-updater / Squirrel feed audit. Rules: `update.electron-feed-plaintext`, `update.electron-feed-generic-nopin` (generic provider with no `publisherName` to pin the installer signer), `update.electron-dev-update-shipped`, `update.electron-no-publisher`.
+- **Test-TcpkPythonCallsites** - A64. Unsafe Python callsites in shipped/frozen Python (`eval`, `exec`, `pickle.load`, `os.system`, `subprocess` with `shell=True`, `yaml.load`, `marshal`). Skips the CPython stdlib and vendored trees, and gates literal-argument calls, so the result is first-party code only.
 
 - **Test-TcpkCefSharp** - A52. Detects CefSharp / CEF JavaScript-to-native bridge registration, remote-debugging port, WebSecurityDisabled and file-scheme cross-access. HIGH on the bridge and disabled-security flags; INFO scope-only when CefSharp is embedded but nothing higher fires.
 - **Test-TcpkUserRules** - A54. Runs every user-authored rule under `TCPK/Data/rules/*.json` against the target. Phase 1 supports the `file-regex` check type (glob + regex over file contents). Sandboxed by construction: rules can match, they cannot execute. Malformed rules surface as Skipped `rules.malformed` findings rather than being dropped. See `docs/EXTENDING.md`.
@@ -90,7 +99,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkXxe** - A13. XXE indicators in shipped XML + risky XML reader settings in code.
 - **Test-TcpkZipSlip** - A15. Archive-extraction (zip-slip / path-traversal) surface detection.
 
-## B - MSIX manifest  (9)
+## B - MSIX manifest  (10)
+
+- **Test-TcpkMsixIntegrity** - B11. Package integrity posture. Rules: `msix.sparse-or-modification-package`, `msix.publisher-signer-mismatch` (decodes `AppxSignature.p7x` and compares the signer DN against the manifest publisher), `msix.blockmap-sha1`.
 
 - **Test-TcpkMsixAppInstaller** - B05. AppInstaller (auto-update) declaration in AppxManifest.xml.
 - **Test-TcpkMsixAppInstallerFile** - B10. Parses shipped `.appinstaller` XML files (distinct from B05 which only reads the uap5 pointer inside AppxManifest.xml). Rules: `msix.appinstaller.plaintext-uri` HIGH (any Uri attribute is http://), `msix.appinstaller.hotpath-uri` HIGH (HotPath / HotSource / SharedContentPath / RepairPackage / OptionalPackage / ContentGroupMap - live-file patch into the installed dir under the signed package identity), `msix.appinstaller.force-update-any-version` HIGH (allows downgrade to a known-vulnerable older release), `msix.appinstaller.silent-update` MEDIUM (OnLaunch ShowPrompt=false + UpdateBlocksActivation=false), `msix.appinstaller.dependency-cross-domain` MEDIUM (a `<Dependencies>\<Package>` Uri host differs from MainPackage / MainBundle host), `msix.appinstaller.self-uri-mismatch` MEDIUM (root `<AppInstaller Uri>` host differs from MainPackage host).
@@ -103,7 +114,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkMsixProtocols** - B03. URI scheme handlers declared in AppxManifest.xml. Adds a sink-reachability pass: emits `protocol.sink-reachable` (HIGH) when a binary both handles activation args and references a dangerous sink.
 - **Test-TcpkUacManifest** - B09. UAC execution level in embedded RT_MANIFEST (and sidecar .manifest).
 
-## C - OS integration  (30)
+## C - OS integration  (31)
+
+- **Test-TcpkComMachineDefaults** - C25. Machine-wide DCOM posture. Rules: `com.enable-dcom-network`, `com.machine-default-perms-weak` (parses the REG_BINARY launch/access SDDL and grades broad-principal ACEs), `com.machine-default-absent`.
 
 - **Expand-TcpkAsar** - Parse an Electron app.asar file-table, extract each module to disk, and scan the extracted JS/config for secrets + insecure Electron flags.
 - **Get-TcpkTasvsMap** - Map findings / rule IDs to OWASP TASVS controls and the OWASP Desktop App Security Top 10 (report-time lookup; pipe findings, pass -RuleId, or dump the table).
@@ -143,7 +156,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkRegistryLoadPoints** - C26. Five registry-driven DLL load points not covered by the COM (Test-TcpkComHijack) or SxS paths: Winsock LSP/NSP catalogs, print monitors and processors, LSA extensions/notification packages, netsh helpers, and Winlogon notify. Each entry is resolved to a DLL on disk and its ACL read. Filtered to the audited install tree so it reports the vendor's own registrations rather than the whole machine, with a census record covering what was enumerated.
 - **Test-TcpkInstallerPlanting** - C27. Installer / setup-binary DLL planting (T1574.001). Every other DLL check in TCPK inspects an INSTALLED application; this one inspects the installer, which runs from wherever the browser saved it (usually %USERPROFILE%\Downloads) and resolves DLLs from its own directory first. A DLL the installer imports but does not ship beside itself is loaded from the download folder if one is sitting there, and installers are commonly elevated, so the payload lands as Administrator. The attacker never touches the installer, so its signature stays valid. Splits the result: imports resolvable NOWHERE are HIGH/Confirmed (the loader is guaranteed to find nothing), imports that exist in System32 are MEDIUM/Inferred (the app directory still precedes System32, but SafeDllSearchMode and manifest dependencies can change the outcome). api-ms-win-* and ext-ms-* API sets are excluded -- the loader resolves those from a schema, never from disk. Emits a coverage record when nothing was found, so silence means "looked" rather than "never looked".
 
-## D - Credential storage  (9)
+## D - Credential storage  (10)
+
+- **Test-TcpkSqliteWalResidue** - D10. Secret residue in SQLite `-wal` / `-journal` sidecars. A client-side delete or key rotation very often leaves the old plaintext in the sidecar until the next checkpoint. Rules: `localdb.sqlite-wal-residue` (HIGH), `localdb.sqlite-wal-present` (LOW, scope).
 
 - **Test-TcpkAppConfigSecrets** - D04. .NET Framework .config secrets (connection strings, machine keys).
 - **Test-TcpkBrowserTokenStore** - D08. Chromium / Electron / NW.js cookie + token store, and whether its os_crypt key is App-Bound-Encrypted or plain DPAPI.
@@ -155,7 +170,10 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkTokenCaches** - D05. MSAL / ADAL / custom OAuth token cache files under the target path. KNOWN GAP: the well-known per-user locations MSAL and ADAL actually write to (%LOCALAPPDATA%\.IdentityService\, %USERPROFILE%\.azure\) are not scanned, so this finds nothing for an MSAL-based app.
 - **Test-TcpkWebViewCreds** - D06. WebView2 Edge user profile -- saved login state.
 
-## E - Runtime / live process  (22)
+## E - Runtime / live process  (24)
+
+- **Test-TcpkMailslotDacl** - E23. Mailslot DACL inspection. Existence is surfaced elsewhere; this reads whether a non-admin can read or write. Rules: `mailslot.dacl-weak`, `mailslot.dacl-unreadable`.
+- **Save-TcpkMemoryRegion** - E24. Saves the raw bytes of one live memory region to the work directory, so an address flagged by Test-TcpkMemoryRegions or Test-TcpkThreadStart becomes an artifact that can be hashed, carved or loaded into a disassembler. Read-only; returns a result object rather than findings.
 
 - **Invoke-TcpkActivityTrace** - E24. One ETW capture window analysed three ways: DLL probes, file writes, registry writes. Replaces three separate 30s captures, so the app is exercised once and a DLL probe can be correlated with the write that followed it. Supports -Include / -Exclude filters, -IncludeChildren and -KeepEtl.
 - **Test-TcpkChildProcesses** - E14. Direct child processes spawned by the target.
@@ -210,7 +228,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkWv2Sideload** - G08. WebView2 DLL sideloading opportunities (T1574.002).
 - **Test-TcpkWv2WebMessage** - G02. WebMessageReceived handler presence (one-way JS-to-host bridge).
 
-## H - Logging / telemetry  (4)
+## H - Logging / telemetry  (5)
+
+- **Test-TcpkLogConfigPosture** - L07. Operational soundness of the shipped NLog / log4net / Serilog configuration, for file targets only. Rules: `log.no-rotation` (unbounded growth is both a self-inflicted DoS and a way to push earlier entries out of retention), `log.timestamp-not-utc` (local time breaks cross-host correlation and duplicates an hour at the DST transition), `log.unstructured-format` (INFO). Silent when no logging config ships.
 
 - **Test-TcpkEtwProviders** - H04. Custom ETW / EventSource providers (cross-process telemetry leak).
 - **Test-TcpkLogFiles** - H01. Log files under the target path. Inventory, sensitive-keyword and stack-trace content scan, plus the log-TAMPERING question, which is separate from what a log leaks: can a non-admin principal rewrite or delete the record. Checks the ACL of each log file (`log.tamperable-file`) and of its containing directory (`log.tamperable-directory`) for Write / Modify / FullControl / Delete granted to Everyone, Authenticated Users, Users or INTERACTIVE. The directory is reported separately and matters more: on Windows, Delete on the parent removes a file whose own ACL denies it, so a hardened log inside a loose directory is still deletable. Append-only (AppendData without WriteData) is deliberately not flagged, since that is the correct posture.
@@ -232,7 +252,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkSelfIntegrityCheck** - J02. Self-integrity verification markers.
 - **Test-TcpkTimingAntiDebug** - J04. Timing-based anti-debug markers (RDTSC, QueryPerformanceCounter).
 
-## K - Exploitation (GATED, off by default)  (30)
+## K - Exploitation (GATED, off by default)  (31)
+
+- **Invoke-TcpkCrashMinimize** - K25. **GATED.** Distils a crashing input to a minimal deterministic trigger by delta debugging, holding the exit code constant so the reduced input drives the same fault. Checks reproducibility first: a crash that does not replay is reported as `fuzz.crash-not-reproducible` and the run stops, because a crash nobody can reproduce is not a finding. Rules: `fuzz.crash-minimized`, `fuzz.crash-not-reproducible`. Invoke-TcpkInputFuzz calls it by default.
 
 - **Invoke-TcpkFirmwarePlantProbe** - K25. Backs up a shipped firmware image, optionally appends a 4-byte marker so any signature check fails, launches the vendor updater, and observes via ETW whether the updater's process tree reads the file at flash time. Restores from backup in the finally block. Three gates: Enable-TcpkExploit, -ConfirmActive, -AllowDevicePresent for AppendMarker mode. Confirmed (dynamic) when the read is observed.
 - **Invoke-TcpkParamTamper** - K24. Mutates one parameter of a captured request (price, quantity, boolean flag, role, limit) and sends three requests per parameter: baseline, tampered, and a bogus control. An endpoint that accepts the bogus value too reports NOT CONCLUSIVE rather than a false positive.
@@ -272,7 +294,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Get-TcpkReconStrings** - R11. Extract + categorize interesting literal strings from first-party binaries.
 - **Get-TcpkTargetProfile** - R00. Recon / fingerprint pass. Builds a target-application profile for the
 
-## Verify / triage  (21)
+## Verify / triage  (22)
+
+- **Invoke-TcpkManagedCarve** - V22. Carves managed assemblies out of a live process's private memory and proves each one by parsing it with Cecil. Covers the fileless `Assembly.Load(byte[])` case that disk-based decompilers cannot see. Rules: `memory.fileless-managed-assembly` (MEDIUM, identity matches no module on disk), `memory.in-memory-managed-assembly` (INFO, packer or resource-embedded dependency), `memory.managed-header-unparsed`, `memory.carve-coverage-capped`.
 
 - **Confirm-TcpkCallsiteUsage** - Deterministic IL verification of callsites.* and deser.* findings: is the flagged API actually invoked, reachable, and fed by external input -- or a false positive?.
 - **Confirm-TcpkCallsites** - Phase-2 confirmation for dangerous-API callsite findings.
@@ -317,6 +341,6 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLlm** - Connectivity + sanity check for the configured LLM provider.
 
 ---
-**245 of 280 cmdlets are documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
+**Not every cmdlet is documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (v2.7.1: 280 cmdlets across 19 buckets, 174 of them `Test-*` detection checks).
+from this page (316 cmdlets across 19 buckets, 212 of them `Test-*` detection checks).
