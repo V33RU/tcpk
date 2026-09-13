@@ -78,9 +78,23 @@ function Test-TcpkTempFileToctou {
     }
 
     # ---- Source-level scan ----
+    # COVERAGE BOUNDARY. Only tempfile.native-no-atomic-api above reads a compiled binary.
+    # The three rules below (predictable-name, delete-recreate, env-var-path) match source
+    # text, so against a shipped release with no sources present they cannot fire at all.
+    # Silence there means "not tested", not "no races found", and that distinction is
+    # reported rather than left for the reader to infer.
     $srcFiles = @(Get-ChildItem -Path $Path -Recurse `
                     -Include '*.cs','*.vb','*.java','*.cpp','*.c' -File `
                     -ErrorAction SilentlyContinue | Select-Object -First 500)
+
+    if (-not $srcFiles.Count) {
+        New-TcpkSkippedFinding -RuleId 'tempfile.source-scan-skipped' `
+            -Title 'Temp-file race source rules not tested (no source files in target)' `
+            -Reason ('tempfile.predictable-name, tempfile.delete-recreate and tempfile.env-var-path ' +
+                     'match source text and no .cs/.vb/.java/.cpp/.c files are present, which is normal ' +
+                     'for a shipped release. Only the native-import rule ran. Treat this area as ' +
+                     'untested rather than clean.')
+    }
 
     # Pattern 1: Path.GetTempPath() combined with file/path construction
     # Matches: Path.GetTempPath() on a line that also has Path.Combine, +, Append, or new FileInfo

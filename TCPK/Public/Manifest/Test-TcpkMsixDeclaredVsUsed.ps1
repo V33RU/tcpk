@@ -46,6 +46,25 @@ function Test-TcpkMsixDeclaredVsUsed {
         'removableStorage'           = @('KnownFolders.RemovableDevices')
         'enterpriseAuthentication'   = @('Negotiate','Kerberos','WindowsAuthentication')
         'sharedUserCertificates'     = @('X509Store','UserCertificateStore')
+        # High-privilege capabilities. These were absent, and the loop below skips any
+        # capability with no entry here, so the four that Test-TcpkMsixCapabilities scores
+        # HIGH were the only ones never cross-checked against actual use.
+        'runFullTrust'               = @('Process.Start','CreateProcess','ShellExecute','RegistryKey','ServiceController','WScript.Shell')
+        'allowElevation'             = @('runas','ShellExecute','requireAdministrator','AdjustTokenPrivileges')
+        'broadFileSystemAccess'      = @('Directory.GetFiles','DirectoryInfo','File.ReadAllBytes','FindFirstFile','KnownFolders')
+        'elevatedFirewallRules'      = @('INetFwPolicy2','HNetCfg.FwPolicy2','netsh advfirewall','FirewallAPI')
+        'unvirtualizedResources'     = @('HKEY_LOCAL_MACHINE','ProgramData','RegistryKey','Registry.LocalMachine')
+        'appLicensing'               = @('StoreContext','CurrentApp','LicenseInformation')
+        # Device capabilities. A package that declares a physical channel and shows no
+        # matching API marker is over-requesting; the reverse means the manifest is short.
+        'bluetooth'                  = @('BluetoothLEDevice','GattDeviceService','BluetoothClient','RfcommDeviceService')
+        'serialcommunication'        = @('SerialDevice','SerialPort','CreateFile(\\.\COM')
+        'usb'                        = @('UsbDevice','WinUsb','SetupDiGetClassDevs','libusb')
+        'humaninterfacedevice'       = @('HidDevice','HidD_','HidP_','CreateFile(\\.\HID')
+        'webcam'                     = @('MediaCapture','avicap32','IMFSourceReader','VideoCaptureDevice')
+        'microphone'                 = @('MediaCapture','AudioGraph','waveIn','IAudioClient')
+        'location'                   = @('Geolocator','ILocation','GeoCoordinateWatcher')
+        'pointOfService'             = @('BarcodeScanner','PosPrinter','MagneticStripeReader')
     }
 
     # Build a single concatenated text blob from first-party PEs once

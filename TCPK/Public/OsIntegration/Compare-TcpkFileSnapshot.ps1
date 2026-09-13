@@ -43,7 +43,7 @@ function Compare-TcpkFileSnapshot {
             elseif ($path -match $secretRx)  { $sev = 'MEDIUM' }
             New-TcpkFinding -Module 'os' -RuleId 'fs.diff.added-file' -Severity $sev -Confidence 'Confirmed' `
                 -Title "App created file at runtime: $(Split-Path -Leaf $path)" -File $path `
-                -Evidence "size=$($av.Size) sha256=$($av.Sha256)" -Cwe @('CWE-377','CWE-312') `
+                -Evidence ("size=$($av.Size) sha256=$($av.Sha256)" + $(if ("$($av.BroadAcl)") { "; readable by: $($av.BroadAcl)" } else { '' })) -Cwe @('CWE-377','CWE-312') `
                 -Description 'The app wrote this file while running. An executable/script drop can be a persistence or DLL-planting vector; a credential/DB drop is data-at-rest exposure. Inspect the contents and the directory ACL.'
             continue
         }
