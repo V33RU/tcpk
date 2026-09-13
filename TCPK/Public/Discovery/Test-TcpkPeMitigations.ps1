@@ -39,7 +39,27 @@ function Test-TcpkPeMitigations {
         @{ Bit = 0x0100; Name = 'NX_COMPAT'       }
         @{ Bit = 0x4000; Name = 'GUARD_CF'        }
     )
-    $required = @('DYNAMIC_BASE','NX_COMPAT','GUARD_CF','HIGH_ENTROPY_VA')
+    # MajorLinkerVersion is one byte at optHdr+2. VS 2015 (link.exe 14.0) is the first
+    # MSVC toolchain that emits GUARD_CF; clang and MinGW linker-version numbering runs
+    # in the same range (clang-cl mirrors MSVC, mingw-w64 sits around 2.x-14.x). CFG on
+    # a PE built with an older linker is not a build-flag mistake; the toolchain did
+    # not support it. Same idea for HIGH_ENTROPY_VA which is only meaningful on PE32+.
+    function _GetMajorLinkerVersion([string]$P) {
+        try {
+            $fs = [IO.File]::OpenRead($P)
+            try {
+                if ($fs.Length -lt 0x80) { return $null }
+                $br = [IO.BinaryReader]::new($fs)
+                $fs.Position = 0x3C
+                $peOff = $br.ReadInt32()
+                if ($peOff -le 0 -or $peOff -gt ($fs.Length - 24)) { return $null }
+                $fs.Position = $peOff
+                if ($br.ReadUInt32() -ne 0x00004550) { return $null }
+                $fs.Position = $peOff + 24 + 2   # optHdr offset 2 = MajorLinkerVersion
+                return [int]$br.ReadByte()
+            } finally { $fs.Dispose() }
+        } catch { return $null }
+    }
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         $info = Read-TcpkPe -Path $pe.FullName
@@ -50,11 +70,22 @@ function Test-TcpkPeMitigations {
         # exploit. Reporting them is noise.
         if ($null -ne $info.SizeOfCode -and $info.SizeOfCode -eq 0) { continue }
 
+        # Toolchain-era gates. GUARD_CF only exists in linker 14+ (MSVC 2015 / clang-cl
+        # / current mingw-w64); complaining about it on an older PE is not actionable.
+        # HIGH_ENTROPY_VA is a 64-bit-only mitigation (top-of-address-space bits do not
+        # exist on PE32).
+        $mlv = _GetMajorLinkerVersion $pe.FullName
+        $requiredForThisPe = New-Object 'System.Collections.Generic.List[string]'
+        [void]$requiredForThisPe.Add('DYNAMIC_BASE')
+        [void]$requiredForThisPe.Add('NX_COMPAT')
+        if ($null -eq $mlv -or $mlv -ge 14) { [void]$requiredForThisPe.Add('GUARD_CF') }
+        if ($info.IsPE32Plus)                 { [void]$requiredForThisPe.Add('HIGH_ENTROPY_VA') }
+
         $on = @()
         foreach ($fl in $flags) {
             if ($info.DllCharacteristics -band $fl.Bit) { $on += $fl.Name }
         }
-        $missing = $required | Where-Object { $_ -notin $on }
+        $missing = @($requiredForThisPe | Where-Object { $_ -notin $on })
         if ($missing.Count -eq 0) { continue }
 
         $sev = if ('DYNAMIC_BASE' -in $missing -or 'NX_COMPAT' -in $missing) { 'HIGH' } else { 'MEDIUM' }

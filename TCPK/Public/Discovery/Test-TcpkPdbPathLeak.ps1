@@ -58,6 +58,15 @@ function Test-TcpkPdbPathLeak {
     # risk on a real PE is negligible - the extension filter of Get-TcpkPeFiles keeps
     # us off .txt / .json / .config where 'RSDS' could appear as prose.
 
+    # Generic pdb-path-leak aggregation. On a target with hundreds of PEs from the same
+    # build (a Windows-CE-era product with 800+ .dlls, a big Electron install, an SDK
+    # bundle) the pe.debug.pdb-path-leak rule as-written would emit one finding per PE
+    # and drown the report. We aggregate by the PARENT DIRECTORY of the PdbPath: one
+    # finding per distinct build-tree root, with a per-file list in the Evidence. The
+    # three high-signal variants (.userprofile / .unc / .repo) stay per-file because
+    # each carries different identifying info worth surfacing individually.
+    $genericBuckets = [ordered]@{}   # normalizedParent -> @{ Count; Files=@() }
+
     foreach ($pe in $items) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         # Cap read size. The OUTER PE's own debug directory always sits early in the file
@@ -168,16 +177,36 @@ function Test-TcpkPdbPathLeak {
                         "the internal source-tree layout and often the product's internal codename.") `
                     -Fix 'Set /PDBALTPATH:%_PDB% or strip the debug directory in the release step.'
             } else {
-                New-TcpkFinding -Module 'discovery' -RuleId 'pe.debug.pdb-path-leak' `
-                    -Severity 'LOW' -Confidence 'Confirmed' `
-                    -Title "$($pe.Name) ships a build-time PDB path: $(Split-Path -Leaf $pdbPath)" `
-                    -File $pe.FullName -Evidence "PdbPath=$pdbPath" `
-                    -Cwe @('CWE-540') `
-                    -Description ('An unstripped CodeView RSDS record in the debug directory names the PDB ' +
-                        'produced by the build. On its own the leak is small (a filename); paired with the ' +
-                        'other pdb-path rules above it becomes a build-machine fingerprint.') `
-                    -Fix 'Set /PDBALTPATH:%_PDB% (MSVC) or -Wl,--no-insert-timestamp equivalents for the toolchain to keep only the basename.'
+                # Generic pdb-path-leak: BUCKET by the PDB parent directory (case-
+                # insensitive, trailing separator normalised) instead of emitting per-PE.
+                $parent = ''
+                try { $parent = (Split-Path -Parent $pdbPath) } catch { }
+                if (-not $parent) { $parent = '(no parent dir)' }
+                $key = $parent.TrimEnd('\','/').ToLowerInvariant()
+                if (-not $genericBuckets.Contains($key)) {
+                    $genericBuckets[$key] = @{ Parent = $parent; Files = New-Object 'System.Collections.Generic.List[string]'; Sample = $pdbPath }
+                }
+                [void]$genericBuckets[$key].Files.Add($pe.Name)
             }
         }
+    }
+
+    # Emit one aggregated finding per unique PDB parent directory.
+    foreach ($k in $genericBuckets.Keys) {
+        $b = $genericBuckets[$k]
+        $count = $b.Files.Count
+        $sample = ($b.Files | Select-Object -First 5) -join ', '
+        if ($count -gt 5) { $sample += " (+$($count - 5) more)" }
+        New-TcpkFinding -Module 'discovery' -RuleId 'pe.debug.pdb-path-leak' `
+            -Severity 'LOW' -Confidence 'Confirmed' `
+            -Title "PDB parent dir leaks in $count PE(s): $($b.Parent)" `
+            -File $b.Parent -Evidence "sample PdbPath=$($b.Sample); affected PEs: $sample" `
+            -Cwe @('CWE-540') `
+            -Description ("$count PE(s) under the audited install tree carry an unstripped CodeView RSDS record " +
+                'whose PdbPath resolves under the same build-time parent directory. Individually each is a ' +
+                'small leak (a filename); together they fingerprint the build machine / repo layout. ' +
+                'Aggregated by parent to keep the report legible - the .userprofile / .unc / .repo variants ' +
+                'above stay per-file because each carries higher-value identifying info.') `
+            -Fix 'Set /PDBALTPATH:%_PDB% (MSVC) or the toolchain equivalent to keep only the basename in every shipped PE.'
     }
 }

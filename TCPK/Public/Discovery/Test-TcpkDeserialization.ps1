@@ -32,6 +32,14 @@ function Test-TcpkDeserialization {
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 
+        # Managed-only gate. The deser.* tokens are .NET type names. A native PE (or
+        # a resource-only DLL) that happens to carry the string 'BinaryFormatter' as
+        # an embedded resource or a COM interop string is NOT a real deserialization
+        # sink - it references the string, not the type. Every branch below reads a
+        # managed-code shape (Newtonsoft, YamlDotNet, runtimeconfig, BSJB-tagged
+        # assemblies), so gate them all on the .NET metadata root marker.
+        if (-not $text.Contains('BSJB')) { continue }
+
         foreach ($t in $tokens) {
             if (-not $text.Contains($t.token)) { continue }
 
