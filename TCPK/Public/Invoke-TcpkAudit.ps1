@@ -400,6 +400,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkCallsites'           { Test-TcpkCallsites           -Path $expanded }
     _RunCheck 'Test-TcpkSqlInjection'       { Test-TcpkSqlInjection        -Path $expanded }
     _RunCheck 'Test-TcpkTlsBypass'           { Test-TcpkTlsBypass           -Path $expanded }
+    _RunCheck 'Test-TcpkNativeCertFlags'     { Test-TcpkNativeCertFlags     -Path $expanded }
     _RunCheck 'Test-TcpkXxe'                 { Test-TcpkXxe                 -Path $expanded }
     _RunCheck 'Test-TcpkWcfConfig'           { Test-TcpkWcfConfig           -Path $expanded }
     _RunCheck 'Test-TcpkCodeIntegrity'       { Test-TcpkCodeIntegrity       -Path $Target   }

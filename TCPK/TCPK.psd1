@@ -234,6 +234,7 @@
         'Test-TcpkNamedObjects',
         'Test-TcpkNamedPipeDacl',
         'Test-TcpkNamedPipes',
+        'Test-TcpkNativeCertFlags',
         'Test-TcpkNugetConfigCreds',
         'Test-TcpkNativeInterop',
         'Test-TcpkOAuthState',
