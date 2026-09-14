@@ -46,7 +46,7 @@ a real tree), `Test-TcpkPdbPathLeak` aggregates by directory (was 771 findings o
 target), and `Test-TcpkPeMitigations` only requires CFG where the toolchain can emit it.
 
 **Docs.** Cmdlet counts in README, REQUIREMENTS and CHECKS.md were stale in four places
-(280 / 260 / 235-of-260 / 245-of-280) and are now 316 with 212 detectors. The checklist
+(280 / 260 / 235-of-260 / 245-of-280) and are now 316 with 219 detectors. The checklist
 claim read "53 of 55 automated"; the file measures 31 AUTO, 23 PARTIAL, 1 GAP.
 
 **Test-TcpkNugetConfigCreds (A62) - shipped nuget.config credential leak.** New Discovery
