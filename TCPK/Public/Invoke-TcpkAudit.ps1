@@ -664,6 +664,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkLoadedModulePaths'       { Test-TcpkLoadedModulePaths       -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkHandleEnumeration'       { Test-TcpkHandleEnumeration       -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkWindowEnumeration'       { Test-TcpkWindowEnumeration       -ProcessName $ProcessName }
+        _RunCheck 'Test-TcpkUiDataExposure'      { Test-TcpkUiDataExposure      -ProcessName $ProcessName -Path $expanded }
         _RunCheck 'Test-TcpkGuiInspector'            { Test-TcpkGuiInspector            -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkProcessToken'            { Test-TcpkProcessToken            -ProcessName $ProcessName }
         _RunCheck 'Test-TcpkChildProcesses'          { Test-TcpkChildProcesses          -ProcessName $ProcessName }
