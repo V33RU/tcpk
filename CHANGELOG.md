@@ -2,7 +2,7 @@
 
 Release history for TCPK. Newest first.
 
-## Unreleased
+## v2.10.0
 
 **11 new detectors, crash minimizer, sink neutralizer analysis.**
 
