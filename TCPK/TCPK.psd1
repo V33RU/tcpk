@@ -102,6 +102,7 @@
         'Invoke-TcpkPcapCapture',
         'Invoke-TcpkPcapReview',
         'Invoke-TcpkPipeProbe',
+        'Invoke-TcpkPipeTamper',
         'Invoke-TcpkReplay',
         'Invoke-TcpkRpcProbe',
         'Invoke-TcpkSecretRecovery',
