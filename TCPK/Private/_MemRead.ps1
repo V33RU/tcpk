@@ -118,7 +118,7 @@ function Get-TcpkSecretRegexRules {
     foreach ($r in $rules) {
         if (-not $r.PSObject.Properties['_RX']) {
             # No RegexOptions.Compiled -- see the long note in Test-TcpkSecrets. In short: it
-            # moves the cost of building all 41 rules onto the first scan, which reads as a
+            # moves the cost of building all 49 rules onto the first scan, which reads as a
             # hang, and it repays only after thousands of matches that this workload never
             # performs. This builder is shared by the live-memory scan too, where the same
             # first-use stall applied.

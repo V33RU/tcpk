@@ -6,7 +6,7 @@
 # string and run regex over it. That collapses on large targets: a 212 MB
 # Electron binary decodes into ~445 M characters across the three views we need
 # (UTF-8, UTF-16LE even-aligned, UTF-16LE odd-aligned), and Test-TcpkSecrets then
-# runs 41 rules over every one of them. Even the cheap per-rule literal pre-filter
+# runs 49 rules over every one of them. Even the cheap per-rule literal pre-filter
 # is String.IndexOf with OrdinalIgnoreCase, which on .NET Framework goes through
 # NLS collation rather than a byte compare -- so the pre-filter ALONE is ~18
 # billion character comparisons for a single file. That is the shape of a scan

@@ -19,7 +19,7 @@ $script:TcpkRoot = $PSScriptRoot
 #
 # THIS IS A SEATBELT, NOT THE FIX, and the distinction matters. An audit that wedged for hours
 # was measured to be aggregate LINEAR work, not catastrophic backtracking: a 212 MB binary
-# decodes to ~445 M characters across the three views, Test-TcpkSecrets runs 41 rules over each,
+# decodes to ~445 M characters across the three views, Test-TcpkSecrets runs 49 rules over each,
 # and every rule's cheap pre-filter is String.IndexOf with OrdinalIgnoreCase -- which on .NET
 # Framework goes through NLS collation rather than a byte compare. That is ~18 billion character
 # comparisons for one file, with no single match anywhere near the timeout. The real fix is

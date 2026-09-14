@@ -377,7 +377,7 @@ function Invoke-TcpkAudit {
     # whether the report may claim the components were matched live.
     Reset-TcpkOsvSession
 
-    # ----- Bucket A (static binary analysis, 21 cmdlets) -----
+    # ----- Bucket A (static binary analysis, 93 cmdlets) -----
     _RunCheck 'Test-TcpkSignature'           { Test-TcpkSignature           -Path $Target   }
     # Missing binary-hardening (ASLR/DEP/CFG/HighEntropyVA) is reported as POSTURE in
     # the DLL Mitigation Matrix (Get-TcpkPeHardening -> hardening.json, below), NOT as
@@ -535,7 +535,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkJwt (python)'              { Test-TcpkJwt              -Path $pyRoot }
     }
 
-    # ----- Bucket B (MSIX manifest, 8 cmdlets) -----
+    # ----- Bucket B (MSIX manifest, 9 cmdlets) -----
     _RunCheck 'Test-TcpkMsixCapabilities'    { Test-TcpkMsixCapabilities    -Path $Target   }
     _RunCheck 'Test-TcpkMsixFrameworkDeps'   { Test-TcpkMsixFrameworkDeps   -Path $Target   }
     _RunCheck 'Test-TcpkMsixProtocols'       { Test-TcpkMsixProtocols       -Path $Target   }
@@ -546,7 +546,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkMsixDeclaredVsUsed'  { Test-TcpkMsixDeclaredVsUsed  -Path $Target   }
     _RunCheck 'Test-TcpkUacManifest'         { Test-TcpkUacManifest         -Path $expanded }
 
-    # ----- Bucket C (OS integration, 11 cmdlets) -----
+    # ----- Bucket C (OS integration, 38 cmdlets) -----
     # Path-targeted
     _RunCheck 'Test-TcpkInstallDirAcl'       { Test-TcpkInstallDirAcl       -Path $expanded }
     _RunCheck 'Test-TcpkFolderAcls'          { Test-TcpkFolderAcls          -Path $expanded }
@@ -594,7 +594,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkIfeoHijack'          { Test-TcpkIfeoHijack          -NameLike $idTerms }
     }
 
-    # ----- Bucket D (credential storage, 6 cmdlets) -----
+    # ----- Bucket D (credential storage, 9 cmdlets) -----
     _RunCheck 'Test-TcpkDpapiBlobs'          { Test-TcpkDpapiBlobs          -Path $expanded }
     _RunCheck 'Test-TcpkPlaintextConfigs'    { Test-TcpkPlaintextConfigs    -Path $expanded }
     _RunCheck 'Test-TcpkAppConfigSecrets'    { Test-TcpkAppConfigSecrets    -Path $expanded }
@@ -610,7 +610,7 @@ function Invoke-TcpkAudit {
         _RunCheck 'Test-TcpkBrowserTokenStore'  { Test-TcpkBrowserTokenStore  -NameLike $idTerms }
     }
 
-    # ----- Bucket E (runtime / live process, 14 cmdlets) -----
+    # ----- Bucket E (runtime / live process, 29 cmdlets) -----
     # Launch-and-observe (gated): when nothing is running yet, execute the target's main exe
     # minimized so the live-process checks have a process. Stopped again after bucket E.
     $script:TcpkLaunchedProc = $null
@@ -711,7 +711,7 @@ function Invoke-TcpkAudit {
         $script:TcpkLaunchedProc = $null
     }
 
-    # ----- Bucket F (network, 6 cmdlets) -----
+    # ----- Bucket F (network, 10 cmdlets) -----
     _RunCheck 'Test-TcpkTlsPinning'        { Test-TcpkTlsPinning        -Path $expanded }
     _RunCheck 'Test-TcpkUpdateFlow'        { Test-TcpkUpdateFlow        -Path $expanded }
     _RunCheck 'Test-TcpkBackendEndpoints'  { Test-TcpkBackendEndpoints  -Path $expanded }
@@ -723,7 +723,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkRpcChannels'       { Test-TcpkRpcChannels       -Path $expanded }
     _RunCheck 'Test-TcpkGrpcSurface'      { Test-TcpkGrpcSurface       -Path $expanded }
 
-    # ----- Bucket G (WebView2, 6 new cmdlets; G03 already in Discovery as WebViewNavTargets) -----
+    # ----- Bucket G (WebView2, 7 new cmdlets; G03 already in Discovery as WebViewNavTargets) -----
     _RunCheck 'Test-TcpkWv2HostObjects'    { Test-TcpkWv2HostObjects    -Path $expanded }
     _RunCheck 'Test-TcpkWv2WebMessage'     { Test-TcpkWv2WebMessage     -Path $expanded }
     _RunCheck 'Test-TcpkWv2VirtualHost'    { Test-TcpkWv2VirtualHost    -Path $expanded }
@@ -732,7 +732,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkWv2ResourcePolicy' { Test-TcpkWv2ResourcePolicy -Path $expanded }
     _RunCheck 'Test-TcpkWv2Sideload'     { Test-TcpkWv2Sideload      -Path $expanded }
 
-    # ----- Bucket H (logging / telemetry, 3 cmdlets) -----
+    # ----- Bucket H (logging / telemetry, 7 cmdlets) -----
     _RunCheck 'Test-TcpkLogFiles'              { Test-TcpkLogFiles              -Path $expanded }
     _RunCheck 'Test-TcpkLogInjection'          { Test-TcpkLogInjection          -Path $expanded }
     _RunCheck 'Test-TcpkLogConfigPosture'      { Test-TcpkLogConfigPosture      -Path $expanded }
@@ -747,7 +747,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkPageFile'          { Test-TcpkPageFile }
     _RunCheck 'Test-TcpkSecureStringUsage' { Test-TcpkSecureStringUsage -Path $expanded }
 
-    # ----- Bucket J (anti-debug, 4 cmdlets) -----
+    # ----- Bucket J (anti-debug, 5 cmdlets) -----
     _RunCheck 'Test-TcpkAntiDebugRefs'       { Test-TcpkAntiDebugRefs       -Path $expanded }
     _RunCheck 'Test-TcpkSelfIntegrityCheck'  { Test-TcpkSelfIntegrityCheck  -Path $expanded }
     _RunCheck 'Test-TcpkAntiInjection'       { Test-TcpkAntiInjection       -Path $expanded }

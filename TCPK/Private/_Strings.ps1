@@ -26,7 +26,7 @@ function Clear-TcpkTextCache {
 # At or above it, the file goes through the C# extractor in _StringExtractor.ps1,
 # which reads EVERY byte with a fixed 64 KB buffer and keeps only printable runs.
 # Nothing is skipped and no size cap applies. The extracted text is typically
-# 2-5% of the input, which is the point: Test-TcpkSecrets runs 41 rules over
+# 2-5% of the input, which is the point: Test-TcpkSecrets runs 49 rules over
 # every view, and each rule's cheap pre-filter is an OrdinalIgnoreCase IndexOf
 # that on .NET Framework goes through NLS collation. For a 212 MB binary the
 # verbatim views are ~445 M chars, so the PRE-FILTER ALONE is ~18 billion

@@ -27,7 +27,7 @@ function Test-TcpkSecrets {
     # true and was the wrong trade for this workload.
     #
     # Compiled defers IL generation and JIT to the regex's FIRST USE, so the cost of building
-    # all 41 rules lands entirely on the first file scanned. An audit of Firefox Developer
+    # all 49 rules lands entirely on the first file scanned. An audit of Firefox Developer
     # Edition sat on file 1 of 78 -- AccessibleMarshal.dll, under a megabyte -- burning CPU,
     # with no second heartbeat, which is exactly the shape of a one-time initialisation cost.
     # Three of the rules are variable-length lookbehinds, which .NET compiles into a reversed
@@ -179,7 +179,7 @@ function Test-TcpkSecrets {
         # NO size cap: EVERY file is analyzed regardless of size. Read-TcpkStringViews decodes
         # a small file verbatim and streams a large one through the C# printable-run extractor,
         # so every byte is read in bounded memory. That also shrinks the matched text to
-        # typically 2-5% of the file, which is what makes 41 rules over a 200 MB binary
+        # typically 2-5% of the file, which is what makes 49 rules over a 200 MB binary
         # tractable at all: verbatim, the per-rule OrdinalIgnoreCase pre-filter alone is
         # ~18 billion character comparisons.
         #

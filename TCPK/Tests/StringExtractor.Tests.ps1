@@ -2,7 +2,7 @@
 # Pester 5: streaming printable-run extractor and the coverage accounting around it.
 #
 # WHY. A 212 MB binary decodes to ~445 M characters across the three views, and
-# Test-TcpkSecrets runs 41 rules over each one. Every rule's cheap pre-filter is
+# Test-TcpkSecrets runs 49 rules over each one. Every rule's cheap pre-filter is
 # String.IndexOf with OrdinalIgnoreCase, which on .NET Framework routes through NLS
 # collation rather than a byte compare -- so the pre-filter ALONE is ~18 billion
 # character comparisons for one file. That is a scan pegged on one core for hours

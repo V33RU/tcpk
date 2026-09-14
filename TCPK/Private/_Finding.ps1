@@ -270,7 +270,7 @@ $script:TcpkCvssRuleArchetype = @(
     # / jwt.alg-none-issued keep the shipped-secret (local) mapping.
     @{ Rx = '^jwt\.[a-z0-9-]*-accepted';                                                                                                                            A = 'live-credential' }
     @{ Rx = '^(replay|idor)\.';                                                                                                                                     A = 'live-credential' }
-    # secrets.* had NO entry here at all: all 41 rules, 37 of them HIGH/CRITICAL, fell
+    # secrets.* had NO entry here at all: all 49 rules, 37 of them HIGH/CRITICAL, fell
     # through to the generic severity band instead of the shipped-secret vector. The
     # coverage/skip subrules are listed first so an INFO "this file timed out" record
     # cannot inherit a credential-exposure score.
