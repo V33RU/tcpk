@@ -432,6 +432,8 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkTempFileToctou'     { Test-TcpkTempFileToctou      -Path $expanded }
     _RunCheck 'Test-TcpkPacker'              { Test-TcpkPacker              -Path $expanded }
     _RunCheck 'Test-TcpkAuthFlags'           { Test-TcpkAuthFlags           -Path $expanded }
+    _RunCheck 'Test-TcpkPasswordPolicy'   { Test-TcpkPasswordPolicy -Path $expanded }
+    _RunCheck 'Test-TcpkPlatformAuth'     { Test-TcpkPlatformAuth -Path $expanded }
     _RunCheck 'Test-TcpkOAuthState'         { Test-TcpkOAuthState          -Path $expanded }
     _RunCheck 'Test-TcpkElectron'            { Test-TcpkElectron            -Path $expanded }
     _RunCheck 'Test-TcpkElectronJs'          { Test-TcpkElectronJs          -Path $expanded }
@@ -558,6 +560,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkInstallerPlanting'   { Test-TcpkInstallerPlanting   -Path $expanded }
     _RunCheck 'Test-TcpkInstallerHostsWrite' { Test-TcpkInstallerHostsWrite -Path $expanded }
     _RunCheck 'Test-TcpkMsiCustomActions'   { Test-TcpkMsiCustomActions    -Path $expanded }
+    _RunCheck 'Test-TcpkMsiLaunchConditions' { Test-TcpkMsiLaunchConditions -Path $expanded }
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkVendorDriverAcl'     { Test-TcpkVendorDriverAcl     -Path $expanded -NameLike $idTerms }
     _RunCheck 'Test-TcpkPwshProfileAcl'      { Test-TcpkPwshProfileAcl }
