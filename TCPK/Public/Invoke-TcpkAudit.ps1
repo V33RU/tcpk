@@ -456,6 +456,8 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkJwt'                 { Test-TcpkJwt                 -Path $expanded }
     _RunCheck 'Test-TcpkSessionHandling'     { Test-TcpkSessionHandling     -Path $expanded }
     _RunCheck 'Test-TcpkZipSlip'             { Test-TcpkZipSlip             -Path $expanded }
+    _RunCheck 'Test-TcpkMarkOfTheWeb'     { Test-TcpkMarkOfTheWeb -Path $expanded }
+    _RunCheck 'Test-TcpkArchiveExpansion' { Test-TcpkArchiveExpansion -Path $expanded }
     _RunCheck 'Test-TcpkDebugFlags'          { Test-TcpkDebugFlags          -Path $expanded }
     _RunCheck 'Test-TcpkUiLeakSurface'       { Test-TcpkUiLeakSurface       -Path $expanded }
     _RunCheck 'Test-TcpkTauriConfig'         { Test-TcpkTauriConfig         -Path $expanded }
