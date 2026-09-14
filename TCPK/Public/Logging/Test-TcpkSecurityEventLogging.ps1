@@ -221,4 +221,54 @@ function Test-TcpkSecurityEventLogging {
                     'This preserves auth event logging without flooding the log with framework noise.')
         }
     }
+
+    # ---- Source-level: security-configuration change without an audit record ----
+    # The scan above answers "is authentication logged". This answers the other half of the
+    # same question: when someone CHANGES a security setting, is there a record of it.
+    #
+    # Why it is a separate rule rather than more names in the auth regex. The two failures
+    # read differently in an investigation. Missing auth logging loses who got in. Missing
+    # config-change logging loses how the system came to be configured the way it is, which
+    # is what an attacker relies on when they weaken a setting and wait: if nothing recorded
+    # the change, the weakened state looks original.
+    $cfgMethodRx = '(?i)(void|bool|Task|IActionResult|ActionResult|async)\s+' +
+                   '(SaveSettings|UpdateSettings|SetSetting|WriteSetting|ApplyConfig|SaveConfig|' +
+                   'UpdateConfig|SetPolicy|UpdatePolicy|SetPermission|UpdatePermission|GrantRole|' +
+                   'RevokeRole|SetSecurityOption|DisableProtection|SetTrustLevel)\s*\('
+
+    foreach ($src in $srcFiles) {
+        $lines = $null
+        try { $lines = Get-Content -LiteralPath $src.FullName -ErrorAction Stop } catch { continue }
+        if (-not $lines) { continue }
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -notmatch $cfgMethodRx) { continue }
+            $mName = ''
+            $mm = [regex]::Match($lines[$i], $cfgMethodRx)
+            if ($mm.Success -and $mm.Groups.Count -ge 3) { $mName = $mm.Groups[2].Value }
+
+            # Look ahead a bounded window for any logging call before the next method.
+            $logged = $false
+            $end = [Math]::Min($lines.Count - 1, $i + 40)
+            for ($j = $i + 1; $j -le $end; $j++) {
+                if ($lines[$j] -match $cfgMethodRx) { break }
+                if ($lines[$j] -match $logCallRx) { $logged = $true; break }
+            }
+            if ($logged) { continue }
+
+            New-TcpkFinding -Module 'logging' -RuleId 'security-logging.config-no-audit' `
+                -Severity 'LOW' -Confidence 'Inferred' `
+                -Title "Security-setting change with no audit record: $mName in $($src.Name)" `
+                -File $src.FullName -Evidence "$($src.Name):$($i + 1) $mName" `
+                -Cwe @('CWE-778') `
+                -Description ('A method that changes a security-relevant setting was found with no logging ' +
+                    'call in its body. Authentication logging answers who got in; this answers how the ' +
+                    'system came to be configured as it is. An attacker who weakens a setting and waits ' +
+                    'depends on the second being missing: with no record of the change, the weakened state ' +
+                    'is indistinguishable from the original one, and a reviewer comparing against a ' +
+                    'baseline has nothing to say when it happened or who did it. Bounded look-ahead over ' +
+                    'the method body, so a log call further down or in a helper is not seen, which is why ' +
+                    'this is a lead rather than a verdict.') `
+                -Fix 'Write an audit entry on every security-setting change recording the old value, the new value, the identity that made it and the time. The old value matters as much as the new one: without it the record shows the state but not the delta.'
+        }
+    }
 }

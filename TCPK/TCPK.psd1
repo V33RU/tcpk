@@ -23,6 +23,7 @@
         'Compare-TcpkFileSnapshot',
         'Compare-TcpkRegistrySnapshot',
         'Confirm-TcpkCallsiteUsage',
+        'Confirm-TcpkAuthFlags',
         'Confirm-TcpkCallsites',
         'Confirm-TcpkDeserialization',
         'Confirm-TcpkTlsBypass',
