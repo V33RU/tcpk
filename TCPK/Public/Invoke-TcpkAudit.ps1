@@ -553,6 +553,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkWritablePath'        { Test-TcpkWritablePath        -Path $expanded }
     _RunCheck 'Test-TcpkWerExposure'         { Test-TcpkWerExposure         -Path $expanded }
     _RunCheck 'Test-TcpkComHijack'           { Test-TcpkComHijack           -Path $expanded -NameLike $idTerms }
+    _RunCheck 'Test-TcpkComOrphanedClsid'  { Test-TcpkComOrphanedClsid  -Path $expanded }
     _RunCheck 'Test-TcpkSxsManifests'        { Test-TcpkSxsManifests        -Path $expanded }
     # Registry-driven DLL load points. All three are scoped by -Path so they report the
     # audited install tree rather than every load point on the machine.
