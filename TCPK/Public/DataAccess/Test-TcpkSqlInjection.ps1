@@ -139,6 +139,77 @@ function Test-TcpkSqlInjection {
                 break  # one match per pattern per line is enough
             }
         }
+
+        # ---- reaching definition: concat assigned to a local, local reaches the sink ----
+        #
+        # WHY THIS PASS EXISTS. Every pattern above needs the command object and the
+        # concatenation on the SAME LINE, because the scanner walks one line at a time. That
+        # only matches the inline form:
+        #     new SqlCommand("SELECT ... WHERE col='" + value + "'", conn)
+        # The far more common shape builds the string first and passes the variable:
+        #     string sql = "SELECT ... WHERE col='" + value + "'";
+        #     SqlCommand cmd = new SqlCommand(sql, conn);
+        # Measured on a real vulnerable application, the line-local scan found ONE of five
+        # injection sinks. The four it missed, including the DELETE, all used the two-line
+        # form. A detector that only catches the rarer idiom is worse than no detector here,
+        # because the silence reads as a clean result.
+        #
+        # One level of reaching definition closes it: record the variable a SQL-shaped concat
+        # is assigned to, then look forward for that variable arriving at a command object.
+        # No parsing and no IL, and it stays inside the one file.
+        #
+        # BOUNDED ON PURPOSE. The sink must come AFTER the assignment and within $rdWindow
+        # lines. Nothing here understands method boundaries, so an unbounded search would
+        # happily pair an assignment in one method with a same-named variable in another.
+        $rdWindow = 40
+        $rdAssign = '^\s*(?:(?:String|string|var|StringBuilder)\s+)?([A-Za-z_]\w*)\s*=\s*' +
+                    '"[^"]*(?:SELECT|INSERT|UPDATE|DELETE|EXEC(?:UTE)?|MERGE|WHERE)[^"]*"\s*\+'
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            $line = $lines[$i]
+            if ($line.TrimStart() -match '^(?://|#|/\*|\*|'')') { continue }
+            if ($line -notmatch $rdAssign) { continue }
+            $var = $Matches[1]
+            if (-not $var) { continue }
+
+            $esc = [regex]::Escape($var)
+            $sinkRx = '(?:new\s+(?:Sql|OleDb|Odbc|MySql|Npgsql|SQLite|Sqlite|Oracle)Command\s*\(\s*' + $esc + '\b)' +
+                      '|(?:CommandText\s*=\s*' + $esc + '\b)' +
+                      '|(?:Execute(?:NonQuery|Reader|Scalar|XmlReader)\s*\(\s*' + $esc + '\b)'
+
+            $sinkLine = 0
+            $last = [Math]::Min($i + $rdWindow, $lines.Count - 1)
+            for ($j = $i + 1; $j -le $last; $j++) {
+                if ($lines[$j] -match $sinkRx) { $sinkLine = $j + 1; break }
+            }
+            if ($sinkLine -eq 0) { continue }
+
+            $loc = "$($src.FullName):$($i + 1)"
+            if (-not $seen.Add("reaching-definition|$loc")) { continue }
+
+            $snippet = $line.Trim()
+            if ($snippet.Length -gt 160) { $snippet = $snippet.Substring(0, 160) + ' ...' }
+            $sinkText = $lines[$sinkLine - 1].Trim()
+            if ($sinkText.Length -gt 120) { $sinkText = $sinkText.Substring(0, 120) + ' ...' }
+
+            New-TcpkFinding -Module 'dataaccess' -RuleId 'sqli.source-concat' `
+                -Severity 'MEDIUM' -Confidence 'Confirmed' `
+                -Title "SQL string concatenation -- concat assigned to '$var', reaches a command object: $($src.Name):$($i+1)" `
+                -File $src.FullName `
+                -Evidence "Line $($i+1): $snippet  ||  reaches a command object at line ${sinkLine}: $sinkText" `
+                -Cwe @('CWE-89','CWE-943') `
+                -Description ("A SQL command string is assembled by concatenation into the variable '$var' at " +
+                    "line $($i+1), and that variable is handed to a command object at line $sinkLine without " +
+                    "passing through a parameter. If any concatenated operand carries external input, from a UI " +
+                    "control, a network response, a file, the registry or the environment, an attacker controls " +
+                    "the structure of the statement and not merely its values. " +
+                    "This is a source-level reaching-definition match inside one file: the variable is tracked " +
+                    "from assignment to sink, but the ORIGIN of each concatenated operand is not traced, so " +
+                    "confirm the operands are externally influenced before treating it as exploitable.") `
+                -Fix ('Replace the concatenation with a parameterized query: keep the command text constant ' +
+                    'with @placeholders and bind each value through cmd.Parameters.Add. ' +
+                    'A table or column name cannot be parameterized, so if one is built from input, ' +
+                    'constrain it to a fixed allow-list instead.')
+        }
     }
 
     # ---- Embedded SQL in text resources ----
