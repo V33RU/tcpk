@@ -15,12 +15,59 @@ function Get-TcpkData {
 
 # Common framework-noise prefixes - checks skip files starting with these
 # unless told otherwise (cuts hundreds of false positives in .NET apps).
+#
+# MATCHING: StartsWith(prefix, OrdinalIgnoreCase) against the file NAME INCLUDING its
+# extension, so a prefix ending in '.' matches both Foo.dll and Foo.Bar.dll (the extension
+# supplies the dot for the bare case). A family that puts a token before the first dot
+# therefore needs each name spelling out, which is why the UIAutomation entries below are
+# listed individually rather than as a bare 'UIAutomation' prefix.
+#
+# THE COST OF A WRONG ENTRY IS ASYMMETRIC, so read this before adding one. A missing prefix
+# produces noise: a third-party assembly's crypto, deserialization and P/Invoke surface gets
+# attributed to the vendor, which is what put a CRITICAL on EntityFramework.dll. A prefix
+# that is too broad produces SILENCE: a vendor assembly whose name happens to start with it
+# is skipped at every one of the 84 call sites that consult this list, and a real finding is
+# never emitted. Noise is visible and silence is not, so an entry must be a name no vendor
+# would plausibly give their own assembly.
+#
+# Entries rejected on exactly that test, recorded so they are not proposed again:
+#   'DocumentFormat.'  two generic English words; a vendor's DocumentFormat.Export.dll dies
+#   'Prism.'           very common in enterprise WPF, but also a plausible product name
+#   'Unity.'           collides with the DI container, the game engine and any vendor name
+#   'Fluent.'          Fluent.Ribbon ships as Fluent.dll, but "Fluent" is a vendor word
+#   'C1.'              ComponentOne; two characters is far too broad
+#   'Squirrel.'        would delete the updater finding class that Test-TcpkUpdateFlow exists
+#                      to produce; squirrel.exe is handled by TcpkRuntimeHelperExes instead
+#   'Interop.'         tlbimp wrappers are generated FROM the vendor's own type library and
+#                      are exactly where the COM surface lives; Test-TcpkComInterop needs them
 $script:TcpkFrameworkPrefixes = @(
     'Microsoft.','System.','WinRT.','Windows.','Azure.','BouncyCastle.',
     'CommunityToolkit.','DotNext.','ExCSS.','HarfBuzzSharp.','SkiaSharp.',
     'Json.More.','JsonPath.','Newtonsoft.','Aptabase.','Mono.','NuGet.',
     'McMaster.','Polly.','Serilog.','log4net.','NLog.','OpenTelemetry.',
-    'Google.','Grpc.','MessagePack.','protobuf-net.','xunit.','Castle.'
+    'Google.','Grpc.','MessagePack.','protobuf-net.','xunit.','Castle.',
+
+    # Runtime and WPF/WinForms assemblies that are framework code but start with neither
+    # System. nor Microsoft., so nothing above caught them. $script:TcpkFxAsmSkip in
+    # _ManagedCve.ps1 already classified most of these as framework; this list did not,
+    # and two lists in one module disagreeing about what the vendor wrote is the actual
+    # defect being fixed here. All names are framework-reserved, so none can shadow a
+    # vendor assembly.
+    'mscorlib.','netstandard.','WindowsBase.',
+    'PresentationCore.','PresentationFramework.','PresentationUI.',
+    'ReachFramework.','Accessibility.','WindowsFormsIntegration.','stdole.',
+    # Listed one by one on purpose: these put a token before the first dot, so the bare
+    # prefix 'UIAutomation.' matches none of them and an undotted 'UIAutomation' would
+    # swallow a vendor's UIAutomationHelper.dll.
+    'UIAutomationClient.','UIAutomationTypes.','UIAutomationProvider.',
+    'UIAutomationClientsideProviders.',
+
+    # Third-party packages that genuinely ship inside .NET desktop applications. Each is a
+    # distinctive vendor or project name, so the false-negative risk above is negligible.
+    'EntityFramework.','SQLitePCLRaw.','Dapper.','AutoMapper.','Autofac.',
+    'ICSharpCode.','NAudio.','RestSharp.','Npgsql.','Renci.','Hardcodet.',
+    'Xceed.','MahApps.','MaterialDesignThemes.','MaterialDesignColors.',
+    'DevExpress.','Telerik.','Syncfusion.'
 )
 
 function Test-TcpkIsFrameworkFile {
