@@ -92,9 +92,20 @@ function Resolve-TcpkFindings {
                 # Emit a CLONE -- never mutate the original finding objects, because the
                 # same objects feed the recon profile / attack-surface / exploit-plan
                 # (which need the per-occurrence detail, not the collapsed view).
+                # Join rather than interpolate. Roughly 1 emit site in 9 passes no
+                # -Description at all, and "$($rep.Description) [TCPK: ...]" on an empty base
+                # produced a Description consisting of a leading space and the bookkeeping
+                # note, so the finding appeared to explain itself with an internal aggregation
+                # message. The note is an ADDITION to a description, never a substitute for
+                # one; where the base is missing that is a content gap at the emit site, and
+                # this must not disguise it as prose.
+                $aggNote = "[TCPK: $n occurrences of this rule aggregated into one finding; see the affected list.]"
+                $baseDesc = "$($rep.Description)".Trim()
+                $newDesc = $aggNote
+                if ($baseDesc) { $newDesc = $baseDesc + ' ' + $aggNote }
                 $clone = New-TcpkFinding -Module $rep.Module -RuleId $rep.RuleId -Severity $rep.Severity `
                     -Confidence $rep.Confidence -Title $newTitle -File $newFile -Evidence $aggEvidence `
-                    -Description "$($rep.Description) [TCPK: $n occurrences of this rule aggregated into one finding; see the affected list.]" `
+                    -Description $newDesc `
                     -Cwe ([string[]]@($rep.Cwe)) -Impact "$($rep.Impact)" -Cvss "$($rep.Cvss)" -Fix "$($rep.Fix)"
                 $clone.Affected = [string[]]$locs
                 $clone

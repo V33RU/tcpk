@@ -5,7 +5,7 @@
     Author            = 'TCPK contributors'
     CompanyName       = 'Open source'
     Copyright         = '(c) 2026 TCPK contributors. MIT License.'
-    Description       = 'Thick Client Pentest Kit. Portable PowerShell toolkit for authorized penetration testing of Windows thick-client applications. 327 cmdlets across 19 buckets (220 of them detection checks: static, manifest, OS integration, credentials, runtime, network, webview2, logging, memory, anti-debug, recon, supply chain, verify, exploit and more), with target reconnaissance profiling, interesting-strings extraction, and optional local/cloud LLM finding verification.'
+    Description       = 'Thick Client Pentest Kit. Portable PowerShell toolkit for authorized penetration testing of Windows thick-client applications. 328 cmdlets across 19 buckets (220 of them detection checks: static, manifest, OS integration, credentials, runtime, network, webview2, logging, memory, anti-debug, recon, supply chain, verify, exploit and more), with target reconnaissance profiling, interesting-strings extraction, and optional local/cloud LLM finding verification.'
     PowerShellVersion = '5.1'
 
     # Explicit list generated from TCPK/Public/**/*.ps1. Kept in the manifest so:
@@ -121,6 +121,7 @@
         'Save-TcpkRegistrySnapshot',
         'Search-TcpkPcapString',
         'Set-TcpkRoleCredential',
+        'Show-TcpkFinding',
         'Split-TcpkAppInitValue',
         'Start-TcpkAgentic',
         'Start-TcpkPipeMitm',
