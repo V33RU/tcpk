@@ -579,8 +579,21 @@ powershell -STA -ExecutionPolicy Bypass -File .\Start-TCPKGui.ps1</code></pre>
 .\TCPK-WebUI.bat</code></pre>
 <p>The same audit, driven from the browser: live progress, pause/resume/cancel, and result tabs (Findings, Recon, SBOM, DLL Mitigation, DLL Signing, Logs, Reports) with report downloads. Every <code>/api/*</code> call requires a per-session <code>X-TCPK-Token</code> header, the Host header is checked, and the gated exploit bucket is never reachable -- so a web page you happen to visit cannot drive it (no localhost CSRF / DNS-rebind).</p>
 <h4>MCP server (for AI agents)</h4>
-<pre><code class="language-powershell"># expose TCPK's cmdlets as Model Context Protocol tools
-powershell -File .\Start-TcpkMcpServer.ps1</code></pre>
+<p>TCPK speaks <b>Model Context Protocol</b> over stdio, so Claude Code, Claude Desktop, Cursor or any MCP host can drive it conversationally and compose it with the other servers you have connected. Add it with one command:</p>
+<pre><code class="language-powershell">claude mcp add tcpk -- powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\path\to\tcpk\Start-TcpkMcpServer.ps1"</code></pre>
+<p>Or point a client's config at it directly. Note the script sits at the <b>repository root</b>, beside the <code>TCPK\</code> module folder, not inside it:</p>
+<pre><code class="language-json">{
+  "mcpServers": {
+    "tcpk": {
+      "command": "powershell.exe",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass",
+               "-File", "C:\\path\\to\\tcpk\\Start-TcpkMcpServer.ps1"]
+    }
+  }
+}</code></pre>
+<p><b>14 tools:</b> <code>tcpk_audit</code>, <code>tcpk_get_findings</code>, <code>tcpk_recon_profile</code>, <code>tcpk_cve_match</code>, <code>tcpk_decompile</code>, <code>tcpk_strings</code>, <code>tcpk_byte_search</code>, <code>tcpk_file_structure</code>, <code>tcpk_file_diff</code>, <code>tcpk_embedded_blobs</code>, <code>tcpk_list_modules</code>, <code>tcpk_exploit_plan</code>, <code>tcpk_generate_poc</code>, <code>tcpk_info</code>.</p>
+<p>The server is additive and read-only with respect to the tool: it imports the module and calls existing cmdlets, so if you never launch it TCPK behaves exactly as before. Transport is local stdio, no network. <code>stdout</code> carries only JSON-RPC and every TCPK output stream is suppressed, so the protocol channel cannot be corrupted by scan output; diagnostics go to <code>stderr</code> prefixed <code>[tcpk-mcp]</code>.</p>
+<p>Full setup, including how to auto-approve the read-only tools so Claude Code stops prompting per call: <a href="MCP-USAGE.md">MCP-USAGE.md</a>.</p>
 </section>
 
 <section id="install">

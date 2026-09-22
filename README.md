@@ -59,6 +59,8 @@ MITRE ATT&CK, and an OWASP TASVS mapping. The same engine drives the CLI, a nati
 server**, and an **agentic AI workbench** (`TCPK-Agentic.bat` -- loopback, token-gated,
 discovery-only) with decompile, local AI review, and an autonomous agent.
 
+MCP setup (Claude Code, Claude Desktop, Cursor): [`docs/MCP-USAGE.md`](docs/MCP-USAGE.md).
+
 ![TCPK agentic AI workbench](assets/tcpk-agenticai.png)
 
 ## What makes it different
