@@ -142,13 +142,63 @@ function Get-TcpkVerifyHint {
                 -Note "run against the whole install dir, not just one DLL - the callback often lives in a sibling assembly. TCPK auto-confirms accept-all callbacks (rule tls-bypass.cert-callback-accepts-all) via the Mono.Cecil IL prover." `
                 -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
         }
-        '^(callsites\.|deser\.|xxe\.|webview2\.)' {
+        # ONE branch used to cover callsites.*, deser.*, xxe.* and webview2.*, which is 51
+        # rules, with a VULNERABLE/OK pair written for the TLS case. So a SQL injection
+        # finding told the analyst "VULNERABLE if the flagged method returns a constant
+        # 'true' for certificate validation". Split by family below.
+        #
+        # MOST OF THESE USE -Info, NOT -Vulnerable/-Ok, AND THAT IS DELIBERATE.
+        # A VULNERABLE/OK pair is a promise that the two halves are mutually exclusive,
+        # exhaustive, and decidable by reading the decompiled method. Correct pairs were
+        # drafted for all 51 rules and every one failed review: they asked the reader to
+        # judge whether a value was "external" (a taint judgement the IL does not show),
+        # left the most common code shape matching neither half, or named .NET APIs and
+        # overloads that do not behave as claimed. A hint that states a test it cannot back
+        # is the same defect as a finding that states evidence it did not observe, so these
+        # say what was matched and what to go and read, and stop there. Replace an -Info
+        # with a real pair only for a rule where both halves are visible in the IL.
+
+        '^callsites\.disabled-cert-validation' {
+            # The one rule the old shared text was actually written for, so it keeps a real
+            # VULNERABLE/OK pair: both halves are a single IL shape you can see directly.
+            Format-TcpkVerifyHint `
+                -What "Finds the certificate-validation callback TCPK flagged so you can read what it returns." `
+                -Run "Test-TcpkCallsites -Path '$f' | Confirm-TcpkTlsBypass" `
+                -Vulnerable "the callback returns a constant true on every path, which in IL is 'ldc.i4.1; ret' with no branch." `
+                -Ok "the callback builds an X509Chain, compares a thumbprint, or checks SslPolicyErrors before returning." `
+                -Note "pipe the finding through Confirm-TcpkTlsBypass to have TCPK prove it: that cmdlet lists callsites.disabled-cert-validation among the rules it re-checks, and its Mono.Cecil IL prover reads the method body rather than the string table. It takes a finding on the pipeline or a single -Dll, not -Path." `
+                -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
+        }
+        '^deser\.' {
+            Format-TcpkVerifyHint `
+                -What "Locates the deserialization call sites so you can see which TYPE the payload is allowed to instantiate." `
+                -Run "Test-TcpkDeserialization -Path '$dir' | Confirm-TcpkDeserialization" `
+                -Info "a deserializer is only a vulnerability when the payload can choose the type to construct. Read the flagged method and establish two things: where the serialized bytes come from, and whether a SerializationBinder, a type allow-list or a fixed generic type constrains what may be built. Confirm-TcpkDeserialization reads the IL and reports Confirmed (IL) or Likely-FP (IL), so check its verdict before spending time in a decompiler." `
+                -Note "Evidence on these findings is the matched API or config string, not a method name, so use the decompiler's analyzer on that API to reach the call sites." `
+                -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
+        }
+        '^xxe\.' {
+            Format-TcpkVerifyHint `
+                -What "Locates the XML parsing configured to process DTDs or external entities." `
+                -Run "Test-TcpkXxe -Path '$dir'" `
+                -Info "the question is whether the parser resolves anything outside the document, and whether the XML it parses can come from outside the application. Read the flagged method for how DtdProcessing and XmlResolver are set on the XmlReaderSettings, and follow the parsed stream back to its source." `
+                -Note "a DTD in an XML file that ships inside the application is not by itself a finding; it matters when the same parser configuration is reused for input the application receives at runtime." `
+                -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
+        }
+        '^webview2\.' {
+            Format-TcpkVerifyHint `
+                -What "Locates the WebView2 host-bridge configuration so you can see what web content can reach native code." `
+                -Run "Test-TcpkWv2HostObjects -Path '$dir'" `
+                -Info "the question is which origins the control can navigate to, and what a page reached that way can call. Read the flagged method for the navigation and message handling, and for every host object or message handler work out what the page can invoke through it." `
+                -Note "check the navigation guard as well as the bridge: a bridge reachable only from a page the application ships is a much smaller surface than the same bridge reachable from an arbitrary URL." `
+                -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
+        }
+        '^callsites\.' {
             Format-TcpkVerifyHint `
                 -What "Finds the exact code locations TCPK flagged so you can read the real logic in a decompiler." `
-                -Run "Test-TcpkCallsites -Path '$f'" `
-                -Vulnerable "the flagged method returns a constant 'true' for certificate validation, or it deserializes/parses untrusted input with no checks." `
-                -Ok "it builds an X509Chain, compares a certificate thumbprint, or validates the input before using it." `
-                -Note "open the flagged method in a .NET decompiler (ILSpy or dnSpy) to read the method body." `
+                -Run "Test-TcpkCallsites -Path '$f' | Confirm-TcpkCallsiteUsage" `
+                -Info "this rule matched an API reference, which is not a finding on its own. Read the flagged method and work out how the dangerous argument is built: a compile-time constant is not a bug, a value assembled at runtime from data the application receives is. Confirm-TcpkCallsiteUsage reads the IL and reports Confirmed (IL) when it can trace a runtime-assembled value into the call, or Likely-FP (IL) when it finds a guard, and it names the guard it found." `
+                -Note "Evidence on these findings is the matched pattern text (for example 'SqlCommand'), not a method name, so use the decompiler's analyzer on that API to reach the call sites." `
                 -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
         }
         '^csv\.' {
