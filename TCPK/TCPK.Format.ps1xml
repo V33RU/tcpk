@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default display for [TcpkFinding].
+
+  WHY. A finding has 22 properties and a healthy one fills about half, so the built-in
+  Format-List printed ten consecutive blank rows on a perfectly good finding. Impact and
+  Cvss are filled at report time, the attribution and observation contracts are opt-in, and
+  AdjustmentLog and Preconditions stay empty unless the rule went through the precondition
+  layer. All correct, and all of it reads as a broken object to whoever is looking at it.
+
+  ItemSelectionCondition with a bare PropertyName shows a row only when that property is
+  truthy, and PowerShell truthiness makes '' and @() both false. That is the whole mechanism
+  for dropping the empty rows: no script, no module scope, no maintenance.
+
+  TYPE NAME. A PowerShell class has no namespace, so PSTypeNames carries the bare string
+  'TcpkFinding'. It is NOT 'TCPK.Finding', which survives only in a stale comment at the top
+  of Classes\TcpkFinding.ps1. Matching is by name, so this keeps working across
+  Import-Module -Force even though each -Force mints a new type object.
+
+  NO COLOUR HERE, and this is not an oversight. The 5.1 format schema has no colour element
+  ($PSStyle and colour-aware format files are 7.2+), and embedding ANSI in a ScriptBlock is
+  not a workaround: the 5.1 formatter measures cell width by counting characters, so ESC[91m
+  adds five to a cell's width, which truncates the reset sequence and bleeds colour into
+  every row after it. Colour lives in Show-TcpkFinding, which uses Write-Host.
+
+  SCRIPTBLOCK RULES. A format-file ScriptBlock does not run in the module's session state,
+  so it cannot call Get-TcpkImpactText or any other private helper. Everything below is
+  property access, array indexing and string operators only.
+-->
+<Configuration>
+  <ViewDefinitions>
+
+    <!-- Default list. First view for the type, so this is what a bare
+         `Test-TcpkX ...` renders with. -->
+    <View>
+      <Name>TcpkFinding</Name>
+      <ViewSelectedBy>
+        <TypeName>TcpkFinding</TypeName>
+        <TypeName>Deserialized.TcpkFinding</TypeName>
+      </ViewSelectedBy>
+      <ListControl>
+        <ListEntries>
+          <ListEntry>
+            <ListItems>
+
+              <!-- Always present on every finding. -->
+              <ListItem>
+                <PropertyName>Severity</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>Confidence</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>RuleId</PropertyName>
+              </ListItem>
+              <ListItem>
+                <PropertyName>Title</PropertyName>
+              </ListItem>
+
+              <!-- Trimmed for display only. Resolve-TcpkFindings appends an aggregation
+                   note to whatever the rule set, and a rule that set nothing used to leave
+                   a leading space in front of it. The emitter is the real fix; this just
+                   stops the display repeating the artefact. -->
+              <ListItem>
+                <ItemSelectionCondition>
+                  <PropertyName>Description</PropertyName>
+                </ItemSelectionCondition>
+                <Label>Detail</Label>
+                <ScriptBlock>"$($_.Description)".Trim()</ScriptBlock>
+              </ListItem>
+
+              <ListItem>
+                <ItemSelectionCondition>
+                  <PropertyName>File</PropertyName>
+                </ItemSelectionCondition>
+                <PropertyName>File</PropertyName>
+              </ListItem>
+
+              <ListItem>
+                <ItemSelectionCondition>
+                  <PropertyName>Evidence</PropertyName>
+                </ItemSelectionCondition>
+                <PropertyName>Evidence</PropertyName>
+              </ListItem>
+
+              <!-- Empty on a single-occurrence finding, which is correct and should not
+                   print. When it is set, the default array renderer gives {a, b, c, d...}
+                   with no count, which is worse than useless on an aggregate over ten
+                   files, so show the real count and the first three. -->
+              <ListItem>
+                <ItemSelectionCondition>
+                  <PropertyName>Affected</PropertyName>
+                </ItemSelectionCondition>
+                <Label>Affected</Label>
+                <ScriptBlock>$a = @($_.Affected); if ($a.Count -le 3) { $a -join '; ' } else { "$($a.Count) total: " + (($a[0..2]) -join '; ') + " (+$($a.Count - 3) more)" }</ScriptBlock>
+              </ListItem>
+
+              <ListItem>
+                <ItemSelectionCondition>
+                  <PropertyName>Cwe</PropertyName>
+                </ItemSelectionCondition>
+                <Label>CWE</Label>
+                <ScriptBlock>@($_.Cwe) -join ', '</ScriptBlock>
+              </ListItem>
+
+              <ListItem>
+                <ItemSelectionCondition>
+                  <PropertyName>Fix</PropertyName>
+                </ItemSelectionCondition>
+                <PropertyName>Fix</PropertyName>
+              </ListItem>
+
+              <!-- The reasoning trail says why a severity moved. A silently demoted finding
+                   misleads as much as a false positive, so when this exists it is shown. -->
+              <ListItem>
+                <ItemSelectionCondition>
+                  <PropertyName>AdjustmentLog</PropertyName>
+                </ItemSelectionCondition>
+                <Label>Trail</Label>
+                <ScriptBlock>@($_.AdjustmentLog) -join ' | '</ScriptBlock>
+              </ListItem>
+
+              <ListItem>
+                <ItemSelectionCondition>
+                  <PropertyName>Preconditions</PropertyName>
+                </ItemSelectionCondition>
+                <Label>Precond</Label>
+                <ScriptBlock>@($_.Preconditions) -join ' | '</ScriptBlock>
+              </ListItem>
+
+            </ListItems>
+          </ListEntry>
+        </ListEntries>
+      </ListControl>
+    </View>
+
+    <!-- Table view for `... | Format-Table`, and for a long result set.
+         Confidence is 19 wide because the ladder really does reach that far:
+         'Confirmed (dynamic)' and 'Confirmed (exploit)' are both 19 characters. -->
+    <View>
+      <Name>TcpkFindingTable</Name>
+      <ViewSelectedBy>
+        <TypeName>TcpkFinding</TypeName>
+        <TypeName>Deserialized.TcpkFinding</TypeName>
+      </ViewSelectedBy>
+      <TableControl>
+        <TableHeaders>
+          <TableColumnHeader>
+            <Label>Severity</Label>
+            <Width>8</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Confidence</Label>
+            <Width>19</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>RuleId</Label>
+            <Width>34</Width>
+          </TableColumnHeader>
+          <TableColumnHeader>
+            <Label>Title</Label>
+          </TableColumnHeader>
+        </TableHeaders>
+        <TableRowEntries>
+          <TableRowEntry>
+            <TableColumnItems>
+              <TableColumnItem>
+                <PropertyName>Severity</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>Confidence</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>RuleId</PropertyName>
+              </TableColumnItem>
+              <TableColumnItem>
+                <PropertyName>Title</PropertyName>
+              </TableColumnItem>
+            </TableColumnItems>
+          </TableRowEntry>
+        </TableRowEntries>
+      </TableControl>
+    </View>
+
+  </ViewDefinitions>
+</Configuration>

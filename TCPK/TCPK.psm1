@@ -68,6 +68,25 @@ foreach ($f in (Get-TcpkLoadOrder 'Classes')) {
     . $f.FullName
 }
 
+# 1a) Display formatting for [TcpkFinding].
+#
+# LOADED HERE AND NOT VIA FormatsToProcess, DELIBERATELY. A manifest's FormatsToProcess is
+# applied by the engine before any of this module's code runs, and a format file the engine
+# rejects makes Import-Module fail outright. That single failure would take down the CLI, the
+# WinForms GUI, the web workbench and the MCP server at once, because all four import this
+# manifest. Update-FormatData does the same job at the same point in the load, and wrapping
+# it means a bad view degrades to plain output instead of an unusable module.
+#
+# -PrependPath so these views win over the built-in fallback for an unrecognised type.
+$script:TcpkFormatFile = Join-Path $script:TcpkRoot 'TCPK.Format.ps1xml'
+if (Test-Path -LiteralPath $script:TcpkFormatFile) {
+    try {
+        Update-FormatData -PrependPath $script:TcpkFormatFile -ErrorAction Stop
+    } catch {
+        Write-Verbose "[TCPK] display formatting not loaded: $($_.Exception.Message)"
+    }
+}
+
 # 2) Private helpers (underscore-prefixed, not exported)
 foreach ($f in (Get-TcpkLoadOrder 'Private')) {
     . $f.FullName
