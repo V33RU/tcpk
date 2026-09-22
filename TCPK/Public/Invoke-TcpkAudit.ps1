@@ -277,7 +277,7 @@ function Invoke-TcpkAudit {
         try   { & $Block }
         finally {
             if (Test-TcpkCheckBudgetExpired) {
-                Write-Information -MessageData ("  {0,-32}  stopped at the {1}s budget (partial)" -f $Name, $CheckBudgetSec) -InformationAction Continue
+                Write-Information -MessageData ("  {0,-36}  stopped at the {1}s budget (partial)" -f $Name, $CheckBudgetSec) -InformationAction Continue
                 Write-TcpkLog -Level WARN -Component $Name -Message "stopped at the ${CheckBudgetSec}s budget; result is partial" | Out-Null
                 try { Add-TcpkScanSkip -Kind 'BudgetStopped' -ItemPath "$Name (post-check stage, ${CheckBudgetSec}s budget)" } catch { }
             }
@@ -289,7 +289,7 @@ function Invoke-TcpkAudit {
     function _RunCheck([string]$Name, [scriptblock]$Block) {
         # Quick profile: skip the slow whole-machine OS-integration checks above.
         if ($ScanProfile -eq 'Quick' -and ($quickSkip -contains $Name)) {
-            Write-Information -MessageData ("  {0,-32}  skipped (Quick profile)" -f $Name) -InformationAction Continue
+            Write-Information -MessageData ("  {0,-36}  skipped (Quick profile)" -f $Name) -InformationAction Continue
             Write-TcpkLog -Level INFO -Component $Name -Message 'skipped (Quick profile)' | Out-Null
             Add-TcpkCoverage -Name $Name -Status 'SkippedQuickProfile'
             return
@@ -323,7 +323,15 @@ function Invoke-TcpkAudit {
                 # InformationPreference) does not print it. Reports + return value unchanged.
                 try { Write-Information -MessageData ("TCPKFND`t{0}`t{1}`t{2}`t{3}" -f "$($f.Severity)","$($f.Confidence)","$($f.RuleId)",(("$($f.Title)") -replace "[`t`r`n]+",' ')) } catch { }
             } }
-            $msg = "  {0,-32} {1,5} findings  ({2,4}s)" -f $Name, $count, [int]$sw.Elapsed.TotalSeconds
+            # One line per check, and it has to carry enough to triage from.
+            # The severity tally is the addition that matters: "47 findings" and "1 finding"
+            # read identically in a count column even when the 47 are all INFO and the 1 is a
+            # CRITICAL. Hosts parse this line -- see Step-ProgressFromLog in Start-TCPKGui.ps1
+            # and the ChecksDone counter in _WebUi.ps1 -- so the shape "<name> <n> findings"
+            # is a contract, not just layout. Width 36 fits the longest registered check name
+            # ("Test-TcpkReflectionLoading (bundle)", 35) without pushing the columns out.
+            $msg = "  {0,-36} {1,4} findings   {2,-20} {3,8}" -f `
+                   $Name, $count, (Get-TcpkSeverityTally -Findings @($r)), (Format-TcpkElapsed $sw.Elapsed)
             Write-Information -MessageData $msg -InformationAction Continue
             $lvl = if ($count -gt 0) { 'SUCCESS' } else { 'INFO' }
             Write-TcpkLog -Level $lvl -Component $Name -Message "$count findings" -DurationMs ([int]$sw.Elapsed.TotalMilliseconds) | Out-Null
@@ -337,7 +345,9 @@ function Invoke-TcpkAudit {
             # Elapsed on the failure line too: a check that dies instantly is a different
             # problem from one that dies after 40 minutes, and without the number they
             # read identically in the log.
-            $msg = "  {0,-32}  FAILED after {1}s  ({2})" -f $Name, [int]$sw.Elapsed.TotalSeconds, $_.Exception.Message
+            # Uppercase FAILED is load-bearing: the hosts match this branch case-sensitively
+            # so it cannot collide with ordinary log text like "extract failed after 12s".
+            $msg = "  {0,-36}  FAILED after {1}  ({2})" -f $Name, (Format-TcpkElapsed $sw.Elapsed), $_.Exception.Message
             Write-Information -MessageData $msg -InformationAction Continue
             Write-TcpkLog -Level ERROR -Component $Name -Message $_.Exception.Message -DurationMs ([int]$sw.Elapsed.TotalMilliseconds) | Out-Null
             Add-TcpkCoverage -Name $Name -Status 'Failed' -DurationMs ([int]$sw.Elapsed.TotalMilliseconds)
@@ -757,6 +767,17 @@ function Invoke-TcpkAudit {
     # LAST: report what the walker could not read during everything above. Must run after
     # all other checks so the counters cover the whole audit.
     _RunCheck 'Test-TcpkScanCoverage'        { Test-TcpkScanCoverage }
+
+    # Checkpoint the run log now that every check has reported.
+    #
+    # Save-TcpkRunLog otherwise runs exactly once, near the very end of this function, with
+    # no try/finally around it. Everything below -- triage, IL verify, the optional LLM pass,
+    # SBOM hashing, the report writers -- is minutes of work during which a Ctrl-C or an
+    # unhandled throw used to leave no run.jsonl at all, so the GUI's Logs/Runtime tab showed
+    # "No run.jsonl produced for this audit." and the entire timed trace was gone.
+    # That mattered less when the console echoed the same trace live; it is now the only
+    # copy, so write an interim one here. The final save overwrites this with the full log.
+    try { Save-TcpkRunLog -Dir $OutDir } catch { }
 
     # --- Verify layer: dedupe + false-positive killers + correlation ---
     Write-Information -MessageData "" -InformationAction Continue

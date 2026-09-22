@@ -72,8 +72,18 @@ $script:TcpkHeartbeatFrom = $null
 
 function Reset-TcpkHeartbeat {
     [CmdletBinding()] param()
-    $script:TcpkHeartbeatLast = $null
-    $script:TcpkHeartbeatFrom = Get-Date
+    # Baseline BOTH clocks to now, and note that Last must NOT go back to $null.
+    #
+    # The guard in Write-TcpkHeartbeat is `if ($Last -and (($now - $Last) -lt $Sec))`, so a
+    # null Last makes the whole condition false and the line prints immediately. Since
+    # _RunCheck resets before every check and ~69 checks iterate Get-TcpkPeFiles, that meant
+    # ~69 heartbeats per audit all reading "0s  1  current: <first file>" -- each one also
+    # duplicated onto the LOGX stream. A heartbeat exists to break silence during a STALL;
+    # one that fires before any time has passed is the opposite of that. Seeding Last with
+    # now delays the first line by TcpkHeartbeatSec of real work, which is the documented
+    # intent ("throttled to one line every TcpkHeartbeatSec").
+    $script:TcpkHeartbeatLast = Get-Date
+    $script:TcpkHeartbeatFrom = $script:TcpkHeartbeatLast
 }
 
 function Write-TcpkHeartbeat {

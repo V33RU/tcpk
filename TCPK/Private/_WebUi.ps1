@@ -325,7 +325,15 @@ function Get-TcpkWebJobStatus {
         $s = "$line"
         if ($s.StartsWith("LOG`t")) {
             $msg = $s.Substring(4); $e.Log.Add($msg); $newLog.Add($msg)
-            if ($msg -match '^\s*Test-Tcpk\S+\s+\d+ findings') { $e.ChecksDone++ }
+            # Same three line shapes the desktop GUI counts (see Step-ProgressFromLog).
+            # The old pattern required the name to be a bare Test-Tcpk token, so it missed
+            # all 19 suffixed / non-Test entries ("Test-TcpkSecrets (bundle)", "(python)",
+            # "Invoke-TcpkManagedCarve", "Single-file bundle detected") and under-counted.
+            # FAILED is matched case-sensitively so lower-case "failed after ..." in ordinary
+            # log text is not counted as a completed check.
+            if ($msg -match '^\s{2}\S.*\s\d+ findings\s' -or
+                $msg -cmatch '^\s{2}\S.*\sFAILED after ' -or
+                $msg -match '^\s{2}\S.*\s+skipped \(') { $e.ChecksDone++ }
         } elseif ($s.StartsWith("FND`t")) {
             $parts = $s.Substring(4) -split "`t", 4
             $f = [ordered]@{ sev = "$($parts[0])"; conf = "$($parts[1])"; rule = "$($parts[2])"; title = "$($parts[3])" }

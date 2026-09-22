@@ -6336,8 +6336,25 @@ function Update-RunStatus {
 
 # Advance the bar from a single streamed audit log line.
 function Step-ProgressFromLog([string]$msg) {
-    # A completed check prints e.g. "  Test-TcpkSecrets   3 findings  (   2s)" (or FAILED).
-    if ($msg -match '\d+ findings\s+\(\s*\d+s\)\s*$' -or $msg -match '\bFAILED\s+\(') {
+    # A completed check prints one of three shapes, all indented two spaces:
+    #   "  Test-TcpkSecrets                      3 findings   C1 H2           412ms"
+    #   "  Test-TcpkRegistryAcl                    skipped (Quick profile)"
+    #   "  Test-TcpkFoo                            FAILED after 3.1s  (message)"
+    # All three advance the bar. The skip branch is new: under the Quick profile 21 checks
+    # are skipped, and without it the bar stalled short of the end of the check phase.
+    #
+    # The FAILED test is -cmatch (CASE-SENSITIVE) on purpose. The audit emits FAILED in
+    # upper case, while ordinary log text contains the lower-case phrase -- _Cim.ps1 builds
+    # "$label failed after ${sec}s: $msg" and _StringExtractor.ps1 builds "extract failed
+    # after Ns on ..." -- and both now reach this function as [warn]/[error] console lines.
+    # A case-insensitive match would count those as completed checks and overrun the bar.
+    #
+    # The previous pattern '\bFAILED\s+\(' never matched anything: the emitter writes
+    # "FAILED after 3s  (...)", so \s+ could not bridge "FAILED" to "(" and a failed check
+    # silently never advanced the bar.
+    if ($msg -match '^\s{2}\S.*\s\d+ findings\s' -or
+        $msg -cmatch '^\s{2}\S.*\sFAILED after ' -or
+        $msg -match '^\s{2}\S.*\s+skipped \(') {
         $script:ChkDone++
         $p = [int][Math]::Round(88.0 * $script:ChkDone / $script:ChkTotal)
         Set-Progress ([Math]::Min(88, $p))
@@ -7840,7 +7857,12 @@ $btnRun.Add_Click({
             if ($line -match '^LOG\t(.+)$') {
                 $msg = $matches[1]
                 $colour = [System.Drawing.Color]::White
-                if ($msg -match 'CRITICAL') { $colour = $script:SevColour['CRITICAL'] }
+                # Per-check lines now carry a compact tally ("C1 H3 M12") rather than the
+                # words, so match the tally FIRST -- otherwise a check that found a CRITICAL
+                # renders in the same flat blue as one that found nothing but INFO.
+                if ($msg -cmatch '\sC[1-9]\d*\b')      { $colour = $script:SevColour['CRITICAL'] }
+                elseif ($msg -cmatch '\sH[1-9]\d*\b')  { $colour = $script:SevColour['HIGH'] }
+                elseif ($msg -match 'CRITICAL') { $colour = $script:SevColour['CRITICAL'] }
                 elseif ($msg -match 'HIGH')   { $colour = $script:SevColour['HIGH'] }
                 elseif ($msg -match 'findings') { $colour = [System.Drawing.Color]::FromArgb(174, 214, 241) }
                 Write-LogLine $msg $colour
