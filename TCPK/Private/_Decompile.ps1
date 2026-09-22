@@ -803,6 +803,184 @@ function Get-TcpkTypeNameHandlingVerdicts {
     }
 }
 
+# Client-side authorization gates, read from METADATA rather than the string table.
+#
+# WHY NOT A STRING SCAN. The obvious implementation looks for gate-shaped names in the
+# decoded bytes of the file. That has two failure modes and the same run hits both: any
+# assembly that merely CONTAINS the text matches, so a bundled third-party library reports
+# a gate it does not have, while a genuine gate goes unreported because nothing checks
+# whether the name is ever actually used in a decision. Reading FieldDefinition and
+# PropertyDefinition names off the metadata tables removes the first, and requiring the
+# member to reach a conditional branch removes the second.
+#
+# WHAT THIS CANNOT SEE, stated because the gap is real. Local variable names do not survive
+# a release build without a PDB, so a gate held in a local is invisible here no matter what
+# it is called. Only fields and properties are detectable. A value read from a database,
+# a response or a file and branched on immediately is a client-side gate too, and finding
+# that shape needs taint analysis rather than a name.
+#
+# The branch window is deliberately short. A load and the test that consumes it are adjacent
+# in practice, and widening it starts pairing a load with an unrelated branch further down.
+$script:TcpkIlBranchOps = @('brtrue', 'brtrue.s', 'brfalse', 'brfalse.s', 'beq', 'beq.s',
+                            'bne.un', 'bne.un.s', 'ceq', 'cgt', 'cgt.un', 'clt', 'clt.un')
+
+function Get-TcpkClientGateVerdicts {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DllPath,
+        [Parameter(Mandatory)][string]$NameRegex
+    )
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    $opn = "$($ins.OpCode.Name)"
+                    $member = ''
+                    if ($opn -eq 'ldfld' -or $opn -eq 'ldsfld') {
+                        $fref = $ins.Operand -as [Mono.Cecil.FieldReference]
+                        if ($null -ne $fref) { $member = "$($fref.Name)" }
+                    } elseif ($opn -eq 'call' -or $opn -eq 'callvirt') {
+                        $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                        # A property read compiles to a get_ accessor call. Strip the prefix so
+                        # the caller's pattern matches the property name people actually write.
+                        if ($null -ne $mref -and "$($mref.Name)".StartsWith('get_')) { $member = "$($mref.Name)".Substring(4) }
+                    }
+                    if (-not $member) { continue }
+                    if ($member -notmatch $NameRegex) { continue }
+
+                    # Is the loaded value actually used to decide something? Walk forward a
+                    # few instructions for a branch or comparison that consumes it.
+                    $branch = ''
+                    $nx = $ins.Next; $steps = 0
+                    while ($nx -and $steps -lt 4) {
+                        $nop = "$($nx.OpCode.Name)"
+                        if ($nop -eq 'nop') { $nx = $nx.Next; continue }
+                        if ($script:TcpkIlBranchOps -contains $nop) { $branch = $nop; break }
+                        $nx = $nx.Next; $steps++
+                    }
+                    if (-not $branch) { continue }
+
+                    $back = New-Object 'System.Collections.Generic.List[object]'
+                    $pi = $ins; $c = 0
+                    while ($pi -and $c -lt 3) { $back.Insert(0, $pi); $pi = $pi.Previous; $c++ }
+                    if ($nx) { $back.Add($nx) }
+                    $snip = New-Object 'System.Collections.Generic.List[string]'
+                    foreach ($bi in $back) {
+                        $bo = ''
+                        if ($null -ne $bi.Operand) { $bo = " $($bi.Operand)" }
+                        $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo))
+                    }
+                    $ns = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+                    $out.Add([pscustomobject]@{
+                        File = $fileName; Assembly = $asm.MainModule.Name; Namespace = $ns
+                        Type = $t.FullName; Method = $m.Name
+                        Token = ('0x{0:X8}' -f $m.MetadataToken.ToInt32())
+                        Member = $member; Branch = $branch
+                        Reason = "'$member' is loaded and consumed by '$branch', so the decision is made in this process."
+                        Il = ($snip -join "`n")
+                    })
+                }
+            }
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}
+
+# Credential literals reaching a credential-consuming API.
+#
+# WHY NAME-BASED SECRET SCANNING MISSES THIS. The usual detectors key on a name next to a
+# value: a config key called Password, a JSON field called apiKey, an assignment to a
+# variable called token. That finds secrets in configuration and misses them in code,
+# because a credential passed POSITIONALLY has no name anywhere near it. Entropy scoring
+# does not rescue it either: a short human-chosen password is low entropy by construction,
+# which is exactly what makes it a bad password and what makes it invisible to an entropy
+# threshold.
+#
+# The name that is missing from the argument is present on the PARAMETER, in metadata. So
+# the signal is not the literal, it is the literal arriving at an API whose signature says
+# the value is a credential. That is checkable and it does not depend on what the secret
+# looks like.
+#
+# Deliberately narrow: only APIs whose whole purpose is to take a credential. A generic
+# ldstr into any method would report every string in the assembly.
+$script:TcpkIlCredentialApiRx = '(?i)(System\.Net\.NetworkCredential::\.ctor|::set_Credentials|::set_Password|::set_UserName|::set_UserId|SmtpClient::set_Credentials|FtpWebRequest::set_Credentials|SqlConnection::\.ctor|::set_ConnectionString|SqlCredential::\.ctor|::set_ClientSecret|::set_ApiKey|::set_AccessKey|::set_SecretKey|X509Certificate2::\.ctor)'
+
+function Get-TcpkCredentialLiteralVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    $opn = "$($ins.OpCode.Name)"
+                    if ($opn -ne 'call' -and $opn -ne 'callvirt' -and $opn -ne 'newobj') { continue }
+                    $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($null -eq $mref) { continue }
+                    $sig = "$($mref.DeclaringType.FullName)::$($mref.Name)"
+                    if ($sig -notmatch $script:TcpkIlCredentialApiRx) { continue }
+
+                    # Walk back over the argument loads for this call. The window is the
+                    # parameter count plus a little slack, so a literal further up the method
+                    # belonging to an unrelated call is not attributed here.
+                    $argc = 0
+                    try { $argc = [int]$mref.Parameters.Count } catch { $argc = 0 }
+                    $window = $argc + 3
+                    $lits = New-Object 'System.Collections.Generic.List[string]'
+                    $pi = $ins.Previous; $c = 0
+                    while ($pi -and $c -lt $window) {
+                        if ("$($pi.OpCode.Name)" -eq 'ldstr') {
+                            $v = "$($pi.Operand)"
+                            # An empty literal is the documented way to say "no credential",
+                            # and a single character cannot be one.
+                            if ($v.Length -gt 1) { $lits.Insert(0, $v) }
+                        }
+                        $pi = $pi.Previous; $c++
+                    }
+                    if ($lits.Count -eq 0) { continue }
+
+                    $ns = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+                    $snip = New-Object 'System.Collections.Generic.List[string]'
+                    $back = New-Object 'System.Collections.Generic.List[object]'
+                    $bp = $ins; $bc = 0
+                    while ($bp -and $bc -lt ($window + 1)) { $back.Insert(0, $bp); $bp = $bp.Previous; $bc++ }
+                    foreach ($bi in $back) {
+                        $bo = ''
+                        if ($null -ne $bi.Operand) { $bo = " $($bi.Operand)" }
+                        $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo))
+                    }
+                    $out.Add([pscustomobject]@{
+                        File = $fileName; Assembly = $asm.MainModule.Name; Namespace = $ns
+                        Type = $t.FullName; Method = $m.Name
+                        Token = ('0x{0:X8}' -f $m.MetadataToken.ToInt32())
+                        Api = $sig; LiteralCount = $lits.Count
+                        Reason = "$($lits.Count) string literal(s) are loaded as arguments to $sig, which takes a credential."
+                        Il = ($snip -join "`n")
+                    })
+                }
+            }
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}
+
 # Constant vs dynamic IL load opcodes (for the argument-source heuristic below).
 $script:TcpkIlConstLoads = @(
     'ldstr','ldnull','ldc.i4','ldc.i4.s','ldc.i4.m1',

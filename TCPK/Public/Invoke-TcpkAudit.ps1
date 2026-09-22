@@ -609,6 +609,10 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkDpapiBlobs'          { Test-TcpkDpapiBlobs          -Path $expanded }
     _RunCheck 'Test-TcpkPlaintextConfigs'    { Test-TcpkPlaintextConfigs    -Path $expanded }
     _RunCheck 'Test-TcpkAppConfigSecrets'    { Test-TcpkAppConfigSecrets    -Path $expanded }
+    # Sits beside the config-secret checks on purpose: it covers the case they structurally
+    # cannot, a credential passed positionally in code where there is no key name to match
+    # and a weak password scores too low for the entropy check to fire.
+    _RunCheck 'Test-TcpkCredentialLiterals'  { Test-TcpkCredentialLiterals  -Path $expanded }
     _RunCheck 'Test-TcpkTokenCaches'         { Test-TcpkTokenCaches         -Path $expanded }
     _RunCheck 'Test-TcpkKeyMaterial'         { Test-TcpkKeyMaterial         -Path $expanded }
     _RunCheck 'Test-TcpkLocalDb'             { Test-TcpkLocalDb             -Path $expanded -NameLike $idTerms }
