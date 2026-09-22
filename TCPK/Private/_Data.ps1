@@ -40,6 +40,24 @@ function Get-TcpkData {
 #                      to produce; squirrel.exe is handled by TcpkRuntimeHelperExes instead
 #   'Interop.'         tlbimp wrappers are generated FROM the vendor's own type library and
 #                      are exactly where the COM surface lives; Test-TcpkComInterop needs them
+# DO NOT MERGE THIS WITH $script:TcpkFxAsmSkip IN _ManagedCve.ps1.
+# The overlap is real and the temptation to unify them is understandable, but they answer
+# two different questions and merging would create a silent blind spot:
+#
+#   THIS list   - "did the vendor WRITE this code?"  Consulted by 84 checks that look for
+#                 code patterns (crypto misuse, deserialization, TLS, reflection, P/Invoke).
+#                 EntityFramework is here because its code is Microsoft's, not the vendor's.
+#
+#   TcpkFxAsmSkip - "does this component have its OWN CVE feed?"  Consulted by
+#                 Get-TcpkManagedNugetComponents, which feeds OSV version matching.
+#                 EntityFramework is deliberately NOT there, because EF6 is a real NuGet
+#                 package with published CVEs and shipping a vulnerable version of it IS
+#                 the vendor's problem.
+#
+# So a third-party library is simultaneously "not their code" (skip the pattern checks) and
+# "their dependency" (keep the version check). Folding the lists together would take one of
+# those two behaviours away from every entry, and losing the second one means a known-
+# vulnerable bundled library stops being reported at all.
 $script:TcpkFrameworkPrefixes = @(
     'Microsoft.','System.','WinRT.','Windows.','Azure.','BouncyCastle.',
     'CommunityToolkit.','DotNext.','ExCSS.','HarfBuzzSharp.','SkiaSharp.',
