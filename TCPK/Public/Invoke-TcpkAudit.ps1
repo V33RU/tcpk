@@ -783,6 +783,43 @@ function Invoke-TcpkAudit {
     # copy, so write an interim one here. The final save overwrites this with the full log.
     try { Save-TcpkRunLog -Dir $OutDir } catch { }
 
+    # --- Static secret recovery ------------------------------------------------
+    #
+    # Invoke-TcpkSecretRecovery pools the values behind every secret / crypto-key / IV /
+    # entropy finding and tries AES, 3DES and DES across CBC and ECB over every
+    # (key, IV, ciphertext) triple drawn from that pool. When one decrypts, the app's own
+    # shipped key has defeated the app's own encryption and the result is
+    # exploit.secret-recovered at CRITICAL / Confirmed (exploit): an observed effect, not
+    # an inference.
+    #
+    # IT WAS NEVER CALLED. The cmdlet shipped, four other files referenced it in their
+    # docs, and nothing in the audit ever ran it. exploit-map.json has an entry that
+    # CONSUMES exploit.secret-recovered (routing it to Test-TcpkCredentialLiveness) and no
+    # entry that produces it, so the chain was broken at its source. On an application that
+    # ships an AES key, an IV and the ciphertext in one config file, TCPK reported the three
+    # values as three separate HIGH findings and never performed the one-step recovery that
+    # turns them into a single proven compromise. A manual reviewer did it in six lines.
+    #
+    # This is the only route to a CRITICAL on a target of that shape, because
+    # Resolve-TcpkImpact refuses CRITICAL without a measured impact fact and no other check
+    # produces one.
+    #
+    # DISCOVERY-SAFE. It decrypts values already present in the artifact using keys already
+    # present in the artifact, which is exactly what the application does at startup. It
+    # touches nothing outside the target and is deliberately NOT behind the exploit switch.
+    # -Reveal is not passed, so the recovered value is masked in the finding; the operator
+    # can re-run the cmdlet with -Reveal when they need the plaintext.
+    try {
+        $recovered = @($all | Invoke-TcpkSecretRecovery -Target $expanded)
+        foreach ($rf in $recovered) { if ($rf) { $all.Add($rf) } }
+        if ($recovered.Count -gt 0) {
+            Write-Information -MessageData ("  secret recovery: {0} shipped key(s) decrypted a shipped ciphertext" -f $recovered.Count) -InformationAction Continue
+            Write-TcpkLog -Level SUCCESS -Component 'secret-recovery' -Message "$($recovered.Count) recovered" | Out-Null
+        }
+    } catch {
+        Write-TcpkLog -Level ERROR -Component 'secret-recovery' -Message $_.Exception.Message | Out-Null
+    }
+
     # --- Verify layer: dedupe + false-positive killers + correlation ---
     Write-Information -MessageData "" -InformationAction Continue
     Write-Information -MessageData "Triaging via Resolve-TcpkFindings..." -InformationAction Continue
