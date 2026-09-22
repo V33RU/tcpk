@@ -2,6 +2,65 @@
 
 Release history for TCPK. Newest first.
 
+## v2.11.0
+
+**Console and finding output rewritten, three evidence defects fixed, and the secret-recovery
+module finally connected to the audit that shipped it.**
+
+Terminal output. Each check used to print up to four lines for one fact: the human result
+line, a tab-separated copy of it, a "start" line, and a heartbeat that fired on the first file
+of every check reading "0s, item 1". Both GUI hosts discard the tab-separated copy on sight
+and the Logs tab is built from `run.jsonl` on disk, so those lines only ever reached the
+operator's terminal. Dropping the forced `InformationAction` leaves the record in the stream
+for `6>&1` and takes it off the console; WARN and ERROR keep a readable line, because for a
+long tail of swallowed failures `Write-TcpkLog` is the only terminal surface there is.
+`Reset-TcpkHeartbeat` now baselines its clock instead of clearing it, so a heartbeat means a
+genuine stall. The per-check line carries a severity tally and a real duration.
+
+Findings. A `[TcpkFinding]` has 22 properties and a healthy one fills about half, so
+`Format-List` printed ten blank rows on a perfectly good finding. A format file loaded through
+`Update-FormatData` shows only populated fields; `Format-List *` still shows all 22.
+`Show-TcpkFinding` renders the same thing coloured by severity. Colour is `Write-Host`, not
+ANSI: 5.1 never enables virtual terminal processing on the console host, so the same escape
+sequence that is red in Windows Terminal is literal text in conhost.
+
+Evidence. `Test-TcpkUpdateFlow` built its Evidence by joining the rule's candidate keyword
+list, making the string byte-identical for every target ever scanned and asserting that all
+eight keywords were observed when one may have matched. `Test-TcpkRpcChannels` and
+`Test-TcpkGrpcSurface` had the same shape against an OR guard. All three now report what
+actually matched. This had reached the committed sample reports.
+
+Provenance. `TcpkFrameworkPrefixes` is the sole filter at 84 call sites and had 29 entries,
+none of them EntityFramework, so a third-party assembly's crypto, deserialization and
+P/Invoke surface was attributed to the vendor. 32 entries added, seven candidates rejected
+and the reasons recorded in the file, because a missing prefix produces noise while an
+over-broad one produces silence at all 84 sites.
+
+SQL injection. The source rule required the command object and the concatenation on the same
+line, so it caught only the inline form. Measured against an application with five injection
+sinks it reported one; the four it missed, including the DELETE, used the ordinary two-line
+shape. One level of reaching definition now tracks the variable from assignment to sink.
+
+Secret recovery. `Invoke-TcpkSecretRecovery` shipped, four files referenced it in their
+documentation, and nothing ever called it. `exploit-map.json` carried an entry that consumes
+`exploit.secret-recovered` and none that produces it, so the chain was broken at its source.
+On an application shipping an AES key, an IV and the ciphertext in one config file, the audit
+reported three separate findings and never performed the one-step recovery. It is now run
+before the verify layer, and it is the only route to a CRITICAL on a target of that shape,
+because `Resolve-TcpkImpact` refuses CRITICAL without a measured impact fact.
+
+Fixed: a failed check never advanced the desktop progress bar, because the pattern expected
+`FAILED (` and the emitter writes `FAILED after 3s  (`; Quick-profile skips were not counted
+either; 51 rules across `callsites.`, `deser.`, `xxe.` and `webview2.` shared one branch whose
+guidance was written for the TLS case, so a SQL injection finding advised checking certificate
+validation; an aborted run left no `run.jsonl` at all.
+
+Added: `Show-TcpkFinding`, `Test-TcpkCredentialLiterals`, `Test-TcpkComOrphanedClsid`, and
+guard tests for the console contract, the provenance filter and finding explanations.
+
+Known issue: on a test scan, four of seven HIGH findings described the scan host rather than
+the target, including the operator's own credential store. Scoping fix is not in this release.
+
 ## v2.10.0
 
 **11 new detectors, crash minimizer, sink neutralizer analysis.**
