@@ -38,7 +38,7 @@ function Test-TcpkUpdateFlow {
     # Per-DLL tracking so we can require update + sig-verify in the SAME binary.
     # An SSH library or unrelated crypto DLL having Pkcs7 elsewhere does NOT
     # mean the update flow is signed.
-    $updateDlls = @{}    # full-path -> true (DLL contains update-flow keywords)
+    $updateDlls = @{}    # full-path -> string[] of the update keywords ACTUALLY found in it
     $sigDlls    = @{}    # full-path -> true (DLL contains sig-verify keywords)
     $updateUrls = @{}
     $updatePeSample = $null
@@ -51,12 +51,21 @@ function Test-TcpkUpdateFlow {
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 
+        # Collect EVERY keyword that matched, and do not break on the first one.
+        #
+        # This loop used to set a boolean and break, so the identity of the match was thrown
+        # away before anything could report it. The finding below then built its Evidence by
+        # joining $updateKw, the hardcoded CANDIDATE list, which made the Evidence a
+        # compile-time constant: identical for every target ever scanned, and asserting that
+        # all eight keywords were observed when one may have matched. A finding must never
+        # state an observation that was not made.
+        $peHits = New-Object 'System.Collections.Generic.List[string]'
         foreach ($k in $updateKw) {
-            if ($text.Contains($k)) {
-                $updateDlls[$pe.FullName] = $true
-                if (-not $updatePeSample) { $updatePeSample = $pe.FullName }
-                break
-            }
+            if ($text.Contains($k)) { $peHits.Add($k) }
+        }
+        if ($peHits.Count -gt 0) {
+            $updateDlls[$pe.FullName] = @($peHits.ToArray())
+            if (-not $updatePeSample) { $updatePeSample = $pe.FullName }
         }
         foreach ($k in $sigKw) {
             if ($text.Contains($k)) {
@@ -88,14 +97,31 @@ function Test-TcpkUpdateFlow {
     }
 
     if ($hasUpdateFlow -and -not $hasSigVerification) {
-        New-TcpkFinding -Module 'network' -RuleId 'update.no-signature-verification' `
+        # Evidence is built from what was OBSERVED, per binary, never from the candidate list.
+        $obsKw = New-Object 'System.Collections.Generic.List[string]'
+        $parts = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($d in ($updateDlls.Keys | Sort-Object)) {
+            $kws = @($updateDlls[$d])
+            foreach ($k in $kws) { if (-not $obsKw.Contains($k)) { $obsKw.Add($k) } }
+            if ($parts.Count -lt 10) { $parts.Add(("{0}: {1}" -f (Split-Path $d -Leaf), ($kws -join ','))) }
+        }
+        $evi = "update keywords observed: " + (($obsKw | Sort-Object) -join ',') +
+               " | in " + $updateDlls.Count + " first-party binary(ies): " + ($parts -join '; ') +
+               " | no signature-verification keyword in any of them"
+        if ($updateDlls.Count -gt 10) { $evi = $evi + " ...(+" + ($updateDlls.Count - 10) + " more)" }
+
+        # -File is the first binary that matched, which is enumeration-order dependent and so
+        # is not on its own an honest answer to "where". Affected carries the real set.
+        $agg = New-TcpkFinding -Module 'network' -RuleId 'update.no-signature-verification' `
             -Severity 'CRITICAL' -Confidence 'Inferred' `
             -Title 'Update flow present; NO signature-verification primitives in first-party code' `
             -File $updatePeSample `
-            -Evidence ("update keywords: " + ($updateKw -join ',') + " | sig keywords absent") `
+            -Evidence $evi `
             -Cwe @('CWE-494','CWE-345','CWE-347') `
             -Description 'If downloaded update content is not signature-verified before execution, anyone who can write to the update origin (or MITM the channel) achieves persistent RCE on every client. Confirm in ILSpy that DownloadUpdate / CheckForUpdate methods do not call any cryptographic verification path.' `
             -Fix 'Sign update manifests with an offline-keyed RSA signature; sign each downloaded payload (Authenticode or detached PKCS#7); verify before any extract/exec.'
+        $agg.Affected = [string[]]@($updateDlls.Keys | Sort-Object)
+        $agg
     }
     # The positive "sig-verification referenced" case is NOT emitted as a finding: a single
     # string match falsely reassures (the verify call may be stale / off the download path).

@@ -85,12 +85,16 @@ function Test-TcpkGrpcSurface {
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 
-        if ($text -match '(?i)ServerReflection|ReflectionServiceImpl|AddGrpcReflection|ServerServiceDefinition.*Reflection') {
+        # The guard is a four-way alternation, so capture the branch that actually fired.
+        # A constant Evidence naming two of the four claimed a match that may never have
+        # happened, for instance on a binary that only references ReflectionServiceImpl.
+        $reflMatch = [regex]::Match($text, '(?i)ServerReflection|ReflectionServiceImpl|AddGrpcReflection|ServerServiceDefinition.{0,40}?Reflection')
+        if ($reflMatch.Success) {
             New-TcpkFinding -Module 'static' -RuleId 'grpc.reflection-enabled' `
                 -Severity 'MEDIUM' -Confidence 'Inferred' `
                 -Title "gRPC server reflection enabled in $($pe.Name)" `
                 -File $pe.FullName `
-                -Evidence 'references ServerReflection / AddGrpcReflection' `
+                -Evidence ("references " + $reflMatch.Value) `
                 -Cwe @('CWE-200') `
                 -Description ('The application enables gRPC server reflection, which allows any ' +
                     'client to enumerate all registered services and methods at runtime without ' +

@@ -36,12 +36,17 @@ function Test-TcpkRpcChannels {
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
 
-        $usesGrpc = $text.Contains('ChannelCredentials') -or $text.Contains('ServerCredentials') -or $text.Contains('GrpcChannel')
-        if ($usesGrpc -and $text.Contains('Insecure')) {
+        # Record WHICH of the three markers matched. The guard is an OR, so a constant
+        # Evidence naming two of them asserted an observation that may not have been made.
+        $grpcHits = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($m in @('ChannelCredentials', 'ServerCredentials', 'GrpcChannel')) {
+            if ($text.Contains($m)) { $grpcHits.Add($m) }
+        }
+        if ($grpcHits.Count -gt 0 -and $text.Contains('Insecure')) {
             New-TcpkFinding -Module 'static' -RuleId 'rpc.grpc-insecure-credentials' `
                 -Severity 'HIGH' -Confidence 'Inferred' `
                 -Title "Insecure gRPC channel credentials in $($pe.Name)" `
-                -File $pe.FullName -Evidence 'references ChannelCredentials/ServerCredentials + Insecure' `
+                -File $pe.FullName -Evidence ("references " + (($grpcHits.ToArray()) -join ' + ') + " + Insecure") `
                 -Cwe @('CWE-319') `
                 -Description 'First-party code appears to create a gRPC channel with insecure (no-TLS) credentials, so RPC traffic -- including any auth tokens -- is sent in cleartext.' `
                 -Fix 'Use ChannelCredentials.SecureSsl / a TLS GrpcChannel; never ChannelCredentials.Insecure outside local tests. Decompile the method to confirm.'
