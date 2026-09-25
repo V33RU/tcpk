@@ -458,6 +458,7 @@ function Expand-TcpkPyInstaller {
             if (-not $t) { continue }
             foreach ($r in $rules) {
                 $m = $null
+                if (-not (Test-TcpkSecretRuleApplies -Rule $r -Text $t)) { continue }
                 try { $m = $r._RX.Match($t) } catch { continue }
                 if ($m -and $m.Success) {
                     $v = $m.Value; if ($v.Length -gt 80) { $v = $v.Substring(0, 80) + ' ...' }

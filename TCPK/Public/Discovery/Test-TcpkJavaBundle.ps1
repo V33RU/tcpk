@@ -94,6 +94,7 @@ function Test-TcpkJavaBundle {
                 $loc = "$($arc.Name)!/$($entry.FullName)"
 
                 foreach ($r in $rules) {
+                    if (-not (Test-TcpkSecretRuleApplies -Rule $r -Text $text)) { continue }
                     $m = $r._RX.Match($text)
                     if (-not $m.Success) { continue }
                     $val = $m.Value; if ($val.Length -gt 80) { $val = $val.Substring(0,80) + ' ...' }

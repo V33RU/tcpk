@@ -115,6 +115,7 @@ function Expand-TcpkAsar {
                 $t = $null; try { $t = [IO.File]::ReadAllText($ef.FullName) } catch { continue }
                 if (-not $t) { continue }
                 foreach ($r in $rules) {
+                    if (-not (Test-TcpkSecretRuleApplies -Rule $r -Text $t)) { continue }
                     $m = $r._RX.Match($t)
                     if ($m.Success) {
                         $v = $m.Value; if ($v.Length -gt 80) { $v = $v.Substring(0,80) + ' ...' }

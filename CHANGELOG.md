@@ -2,6 +2,70 @@
 
 Release history for TCPK. Newest first.
 
+## Unreleased
+
+**Secret rules ran ungated everywhere except the static scanner, and the Runtime tab paid for
+it.**
+
+47 of the 49 rules in `secrets.json` carry a literal prefix or a `prefilter` needle set that
+is mandatory for the pattern to mean anything. `particle-io-access-token` is `[0-9a-f]{40}` at
+HIGH, gated on `api.particle.io`. Both gates were built inline inside `Test-TcpkSecrets`, so
+only that one check had them. Eight other cmdlets pulled the rules from
+`Get-TcpkSecretRegexRules` and ran all 49 regexes raw: the live-memory scan, the clipboard
+scan, the environment-block scan, the window-title scan, the Java bundle scan and the asar /
+PyInstaller / single-file extractors. Four of those sit on the GUI's Runtime tab.
+
+Against a process heap that unanchored hex rule matches every SHA-1, every certificate
+thumbprint and every hex blob in the address space, and reports each one HIGH. Measured on a
+synthetic heap holding 400 SHA-1 hashes, that single rule produced 401 of 486 total hits. With
+the gates applied, output drops 83% and every planted real secret is still found, including
+the Particle token when it appears next to its own URL.
+
+There was a second bug underneath. `Get-TcpkData` caches the rule objects, and two builders
+mutated the same objects behind an "if the property is absent" guard, so whichever check ran
+first in a session decided the behaviour of every check after it. They disagreed about three
+things: the 5-second match timeout that `Test-TcpkSecrets` documents as MANDATORY and this one
+did not set, the `Multiline` flag, and the gates. A live-memory scan running first silently
+removed the static scanner's only protection against a rule that backtracks forever.
+
+There is now one builder, in `Private\_MemRead.ps1`, and one gate predicate,
+`Test-TcpkSecretRuleApplies`. `Test-TcpkSecrets` calls both rather than rolling its own.
+`SecretRuleGating.Tests.ps1` fails if a second builder appears, if the timeout is dropped, or
+if any consumer of the rule set does not call the gate, including one added later.
+
+**COM: a registration whose server binary is missing is now a finding.**
+
+`Test-TcpkComHijack` already read `InprocServer32`/`LocalServer32` and already checked whether
+the server image was user-writable, but the whole ACL block sat behind `Test-Path` on that
+image. A registration pointing at a file that is not there fell straight through and emitted
+nothing, which is the stronger of the two primitives: there is no incumbent to displace and no
+registry write to make, because the entry doing the work is the vendor's own, already in HKLM
+and already trusted by every process that asks for the class.
+
+New rules. `comhijack.server-missing-plantable` (HIGH) fires when the image is absent and the
+path it names is one a low-privilege principal can create. `comhijack.server-missing` (INFO)
+records the case where that question could not be answered because the ACL was unreadable,
+rather than letting it pass as clean.
+
+Which right counts depends on what is missing. If the leaf directory exists the primitive is
+FILE_ADD_FILE; if it does not, it is FILE_ADD_SUBDIRECTORY on the nearest existing ancestor,
+because creating that directory makes the attacker its owner.
+`Test-TcpkRegistryLoadPoints` excludes FILE_ADD_SUBDIRECTORY on purpose and is right to: there
+the image exists and has to be replaced, and every drive root grants that bit to
+`BUILTIN\Users`. Neither argument reaches the branch that uses it here, and there is a test
+pinning the distinction so it does not get "fixed" later.
+
+`Get-TcpkPlantGrants` and `Resolve-TcpkComServerImage` are new in `Private\_ObjSecurity.ps1`.
+The codebase had nine local writability helpers and not one could answer "can a non-admin
+create this path", because all of them bail when the path is absent. The resolver exists
+because the old single-regex strip cut an unquoted value at the first ` -`, turning a real
+path into a missing one.
+
+Scope. The candidate CLSIDs are still only those appearing in the target's own binaries and
+config files; this is not a machine-wide registry sweep. Reported severity is the planting
+primitive, not a proven privilege escalation: a planted image runs in whatever process
+activates the class, and nothing here establishes that a higher-privileged one does.
+
 ## v2.11.0
 
 **Console and finding output rewritten, three evidence defects fixed, and the secret-recovery

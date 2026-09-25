@@ -77,6 +77,7 @@ function Test-TcpkUiDataExposure {
                     foreach ($title in ($titles | Select-Object -Unique)) {
                         if ($title -match $placeholder) { continue }
                         foreach ($r in $rules) {
+                            if (-not (Test-TcpkSecretRuleApplies -Rule $r -Text $title)) { continue }
                             $rx = $null
                             try { $rx = $r._RX } catch { $rx = $null }
                             if (-not $rx) { continue }

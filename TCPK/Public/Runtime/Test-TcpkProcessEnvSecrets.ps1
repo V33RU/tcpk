@@ -56,7 +56,10 @@ function Test-TcpkProcessEnvSecrets {
             $seen[$name] = $true
 
             $matched = $false
-            foreach ($r in $rules) { if ($r._RX.IsMatch($pair)) { $matched = $true; break } }
+            foreach ($r in $rules) {
+                if (-not (Test-TcpkSecretRuleApplies -Rule $r -Text $pair)) { continue }
+                if ($r._RX.IsMatch($pair)) { $matched = $true; break }
+            }
             $sensitiveName = $rxSensitiveName.IsMatch($name)
             if (-not ($matched -or $sensitiveName)) { continue }
             # name-only hits: require a non-trivial, non-path value

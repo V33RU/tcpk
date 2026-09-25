@@ -22,85 +22,13 @@ function Test-TcpkSecrets {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path)
 
-    $rules = (Get-TcpkData).rules
-    # NO RegexOptions.Compiled. It was here for "2-5x faster on repeated matches", which is
-    # true and was the wrong trade for this workload.
-    #
-    # Compiled defers IL generation and JIT to the regex's FIRST USE, so the cost of building
-    # all 49 rules lands entirely on the first file scanned. An audit of Firefox Developer
-    # Edition sat on file 1 of 78 -- AccessibleMarshal.dll, under a megabyte -- burning CPU,
-    # with no second heartbeat, which is exactly the shape of a one-time initialisation cost.
-    # Three of the rules are variable-length lookbehinds, which .NET compiles into a reversed
-    # matcher and which are the most expensive of the set to build.
-    #
-    # Worse, it fights the _QuickLit pre-filter directly below. That filter exists so a rule
-    # whose literal prefix is absent NEVER RUNS -- so on a typical file most of these regexes
-    # are skipped entirely, and Compiled pays to JIT every one of them anyway. Paying full
-    # construction cost for matchers you then decline to use is strictly worse than
-    # interpreting the few that survive the filter.
-    #
-    # Compiled only repays itself after thousands of matches against the same instance, and
-    # the extractor already cut the matched text by more than an order of magnitude, so there
-    # is even less left to amortise against.
-    # Per-rule match budget, applied per Match call rather than per file. 5s is far above
-    # any legitimate rule: the extractor hands these regexes printable runs, not raw bytes,
-    # which cuts a 59 MB binary to a small fraction of that, and the _QuickLit pre-filter
-    # means most rules never run at all. A rule that exceeds it is backtracking
-    # pathologically, and the per-check wall-clock budget is the backstop above this.
-    if (-not $script:TcpkSecretsRuleTimeout) {
-        $script:TcpkSecretsRuleTimeout = [TimeSpan]::FromSeconds(5)
-    }
-
-    foreach ($r in $rules) {
-        if (-not $r.PSObject.Properties['_RX']) {
-            # MATCH TIMEOUT IS MANDATORY. This used to call the 2-argument overload
-            # (pattern, options), which leaves matchTimeout at Regex.InfiniteMatchTimeout.
-            # A rule that backtracks badly on one file therefore ran forever: the scan sat
-            # on a single large member of a bundle with no output and no way to tell a hang
-            # from slow progress. It also made the RegexMatchTimeoutException handler below
-            # dead code, because .NET can only raise that when a finite timeout is set.
-            # With a timeout, one pathological rule costs a few seconds and is REPORTED as
-            # secrets.rule-timeout instead of stalling the audit.
-            $r | Add-Member -NotePropertyName _RX -NotePropertyValue ([regex]::new(
-                $r.pattern,
-                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
-                [System.Text.RegularExpressions.RegexOptions]::Multiline,
-                $script:TcpkSecretsRuleTimeout
-            )) -Force
-        }
-        if (-not $r.PSObject.Properties['_QuickLit']) {
-            # Pre-filter literal = the MANDATORY literal run at the START of the pattern, after
-            # stripping leading inline-flags / anchors. We take ONLY a leading literal because the
-            # old extractor pulled regex SYNTAX from the middle of the pattern -- \b -> 'b'
-            # ('bsk_', 'bgithub_pat_'), (?: -> ':' (':AKIA'), [A-Z0-9] -> 'A-Z0-9' -- none of which
-            # appear in real data, so the rule was silently skipped and AWS / GitHub-PAT / Stripe /
-            # Aptabase detection was ZEROED OUT. If the pattern opens with a group/class/short
-            # literal we set $null = no pre-filter (the rule always runs -- correctness over speed).
-            $p = $r.pattern
-            $p = [regex]::Replace($p, '^\(\?[a-zA-Z]+\)', '')   # leading inline flags e.g. (?i)
-            $p = [regex]::Replace($p, '^(?:\\b|\^)+', '')        # leading anchors \b ^
-            $lit = $null
-            $lm = [regex]::Match($p, '^[A-Za-z0-9_./=:\-]{4,}')
-            if ($lm.Success) {
-                $cand = $lm.Value
-                # if the char after the run is a quantifier, its last char is optional/variable -> drop it
-                $next = if ($p.Length -gt $cand.Length) { $p[$cand.Length] } else { [char]0 }
-                if ($next -eq '?' -or $next -eq '*' -or $next -eq '{') { $cand = $cand.Substring(0, $cand.Length - 1) }
-                if ($cand.Length -ge 4) { $lit = $cand }
-            }
-            $r | Add-Member -NotePropertyName _QuickLit -NotePropertyValue $lit -Force
-        }
-        # Optional multi-needle pre-filter (rule.prefilter): a set of cheap literal triggers.
-        # When set, the rule's (often heavy) regex only runs on a view that contains at least one
-        # needle. The credential rules require a password-ish keyword to match, so gating on it is
-        # loss-free AND stops the regex from grinding over hundreds of MB of binary blobs that
-        # contain no such keyword (the cause of the no-size-cap hang on Electron/Chromium apps).
-        if (-not $r.PSObject.Properties['_Needles']) {
-            $nd = @()
-            if ($r.PSObject.Properties['prefilter'] -and $r.prefilter) { $nd = @($r.prefilter | ForEach-Object { "$_" }) }
-            $r | Add-Member -NotePropertyName _Needles -NotePropertyValue $nd -Force
-        }
-    }
+    # Rules come from the shared builder in Private\_MemRead.ps1, which compiles _RX with
+    # the mandatory match timeout and attaches both pre-filter gates. This block used to
+    # build all three inline; the duplicate disagreed with the other builder about the
+    # timeout, the Multiline flag and the gates, and since Get-TcpkData hands out cached
+    # objects that both mutated, whichever check ran first in a session won. The comments
+    # explaining each decision moved with the code.
+    $rules = Get-TcpkSecretRegexRules
 
     # .pak = Chromium/Electron resource+locale packs (UI strings in dozens of languages, no app
     # secrets) -- scanning them produced natural-language false positives (e.g. German 'anpassen...'
@@ -122,14 +50,10 @@ function Test-TcpkSecrets {
         param([string]$Text, [string]$Src)
         if ([string]::IsNullOrEmpty($Text)) { return }
         foreach ($r in $rules) {
-            # Cheap, case-insensitive literal pre-filter (skip a rule whose literal prefix
-            # is nowhere in the view). Case-insensitive because the rules use IgnoreCase.
-            if ($r._QuickLit -and ($Text.IndexOf($r._QuickLit, [System.StringComparison]::OrdinalIgnoreCase) -lt 0)) { continue }
-            if ($r._Needles -and @($r._Needles).Count) {
-                $hasNeedle = $false
-                foreach ($nd in $r._Needles) { if ($Text.IndexOf($nd, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { $hasNeedle = $true; break } }
-                if (-not $hasNeedle) { continue }
-            }
+            # Both pre-filter gates, in the one implementation every secret consumer shares.
+            # Inlining them here again is what let the live-memory, clipboard, env-block, UI
+            # and archive scanners drift into running the rules ungated.
+            if (-not (Test-TcpkSecretRuleApplies -Rule $r -Text $Text)) { continue }
             foreach ($m in $r._RX.Matches($Text)) {
                 $hit = $m.Value
                 # Placeholder / documentation guard: skip format examples, not real credentials

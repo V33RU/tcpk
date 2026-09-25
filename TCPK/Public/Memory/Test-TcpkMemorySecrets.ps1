@@ -66,6 +66,10 @@ function Test-TcpkMemorySecrets {
                 $wideOdd = if ($bytes.Length -gt 1) { [Text.Encoding]::Unicode.GetString($bytes, 1, $bytes.Length - 1) } else { '' }
                 foreach ($view in @(@{ S='ascii'; T=$ascii }, @{ S='utf16'; T=$wide }, @{ S='utf16-odd'; T=$wideOdd })) {
                     foreach ($r in $rules) {
+                        # Pre-filter gates. Without them the heavier rules match binary
+                        # noise in the heap: particle-io-access-token is [0-9a-f]{40} at
+                        # HIGH and hits every SHA-1 and thumbprint in the address space.
+                        if (-not (Test-TcpkSecretRuleApplies -Rule $r -Text $view.T)) { continue }
                         foreach ($m in $r._RX.Matches($view.T)) {
                             $hit = $m.Value
                             if ($hit.Length -lt 6) { continue }

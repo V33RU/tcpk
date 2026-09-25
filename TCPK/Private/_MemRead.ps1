@@ -111,21 +111,119 @@ if (-not ('Tcpk.MemRead' -as [type])) {
     try { Add-Type -TypeDefinition $script:TcpkMemReadSrc -ErrorAction Stop } catch { }
 }
 
-# Compile the secrets.json rules into regex once, returning the rule list.
+# THE ONE PLACE secrets.json rules are prepared. Every consumer must come through here.
+#
+# There used to be two builders: this one, and a second inline in Test-TcpkSecrets. They
+# disagreed about three things, and because Get-TcpkData hands out CACHED objects that both
+# mutated with -Force behind an "if the property is absent" guard, whichever check ran first
+# in a session decided the behaviour of every check after it:
+#
+#   match timeout  Test-TcpkSecrets set 5s and documented it as MANDATORY, because a rule
+#                  that backtracks pathologically otherwise runs forever and its own
+#                  RegexMatchTimeoutException handler is dead code without it. This builder
+#                  set none. A live-memory scan running first therefore silently removed the
+#                  static scanner's only protection against a hang.
+#   Multiline      set there, not here, which changes what ^ and $ mean mid-buffer.
+#   the gates      below. Built there, never here.
+#
+# THE GATES ARE NOT AN OPTIMISATION. 47 of the 49 rules carry a literal prefix or a
+# 'prefilter' needle set that makes them meaningful; several are unusable without one.
+# particle-io-access-token is [0-9a-f]{40} at HIGH, gated on 'api.particle.io'. Ungated
+# against a process heap that matches every SHA-1, every certificate thumbprint and every
+# hex blob in the address space, and reports each as HIGH. Consumers that skipped the gates
+# were not running a faster scan, they were running a different and much worse one.
 function Get-TcpkSecretRegexRules {
     [CmdletBinding()] param()
+
+    # Per-rule match budget, applied per Match call. 5s is far above any legitimate rule.
+    if (-not $script:TcpkSecretsRuleTimeout) {
+        $script:TcpkSecretsRuleTimeout = [TimeSpan]::FromSeconds(5)
+    }
+
     $rules = (Get-TcpkData).rules
     foreach ($r in $rules) {
         if (-not $r.PSObject.Properties['_RX']) {
-            # No RegexOptions.Compiled -- see the long note in Test-TcpkSecrets. In short: it
-            # moves the cost of building all 49 rules onto the first scan, which reads as a
-            # hang, and it repays only after thousands of matches that this workload never
-            # performs. This builder is shared by the live-memory scan too, where the same
-            # first-use stall applied.
+            # NO RegexOptions.Compiled. It defers IL generation and JIT to first use, so the
+            # cost of building all 49 rules lands on the first file scanned and reads as a
+            # hang; three rules are variable-length lookbehinds and are the most expensive of
+            # the set to build. It also fights the _QuickLit gate directly: that gate exists
+            # so a rule whose literal is absent NEVER RUNS, and Compiled pays to JIT every
+            # one of them anyway. It repays only after thousands of matches against the same
+            # instance, which this workload never performs.
+            #
+            # MATCH TIMEOUT IS MANDATORY. The 2-argument overload leaves matchTimeout at
+            # Regex.InfiniteMatchTimeout, so one badly backtracking rule stalls the scan with
+            # no output and no way to tell a hang from slow progress.
             $r | Add-Member -NotePropertyName _RX -NotePropertyValue ([regex]::new(
                 $r.pattern,
-                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) -Force
+                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+                [System.Text.RegularExpressions.RegexOptions]::Multiline,
+                $script:TcpkSecretsRuleTimeout
+            )) -Force
+        }
+
+        if (-not $r.PSObject.Properties['_QuickLit']) {
+            # Gate 1: the MANDATORY literal run at the START of the pattern, after stripping
+            # leading inline flags and anchors. Only a LEADING literal is taken: an earlier
+            # extractor pulled regex SYNTAX out of the middle of a pattern --  became 'b'
+            # ('bsk_', 'bgithub_pat_'), (?: became ':' (':AKIA'), [A-Z0-9] became 'A-Z0-9' --
+            # none of which occur in real data, so those rules were silently skipped and AWS
+            # / GitHub-PAT / Stripe / Aptabase detection was ZEROED OUT. If the pattern opens
+            # with a group, a class or a short literal the gate is left null and the rule
+            # always runs: correctness over speed.
+            $p = $r.pattern
+            $p = [regex]::Replace($p, '^\(\?[a-zA-Z]+\)', '')
+            $p = [regex]::Replace($p, '^(?:\\b|\^)+', '')
+            $lit = $null
+            $lm = [regex]::Match($p, '^[A-Za-z0-9_./=:\-]{4,}')
+            if ($lm.Success) {
+                $cand = $lm.Value
+                # A quantifier after the run makes its last char optional or variable.
+                $next = if ($p.Length -gt $cand.Length) { $p[$cand.Length] } else { [char]0 }
+                if ($next -eq '?' -or $next -eq '*' -or $next -eq '{') { $cand = $cand.Substring(0, $cand.Length - 1) }
+                if ($cand.Length -ge 4) { $lit = $cand }
+            }
+            $r | Add-Member -NotePropertyName _QuickLit -NotePropertyValue $lit -Force
+        }
+
+        if (-not $r.PSObject.Properties['_Needles']) {
+            # Gate 2: the rule's own 'prefilter' set of cheap literal triggers. The credential
+            # rules require a password-ish keyword to mean anything, so gating on it is
+            # loss-free; SecretPrefilter.Tests.ps1 asserts that property rule by rule.
+            $nd = @()
+            if ($r.PSObject.Properties['prefilter'] -and $r.prefilter) { $nd = @($r.prefilter | ForEach-Object { "$_" }) }
+            $r | Add-Member -NotePropertyName _Needles -NotePropertyValue $nd -Force
         }
     }
     return $rules
+}
+
+# Should this rule's regex run against this text at all? Both gates are cheap ordinal
+# substring tests and both are loss-free by construction: a rule only carries a gate when
+# the gate's literal is MANDATORY for the pattern to match.
+#
+# Callers that scan decoded process memory, clipboard contents, environment blocks, UI text
+# or extracted archive members must call this. Without it the heavier rules match binary
+# noise and every hit is reported at the rule's own severity.
+function Test-TcpkSecretRuleApplies {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]$Rule,
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Text
+    )
+    if ([string]::IsNullOrEmpty($Text)) { return $false }
+
+    $ql = $null
+    try { $ql = $Rule._QuickLit } catch { $ql = $null }
+    if ($ql -and ($Text.IndexOf($ql, [System.StringComparison]::OrdinalIgnoreCase) -lt 0)) { return $false }
+
+    $nd = @()
+    try { $nd = @($Rule._Needles) } catch { $nd = @() }
+    if ($nd.Count) {
+        foreach ($n in $nd) {
+            if ($Text.IndexOf($n, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+        }
+        return $false
+    }
+    return $true
 }

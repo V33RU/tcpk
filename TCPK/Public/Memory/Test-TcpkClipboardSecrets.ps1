@@ -92,6 +92,7 @@ function Test-TcpkClipboardSecrets {
         if ($ProcessName -and $fgProc -and $fgProc -ne $ProcessName) { continue }
 
         foreach ($r in $rules) {
+            if (-not (Test-TcpkSecretRuleApplies -Rule $r -Text $text)) { continue }
             foreach ($m in $r._RX.Matches($text)) {
                 $val = $m.Value
                 if ($val.Length -lt 6)       { continue }
