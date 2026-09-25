@@ -1099,7 +1099,9 @@ function Get-TcpkAgentAutoStatus {
 # --- the single-page workbench (self-contained, no CDN) ------------------------
 function Get-TcpkAgenticAppHtml {
     [CmdletBinding()] param()
-    return $script:TCPK_AGENTIC_HTML
+    # The square mark, not the wordmark: the top bar already prints the name in text.
+    # Get-TcpkBrandLogoTag returns '' when assets\ is absent, which leaves valid markup.
+    return $script:TCPK_AGENTIC_HTML.Replace('__TCPK_LOGO__', (Get-TcpkBrandLogoTag -Asset 'tcpk-mark.png' -Height 22))
 }
 
 $script:TCPK_AGENTIC_HTML = @'
@@ -1116,7 +1118,7 @@ body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 "Segoe UI",sy
 a{color:var(--blue);cursor:pointer;text-decoration:none}a:hover{text-decoration:underline}
 .app{display:grid;grid-template-rows:auto 1fr auto;height:100vh}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0e131d,#0a0d13)}
-.brand{font:700 17px var(--mono)}.brand b{color:var(--accent)}.brand .v{color:var(--dim);font:400 11px var(--mono);margin-left:7px}
+.brand{display:inline-flex;align-items:center;gap:8px;font:700 17px var(--mono);color:var(--muted)}.brand .v{color:var(--dim);font:400 11px var(--mono);margin-left:7px}
 .tbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .chip{display:flex;gap:6px;align-items:center;font:11px var(--mono);color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:4px 10px;max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .chip b{color:var(--text)}
@@ -1275,7 +1277,7 @@ th,td{padding:7px 11px}
 <div class="app">
 
   <header class="top">
-    <div class="brand">TC<b>PK</b> ::agentic<span class="v" id="ver">workbench</span></div>
+    <div class="brand">__TCPK_LOGO__<span>TCPK ::agentic</span><span class="v" id="ver">workbench</span></div>
     <div class="tbar">
       <div class="chip" id="targetChip" style="display:none"><span class="dot ok"></span><span id="targetChipTxt"></span></div>
       <div class="chip" id="agentChip"><span class="dot" id="agentDot"></span>agent: <b id="agentChipTxt">ollama</b></div>

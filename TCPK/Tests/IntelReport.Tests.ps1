@@ -88,6 +88,17 @@ Describe 'Export-TcpkReportIntel' {
         $script:html | Should -Not -Match '<link\b'
         $script:html | Should -Not -Match 'https?://[^"]*(cdn|googleapis|jsdelivr|unpkg)'
     }
+    It 'substitutes every template placeholder' {
+        # The shell is a static string with __TCPK_*__ slots filled in by .Replace().
+        # Rename a slot on one side only and the literal token ships in the header, so
+        # assert none survive rather than asserting on any one of them.
+        $script:html | Should -Not -Match '__TCPK_[A-Z_]+__'
+    }
+    It 'embeds the brand mark as a data URI, not a file reference' {
+        # A self-contained report has to carry the image: assets\ is not shipped next to
+        # the .html, so an <img src='tcpk-mark.png'> would break the moment it is mailed.
+        $script:html | Should -Match 'src="data:image/png;base64,'
+    }
     It 'is pure ASCII (no BOM, no smart punctuation)' {
         $bytes = [IO.File]::ReadAllBytes($script:out)
         @($bytes | Where-Object { $_ -gt 127 }).Count | Should -Be 0

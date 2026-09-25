@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="tcpk-mark.png">
 <title>TCPK - Desktop GUI Workbench</title>
 <meta name="description" content="TCPK Desktop GUI documentation: screenshots and usage guide for all 15 tabs.">
 <style>
@@ -21,8 +23,8 @@ pre{margin:0}
 pre code{font-family:var(--mono);font-size:13px;line-height:1.6;border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#0d1117!important;display:block;overflow-x:auto}
 .wrap{display:flex;max-width:1280px;margin:0 auto}
 nav.toc{position:sticky;top:0;align-self:flex-start;width:262px;height:100vh;overflow-y:auto;padding:26px 14px 60px 20px;border-right:1px solid var(--line);background:var(--bg);flex-shrink:0}
-nav.toc .brand{font-family:var(--mono);font-weight:700;font-size:18px;color:#fff;letter-spacing:.5px}
-nav.toc .brand span{color:var(--accent)}
+/* The product name is one word and reads as one colour. Do not accent a substring of it. */
+nav.toc .brand{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-weight:700;font-size:18px;color:var(--muted);letter-spacing:.5px}
 nav.toc .ver{color:var(--muted);font-size:12px;font-family:var(--mono);margin:2px 0 18px}
 nav.toc a{display:block;color:var(--muted);font-size:13px;padding:4px 8px;border-radius:6px;border-left:2px solid transparent}
 nav.toc a:hover{color:var(--fg);background:var(--bg2);text-decoration:none}
@@ -52,7 +54,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <body>
 <div class="wrap">
 <nav class="toc">
-  <div class="brand">TC<span>PK</span></div>
+  <div class="brand"><img src="tcpk-mark.png" alt="" width="26" height="26">TCPK</div>
   <div class="ver">Desktop GUI</div>
   <a href="index.html" class="back">&larr; Back to main docs</a>
   <div class="grp">Overview</div>

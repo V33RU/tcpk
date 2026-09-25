@@ -39,7 +39,11 @@ function Export-TcpkReportIntel {
         $root = Get-TcpkIntelModel -Findings $all.ToArray() -Target $Target -Profile $Profile
         $json = Protect-TcpkJsonForScript ($root | ConvertTo-Json -Depth 8 -Compress)
 
-        $html = $script:TCPK_INTEL_TEMPLATE.Replace('__TCPK_DATA__', $json)
+        # The square mark, not the wordmark: the header already prints the name in text.
+        $logoTag = Get-TcpkBrandLogoTag -Asset 'tcpk-mark.png' -Height 34
+        # LOGO is substituted BEFORE DATA: the other way round, a finding whose text
+        # happened to contain the literal placeholder would get rewritten.
+        $html = $script:TCPK_INTEL_TEMPLATE.Replace('__TCPK_LOGO__', $logoTag).Replace('__TCPK_DATA__', $json)
 
         [System.IO.File]::WriteAllText($OutFile, $html, (New-Object System.Text.UTF8Encoding($false)))
         Write-TcpkInfo "Intel report written: $OutFile ($($all.Count) findings)"
@@ -60,7 +64,8 @@ $script:TCPK_INTEL_TEMPLATE = @'
 .wrap{max-width:1140px;margin:0 auto;padding:22px}
 a{color:#58a6ff}
 .hd{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:18px}
-.brand{font:700 26px Consolas,monospace}.brand span{color:var(--accent)}
+.brand{font:700 26px Consolas,monospace;color:var(--muted)}
+.hdl{display:flex;align-items:center;gap:12px}
 .sub{color:var(--muted);font-size:13px;margin-top:2px}
 .metar{color:var(--dim);font:12px Consolas,monospace;text-align:right}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
@@ -132,8 +137,8 @@ pre.ev{background:#010409;border:1px solid var(--border);border-radius:7px;paddi
   var st={sev:{},conf:null,q:''}; SEV.forEach(function(s){st.sev[s]=true;});
 
   function h(){ var m=D.meta||{}; var id=D.identity||null;
-    var s='<div class="hd"><div><div class="brand">TC<span>PK</span> intelligence</div>'
-      +'<div class="sub">'+esc(m.target||'(target)')+(id&&id.name?' &middot; '+esc(id.name)+' '+esc(id.version):'')+'</div></div>'
+    var s='<div class="hd"><div class="hdl">__TCPK_LOGO__<div><div class="brand">TCPK intelligence</div>'
+      +'<div class="sub">'+esc(m.target||'(target)')+(id&&id.name?' &middot; '+esc(id.name)+' '+esc(id.version):'')+'</div></div></div>'
       +'<div class="metar">v'+esc(m.version)+'<br>'+esc(m.generated)+' UTC<br>'+esc(m.total)+' findings</div></div>';
     return s; }
 

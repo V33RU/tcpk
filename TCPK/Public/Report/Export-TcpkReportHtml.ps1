@@ -9,7 +9,6 @@ function Export-TcpkReportHtml {
       - Target / tech-stack / attack-surface header card (from -Profile)
       - Severity bar chart + summary
       - Live search box, severity filter chips, expand/collapse all
-      - Rule-summary table (group-by-rule) with click-to-filter
       - Collapsible per-severity sections; each finding numbered (#001..)
       - CVE-match table (NVD links + KEV badges) -- parity with Excel CVEs sheet
       - DLL exploit-mitigation matrix -- parity with Excel DLL Hardening sheet
@@ -463,28 +462,6 @@ $($cveRows -join "`n")
 </section>
 "@
         }
-
-        # ---------------- rule summary ----------------
-        $ruleGroups = $all | Group-Object RuleId | ForEach-Object {
-            $g = $_
-            $worst = ($g.Group | ForEach-Object { Get-TcpkSeverityRank $_.Severity } | Measure-Object -Maximum).Maximum
-            $worstSev = ($sevOrder | Where-Object { (Get-TcpkSeverityRank $_) -eq $worst } | Select-Object -First 1)
-            [pscustomobject]@{ Rule=$g.Name; Count=$g.Count; Sev=$worstSev; Rank=$worst }
-        } | Sort-Object -Property @{e='Rank';Descending=$true}, @{e='Count';Descending=$true}
-        $ruleRows = foreach ($r in $ruleGroups) {
-            "<tr class='rulerow' data-rule='$(ConvertTo-TcpkHtmlSafe $r.Rule)'><td><span class='badge' style='background:$($sevColor[$r.Sev])'>$($r.Sev)</span></td><td><code>$(ConvertTo-TcpkHtmlSafe $r.Rule)</code></td><td class='num'>$($r.Count)</td></tr>"
-        }
-        $ruleSummaryHtml = @"
-<section id='ruleSummary' class='card' hidden>
-  <h3>Findings grouped by rule (click a row to filter)</h3>
-  <table class='ruletable'>
-    <thead><tr><th>Max severity</th><th>Rule</th><th class='num'>Count</th></tr></thead>
-    <tbody>
-$($ruleRows -join "`n")
-    </tbody>
-  </table>
-</section>
-"@
 
         # ---------------- findings ----------------
         $idx = 0
@@ -964,11 +941,6 @@ code.verify{display:block;white-space:pre-wrap;padding:9px 11px;background:#0104
 .vc{color:#737e8d}
 .vcmd{color:#7ee787;font-weight:700}
 code.path{font-size:12.5px;word-break:break-all;color:#9aa4b2}
-.ruletable{width:100%;border-collapse:collapse;font-size:14px}
-.ruletable th,.ruletable td{padding:7px 10px;border-bottom:1px solid var(--bd);text-align:left}
-.ruletable .num{text-align:right}
-.rulerow{cursor:pointer}
-.rulerow:hover{background:var(--panel2)}
 h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
 .recon .reconhead{cursor:pointer;user-select:none;margin:0 0 12px}
 .recon.collapsed .reconbody{display:none}
@@ -1121,22 +1093,6 @@ h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
   var ca=document.getElementById('collapseAll');
   if(ca) ca.addEventListener('click',function(){findings.forEach(function(f){f.classList.remove('open');});});
 
-  var rt=document.getElementById('ruleToggle');
-  var rs=document.getElementById('ruleSummary');
-  if(rt&&rs) rt.addEventListener('click',function(){rs.hidden=!rs.hidden;rt.classList.toggle('active');});
-  document.querySelectorAll('.rulerow').forEach(function(r){
-    r.addEventListener('click',function(){
-      var rule=r.getAttribute('data-rule');
-      if(search){search.value=rule;query=rule.toLowerCase();}
-      document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('active');});
-      var allchip=document.querySelector('.chip[data-sev="ALL"]'); if(allchip) allchip.classList.add('active');
-      activeSev='ALL';
-      sections.forEach(function(s){s.classList.remove('collapsed');});
-      apply();
-      var tgt=document.querySelector('.finding[data-rule="'+rule+'"]');
-      if(tgt) tgt.scrollIntoView({behavior:'smooth',block:'start'});
-    });
-  });
 })();
 '@
 
@@ -1151,22 +1107,14 @@ h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
   $chips
   <button class='btn' id='expandAll'>Expand all</button>
   <button class='btn' id='collapseAll'>Collapse all</button>
-  <button class='btn' id='ruleToggle'>Group by rule</button>
   <label class='cobtn' style='display:inline-flex;align-items:center;gap:5px;font-size:14px;opacity:.85;cursor:pointer' title='Show only IL/dynamic-proven and Confirmed findings; hide Inferred string-scan hits'><input type='checkbox' id='confOnly'> Confirmed only</label>
 </div>
 "@
 
         $titleApp = if ($Profile -and $Profile.Name) { ConvertTo-TcpkHtmlSafe $Profile.Name } else { 'target' }
 
-        # Brand logo as an embedded data-URI (assets\tcpk-logo.png alongside the module). Optional.
-        $logoTag = ''
-        try {
-            $assetLogo = Join-Path (Split-Path $script:TcpkRoot -Parent) 'assets\tcpk-logo.png'
-            if (Test-Path $assetLogo) {
-                $b64logo = [Convert]::ToBase64String([IO.File]::ReadAllBytes($assetLogo))
-                $logoTag = "<img alt='TCPK' style='height:58px;display:block;margin:0 0 6px' src='data:image/png;base64,$b64logo'>"
-            }
-        } catch { $logoTag = '' }
+        # Brand logo as an embedded data-URI. Empty string when assets\ is absent.
+        $logoTag = Get-TcpkBrandLogoTag -Height 58 -Style 'display:block;margin:0 0 6px'
 
         $html = @"
 <!doctype html>
@@ -1192,7 +1140,6 @@ $coverageHtml
 $attackPathHtml
 $reconHtml
 $cveHtml
-$ruleSummaryHtml
 $toolbarHtml
 
   <div id='findings'>

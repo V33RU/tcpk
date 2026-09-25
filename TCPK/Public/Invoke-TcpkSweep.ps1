@@ -137,13 +137,15 @@ function Invoke-TcpkSweep {
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.Append("<!doctype html><html><head><meta charset='utf-8'><title>TCPK sweep</title><style>")
     [void]$sb.Append("body{background:#0d1117;color:#e6edf3;font-family:Segoe UI,Arial,sans-serif;margin:24px}")
-    [void]$sb.Append("h1{font-family:Consolas,monospace}a{color:#58a6ff}")
+    [void]$sb.Append("h1{font-family:Consolas,monospace;display:flex;align-items:center;gap:11px}a{color:#58a6ff}")
     [void]$sb.Append("table{border-collapse:collapse;width:100%;margin:12px 0}")
     [void]$sb.Append("th,td{border:1px solid #30363d;padding:6px 10px;text-align:left;font-size:13px}")
     [void]$sb.Append("th{background:#161b22}td.n{text-align:right;font-family:Consolas,monospace}")
     [void]$sb.Append(".pill{padding:1px 7px;border-radius:9px;font-size:11px;font-family:Consolas,monospace}")
     [void]$sb.Append("</style></head><body>")
-    [void]$sb.Append("<h1>TCPK sweep summary</h1>")
+    # The square mark, not the wordmark: the heading already prints the name in text.
+    # Empty string when assets\ is absent, which still yields a valid heading.
+    [void]$sb.Append("<h1>" + (Get-TcpkBrandLogoTag -Asset 'tcpk-mark.png' -Height 30) + "TCPK sweep summary</h1>")
     [void]$sb.Append("<p>App: <b>$([System.Net.WebUtility]::HtmlEncode("$AppName"))</b> &middot; targets: $($set.Count) &middot; total findings: $($merged.Count) &middot; generated $genUtc UTC</p>")
     [void]$sb.Append("<table><tr><th>Target</th><th>Crit</th><th>High</th><th>Med</th><th>Low</th><th>Info</th><th>Total</th><th>Report</th></tr>")
     foreach ($r in $rows) {

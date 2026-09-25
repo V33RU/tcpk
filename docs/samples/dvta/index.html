@@ -133,11 +133,6 @@ code.verify{display:block;white-space:pre-wrap;padding:9px 11px;background:#0104
 .vc{color:#737e8d}
 .vcmd{color:#7ee787;font-weight:700}
 code.path{font-size:12.5px;word-break:break-all;color:#9aa4b2}
-.ruletable{width:100%;border-collapse:collapse;font-size:14px}
-.ruletable th,.ruletable td{padding:7px 10px;border-bottom:1px solid var(--bd);text-align:left}
-.ruletable .num{text-align:right}
-.rulerow{cursor:pointer}
-.rulerow:hover{background:var(--panel2)}
 h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
 .recon .reconhead{cursor:pointer;user-select:none;margin:0 0 12px}
 .recon.collapsed .reconbody{display:none}
@@ -316,54 +311,11 @@ h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
   </div>
 </section>
 
-<section id='ruleSummary' class='card' hidden>
-  <h3>Findings grouped by rule (click a row to filter)</h3>
-  <table class='ruletable'>
-    <thead><tr><th>Max severity</th><th>Rule</th><th class='num'>Count</th></tr></thead>
-    <tbody>
-<tr class='rulerow' data-rule='update.no-signature-verification'><td><span class='badge' style='background:#f85149'>CRITICAL</span></td><td><code>update.no-signature-verification</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='entropy.high-entropy-token'><td><span class='badge' style='background:#db6d28'>HIGH</span></td><td><code>entropy.high-entropy-token</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='secrets.config-hardcoded-secret'><td><span class='badge' style='background:#db6d28'>HIGH</span></td><td><code>secrets.config-hardcoded-secret</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='secrets.config-hardcoded-crypto-key'><td><span class='badge' style='background:#db6d28'>HIGH</span></td><td><code>secrets.config-hardcoded-crypto-key</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='callsites.sql-command-construction'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>callsites.sql-command-construction</code></td><td class='num'>2</td></tr>
-<tr class='rulerow' data-rule='authenticode.pe-not-signed'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>authenticode.pe-not-signed</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='authflags.client-side-gate'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>authflags.client-side-gate</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='devartifact.debug-symbols'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>devartifact.debug-symbols</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='scheme.cleartext-http'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>scheme.cleartext-http</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='scheme.cleartext-ftp'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>scheme.cleartext-ftp</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='secrets.config-hardcoded-iv'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>secrets.config-hardcoded-iv</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='authenticode.weak-cert-hash'><td><span class='badge' style='background:#d29922'>MEDIUM</span></td><td><code>authenticode.weak-cert-hash</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='obfuscation.absent'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>obfuscation.absent</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='callsites.ssrf-request-build'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>callsites.ssrf-request-build</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='strongname.unsigned'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>strongname.unsigned</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='csv.formula-injection-risk'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>csv.formula-injection-risk</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='tls.pinning-absent'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>tls.pinning-absent</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='callsites.env-var-path-use'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>callsites.env-var-path-use</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='storage.registry-credential'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>storage.registry-credential</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='deser.xmlserializer'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>deser.xmlserializer</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='mem.hygiene-absent'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>mem.hygiene-absent</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='pagefile.no-clear-at-shutdown'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>pagefile.no-clear-at-shutdown</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='callsites.base64-as-encryption'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>callsites.base64-as-encryption</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='callsites.insecure-temp'><td><span class='badge' style='background:#3fb950'>LOW</span></td><td><code>callsites.insecure-temp</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='attacksurface.summary'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>attacksurface.summary</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='integrity.self-check-markers'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>integrity.self-check-markers</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='backend.endpoint'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>backend.endpoint</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='deser.binaryformatter'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>deser.binaryformatter</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='strings.summary'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>strings.summary</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='authenticode.signer-expired'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>authenticode.signer-expired</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='codeintegrity.no-cat'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>codeintegrity.no-cat</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='alpc.enumerated-clean'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>alpc.enumerated-clean</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='sxs.manifest'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>sxs.manifest</code></td><td class='num'>1</td></tr>
-<tr class='rulerow' data-rule='ui.no-screen-capture-protection'><td><span class='badge' style='background:#6a7585'>INFO</span></td><td><code>ui.no-screen-capture-protection</code></td><td class='num'>1</td></tr>
-    </tbody>
-  </table>
-</section>
 <div class='toolbar'>
   <input id='search' type='text' placeholder='Filter findings by text, file, rule...'>
   <span class='chip active' data-sev='ALL'>All (35)</span><span class='chip' data-sev='CRITICAL'>CRITICAL (1)</span><span class='chip' data-sev='HIGH'>HIGH (3)</span><span class='chip' data-sev='MEDIUM'>MEDIUM (8)</span><span class='chip' data-sev='LOW'>LOW (12)</span><span class='chip' data-sev='INFO'>INFO (11)</span>
   <button class='btn' id='expandAll'>Expand all</button>
   <button class='btn' id='collapseAll'>Collapse all</button>
-  <button class='btn' id='ruleToggle'>Group by rule</button>
   <label class='cobtn' style='display:inline-flex;align-items:center;gap:5px;font-size:14px;opacity:.85;cursor:pointer' title='Show only IL/dynamic-proven and Confirmed findings; hide Inferred string-scan hits'><input type='checkbox' id='confOnly'> Confirmed only</label>
 </div>
 
@@ -1725,22 +1677,6 @@ h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
   var ca=document.getElementById('collapseAll');
   if(ca) ca.addEventListener('click',function(){findings.forEach(function(f){f.classList.remove('open');});});
 
-  var rt=document.getElementById('ruleToggle');
-  var rs=document.getElementById('ruleSummary');
-  if(rt&&rs) rt.addEventListener('click',function(){rs.hidden=!rs.hidden;rt.classList.toggle('active');});
-  document.querySelectorAll('.rulerow').forEach(function(r){
-    r.addEventListener('click',function(){
-      var rule=r.getAttribute('data-rule');
-      if(search){search.value=rule;query=rule.toLowerCase();}
-      document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('active');});
-      var allchip=document.querySelector('.chip[data-sev="ALL"]'); if(allchip) allchip.classList.add('active');
-      activeSev='ALL';
-      sections.forEach(function(s){s.classList.remove('collapsed');});
-      apply();
-      var tgt=document.querySelector('.finding[data-rule="'+rule+'"]');
-      if(tgt) tgt.scrollIntoView({behavior:'smooth',block:'start'});
-    });
-  });
 })();
 </script>
 </body>
