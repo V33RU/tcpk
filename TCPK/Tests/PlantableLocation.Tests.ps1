@@ -216,3 +216,43 @@ Describe 'Resolve-TcpkComServerImage -- parsing a registry server value' -Skip:(
         Invoke-ResolveImage '' | Should -BeNullOrEmpty
     }
 }
+
+Describe 'Test-TcpkPathUnderTarget -- the scope gate for a path that does not exist' -Skip:(-not $script:isWin) {
+
+    # comhijack.server-missing-plantable is gated on this. The gate matters because the
+    # candidate CLSIDs come from a textual GUID scan of the target's files, and the
+    # registration those GUIDs lead to can name a path anywhere on the machine. Without it a
+    # leftover registration from an unrelated product is reported as a HIGH about the audited
+    # application, which is the scan-host defect rather than a detection.
+
+    It 'answers correctly for a path whose directory chain does not exist' {
+        # The whole point: Get-TcpkPlantGrants only reaches its AddSubdirectory branch after
+        # walking PAST a leaf that failed Test-Path, so the gate is always asked about a path
+        # that is not on disk. A containment test built on Test-Path would answer false for
+        # every one of them and silently disable the rule.
+        $r = & (Get-Module TCPK) { param($v,$d) Test-TcpkPathUnderTarget -Value $v -InstallDir $d } `
+             'C:\App\NeverCreated\nested\server.dll' 'C:\App'
+        $r | Should -BeTrue
+    }
+
+    It 'rejects the published CrossDevice shape against a third-party target' {
+        # A Microsoft component registered against a missing DLL under %PROGRAMDATA% is real,
+        # but it is host state. Reporting it against someone else's application is wrong, and
+        # this is the case that must stay out of the findings.
+        $r = & (Get-Module TCPK) { param($v,$d) Test-TcpkPathUnderTarget -Value $v -InstallDir $d } `
+             'C:\ProgramData\CrossDevice\CrossDevice.Streaming.Source.dll' 'C:\Program Files\VendorApp'
+        $r | Should -BeFalse
+    }
+
+    It 'does not treat a sibling directory with a shared prefix as inside the tree' {
+        $r = & (Get-Module TCPK) { param($v,$d) Test-TcpkPathUnderTarget -Value $v -InstallDir $d } `
+             'C:\App2\x.dll' 'C:\App'
+        $r | Should -BeFalse
+    }
+
+    It 'is case-insensitive, as the filesystem is' {
+        $r = & (Get-Module TCPK) { param($v,$d) Test-TcpkPathUnderTarget -Value $v -InstallDir $d } `
+             'C:\APP\sub\x.dll' 'C:\app'
+        $r | Should -BeTrue
+    }
+}

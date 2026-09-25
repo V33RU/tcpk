@@ -30,10 +30,32 @@ function Test-TcpkComHijack {
          that asks for the class.
 
     Rules:
-      comhijack.per-user-plantable      MEDIUM  HKLM registered, HKCU free to shadow.
-      comhijack.server-writable         HIGH    Server image exists and is user-writable.
-      comhijack.server-missing-plantable HIGH   Server image absent, path is plantable.
-      comhijack.server-missing          INFO    Server image absent, ACL unreadable.
+      comhijack.per-user-plantable       MEDIUM  HKLM registered, HKCU free to shadow.
+      comhijack.server-writable          HIGH    Server image exists and is user-writable.
+      comhijack.server-missing-plantable HIGH    InprocServer32 image absent, path plantable,
+                                         MEDIUM  and under the audited tree. MEDIUM for
+                                                 LocalServer32: COM launches that image as the
+                                                 activating user rather than loading it in-process.
+      comhijack.server-missing           INFO    Image absent, anchor ACL unreadable.
+      comhijack.server-missing-census    INFO    One record per run: everything dangling that was
+                                                 examined and not reported, counted by reason.
+
+    SCOPE. A dangling registration is only reported as a finding when the path it names is
+    under the audited tree. The candidate CLSIDs come from a textual GUID scan of the
+    target's files, which is a name match, and this module's own attribution doctrine says
+    a name match is not attribution. The registration's path can point anywhere on the
+    machine, so without that gate a leftover entry from some unrelated product becomes a
+    HIGH finding about this application. Everything excluded is counted in the census
+    instead of being dropped.
+
+    That gate cannot be delegated to the attribution filter. Aggregation runs before it,
+    groups on RuleId|Severity|Confidence, and does not carry AttributionBasis forward, so a
+    basis set here is erased as soon as two of these findings merge.
+
+    A CONSEQUENCE TO LEAVE ALONE. The published CrossDevice case, a Microsoft component
+    registered against a missing DLL under %PROGRAMDATA%, lands in the census and not in the
+    findings when the audit target is somebody else's application. That is correct: it is
+    host state, not vendor state.
 
     WHAT THIS DOES NOT PROVE. A planted image runs in whatever process activates the
     class. That is code execution in the activating user's context; it is only
@@ -111,6 +133,18 @@ function Test-TcpkComHijack {
     $seen = [System.Collections.Generic.HashSet[string]]::new(
         [System.StringComparer]::OrdinalIgnoreCase)
 
+    # Every dangling registration examined and NOT reported, by reason. Test-TcpkRegistryLoadPoints
+    # does the same thing at its loadpoint.census: what a scoped check declines to report is
+    # exactly what an analyst needs to see, and Write-Verbose is not a report. One aggregate
+    # INFO also cannot be mistaken for a target finding in a client deliverable.
+    $census = [ordered]@{}
+    $censusSample = New-Object 'System.Collections.Generic.List[string]'
+    function _Census([string]$Reason, [string]$Detail) {
+        if (-not $census.Contains($Reason)) { $census[$Reason] = 0 }
+        $census[$Reason] = [int]$census[$Reason] + 1
+        if ($censusSample.Count -lt 8) { [void]$censusSample.Add("$Reason -> $Detail") }
+    }
+
     foreach ($clsid in $clsids) {
         if (-not $seen.Add($clsid)) { continue }
 
@@ -181,10 +215,31 @@ function Test-TcpkComHijack {
                 }
 
                 if ($skip) {
-                    Write-Verbose "Test-TcpkComHijack: $clsid $subKey -> $miss skipped ($skip)"
+                    _Census $skip "$clsid $subKey -> $miss"
                 } else {
                     $pg = Get-TcpkPlantGrants -Path $miss
-                    if (-not $pg.Ok) {
+
+                    # SCOPE GATE. Everything above establishes that the registration is
+                    # dangling; this establishes whose problem it is. The candidate CLSIDs
+                    # come from a TEXTUAL GUID scan of the target's binaries, which is a
+                    # name match, and the module's own attribution doctrine
+                    # (_Attribution.ps1:15) says a name match is NOT attribution. The path
+                    # the registration names can be anywhere on the machine: the published
+                    # CrossDevice case is a Microsoft component under %PROGRAMDATA%, and
+                    # reporting that as a finding about the audited application is the
+                    # scan-host defect, not a detection.
+                    #
+                    # This cannot be delegated to Invoke-TcpkAttributionFilter. Aggregation
+                    # runs first (Invoke-TcpkAudit.ps1:898 before :939), groups on
+                    # RuleId|Severity|Confidence, and the clone in Resolve-TcpkFindings does
+                    # not carry AttributionBasis or Subject forward -- so a basis set here
+                    # is erased the moment two of these findings merge. Correct scoping has
+                    # to be a property of what is emitted.
+                    $inTree = Test-TcpkPathUnderTarget -Value $miss -InstallDir $root
+                    if (-not $inTree) {
+                        _Census 'outside the audited tree (host state, not vendor state)' "$clsid $subKey -> $miss"
+                    }
+                    elseif (-not $pg.Ok) {
                         New-TcpkFinding -Module 'os' -RuleId 'comhijack.server-missing' `
                             -Severity 'INFO' -Confidence 'Skipped' `
                             -Title "COM server binary missing, ACL unreadable: $clsid" `
@@ -193,6 +248,18 @@ function Test-TcpkComHijack {
                             -Fix 'Re-run elevated, or check by hand whether a standard user can create a file at this path.'
                     }
                     elseif (@($pg.Grants).Count -gt 0) {
+                        # InprocServer32 loads the planted DLL INTO the activating process,
+                        # so it inherits that process's privileges. LocalServer32 makes COM
+                        # LAUNCH the planted image, which without an AppID RunAs starts as
+                        # the activating user. Same planting primitive, materially weaker
+                        # consequence, so it must not carry the same severity.
+                        $sev = if ($subKey -eq 'InprocServer32') { 'HIGH' } else { 'MEDIUM' }
+                        $loadNote = if ($subKey -eq 'InprocServer32') {
+                            'the next activation of the class loads that file into the activating process'
+                        } else {
+                            'the next activation of the class launches that file as the activating user ' +
+                            '(check com.appid.runas for whether an AppID raises that to another identity)'
+                        }
                         $how = if ($pg.Needed -eq 'AppendData/AddSubdirectory') {
                             "create the missing directory under $($pg.Anchor) and then the file"
                         } else {
@@ -211,7 +278,7 @@ function Test-TcpkComHijack {
                         $desc = 'This class is registered machine-wide, so any process on the system can ' +
                             'activate it, but the server binary the registration names does not exist. The ' +
                             'path it names sits under a directory a standard user can write to, so an ' +
-                            'attacker can ' + $how + ', and the next activation of the class loads that file. ' +
+                            'attacker can ' + $how + ', and ' + $loadNote + '. ' +
                             'This needs no registry write at all, which is what separates it from the HKCU ' +
                             'shadowing case: the registration doing the work is the vendor''s own, already ' +
                             'present in HKLM and already trusted by every process that asks for the class. ' +
@@ -230,7 +297,7 @@ function Test-TcpkComHijack {
                             'first owns it.'
 
                         New-TcpkFinding -Module 'os' -RuleId 'comhijack.server-missing-plantable' `
-                            -Severity 'HIGH' -Confidence 'Confirmed' `
+                            -Severity $sev -Confidence 'Confirmed' `
                             -Title "COM server binary absent from a user-writable path: $clsid ($subKey)" `
                             -File $miss `
                             -Evidence $ev `
@@ -257,5 +324,27 @@ function Test-TcpkComHijack {
                 }
             }
         }
+    }
+
+    # One census record for every dangling registration examined and not reported. Emitted
+    # only when there is something to say, so a clean target stays silent.
+    if ($census.Count) {
+        $total = 0
+        foreach ($k in $census.Keys) { $total += [int]$census[$k] }
+        $breakdown = (($census.Keys | ForEach-Object { "$_ : $($census[$_])" }) -join '; ')
+        New-TcpkFinding -Module 'os' -RuleId 'comhijack.server-missing-census' `
+            -Severity 'INFO' -Confidence 'Confirmed' `
+            -Title "Dangling COM registrations examined and not reported: $total" `
+            -File $Path `
+            -Evidence "$breakdown | sample: $(($censusSample -join ' | '))" `
+            -Description ('These CLSIDs appear in the target''s files and are registered in HKLM with a ' +
+                'server image that is not on disk, but each was excluded from the findings above for ' +
+                'the reason counted here. The commonest is that the path named sits outside the audited ' +
+                'tree: that is a dangling registration belonging to some other product on this machine, ' +
+                'real but not this vendor''s to fix, and reporting it as a finding about this application ' +
+                'would describe the scan host rather than the target. It is recorded rather than dropped ' +
+                'because on a machine the analyst controls it is still a local privilege-escalation lead ' +
+                'worth following by hand.') `
+            -Fix 'No action for this vendor. Follow the out-of-tree entries separately if the host itself is in scope.'
     }
 }

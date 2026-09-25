@@ -61,10 +61,28 @@ create this path", because all of them bail when the path is absent. The resolve
 because the old single-regex strip cut an unquoted value at the first ` -`, turning a real
 path into a missing one.
 
-Scope. The candidate CLSIDs are still only those appearing in the target's own binaries and
-config files; this is not a machine-wide registry sweep. Reported severity is the planting
-primitive, not a proven privilege escalation: a planted image runs in whatever process
-activates the class, and nothing here establishes that a higher-privileged one does.
+Scope. Two gates, not one. The candidate CLSIDs are only those appearing in the target's own
+binaries and config files, so this is not a machine-wide registry sweep. But that is a
+textual GUID match, and the registration it finds can name a path anywhere on the machine,
+so a dangling entry is only a FINDING when that path is under the audited tree. Everything
+else is counted in `comhijack.server-missing-census`. Without the second gate a leftover
+registration from an unrelated product becomes a HIGH about this application, which is the
+scan-host defect rather than a detection. The published CrossDevice case lands in the census
+for a third-party target, and that is the correct outcome.
+
+The gate is structural on purpose. `Invoke-TcpkAttributionFilter` cannot do this job:
+aggregation runs first (`Invoke-TcpkAudit.ps1:898` before `:939`), groups on
+`RuleId|Severity|Confidence`, and the clone in `Resolve-TcpkFindings` does not carry
+`AttributionBasis` or `Subject` forward, so a basis set at the emit site is erased the moment
+two of these findings merge.
+
+Severity splits by server kind. `InprocServer32` loads the planted image into the activating
+process and stays HIGH; `LocalServer32` makes COM launch it as the activating user, which is
+materially weaker, so it is MEDIUM.
+
+Reported severity is the planting primitive, not a proven privilege escalation: a planted
+image runs in whatever process activates the class, and nothing here establishes that a
+higher-privileged one does.
 
 ## v2.11.0
 
