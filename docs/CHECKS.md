@@ -135,7 +135,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkAppPaths** - C10. App Paths registry entries.
 - **Test-TcpkAutoStart** - C04. Autostart entries (Run / RunOnce keys + scheduled tasks).
 - **Test-TcpkAvExclusions** - C17. Microsoft Defender exclusions attributable to the app.
-- **Test-TcpkComHijack** - C20. Per-user COM CLSID hijack opportunities (T1546.015).
+- **Test-TcpkComHijack** - C20. Per-user COM CLSID hijack opportunities (T1546.015), plus the two server-side cases: the registered server image exists and is user-writable, and the image is ABSENT while the path it names is one a standard user can create (a dangling registration, which needs no registry write at all). Managed servers registered through mscoree.dll are a known blind spot.
 - **Test-TcpkComMachineDefaults** - C25. Machine-wide DCOM posture. Rules: `com.enable-dcom-network`, `com.machine-default-perms-weak` (parses the REG_BINARY launch/access SDDL and grades broad-principal ACEs), `com.machine-default-absent`.
 - **Test-TcpkComOrphanedClsid** - C27. CLSIDs the application activates that are registered nowhere, so an attacker can register them first.
 - **Test-TcpkComPrivilegeEscalation** - C34. COM AppID privilege escalation surface: RunAs and weak DCOM permissions.
