@@ -1,12 +1,18 @@
 function Test-TcpkCallsites {
 <#
 .SYNOPSIS
-    A11. Static reference scan for dangerous .NET API patterns.
+    A11. Static reference scan for dangerous API patterns, managed and native.
 
 .DESCRIPTION
     Uses Data\secrets.json (callsite_patterns section) to find references to:
     weak hashes (MD5/SHA1), AES ECB mode, non-crypto RNG (System.Random),
-    insecure-temp-file patterns, custom cert validation callbacks.
+    insecure-temp-file patterns, custom cert validation callbacks, and the
+    legacy Windows scripting engines (MSHTML / Active Scripting / MSXML XSLT).
+
+    NOT only .NET. The scan reads raw string views of the PE, so a pattern may
+    be a .NET type name, a native COM interface name, or a property string. The
+    legacy-engine rules key on COM interface names for exactly that reason: a
+    native host of MSHTML has no managed type to match on.
 
     Framework files are skipped entirely (System.Security.Cryptography.* is
     expected to contain these names).

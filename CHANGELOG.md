@@ -4,6 +4,33 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**The legacy Windows script engines were a blind spot: seven WebView2 cmdlets, and nothing
+for the engines WebView2 replaced.**
+
+A thick client that embeds MSHTML, hosts Active Scripting, or runs MSXML XSLT inherits a
+surface most operators believe is switched off. The VBScript execution policy that disables
+VBScript for the Internet Zone never covered MSXML stylesheets (CVE-2018-8619) and did not
+cover MSHTML on every path (CVE-2019-0768). Those are Microsoft's bugs and not a vendor's to
+fix, but EMBEDDING the engine is the vendor's decision, which is what puts it in scope.
+
+Three new `callsite_patterns` in `secrets.json`, so they run through the existing
+`Test-TcpkCallsites` engine with no new cmdlet and no new wiring:
+`callsites.legacy-html-control` (MEDIUM), `callsites.legacy-script-engine-host` (MEDIUM) and
+`callsites.msxml-xslt-transform` (HIGH).
+
+The pattern choice is the whole design. msxml6 is how Windows applications parse XML, so a
+rule that fired on the parser would put a finding on nearly every target and mean nothing.
+These key on XSLT-specific symbols and on the two properties that re-enable the dangerous
+behaviour: `AllowXsltScript` restores `msxsl:script`, and `AllowDocumentFunction` restores
+`document()`. Both default to off in MSXML6, so an application carrying them has turned a
+protection off deliberately. `LegacyScriptHost.Tests.ps1` asserts plain MSXML parsing and a
+WebView2 host both stay silent, and that the native rule does not claim the managed
+`XslCompiledTransform` call that `callsites.xslt-injection` already owns.
+
+`Test-TcpkCallsites` also stops describing itself as a .NET-only scan. It reads raw string
+views, so its patterns match native COM interface names too, which is how a native MSHTML
+host gets matched at all.
+
 **Secret rules ran ungated everywhere except the static scanner, and the Runtime tab paid for
 it.**
 
