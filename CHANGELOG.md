@@ -4,6 +4,22 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**`process.dacl-injectable` graded the rights but not the boundary.**
+
+A weak process DACL is only an escalation if the target sits above the principal being
+granted the rights. Everything in `$TcpkLowPrivSids` runs at Medium, so injecting into
+another Medium process is code execution in a context the caller already has, not a
+privilege gain. The check emitted HIGH either way and passed the question to the reader in
+its own Description: "If this process is elevated/SYSTEM, an unprivileged local user can
+escalate by injecting into it." That was the one thing it was in a position to measure.
+
+It measures it now. `Get-TcpkProcessIntegrityRid` already existed in `_TokenInfo.ps1` and was
+only consumed by `Test-TcpkProcessToken`, so this is wiring, not new capability. High or
+System rates HIGH, Medium rates MEDIUM, Low or Untrusted rates LOW, and an integrity level
+that cannot be read stays HIGH because an unmeasured boundary must not read as an absent one.
+The measured level appears in the title and the evidence, and the description states which of
+the three cases applies rather than listing all of them.
+
 **One thing deliberately NOT built, recorded in the code rather than left as an oversight.**
 
 The Project Zero arbitrary-file-write class (five posts between 2015 and 2025) is "a

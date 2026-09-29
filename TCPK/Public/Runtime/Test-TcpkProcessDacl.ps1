@@ -11,9 +11,14 @@ function Test-TcpkProcessDacl {
     PROCESS_DUP_HANDLE, WRITE_DAC, WRITE_OWNER, or PROCESS_ALL_ACCESS.
 
     Such a grant lets an unprivileged local user inject code into the process
-    (or rewrite its DACL), which is a privilege-escalation primitive when the
-    process runs elevated / as SYSTEM. The process owner's own full-control ACE
-    is intentionally ignored (that is normal, not a finding).
+    (or rewrite its DACL). Whether that is an ESCALATION is measured, not assumed:
+    the process integrity level is read and the severity set from it. The granted
+    principals run at Medium, so a Medium target is level with them (code
+    injection, no boundary crossed, MEDIUM), a High or System target is above them
+    (escalation, HIGH), and a Low target is below them (LOW). An unreadable
+    integrity level stays HIGH, because an unmeasured boundary must not read as an
+    absent one. The process owner's own full-control ACE is intentionally ignored
+    (that is normal, not a finding).
 
 .PARAMETER ProcessName
     Name of the running process (no .exe).
@@ -80,6 +85,19 @@ public static string GetSddl(int pid){
     }
 
     foreach ($p in $procs) {
+        # Whether a weak process DACL is an ESCALATION depends on where this process sits
+        # relative to the principal being granted the rights. The low-privilege groups in
+        # $lowSids run at Medium by default, so injecting into another Medium process
+        # crosses no boundary: it is the same privilege the attacker already has. Only a
+        # target ABOVE Medium turns the grant into privilege escalation. The check used to
+        # emit HIGH either way and pass the question to the reader in its own Description
+        # ("If this process is elevated/SYSTEM..."), which is the one thing it was in a
+        # position to measure. -1 means the integrity could not be read, which is treated
+        # as unknown rather than assumed safe.
+        $intRid = -1
+        try { $intRid = Get-TcpkProcessIntegrityRid -ProcessId $p.Id } catch { $intRid = -1 }
+        $intLabel = if ($intRid -ge 0) { Get-TcpkIntegrityLabel -Rid $intRid } else { 'unreadable' }
+
         $sddl = $null
         try { $sddl = [Tcpk.ProcDacl]::GetSddl($p.Id) } catch { $sddl = $null }
         if (-not $sddl) {
@@ -109,13 +127,35 @@ public static string GetSddl(int pid){
             foreach ($rn in $rights.Keys) { if ($mask -band $rights[$rn]) { $granted += $rn } }
             $acct = try { $sid.Translate([System.Security.Principal.NTAccount]).Value } catch { $sidVal }
 
+            # High / System is above the granted principal -> escalation.
+            # Medium is level with it -> code injection, but no boundary crossed.
+            # Low / Untrusted is below it -> not an escalation at all.
+            # Unreadable stays HIGH: an unmeasured boundary must not read as absent.
+            $sev = if ($intRid -lt 0)          { 'HIGH' }
+                   elseif ($intRid -ge 0x3000) { 'HIGH' }
+                   elseif ($intRid -ge 0x2000) { 'MEDIUM' }
+                   else                        { 'LOW' }
+
+            $boundary = switch ($sev) {
+                'HIGH'   { if ($intRid -lt 0) {
+                               'the integrity level could not be read, so whether this crosses a privilege boundary is unmeasured and the finding is rated as if it does'
+                           } else {
+                               "this process runs at $intLabel integrity, above the granted principal, so the grant is a privilege-escalation primitive"
+                           } }
+                'MEDIUM' { "this process runs at $intLabel integrity, the same level as the granted principal, so injecting into it is code execution in a context the caller already has rather than an escalation" }
+                default  { "this process runs at $intLabel integrity, BELOW the granted principal, so the grant is not an escalation path" }
+            }
+
             New-TcpkFinding -Module 'runtime' -RuleId 'process.dacl-injectable' `
-                -Severity 'HIGH' -Confidence 'Confirmed' `
-                -Title "$($p.Name) process DACL grants injection rights to $acct" `
+                -Severity $sev -Confidence 'Confirmed' `
+                -Title "$($p.Name) process DACL grants injection rights to $acct (target integrity: $intLabel)" `
                 -File "$($p.Name) (PID $($p.Id))" `
-                -Evidence "$acct ($sidVal) -> $($granted -join ', ')" `
+                -Evidence "$acct ($sidVal) -> $($granted -join ', '); target integrity=$intLabel" `
                 -Cwe @('CWE-732','CWE-269') `
-                -Description 'A low-privileged group is granted process rights that allow code injection or DACL rewrite. If this process is elevated/SYSTEM, an unprivileged local user can escalate by injecting into it.' `
+                -Description ('A low-privileged group is granted process rights that allow code injection ' +
+                    'or a DACL rewrite on this process. Severity is set by the measured integrity level, ' +
+                    'not assumed: ' + $boundary + '. The rights themselves are the same in every case; what ' +
+                    'changes is whether using them gains the attacker anything they did not already have.') `
                 -Fix 'Do not loosen the default process DACL. Remove explicit grants to Users/Everyone/Authenticated Users.'
         }
     }

@@ -207,7 +207,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkNamedObjects** - E15. Named kernel objects (mutex/event/section) -- squatting / race surface.
 - **Test-TcpkNamedPipeDacl** - E05. Named pipe DACL inspection. Emits `pipe-dacl.null` HIGH when the SDDL contains `D:NO_ACCESS_CONTROL` (pipe created with lpSecurityAttributes=NULL, grants everything to everyone by construction, KB4014981-class), and `pipe-dacl.weak` HIGH when an ACE grants Everyone / Authenticated Users / Users / INTERACTIVE Write / ChangePermissions / FullControl.
 - **Test-TcpkNamedPipes** - E04. Named pipes whose name suggests a relationship to the target.
-- **Test-TcpkProcessDacl** - E15. Running-process DACL -- injectable by low-privileged users?
+- **Test-TcpkProcessDacl** - E15. Running-process DACL: does a low-privilege group hold injection rights (VM_WRITE / CREATE_THREAD / DUP_HANDLE / WRITE_DAC)? Severity follows the MEASURED integrity level of the target, not an assumption: High or System is above the granted principal and rates HIGH, Medium is level with it and rates MEDIUM, Low is below it and rates LOW. An unreadable integrity level stays HIGH.
 - **Test-TcpkProcessEnvSecrets** - E16. Secrets in a running process's environment block (read-only).
 - **Test-TcpkProcessMitigations** - E01. Runtime process mitigations (DEP, ASLR, CFG, SEHOP, etc.).
 - **Test-TcpkProcessToken** - E13. Process token owner / integrity level / impactful privileges.

@@ -164,3 +164,46 @@ Describe 'Low-privilege principal set covers AppContainers' {
         $dupes -join ', ' | Should -Be '_ObjSecurity.ps1'
     }
 }
+
+Describe 'process.dacl-injectable severity follows measured integrity' {
+
+    # A weak process DACL is only an ESCALATION if the target sits above the principal
+    # being granted the rights. Everything in $TcpkLowPrivSids runs at Medium, so injecting
+    # into another Medium process is code execution in a context the caller already has.
+    # The check used to emit HIGH either way and hand the question to the reader in its own
+    # Description ("If this process is elevated/SYSTEM..."), which was the one thing it was
+    # in a position to measure.
+
+    It 'maps each integrity level to the right severity' -ForEach @(
+        @{ Rid = 0x4000; Label = 'System';    Sev = 'HIGH'   }
+        @{ Rid = 0x3000; Label = 'High';      Sev = 'HIGH'   }
+        @{ Rid = 0x2100; Label = 'Medium';    Sev = 'MEDIUM' }
+        @{ Rid = 0x2000; Label = 'Medium';    Sev = 'MEDIUM' }
+        @{ Rid = 0x1000; Label = 'Low';       Sev = 'LOW'    }
+        @{ Rid = 0x0000; Label = 'Untrusted'; Sev = 'LOW'    }
+    ) {
+        $actual = & (Get-Module TCPK) { param($r) Get-TcpkIntegrityLabel -Rid $r } $Rid
+        $actual | Should -Be $Label
+
+        $sev = if ($Rid -lt 0) { 'HIGH' } elseif ($Rid -ge 0x3000) { 'HIGH' }
+               elseif ($Rid -ge 0x2000) { 'MEDIUM' } else { 'LOW' }
+        $sev | Should -Be $Sev
+    }
+
+    It 'rates an UNREADABLE integrity level as HIGH, never as safe' {
+        # An unmeasured boundary must not read as an absent one. Get-TcpkProcessIntegrityRid
+        # returns -1 when the token cannot be opened, which is common without elevation.
+        $rid = -1
+        $sev = if ($rid -lt 0) { 'HIGH' } elseif ($rid -ge 0x3000) { 'HIGH' }
+               elseif ($rid -ge 0x2000) { 'MEDIUM' } else { 'LOW' }
+        $sev | Should -Be 'HIGH'
+        (& (Get-Module TCPK) { Get-TcpkIntegrityLabel -Rid -1 }) | Should -Be '(unknown)'
+    }
+
+    It 'reads the integrity level in the DACL check, not only in the token check' {
+        $src = [IO.File]::ReadAllText((Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'Public\Runtime\Test-TcpkProcessDacl.ps1'))
+        $src | Should -Match 'Get-TcpkProcessIntegrityRid'
+        # and no longer hard-codes the verdict
+        $src | Should -Not -Match "RuleId 'process\.dacl-injectable'[\s\S]{0,120}-Severity 'HIGH'"
+    }
+}
