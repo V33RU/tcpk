@@ -553,6 +553,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkMsixAppInstaller'    { Test-TcpkMsixAppInstaller    -Path $Target   }
     _RunCheck 'Test-TcpkMsixComServers'      { Test-TcpkMsixComServers      -Path $Target   }
     _RunCheck 'Test-TcpkMsixExtensions'      { Test-TcpkMsixExtensions      -Path $Target   }
+    _RunCheck 'Test-TcpkMsixVfs'             { Test-TcpkMsixVfs             -Path $Target   }
     _RunCheck 'Test-TcpkMsixDeclaredVsUsed'  { Test-TcpkMsixDeclaredVsUsed  -Path $Target   }
     _RunCheck 'Test-TcpkUacManifest'         { Test-TcpkUacManifest         -Path $expanded }
 

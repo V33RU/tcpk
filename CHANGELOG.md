@@ -4,6 +4,35 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Eleven MSIX cmdlets, and none of them opened the VFS folder.**
+
+A Desktop Bridge package can ship a `VFS` directory whose subfolders name the system
+locations it overlays. At run time a kernel filter rewrites paths, so a file the application
+opens at `C:\Windows\System32\foo.dll` is served from the package instead. It is the most
+target-shaped artifact in the whole packaging format: static, vendor-chosen, vendor-fixable.
+TCPK had twenty-four `msix.*` rules and never looked at it.
+
+`msix.vfs-redirection` reports which locations are overlaid and how much executable content
+sits under each. `msix.vfs-system-code` (MEDIUM, local-privesc) is raised separately when
+executable files sit under a mapping covering a Windows system tree, because that is the part
+a loader consumes.
+
+Severity distinguishes what is ordinary from what is not: overlaying ProgramFiles or AppData
+is the normal shape for a converted Win32 application and grades LOW; overlaying System32,
+Windows or Fonts grades MEDIUM. A VFS folder name outside the documented set is treated as
+system-tier rather than ignored, since that set has grown over time and an unfamiliar name is
+more interesting, not less.
+
+The point for a reviewer is that a path which looks trusted in the application's source is not
+necessarily read from where it appears. Paired with the existing install-tree ACL findings, a
+redirection over a system path plus a user-writable install directory means a standard user
+can place content at what the application treats as a system location. Presence of a VFS
+folder is not by itself a defect and the description says so.
+
+Context: this is the vendor-side residue of CVE-2018-0877. The VFS reparse bug itself was
+Microsoft's and is fixed; the declaration is the vendor's and still tells a reviewer which
+system paths this application does not actually read from disk.
+
 **Three rules recovered from the bucket a keyword classifier had thrown away.**
 
 The Project Zero Windows logic bugs were grouped into nine classes by matching keywords

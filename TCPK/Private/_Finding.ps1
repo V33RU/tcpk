@@ -293,6 +293,8 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^appdomain\.';                                                                                                                                         A = 'local-privesc' }
     @{ Rx = '^clickonce\.(http-deployment|manifest-http)';                                                                                                          A = 'net-rce' }
     @{ Rx = '^clickonce\.';                                                                                                                                         A = 'local-privesc' }
+    @{ Rx = '^msix\.vfs-system-code';                                                                                                                               A = 'local-privesc' }
+    @{ Rx = '^msix\.vfs-redirection';                                                                                                                               A = 'hardening' }
     @{ Rx = '^msix\.psf-(full-trust|script-dangerous|startScript|endScript)';                                                                                       A = 'local-privesc' }
     @{ Rx = '^msix\.psf';                                                                                                                                           A = 'hardening' }
     @{ Rx = '^dllsearch\.(phantom-dll|delayload-phantom|sideload-candidate)';                                                                                        A = 'local-privesc' }

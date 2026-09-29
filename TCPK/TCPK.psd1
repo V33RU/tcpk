@@ -233,6 +233,7 @@
         'Test-TcpkMsixAppInstallerFile',
         'Test-TcpkMsixCapabilities',
         'Test-TcpkMsixComServers',
+        'Test-TcpkMsixVfs',
         'Test-TcpkMsixDeclaredVsUsed',
         'Test-TcpkMsixExtensions',
         'Test-TcpkMsixFileAssocs',
