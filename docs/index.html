@@ -481,7 +481,7 @@ chain.uri-handler-sink-rce      (CRITICAL)
 <tbody>
 <tr><td><code>ollama</code> (default)</td><td>local</td><td>fully offline; nothing leaves the box</td></tr>
 <tr><td><code>claude</code></td><td>anthropic</td><td>cloud (gated)</td></tr>
-<tr><td><code>openai</code> / <code>gemini</code> / <code>grok</code> / <code>deepseek</code></td><td>openai chat-completions</td><td>cloud (gated); free-text model field</td></tr>
+<tr><td><code>openai</code> / <code>gemini</code> / <code>grok</code> / <code>deepseek</code> / <code>glm</code></td><td>openai chat-completions</td><td>cloud (gated); free-text model field. <code>glm</code> defaults to the international endpoint; set <code>baseUrl</code> for the mainland-China one.</td></tr>
 <tr><td><code>custom</code></td><td>openai-compatible</td><td>any self-hosted endpoint</td></tr>
 </tbody>
 </table>

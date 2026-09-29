@@ -4,6 +4,22 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**GLM (Zhipu AI) added as an LLM provider.**
+
+OpenAI-compatible surface, so it uses the existing `openai` dialect and the GUI's Test AI
+button can load the live model list like the others. `cloud=$true`, which is not optional: it
+is a hosted endpoint, decompiled IL leaves the machine, and the confidentiality gate has to
+apply. The gate is generic (`if ($preset.cloud)`), so nothing extra was wired for it.
+
+The preset carries the international endpoint. The mainland-China endpoint differs, and
+`llm-config.json`'s `baseUrl` already overrides the preset, so that is a config change rather
+than a second provider entry.
+
+Adding a provider means touching three files, and one of them is always the one you forget.
+There is now a test that walks the provider table and asserts every entry appears in BOTH the
+WinForms dropdown and the agentic workbench dropdown, plus one that every provider has a
+dialect, a baseUrl and a default model.
+
 **Eleven MSIX cmdlets, and none of them opened the VFS folder.**
 
 A Desktop Bridge package can ship a `VFS` directory whose subfolders name the system

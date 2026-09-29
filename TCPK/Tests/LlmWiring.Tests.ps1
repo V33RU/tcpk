@@ -39,7 +39,7 @@ Describe 'LLM local-only cloud gate' {
         $isCloud = & (Get-Module TCPK) { Test-TcpkLlmIsCloud }
         $isCloud | Should -BeFalse
     }
-    It 'knows ollama is local and claude/openai/gemini/grok/deepseek are cloud' {
+    It 'knows ollama is local and claude/openai/gemini/grok/deepseek/glm are cloud' {
         $r = & (Get-Module TCPK) {
             [pscustomobject]@{
                 ollama   = $script:TcpkLlmProviders['ollama'].cloud
@@ -48,6 +48,7 @@ Describe 'LLM local-only cloud gate' {
                 gemini   = $script:TcpkLlmProviders['gemini'].cloud
                 grok     = $script:TcpkLlmProviders['grok'].cloud
                 deepseek = $script:TcpkLlmProviders['deepseek'].cloud
+                glm      = $script:TcpkLlmProviders['glm'].cloud
             }
         }
         $r.ollama   | Should -BeFalse
@@ -56,6 +57,42 @@ Describe 'LLM local-only cloud gate' {
         $r.gemini   | Should -BeTrue
         $r.grok     | Should -BeTrue
         $r.deepseek | Should -BeTrue
+        # Not optional. GLM is a hosted endpoint, so decompiled IL leaves the machine and
+        # the confidentiality gate must apply. cloud=$false here would silently bypass it.
+        $r.glm      | Should -BeTrue
+    }
+
+    It 'gives every provider a dialect, a baseUrl and a default model' {
+        $bad = & (Get-Module TCPK) {
+            @($script:TcpkLlmProviders.Keys | Where-Object {
+                $p = $script:TcpkLlmProviders[$_]
+                -not $p.dialect -or -not $p.baseUrl -or -not $p.defaultModel
+            })
+        }
+        $bad -join ', ' | Should -BeNullOrEmpty
+    }
+
+    It 'offers every provider in BOTH front ends' {
+        # A provider that exists in the table but not in a dropdown is unreachable from
+        # that UI. Adding one means touching three files, and this is the ratchet that
+        # catches the one you forget.
+        $root = Split-Path (Split-Path $PSCommandPath -Parent) -Parent
+        $names = & (Get-Module TCPK) { @($script:TcpkLlmProviders.Keys) }
+        $gui     = [IO.File]::ReadAllText((Join-Path (Split-Path $root -Parent) 'Start-TCPKGui.ps1'))
+        $agentic = [IO.File]::ReadAllText((Join-Path $root 'Private\_Agentic.ps1'))
+        foreach ($n in $names) {
+            # copilot is a proxy preset shown under its own label, not a plain option.
+            if ($n -eq 'copilot') { continue }
+            $gui     | Should -Match ([regex]::Escape("'$n'")) -Because "WinForms GUI should offer $n"
+            $agentic | Should -Match ([regex]::Escape("value=`"$n`"")) -Because "agentic workbench should offer $n"
+        }
+    }
+
+    It 'lets the config override baseUrl, so a regional endpoint does not need a new preset' {
+        # GLM ships the international URL; the mainland-China endpoint differs. The
+        # override is why that is a config change rather than a second provider entry.
+        $src = [IO.File]::ReadAllText((Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'Private\_Llm.ps1'))
+        $src | Should -Match '\$baseUrl\s*=\s*if \(\$cfg\.baseUrl\)'
     }
 }
 

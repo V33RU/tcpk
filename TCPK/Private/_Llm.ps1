@@ -19,6 +19,12 @@ $script:TcpkLlmProviders = @{
     'gemini'    = @{ dialect='openai';    baseUrl='https://generativelanguage.googleapis.com/v1beta/openai'; needsKey=$true; cloud=$true; defaultModel='gemini-2.0-flash' }
     'grok'      = @{ dialect='openai';    baseUrl='https://api.x.ai/v1';        needsKey=$true;  cloud=$true;  defaultModel='grok-2-latest' }
     'deepseek'  = @{ dialect='openai';    baseUrl='https://api.deepseek.com';   needsKey=$true;  cloud=$true;  defaultModel='deepseek-chat' }
+    # GLM (Zhipu AI). OpenAI-compatible: Bearer auth, /chat/completions, /models, so the
+    # openai dialect covers it and the GUI's Test AI button can load the live model list.
+    # baseUrl is the international endpoint. The mainland-China endpoint is
+    # https://open.bigmodel.cn/api/paas/v4 -- set baseUrl in llm-config.json to switch,
+    # which is why that field exists rather than hard-coding one region.
+    'glm'       = @{ dialect='openai';    baseUrl='https://api.z.ai/api/paas/v4'; needsKey=$true; cloud=$true; defaultModel='glm-4-plus' }
     # GitHub Copilot via the copilot-api proxy (github.com/ericc-ch/copilot-api).
     # For orgs that hold Copilot licences but issue no direct model API key. The proxy
     # runs locally (default port 4141) and re-exposes Copilot on both wire formats;

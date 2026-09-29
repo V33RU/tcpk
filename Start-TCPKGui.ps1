@@ -295,7 +295,7 @@ $cmbAi.Size = New-Object System.Drawing.Size(132, 24)
 $cmbAi.DropDownStyle = 'DropDownList'
 $cmbAi.BackColor = [System.Drawing.Color]::FromArgb(45, 45, 48); $cmbAi.ForeColor = [System.Drawing.Color]::White
 # Provider list. 'custom' = any other OpenAI-compatible endpoint (set its URL in llm-config.json).
-@('ollama (local)','copilot (proxy)','claude','openai','gemini','grok','deepseek','custom') | ForEach-Object { [void]$cmbAi.Items.Add($_) }
+@('ollama (local)','copilot (proxy)','claude','openai','gemini','grok','deepseek','glm','custom') | ForEach-Object { [void]$cmbAi.Items.Add($_) }
 $cmbAi.SelectedIndex = 0
 $topPanel.Controls.Add($cmbAi)
 
@@ -415,6 +415,7 @@ $script:AiPresets = @{
     'gemini'         = @{ name='gemini';    default='gemini-2.0-flash';  needsKey=$true; cloud=$true }
     'grok'           = @{ name='grok';      default='grok-2-latest';     needsKey=$true; cloud=$true }
     'deepseek'       = @{ name='deepseek';  default='deepseek-chat';     needsKey=$true; cloud=$true }
+    'glm'            = @{ name='glm';       default='glm-4-plus';        needsKey=$true; cloud=$true }
     'custom'         = @{ name='custom';    default='';                  needsKey=$true; cloud=$true }
 }
 

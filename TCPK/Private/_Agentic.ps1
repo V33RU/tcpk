@@ -1337,7 +1337,7 @@ th,td{padding:7px 11px}
         <div class="panel">
           <h3>AI AGENT</h3>
           <div class="row">
-            <div><label>provider (which agent)</label><select id="provider" onchange="onProvider()"><option value="ollama">ollama (local)</option><option value="claude">claude</option><option value="openai">openai</option><option value="gemini">gemini</option><option value="grok">grok</option><option value="deepseek">deepseek</option><option value="custom">custom endpoint</option></select></div>
+            <div><label>provider (which agent)</label><select id="provider" onchange="onProvider()"><option value="ollama">ollama (local)</option><option value="claude">claude</option><option value="openai">openai</option><option value="gemini">gemini</option><option value="grok">grok</option><option value="deepseek">deepseek</option><option value="glm">glm</option><option value="custom">custom endpoint</option></select></div>
             <div><label>model</label><input id="model" placeholder="qwen2.5-coder:7b" oninput="refreshAgentChip()"/></div>
           </div>
           <div class="row">

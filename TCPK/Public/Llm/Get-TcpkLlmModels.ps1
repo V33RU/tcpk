@@ -7,7 +7,7 @@ function Get-TcpkLlmModels {
     Queries the provider's models endpoint so you never have to guess a model
     string:
       * anthropic  -> GET {baseUrl}/v1/models
-      * openai-dialect (ollama/openai/deepseek/custom) -> GET {baseUrl}/models
+      * openai-dialect (ollama/openai/deepseek/glm/custom) -> GET {baseUrl}/models
     Returns the sorted list of model id strings. Requires the cloud gate +
     a key for cloud providers (the GUI enables this when you pick one). The
     call is metadata-only, so it does not meaningfully bill.
