@@ -243,6 +243,9 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^exploit\.stored-credential';                                                                                                                           A = 'local-at-rest' }
     @{ Rx = '^intercept\.cleartext-credential';                                                                                                                      A = 'live-credential' }
     @{ Rx = '^intercept\.(weak-transport|session-token)';                                                                                                            A = 'cleartext-net' }
+    @{ Rx = '^callsites\.dotnet-dcom-client';                                                                                                                       A = 'net-rce' }
+    @{ Rx = '^callsites\.signedxml-xxe';                                                                                                                            A = 'untrusted-parse' }
+    @{ Rx = '^callsites\.typelib-moniker-fallback';                                                                                                                 A = 'local-privesc' }
     @{ Rx = '^callsites\.pipe-client-pid-auth';                                                                                                                     A = 'local-privesc' }
     @{ Rx = '^callsites\.insecure-temp';                                                                                                                            A = 'local-tempfile' }
     @{ Rx = '^(tls-bypass|tls-handshake|wcf|truststore)\.|^electron\.cert';                                                                                                         A = 'net-mitm' }

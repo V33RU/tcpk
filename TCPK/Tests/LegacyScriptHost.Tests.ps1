@@ -189,3 +189,85 @@ public class PipePidAuth {
         $desc | Should -Match 'ImpersonateNamedPipeClient'
     }
 }
+
+Describe 'Project Zero "other logic" harvest' {
+
+    # Three rules recovered from the 51-bug bucket a keyword classifier had filed as
+    # "other logic". All three are vendor-actionable and none were covered.
+
+    BeforeAll {
+        $script:zFx = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-z-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $script:zFx | Out-Null
+        function New-ZDll([string]$Name, [string]$Body) {
+            $dll = Join-Path $script:zFx $Name
+            try { Add-Type -TypeDefinition $Body -OutputAssembly $dll -OutputType Library -ErrorAction Stop } catch { return $null }
+            if (Test-Path $dll) { return $dll }
+            return $null
+        }
+        $script:dcomDll = New-ZDll 'WmiClient.dll' @'
+public class WmiClient {
+    public string a = "ManagementObjectSearcher";
+    public string b = "ManagementScope";
+}
+'@
+        $script:sxDll = New-ZDll 'SigVerify.dll' @'
+public class SigVerify {
+    public string a = "SignedXml";
+    public string b = "System.Security.Cryptography.Xml";
+}
+'@
+        $script:tlbDll = New-ZDll 'TlbLoader.dll' @'
+public class TlbLoader {
+    public string a = "LoadTypeLibEx";
+}
+'@
+        # The documented fix for the WMI case. Must stay silent or the rule punishes
+        # the remediation it recommends.
+        $script:cimDll = New-ZDll 'CimClient.dll' @'
+public class CimClient {
+    public string a = "Microsoft.Management.Infrastructure";
+    public string b = "CimSession";
+}
+'@
+    }
+    AfterAll {
+        if ($script:zFx -and (Test-Path $script:zFx)) { Remove-Item $script:zFx -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+
+    It 'flags a .NET DCOM / WMI client (server-controlled BinaryFormatter deserialization)' {
+        if (-not $script:dcomDll) { Set-ItResult -Skipped -Because 'C# compiler unavailable'; return }
+        $f = @(Test-TcpkCallsites -Path $script:dcomDll | Where-Object { $_.RuleId -eq 'callsites.dotnet-dcom-client' })
+        $f | Should -Not -BeNullOrEmpty
+        $f[0].Severity | Should -Be 'HIGH'
+    }
+
+    It 'does NOT flag the CIM client, which is the documented fix' {
+        if (-not $script:cimDll) { Set-ItResult -Skipped -Because 'C# compiler unavailable'; return }
+        @(Test-TcpkCallsites -Path $script:cimDll | Select-Object -ExpandProperty RuleId) |
+            Should -Not -Contain 'callsites.dotnet-dcom-client'
+    }
+
+    It 'flags XML signature verification as an XXE sink' {
+        if (-not $script:sxDll) { Set-ItResult -Skipped -Because 'C# compiler unavailable'; return }
+        @(Test-TcpkCallsites -Path $script:sxDll | Select-Object -ExpandProperty RuleId) |
+            Should -Contain 'callsites.signedxml-xxe'
+    }
+
+    It 'flags LoadTypeLib moniker fallback' {
+        if (-not $script:tlbDll) { Set-ItResult -Skipped -Because 'C# compiler unavailable'; return }
+        @(Test-TcpkCallsites -Path $script:tlbDll | Select-Object -ExpandProperty RuleId) |
+            Should -Contain 'callsites.typelib-moniker-fallback'
+    }
+
+    It 'maps each to a DEFINED CVSS archetype' {
+        # remote-input-rce was invented during this work and does not exist in the vector
+        # table; an undefined archetype scores with the wrong vector silently.
+        $src = [IO.File]::ReadAllText((Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'Private\_Finding.ps1'))
+        $used = [regex]::Matches($src, "A = '([a-z-]+)'") | ForEach-Object { $_.Groups[1].Value }
+        $defined = [regex]::Matches($src, "(?m)^\s*'([a-z-]+)'\s*=\s*'CVSS") | ForEach-Object { $_.Groups[1].Value }
+        foreach ($a in @('net-rce','untrusted-parse','local-privesc')) {
+            $defined | Should -Contain $a
+        }
+        $src | Should -Not -Match 'remote-input-rce'
+    }
+}

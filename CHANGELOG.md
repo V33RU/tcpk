@@ -4,6 +4,35 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Three rules recovered from the bucket a keyword classifier had thrown away.**
+
+The Project Zero Windows logic bugs were grouped into nine classes by matching keywords
+against titles. Fifty-one landed in "other logic", the largest single bucket, and reading it
+properly found four entries that were vendor-actionable and buried. Three became rules; the
+fourth did not survive, which is the useful part.
+
+`callsites.dotnet-dcom-client` (HIGH, net-rce). A .NET DCOM client is forced to deserialize a
+BinaryFormatter stream chosen by the SERVER, because creating the RCW queries `IManagedObject`.
+The application never names BinaryFormatter, so the existing `deser.*` token rules cannot see
+it. The direction is what makes it worth having: the risk is to the CLIENT, so a management
+tool that queries other machines is compromised by the machines it queries, usually while
+holding wider credentials than they do. The documented fix is the CIM classes, and a test
+asserts those stay silent.
+
+`callsites.signedxml-xxe` (HIGH, untrusted-parse). `SignedXml.CheckSignature` reparses the
+data it is verifying with `DtdProcessing.Parse` and a non-null resolver, so verification is an
+XXE sink that runs BEFORE the signature is known to be good.
+
+`callsites.typelib-moniker-fallback` (MEDIUM, local-privesc). `LoadTypeLib` does not fail when
+the path cannot be parsed; it falls back to moniker binding, so a Running Object Table entry
+returns somebody else's `ITypeLib` in place of the file on disk.
+
+NOT built: the fourth candidate, `ROTFLAGS_ALLOWANYCLIENT`. It looked like the cheapest rule
+on the list until the report was read, at which point the finder's own note said "it's pretty
+much all by design". The bug is that ANY process can register a global ROT entry, which is
+Windows behaviour and not a vendor's to fix. The vendor-side residue is the victim of that
+trick, which is what `typelib-moniker-fallback` covers.
+
 **Runtime actions left nothing behind.**
 
 Every Runtime / Intercept / Creds button rendered into a textbox and stopped there. The pane
