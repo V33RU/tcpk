@@ -1027,6 +1027,139 @@ function Test-IcptGate($gate, $box) {
 #    IS measurable, and is more useful, is the cost of the check itself: CPU seconds burned
 #    and peak working set, reported as a footer line. The gauge shows idle/worker state; this
 #    shows what the action actually cost.
+# ---------------------------------------------------------------------------------------
+# Per-action transcripts.
+#
+# Every Runtime / Intercept / Creds button funnels through Invoke-IcptTool, and until now
+# its output existed only in the textbox: scrolled away, not searchable, and gone when the
+# window closed. Each action now also writes a plain-text transcript.
+#
+# WHERE IT GOES. Inside the audit's own output folder as actions\, next to poc\, so one
+# engagement is one folder. If no audit has run there is nowhere to put it, so a standalone
+# work\out\actions_<stamp>\ is created once per session and reused. Run an audit later and
+# subsequent actions follow it into the new folder; the earlier ones stay where they were
+# written rather than being moved under someone's feet.
+#
+# WHY APPEND RATHER THAN A FILE PER CLICK. An analyst looks for "the Env Secrets output",
+# not "the Env Secrets output from 14:03:11". One file per action accumulates its own
+# history behind a timestamped header, which keeps the folder readable and loses nothing.
+#
+# The transcript is deliberately FULLER than the textbox. The textbox prints six fields; a
+# TcpkFinding carries 22, and the ones it drops (Description, Cvss, Attack, Standards,
+# AdjustmentLog, Affected) are exactly what turns a line into a report. Everything
+# populated is written.
+$script:StandaloneActionDir = $null
+
+function Get-TcpkGuiActionDir {
+    $dir = if ($script:CurrentOutDir) {
+        Join-Path $script:CurrentOutDir 'actions'
+    } else {
+        if (-not $script:StandaloneActionDir) {
+            $stamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
+            # $PSScriptRoot is the tool folder. Everything TCPK writes lives under work\,
+            # because an action transcript can contain recovered secrets.
+            $script:StandaloneActionDir = Join-Path $PSScriptRoot "work\out\actions_$stamp"
+        }
+        $script:StandaloneActionDir
+    }
+    if (-not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    return $dir
+}
+
+# A stable file name per action. Titles carry live detail in two shapes:
+#   "Mem Secrets: msedge"                      -- colon, then context
+#   "Test-TcpkProcessToken -ProcessName msedge" -- cmdlet, then parameters
+# Both are cut, so the same action against two processes appends to ONE file and the
+# process name lives in the per-run header where it belongs. Without the parameter cut
+# every target would spawn its own file and the folder would be unreadable. Anything the
+# filesystem rejects becomes an underscore.
+function Get-TcpkActionSlug([string]$Title) {
+    $t = "$Title"
+    $cut = $t.IndexOf(':')
+    if ($cut -gt 0) { $t = $t.Substring(0, $cut) }
+    $dash = $t.IndexOf(' -')
+    if ($dash -gt 0) { $t = $t.Substring(0, $dash) }
+    $t = $t.Trim()
+    if (-not $t) { $t = 'action' }
+    foreach ($ch in [IO.Path]::GetInvalidFileNameChars()) { $t = $t.Replace($ch, '_') }
+    return ($t -replace '\s+', '-')
+}
+
+# Render one finding with every populated field, in a fixed order so two runs diff cleanly.
+function Format-TcpkActionFinding($f, [int]$Index) {
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine(("#{0:d3}  [{1}]  {2}" -f $Index, $f.Severity, $f.Title))
+    $order = 'RuleId','Module','Confidence','File','Subject','Evidence','Description','Impact',
+             'Cwe','Cvss','CvssVector','Attack','Standards','Fix','AttributionBasis','AdjustmentLog','Affected'
+    foreach ($name in $order) {
+        $prop = $f.PSObject.Properties[$name]
+        if (-not $prop) { continue }
+        $v = $prop.Value
+        if ($null -eq $v) { continue }
+        if ($v -is [string] -and -not $v.Trim()) { continue }
+        if ($v -is [System.Collections.IEnumerable] -and $v -isnot [string]) {
+            $items = @($v | Where-Object { $_ -ne $null -and "$_".Trim() })
+            if (-not $items.Count) { continue }
+            $v = $items -join '; '
+        }
+        # Keep multi-line values readable under their label instead of one run-on line.
+        $text = "$v" -replace "`r`n", "`n"
+        if ($text.Contains("`n")) {
+            [void]$sb.AppendLine(("    {0,-16}:" -f $name))
+            foreach ($ln in $text.Split("`n")) { [void]$sb.AppendLine("        $ln") }
+        } else {
+            [void]$sb.AppendLine(("    {0,-16}: {1}" -f $name, $text))
+        }
+    }
+    return $sb.ToString()
+}
+
+# Append one action's transcript. Never throws: a failed write must not take down the
+# action that produced the findings, so the caller is told and the GUI carries on.
+function Write-TcpkActionTranscript([string]$Title, $Findings, [string]$Timing) {
+    try {
+        $dir  = Get-TcpkGuiActionDir
+        $path = Join-Path $dir ((Get-TcpkActionSlug $Title) + '.txt')
+        $res  = @($Findings | Where-Object { $_ })
+
+        $sb = New-Object System.Text.StringBuilder
+        [void]$sb.AppendLine('')
+        [void]$sb.AppendLine('=' * 78)
+        [void]$sb.AppendLine("  $Title")
+        [void]$sb.AppendLine("  $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')   findings: $($res.Count)")
+        $tgt = ''
+        try { $tgt = "$($txtTarget.Text)".Trim() } catch { }
+        if ($tgt) { [void]$sb.AppendLine("  target: $tgt") }
+        [void]$sb.AppendLine('=' * 78)
+        [void]$sb.AppendLine('')
+
+        if (-not $res.Count) {
+            # A clean run is a result. Recording it is what separates "checked, nothing
+            # found" from "never ran", which is the distinction an analyst needs later.
+            [void]$sb.AppendLine('(no findings returned)')
+        } else {
+            # Explicit order, not Get-TcpkSeverityRank: that helper is private to the
+            # module and is not exported, so it is not callable from this script. Same
+            # sequence the dashboard uses.
+            $sevRank = @{ CRITICAL = 5; HIGH = 4; MEDIUM = 3; LOW = 2; INFO = 1 }
+            $i = 0
+            foreach ($f in ($res | Sort-Object @{ E = { $r = $sevRank["$($_.Severity)"]; if ($r) { $r } else { 0 } }; Descending = $true }, RuleId)) {
+                $i++
+                [void]$sb.Append((Format-TcpkActionFinding $f $i))
+                [void]$sb.AppendLine('')
+            }
+        }
+        if ($Timing) { [void]$sb.AppendLine($Timing) }
+
+        Add-Content -LiteralPath $path -Value $sb.ToString() -Encoding UTF8
+        return $path
+    } catch {
+        return $null
+    }
+}
+
 function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
     if ($script:IcptClearNext) { try { $box.Clear() } catch { }; $script:IcptClearNext = $false }
 
@@ -1040,6 +1173,12 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
     $me = $null; $cpu0 = 0.0; $ws0 = 0
     try { $me = [System.Diagnostics.Process]::GetCurrentProcess(); $cpu0 = $me.TotalProcessorTime.TotalSeconds; $ws0 = $me.WorkingSet64 } catch { }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
+    # Declared out here so the finally block can write the transcript whatever happened:
+    # a thrown action still produced a result worth recording, and a transcript that shows
+    # "(no findings returned)" for a run that actually errored would be a lie.
+    $res = $null
+    $errText = $null
 
     try {
         $res = & $call
@@ -1074,7 +1213,8 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
             }
         }
     } catch {
-        Write-IcptLine $box ("ERROR: {0}`r`n" -f $_.Exception.Message) ([System.Drawing.Color]::FromArgb(249,38,114))
+        $errText = "$($_.Exception.Message)"
+        Write-IcptLine $box ("ERROR: {0}`r`n" -f $errText) ([System.Drawing.Color]::FromArgb(249,38,114))
     } finally {
         $sw.Stop()
         try {
@@ -1088,11 +1228,25 @@ function Invoke-IcptTool($box, [string]$title, [scriptblock]$call) {
                 $wsMb = Get-TcpkPrivateWsMb -ProcId $me.Id -FallbackBytes $me.WorkingSet64
                 $dMb  = [int](($me.WorkingSet64 - $ws0) / 1MB)   # delta stays on the same counter it was baselined with
                 $sign = if ($dMb -ge 0) { '+' } else { '' }
-                Write-IcptLine $box ("   [{0:N1}s  cpu {1}s = {2:N1} core(s), {3}% of machine  ram {4} MB ({5}{6} MB)]`r`n" -f `
-                    $secs, [Math]::Round($cpuUsed, 1), $ce, $pct, $wsMb, $sign, $dMb) ([System.Drawing.Color]::FromArgb(120,130,140))
+                $script:LastIcptTiming = ("   [{0:N1}s  cpu {1}s = {2:N1} core(s), {3}% of machine  ram {4} MB ({5}{6} MB)]" -f `
+                    $secs, [Math]::Round($cpuUsed, 1), $ce, $pct, $wsMb, $sign, $dMb)
+                Write-IcptLine $box ($script:LastIcptTiming + "`r`n") ([System.Drawing.Color]::FromArgb(120,130,140))
                 Update-ScanResources -CpuPct $pct -RamMb $wsMb -Cores $ce -Src 'gui'
             }
         } catch { }
+
+        # Persist the action. The textbox is transient -- it scrolls, it is not searchable,
+        # and it dies with the window -- so every action also leaves a transcript on disk.
+        $timing = $script:LastIcptTiming
+        if ($errText) { $timing = "ERROR: $errText" + $(if ($timing) { "`r`n" + $timing } else { '' }) }
+        $written = Write-TcpkActionTranscript -Title $title -Findings $res -Timing $timing
+        if ($written) {
+            Write-IcptLine $box ("   -> saved: {0}`r`n" -f $written) ([System.Drawing.Color]::FromArgb(120,130,140))
+        } else {
+            Write-IcptLine $box "   -> transcript NOT written (see the output folder permissions)`r`n" ([System.Drawing.Color]::FromArgb(214,137,16))
+        }
+        $script:LastIcptTiming = $null
+
         $form.Cursor = [System.Windows.Forms.Cursors]::Default
         Update-Status "Ready."
     }

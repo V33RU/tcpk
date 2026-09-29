@@ -284,6 +284,24 @@ credential is live. All results stream into the output console.
 Read-only live checks on a running process. 27 tool buttons organised by
 colour-coded category.
 
+**Every action writes a transcript.** The output pane is transient: it scrolls,
+it is not searchable, and it dies with the window. So each button also appends a
+plain-text transcript under `actions\` inside the audit's own output folder,
+beside `poc\`. Run an action before any audit and a standalone
+`work\out\actions_<stamp>\` is created instead; run an audit afterwards and
+later actions follow it into the new folder.
+
+One file per action, appended, so `Test-TcpkProcessToken.txt` accumulates every
+run of that check behind a timestamped header rather than scattering one file per
+click. The target and parameters live in that header, not the file name, so the
+same action against two processes stays in one place.
+
+The transcript is fuller than the pane. The pane prints six fields; a finding
+carries 22, and the transcript writes every populated one -- Description, CVSS,
+ATT&CK, standards, AdjustmentLog and the Affected list included. A run that
+returned nothing is still recorded, because "checked, found nothing" and "never
+ran" are different answers.
+
 - **Process selector** -- pick a running process from the dropdown or
   type a name. Click "Refresh" to update the process list.
 - **Trace (s)** -- duration for timed trace tools (default 30).

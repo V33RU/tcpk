@@ -4,6 +4,33 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Runtime actions left nothing behind.**
+
+Every Runtime / Intercept / Creds button rendered into a textbox and stopped there. The pane
+scrolls, it is not searchable, and it dies with the window, so the output of a live check was
+gone the moment you moved on. Each action now also appends a plain-text transcript.
+
+Location follows the engagement: `actions\` inside the audit's own output folder, beside
+`poc\`. If no audit has run there is nowhere to put it, so a standalone
+`work\out\actions_<stamp>\` is created once per session and reused; run an audit later and
+subsequent actions follow it into the new folder.
+
+One file per action, appended. An analyst looks for "the Env Secrets output", not "the Env
+Secrets output from 14:03:11". Titles are cut at the first colon and the first parameter, so
+`Test-TcpkProcessToken -ProcessName msedge` and the same check against another process share
+one file and the process name sits in the per-run header where it belongs. Without that cut
+every target would spawn its own file.
+
+The transcript is deliberately fuller than the pane, which was the actual complaint. The pane
+prints six fields. A `TcpkFinding` carries 22, and the ones it dropped -- Description, Cvss,
+Attack, Standards, AdjustmentLog, Affected -- are exactly what turns a line into a report. All
+populated fields are written. A run that errored records the error, and a run that returned
+nothing is still recorded, because "checked, found nothing" and "never ran" are different
+answers.
+
+Writing is best-effort and never throws: a failed write is reported in the pane and the action
+carries on.
+
 **`process.dacl-injectable` graded the rights but not the boundary.**
 
 A weak process DACL is only an escalation if the target sits above the principal being
