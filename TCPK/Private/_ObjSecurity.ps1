@@ -333,3 +333,49 @@ function Resolve-TcpkComServerImage {
     return [pscustomobject]@{ Path = $best; Exists = $false }
 }
 
+
+# =====================================================================================
+# COM security descriptors (AppID LaunchPermission / AccessPermission, and the machine
+# defaults under HKLM\SOFTWARE\Microsoft\Ole).
+#
+# These are stored as a BINARY self-relative SECURITY_DESCRIPTOR, not SDDL text, so they
+# cannot go through Get-TcpkSddlLowPrivGrants directly. This converts once and applies the
+# same low-privilege trustee test both callers need.
+#
+# COM access-mask bits, for reading the Evidence: Execute 0x01 = Local Access,
+# 0x02 = Remote Access, Execute_Local 0x04 = Local Launch, 0x08 = Remote Launch,
+# 0x10 = Local Activate, 0x20 = Remote Activate.
+#
+# Trustees are matched by SDDL alias AND raw SID, because GetSddlForm emits the alias for
+# well-known accounts (WD, AU, BU, IU, AN) and a raw SID for everything else. Matching only
+# one form silently misses half the cases.
+#
+# Returns @{ Ok; Sddl; BadAces[] }. Ok=$false means the descriptor could not be parsed at
+# all, which the caller must report as unknown rather than clean.
+function Get-TcpkComSdLowPrivAces {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][AllowNull()]$Binary)
+
+    $none = [pscustomobject]@{ Ok = $false; Sddl = ''; BadAces = @() }
+    if ($null -eq $Binary) { return $none }
+
+    $sddl = ''
+    try {
+        $sd = New-Object System.Security.AccessControl.RawSecurityDescriptor($Binary, 0)
+        $sddl = $sd.GetSddlForm([System.Security.AccessControl.AccessControlSections]::Access)
+    } catch { return $none }
+    if (-not $sddl) { return $none }
+
+    $bad = @()
+    foreach ($aceMatch in [regex]::Matches($sddl, '\(([^()]*)\)')) {
+        $ace = $aceMatch.Groups[1].Value
+        $parts = $ace -split ';'
+        if ($parts.Count -lt 6) { continue }
+        if ($parts[0] -notmatch '^A') { continue }   # Allow ACEs only
+        $trustee = $parts[5]
+        if ($trustee -match '^(WD|AU|BU|IU|AN|S-1-1-0|S-1-5-11|S-1-5-32-545|S-1-5-4|S-1-5-7)$') {
+            $bad += $ace
+        }
+    }
+    return [pscustomobject]@{ Ok = $true; Sddl = $sddl; BadAces = $bad }
+}

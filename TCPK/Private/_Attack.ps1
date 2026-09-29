@@ -44,6 +44,7 @@ $script:TcpkAttackMap = @(
     @{ rx = '^clickonce\.';                                                              tech = @('T1195.002 Compromise Software Supply Chain','T1204.001 Malicious Link') }
     @{ rx = '^msix\.psf';                                                                tech = @('T1059.001 PowerShell','T1546 Event Triggered Execution') }
     @{ rx = '^dllsearch\.(phantom-dll|delayload-phantom|sideload)';                      tech = @('T1574.001 DLL','T1574.002 DLL Side-Loading') }
+    @{ rx = '^com\.appid\.';                                                            tech = @('T1559.001 Inter-Process Communication: Component Object Model') }
     @{ rx = '^comhijack\.';                                                              tech = @('T1546.015 Component Object Model Hijacking') }
     @{ rx = '^wer\.';                                                                    tech = @('T1005 Data from Local System') }
     @{ rx = '^crashreporter\.';                                                          tech = @('T1005 Data from Local System') }

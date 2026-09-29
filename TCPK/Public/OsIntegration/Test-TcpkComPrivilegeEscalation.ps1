@@ -140,6 +140,75 @@ function Test-TcpkComPrivilegeEscalation {
                 $accessPerm = $appIdProps.AccessPermission
             } catch { }
 
+            # An EXPLICIT descriptor that grants a broad principal. This used to be
+            # invisible: the only test was "is LaunchPermission absent", so an AppID that
+            # set one and opened it to Everyone produced no finding at all, while the
+            # safer case of leaving it unset did. AccessPermission was read from the
+            # registry and then never looked at. Both are graded now, and an explicit
+            # permissive descriptor outranks an absent one because it is a deliberate
+            # setting rather than an inherited default.
+            foreach ($permCheck in @(
+                @{ Name = 'LaunchPermission'; Value = $launchPerm; Rule = 'com.appid.launch-perm-weak'
+                   What = 'launch and activate' }
+                @{ Name = 'AccessPermission'; Value = $accessPerm; Rule = 'com.appid.access-perm-weak'
+                   What = 'call into an already-running instance of' }
+            )) {
+                if (-not $permCheck.Value) { continue }
+                $sdInfo = Get-TcpkComSdLowPrivAces -Binary $permCheck.Value
+                if (-not $sdInfo.Ok) {
+                    New-TcpkFinding -Module 'os' -RuleId 'com.appid.perm-unparsed' `
+                        -Severity 'INFO' -Confidence 'Skipped' `
+                        -Title "COM AppID $appId $($permCheck.Name) could not be parsed" `
+                        -File "HKCR\AppID\$appId" `
+                        -Evidence "CLSID=$clsid; $($permCheck.Name) present but not a readable security descriptor" `
+                        -Fix 'Inspect the AppID with dcomcnfg.exe or OleViewDotNet by hand.'
+                    continue
+                }
+                if (@($sdInfo.BadAces).Count -eq 0) { continue }
+
+                $aceList = (@($sdInfo.BadAces) | Select-Object -First 3) -join ' '
+                New-TcpkFinding -Module 'os' -RuleId $permCheck.Rule `
+                    -Severity 'HIGH' -Confidence 'Confirmed' `
+                    -Title "COM AppID $appId $($permCheck.Name) grants a broad principal" `
+                    -File "HKCR\AppID\$appId" `
+                    -Evidence "CLSID=$clsid; Binary=$serverBin; risky ACEs: $aceList; SDDL=$($sdInfo.Sddl)" `
+                    -Cwe @('CWE-284','CWE-732','CWE-269') `
+                    -Description ("The AppID sets an explicit $($permCheck.Name) and that descriptor " +
+                        'allows Everyone, Authenticated Users, Users, INTERACTIVE or ANONYMOUS. This ' +
+                        'server has a privileged RunAs, so any local account matching one of those ' +
+                        'groups can ' + $permCheck.What + ' a process running at that privilege. ' +
+                        'The security descriptor is the only thing standing between a standard user ' +
+                        'and the server, and it is open. Unlike a missing value, which merely inherits ' +
+                        'the machine default, this was set deliberately and reads as intentional. ' +
+                        'Confirm by calling CoCreateInstance(CLSCTX_LOCAL_SERVER) on the CLSID from a ' +
+                        'standard user session and checking whether the server starts.') `
+                    -Fix ("Restrict the AppID $($permCheck.Name) to Administrators or the specific " +
+                        'service SID that needs it, using dcomcnfg.exe (Component Services) or ' +
+                        'OleViewDotNet. Removing the value is NOT a fix: it falls back to the ' +
+                        'machine-wide default, which on a stock install already allows Authenticated ' +
+                        'Users to launch locally.')
+            }
+
+            # A missing AccessPermission inherits the machine default the same way a missing
+            # LaunchPermission does, and was never reported.
+            if (-not $accessPerm) {
+                New-TcpkFinding -Module 'os' -RuleId 'com.appid.no-access-perm' `
+                    -Severity 'MEDIUM' -Confidence 'Inferred' `
+                    -Title "COM AppID $appId has no explicit AccessPermission (falls back to machine default)" `
+                    -File "HKCR\AppID\$appId" `
+                    -Evidence "CLSID=$clsid; AccessPermission value absent" `
+                    -Cwe @('CWE-732','CWE-269') `
+                    -Description ('The AppID has no AccessPermission registry value, so calls into a ' +
+                        'running instance are governed by the machine-wide DefaultAccessPermission ' +
+                        'under HKLM\SOFTWARE\Microsoft\Ole. LaunchPermission controls who may START ' +
+                        'the server; AccessPermission controls who may CALL it once it is running, ' +
+                        'including an instance started by somebody else. A server with a privileged ' +
+                        'RunAs and no explicit AccessPermission can therefore be reachable by a ' +
+                        'standard user even when launch is locked down.') `
+                    -Fix ('Set an explicit AccessPermission on the AppID restricting calls to the ' +
+                        'accounts that need them, via dcomcnfg.exe or OleViewDotNet.')
+            }
+
             # NULL LaunchPermission = falls back to machine DefaultLaunchPermission
             # which on default Windows allows Authenticated Users to launch locally.
             if (-not $launchPerm) {

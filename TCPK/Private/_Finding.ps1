@@ -292,6 +292,7 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^msix\.psf-(full-trust|script-dangerous|startScript|endScript)';                                                                                       A = 'local-privesc' }
     @{ Rx = '^msix\.psf';                                                                                                                                           A = 'hardening' }
     @{ Rx = '^dllsearch\.(phantom-dll|delayload-phantom|sideload-candidate)';                                                                                        A = 'local-privesc' }
+    @{ Rx = '^com\.appid\.(launch-perm-weak|access-perm-weak|auto-elevation)';                                                                                       A = 'local-privesc' }
     @{ Rx = '^comhijack\.server-missing-plantable';                                                                                                                  A = 'local-privesc' }
     @{ Rx = '^comhijack\.server-writable';                                                                                                                           A = 'local-privesc' }
     @{ Rx = '^comhijack\.';                                                                                                                                          A = 'hardening' }

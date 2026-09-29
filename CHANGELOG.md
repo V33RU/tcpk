@@ -4,6 +4,33 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**The DCOM permission check was backwards, and graded half the surface.**
+
+`Test-TcpkComPrivilegeEscalation` asked only whether `LaunchPermission` was ABSENT. An AppID
+that set one and opened it to Everyone produced no finding at all, while the safer case of
+leaving it unset did. `AccessPermission` was read from the registry and then never looked at,
+so calls into an already-running privileged instance were never graded. Both halves are fixed:
+each descriptor is now reported when absent and when explicitly permissive.
+
+New rules: `com.appid.launch-perm-weak` (HIGH), `com.appid.access-perm-weak` (HIGH),
+`com.appid.no-access-perm` (MEDIUM), `com.appid.perm-unparsed` (INFO/Skipped, so an
+unreadable descriptor is never reported as clean). An explicit permissive descriptor outranks
+an absent one because it is a deliberate setting rather than an inherited default.
+
+These descriptors are binary self-relative security descriptors, not SDDL text, so they
+cannot go through `Get-TcpkSddlLowPrivGrants`. `Get-TcpkComSdLowPrivAces` is new in
+`_ObjSecurity.ps1` and is now shared with `Test-TcpkComMachineDefaults`, which had the only
+copy of that trustee test. One implementation on purpose: two copies drift, and the half that
+drifts stops finding what it exists to find. Trustees match by SDDL alias and by raw SID,
+because `GetSddlForm` emits an alias for well-known accounts and a raw SID for everything
+else, and an alias-only matcher misses the rest.
+
+`com.appid.*` also had no CVSS archetype and no ATT&CK technique, so a DCOM privilege
+escalation scored with a generic hardening vector. Now `local-privesc` and T1559.001.
+
+Scope is unchanged and inherited: candidate CLSIDs are already filtered by identity terms and
+`Test-TcpkPathUnderTarget`, so this grades servers the target registers, not the machine.
+
 **The legacy Windows script engines were a blind spot: seven WebView2 cmdlets, and nothing
 for the engines WebView2 replaced.**
 

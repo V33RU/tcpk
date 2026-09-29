@@ -87,25 +87,13 @@ function Test-TcpkComMachineDefaults {
         $raw = $props.$valueName
         if (-not $raw) { continue }
         $anyRestrictionPresent = $true
-        $sddl = ''
-        try {
-            $sd = New-Object System.Security.AccessControl.RawSecurityDescriptor($raw, 0)
-            $sddl = $sd.GetSddlForm([System.Security.AccessControl.AccessControlSections]::Access)
-        } catch { continue }
-        if (-not $sddl) { continue }
-        # Split into ACE strings and check each Allow ACE for a risky trustee.
-        $badAces = @()
-        foreach ($aceMatch in [regex]::Matches($sddl, '\(([^()]*)\)')) {
-            $ace = $aceMatch.Groups[1].Value
-            $parts = $ace -split ';'
-            if ($parts.Count -lt 6) { continue }
-            $aceType   = $parts[0]
-            $trustee   = $parts[5]
-            if ($aceType -notmatch '^A') { continue }   # Allow ACEs only
-            if ($trustee -match '^(WD|AU|BU|IU|AN|S-1-1-0|S-1-5-11|S-1-5-32-545|S-1-5-4|S-1-5-7)$') {
-                $badAces += $ace
-            }
-        }
+        # Shared with Test-TcpkComPrivilegeEscalation's AppID grading. One implementation
+        # on purpose: two copies of a trustee test drift, and the half that drifts stops
+        # finding the thing it exists to find.
+        $sdInfo = Get-TcpkComSdLowPrivAces -Binary $raw
+        if (-not $sdInfo.Ok) { continue }
+        $sddl = $sdInfo.Sddl
+        $badAces = @($sdInfo.BadAces)
         if ($badAces.Count -gt 0) {
             New-TcpkFinding -Module 'os' -RuleId 'com.machine-default-perms-weak' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
