@@ -36,6 +36,8 @@ function Test-TcpkComHijack {
                                          MEDIUM  and under the audited tree. MEDIUM for
                                                  LocalServer32: COM launches that image as the
                                                  activating user rather than loading it in-process.
+      comhijack.managed-assembly-plantable HIGH  Managed server: CodeBase assembly absent,
+                                                 path plantable, under the audited tree.
       comhijack.server-missing           INFO    Image absent, anchor ACL unreadable.
       comhijack.server-missing-census    INFO    One record per run: everything dangling that was
                                                  examined and not reported, counted by reason.
@@ -63,10 +65,11 @@ function Test-TcpkComHijack {
     it, and nothing here attempts to establish that. Treat the severity as the
     planting primitive, not a proven privesc chain.
 
-    KNOWN BLIND SPOT. Managed COM servers register mscoree.dll as the server and name
-    the real assembly in the Assembly / Class / RuntimeVersion values. mscoree.dll
-    always exists, so rule 4 never fires on them and a managed server with a missing
-    or plantable assembly is not detected.
+    MANAGED SERVERS. regasm registers mscoree.dll as the in-process server and names the
+    real .NET assembly in versioned subkeys. mscoree.dll always exists, so rule 4 can
+    never fire on one; the CodeBase value is followed instead and graded the same way.
+    A managed server resolved purely from the GAC has no CodeBase and nothing to plant,
+    so it is counted in the census rather than reported.
 
     MITRE ATT&CK T1546.015 (Component Object Model Hijacking).
 
@@ -182,6 +185,73 @@ function Test-TcpkComHijack {
                     -Fix 'Register the COM server per-user at install time to prevent pre-emption, or validate the loaded server''s signature at runtime.'
             }
 
+            # --- managed (.NET) COM server: resolve the real assembly ------------------
+            # regasm registers mscoree.dll as the server and puts the actual assembly in
+            # versioned subkeys (Assembly / Class / RuntimeVersion / CodeBase). mscoree.dll
+            # always exists, so the dangling check below can never fire on one of these and
+            # a managed server with a missing or plantable assembly was invisible. CodeBase
+            # is the only one of those values that names a file, so it is the one to grade.
+            if ($serverPath -match '(^|\\)mscoree\.dll\s*$|(^|\\)mscorwks\.dll\s*$') {
+                $cbSeen = $false
+                foreach ($verKey in @(Get-ChildItem -LiteralPath $serverKey -ErrorAction SilentlyContinue)) {
+                    $cb = $null
+                    try { $cb = (Get-ItemProperty -LiteralPath $verKey.PSPath -Name 'CodeBase' -ErrorAction Stop).CodeBase } catch { }
+                    if (-not $cb) { continue }
+                    $cbSeen = $true
+
+                    # CodeBase is a file:// URL. Anything else (http, a UNC share) is not a
+                    # local planting primitive and is out of scope for this rule.
+                    $cbPath = $null
+                    try {
+                        $u = [uri]$cb
+                        if ($u.IsFile -and -not $u.IsUnc) { $cbPath = $u.LocalPath }
+                    } catch { }
+                    if (-not $cbPath) {
+                        _Census 'managed CodeBase is not a local file URL' "$clsid -> $cb"
+                        continue
+                    }
+                    if (Test-Path -LiteralPath $cbPath -ErrorAction SilentlyContinue) { continue }
+
+                    if (-not (Test-TcpkPathUnderTarget -Value $cbPath -InstallDir $root)) {
+                        _Census 'managed assembly outside the audited tree' "$clsid -> $cbPath"
+                        continue
+                    }
+                    $mg = Get-TcpkPlantGrants -Path $cbPath
+                    if (-not $mg.Ok -or @($mg.Grants).Count -eq 0) {
+                        _Census 'managed assembly absent, anchor not plantable' "$clsid -> $cbPath"
+                        continue
+                    }
+
+                    $mEv = "CLSID=$clsid; $subKey -> mscoree shim; CodeBase=$cb; assembly absent; " +
+                           "$($mg.Anchor) grants $($mg.Needed) to $($mg.Grants -join '; ')"
+                    $mDesc = 'This is a managed COM server: the registration names mscoree.dll as ' +
+                        'the in-process server and the real .NET assembly in a CodeBase value. That ' +
+                        'assembly is not on disk, and the path it names is one a standard user can ' +
+                        'create. Planting a managed assembly there gets it loaded by the CLR into ' +
+                        'whatever process activates the class. The mscoree.dll indirection is why ' +
+                        'this does not show up as an ordinary dangling registration: the file the ' +
+                        'registration points at always exists, so only following CodeBase reveals ' +
+                        'the missing one. Severity matches the native case because the planting ' +
+                        'primitive is identical; what differs is that the CLR applies its own ' +
+                        'binding policy and strong-name checks, which this does not evaluate.'
+                    New-TcpkFinding -Module 'os' -RuleId 'comhijack.managed-assembly-plantable' `
+                        -Severity 'HIGH' -Confidence 'Confirmed' `
+                        -Title "Managed COM assembly absent from a user-writable path: $clsid" `
+                        -File $cbPath `
+                        -Evidence $mEv `
+                        -Cwe @('CWE-427','CWE-732') `
+                        -Description $mDesc `
+                        -Fix ('Ship the assembly to a directory only administrators can write and ' +
+                            'register that CodeBase, or remove the registration if the component is ' +
+                            'no longer shipped. Strong-naming the assembly does not fix the plant on ' +
+                            'its own, because the attacker controls the file the CLR is told to load.')
+                }
+                if (-not $cbSeen) {
+                    _Census 'managed COM server with no CodeBase value (GAC-resolved)' "$clsid $subKey"
+                }
+                continue
+            }
+
             # --- server binary MISSING: the registration is dangling -------------------
             # The writable-server rule below needs a file to overwrite. This is the case it
             # cannot see: the class IS registered machine-wide, but the image it names is
@@ -197,15 +267,6 @@ function Test-TcpkComHijack {
                 # single directory to test and the plant location depends on the loading
                 # process. That surface belongs to Test-TcpkWritablePath, not here.
                 if ($miss -notmatch '[\\/]') { $skip = 'name only, resolved via search path' }
-
-                # Managed COM servers register mscoree.dll here and name the real assembly
-                # in the Assembly / Class / RuntimeVersion values. mscoree.dll always
-                # exists, so this branch never fires on them -- which means a managed
-                # server with a missing or plantable ASSEMBLY is a known blind spot, not
-                # something this check quietly decided was safe.
-                elseif ($lower -like '*\mscoree.dll' -or $lower -like '*\mscorwks.dll') {
-                    $skip = 'managed COM shim; real assembly lives in subkey values'
-                }
 
                 # A path inside the scanning user's own profile is not a privilege
                 # boundary: that user already owns it. Reporting it would describe the

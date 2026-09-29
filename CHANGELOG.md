@@ -4,6 +4,22 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Managed COM servers are no longer a documented blind spot.**
+
+`regasm` registers `mscoree.dll` as the in-process server and puts the real .NET assembly in
+versioned subkeys. `mscoree.dll` always exists, so the dangling-registration rule could never
+fire on one and a managed server with a missing or plantable assembly was invisible. The
+`CodeBase` value is now followed and graded exactly like a native server:
+`comhijack.managed-assembly-plantable` (HIGH), same scope gate, same plant-grant test.
+
+`CodeBase` is a URL, so only `file://` local paths are graded. An `http` or UNC CodeBase is
+not a local planting primitive and goes to the census, as does a server resolved purely from
+the GAC, which has no CodeBase and therefore nothing to plant.
+
+Severity matches the native case because the planting primitive is identical. The description
+says what is not evaluated: the CLR applies its own binding policy and strong-name checks,
+and this does not model them.
+
 **Five copies of "who counts as low privilege", and the shared one was the narrowest.**
 
 `$script:TcpkLowPrivSids` is consumed by seven cmdlets through `Get-TcpkSddlLowPrivGrants`.
