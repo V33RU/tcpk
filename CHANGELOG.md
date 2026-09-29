@@ -4,6 +4,21 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**One thing deliberately NOT built, recorded in the code rather than left as an oversight.**
+
+The Project Zero arbitrary-file-write class (five posts between 2015 and 2025) is "a
+privileged writer meets a destination a standard user controls". Both halves already exist
+as attack-graph primitives, `prim.priv` and `prim.loaddir`, and adding
+`@('prim.priv', 'prim.loaddir')` to the `goal.system` recipes is a one-line change.
+
+It is not added. The recipe engine takes the FIRST finding per category, so `prim.priv` can
+match a finding about one process while `prim.loaddir` matches a directory that process never
+loads from. The pair would raise CRITICAL "local privilege escalation to SYSTEM" on any target
+that has a service and a writable ProgramData folder, whether or not they are connected. The
+honest version needs the writable directory to be on that process's own load path, which is
+exactly what `prim.hijackname` supplies in the existing three-part recipe. The reasoning is
+now a comment at the recipe list so the next person sees a decision rather than a gap.
+
 **Managed COM servers are no longer a documented blind spot.**
 
 `regasm` registers `mscoree.dll` as the in-process server and puts the real .NET assembly in

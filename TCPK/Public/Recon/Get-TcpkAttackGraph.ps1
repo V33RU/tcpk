@@ -81,6 +81,21 @@ function Get-TcpkAttackGraph {
                     # loads into a process running as the SAME user crosses no boundary and is
                     # not an escalation. Without it the pair still raises goal.rce above.
                     @('prim.hijackname', 'prim.loaddir', 'prim.priv')
+
+                    # DELIBERATELY ABSENT: @('prim.priv', 'prim.loaddir').
+                    # "A privileged process exists AND some load/trust directory is
+                    # user-writable" is the shape of the Windows arbitrary-file-write
+                    # escalation class, and adding it here would be a one-line change that
+                    # raises a CRITICAL goal. It is left out because the two halves are not
+                    # yet tied to each other: prim.priv can match a finding about one
+                    # process while prim.loaddir matches a directory that process never
+                    # loads from, and the recipe engine takes the FIRST finding per
+                    # category (see the $present loop above) rather than checking they
+                    # concern the same component. The honest version needs the writable
+                    # directory to be on that process's own load path, which is what
+                    # prim.hijackname supplies in the recipe above. Do not add the pair
+                    # without that link, or every target with a service and a writable
+                    # ProgramData folder reports CRITICAL SYSTEM compromise.
                 ) }
             @{ Id = 'goal.credtheft'; Label = 'Credential / session theft'; Sev = 'HIGH'; Cwe = @('CWE-522'); Recipes = @(
                     @('prim.secret', 'entry.network'), @('prim.authbypass', 'entry.network')
