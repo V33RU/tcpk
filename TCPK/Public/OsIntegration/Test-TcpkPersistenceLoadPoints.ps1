@@ -87,7 +87,9 @@ function Test-TcpkPersistenceLoadPoints {
     $fileDangerMask =
         0x00000002 -bor 0x00000040 -bor 0x00010000 -bor
         0x00040000 -bor 0x00080000 -bor 0x10000000 -bor 0x40000000
-    $riskySids   = @('S-1-1-0','S-1-5-11','S-1-5-32-545','S-1-5-4','S-1-5-32-547')
+    # Shared list from Private\_ObjSecurity.ps1. This file used to carry its own, which
+    # was the only place Power Users appeared; the shared one has absorbed it.
+    $riskySids   = $script:TcpkLowPrivSids
     $riskyNameRx = '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE|BUILTIN\\(Users|Power Users))\b'
 
     function _AceIsRisky($ace) {

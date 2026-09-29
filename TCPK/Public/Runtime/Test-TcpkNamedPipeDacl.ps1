@@ -150,7 +150,7 @@ function Test-TcpkNamedPipeDacl {
         }
 
         $weak = $ac.Access | Where-Object {
-            $_.IdentityReference.Value -match '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE)\b' -and
+            $_.IdentityReference.Value -match '(?i)(\b(Everyone|Authenticated Users|Users|INTERACTIVE)\b|ALL (RESTRICTED )?APPLICATION PACKAGES|S-1-15-2-[12]$)' -and
             $_.AccessControlType.ToString() -eq 'Allow' -and
             ($_.PipeAccessRights.ToString() -match 'Write|ChangePermissions|FullControl')
         }

@@ -94,9 +94,40 @@ if (-not ('Tcpk.ObjSec' -as [type])) {
     try { Add-Type -TypeDefinition $script:TcpkObjSecSrc -ErrorAction Stop } catch { }
 }
 
-# Well-known low-privilege SIDs. Same set Test-TcpkProcessDacl uses, kept here so the
-# thread and token checks cannot drift from the process one.
-$script:TcpkLowPrivSids = @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545', 'S-1-5-4', 'S-1-5-7', 'S-1-5-32-546')
+# Well-known low-privilege SIDs. THE one list: Test-TcpkProcessDacl used to carry a
+# byte-identical copy, which is exactly how two graders drift apart.
+#
+# S-1-15-2-1 (ALL APPLICATION PACKAGES) and S-1-15-2-2 (ALL RESTRICTED APPLICATION
+# PACKAGES) are here because TCPK audits MSIX targets, and for a packaged application the
+# principal on the other side of the boundary IS the AppContainer. Without them a directory
+# any sandboxed package can write reads as clean, which is the wrong answer for the exact
+# class of target the tool was built for.
+#
+# Why this does not flood: every rights map that consumes this list is WRITE-only
+# (WriteData, AppendData, Delete, WriteDAC, WriteOwner, GenericWrite, GenericAll). Windows
+# grants ALL APPLICATION PACKAGES *read* on a great many paths and those never match. A
+# WRITE grant to any AppContainer is genuinely notable.
+#
+# Per-package SIDs (S-1-15-2-<hash>-<hash>-...) are deliberately NOT matched. They identify
+# one specific package, so a grant to one is normal for that package's own data and says
+# nothing about a boundary; only the two catch-all SIDs mean "any sandboxed code".
+#
+# S-1-5-32-547 (Power Users) came from Test-TcpkPersistenceLoadPoints and
+# Test-TcpkUninstallStringHijack, which carried their own list containing it while this one
+# did not. That is the cost of a duplicate: this list was the narrower of the two and every
+# consumer of it was blind to a Power Users grant. The group is deprecated but present on
+# upgraded and domain-joined machines, and a write grant to it is a real one.
+$script:TcpkLowPrivSids = @(
+    'S-1-1-0',          # Everyone
+    'S-1-5-11',         # Authenticated Users
+    'S-1-5-32-545',     # BUILTIN\Users
+    'S-1-5-4',          # INTERACTIVE
+    'S-1-5-7',          # ANONYMOUS
+    'S-1-5-32-546',     # Guests
+    'S-1-5-32-547',     # Power Users (legacy, still present on upgraded installs)
+    'S-1-15-2-1',       # ALL APPLICATION PACKAGES
+    'S-1-15-2-2'        # ALL RESTRICTED APPLICATION PACKAGES
+)
 
 # Parse an SDDL string and return every allow-ACE that grants a low-privilege well-known
 # group any right in $RightsMap. Returns records @{ Account; Sid; Granted[] }.

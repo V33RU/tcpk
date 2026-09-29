@@ -4,6 +4,28 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**Five copies of "who counts as low privilege", and the shared one was the narrowest.**
+
+`$script:TcpkLowPrivSids` is consumed by seven cmdlets through `Get-TcpkSddlLowPrivGrants`.
+Four other files carried their own literal: `Test-TcpkProcessDacl`, `Test-TcpkPersistenceLoadPoints`,
+`Test-TcpkUninstallStringHijack`, `Test-TcpkVendorDriverAcl` and `Test-TcpkPwshProfileAcl`.
+They did not agree. The four local lists carried `S-1-5-32-547` (Power Users) and the shared
+one did not, so every consumer of the shared list was blind to a Power Users write grant.
+That is the cost of a duplicate: the copy that drifts is the one still being used.
+
+There is now one list, a superset, and a test that fails if a second literal appears.
+
+It also gains `S-1-15-2-1` (ALL APPLICATION PACKAGES) and `S-1-15-2-2` (ALL RESTRICTED
+APPLICATION PACKAGES). TCPK audits MSIX targets, so for a packaged application the principal
+on the other side of the boundary IS the AppContainer, and a directory any sandboxed package
+could write previously read as clean. Every rights map consuming this list is write-only, so
+the read grants Windows hands ALL APPLICATION PACKAGES across the filesystem do not match; a
+write grant does. Per-package SIDs are deliberately excluded, since they identify one package
+rather than "any sandboxed code".
+
+`Test-TcpkNamedPipeDacl` grades by display name rather than SID, so its identity regex was
+extended separately.
+
 **TCPK was recommending the weakness.**
 
 The `named-pipe-server` advice told the analyst to "Check: GetNamedPipeClientProcessId +

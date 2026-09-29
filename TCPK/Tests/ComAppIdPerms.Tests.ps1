@@ -115,3 +115,52 @@ Describe 'AppID permission rules are wired' {
         }
     }
 }
+
+Describe 'Low-privilege principal set covers AppContainers' {
+
+    # TCPK audits MSIX targets. For a packaged application the principal on the other side
+    # of the boundary IS the AppContainer, so a directory any sandboxed package can write
+    # has to grade as low-privilege writable. Before this, every ACL check in the tool
+    # returned clean on exactly that case.
+
+    It 'includes the two catch-all package SIDs' {
+        $sids = & (Get-Module TCPK) { $script:TcpkLowPrivSids }
+        $sids | Should -Contain 'S-1-15-2-1'   # ALL APPLICATION PACKAGES
+        $sids | Should -Contain 'S-1-15-2-2'   # ALL RESTRICTED APPLICATION PACKAGES
+    }
+
+    It 'still includes the classic low-priv SIDs' {
+        $sids = & (Get-Module TCPK) { $script:TcpkLowPrivSids }
+        foreach ($s in 'S-1-1-0','S-1-5-11','S-1-5-32-545','S-1-5-4','S-1-5-7','S-1-5-32-546') {
+            $sids | Should -Contain $s
+        }
+    }
+
+    It 'grades a write grant to ALL APPLICATION PACKAGES as low-priv' {
+        $grants = & (Get-Module TCPK) {
+            Get-TcpkSddlLowPrivGrants -Sddl 'O:BAG:BAD:(A;;0x2;;;S-1-15-2-1)' `
+                -RightsMap ([ordered]@{ 'WriteData/AddFile' = 0x2 })
+        }
+        @($grants).Count | Should -BeGreaterThan 0
+    }
+
+    It 'does NOT grade a per-package SID, which identifies one package not a boundary' {
+        $perPkg = 'S-1-15-2-1861897761-1695161497-2927542615-642690995-327840285-2659745135-2630312742'
+        $grants = & (Get-Module TCPK) { param($s)
+            Get-TcpkSddlLowPrivGrants -Sddl "O:BAG:BAD:(A;;0x2;;;$s)" `
+                -RightsMap ([ordered]@{ 'WriteData/AddFile' = 0x2 })
+        } $perPkg
+        @($grants).Count | Should -Be 0
+    }
+
+    It 'has exactly one low-priv SID literal in the codebase' {
+        # Test-TcpkProcessDacl carried a byte-identical copy, so extending the shared list
+        # left process.dacl-injectable grading by the old set.
+        $root = Split-Path (Split-Path $PSCommandPath -Parent) -Parent
+        $dupes = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.ps1' |
+            Where-Object { $_.FullName -notmatch '\\Tests\\' } |
+            Where-Object { [IO.File]::ReadAllText($_.FullName) -match "'S-1-5-32-545'\s*,\s*'S-1-5-4'" } |
+            ForEach-Object { $_.Name })
+        $dupes -join ', ' | Should -Be '_ObjSecurity.ps1'
+    }
+}

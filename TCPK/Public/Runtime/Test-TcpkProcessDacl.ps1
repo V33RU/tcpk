@@ -68,8 +68,10 @@ public static string GetSddl(int pid){
     $dangerMask = 0
     foreach ($v in $rights.Values) { $dangerMask = $dangerMask -bor $v }
 
-    # low-priv well-known SIDs
-    $lowSids = @('S-1-1-0','S-1-5-11','S-1-5-32-545','S-1-5-4','S-1-5-7','S-1-5-32-546')
+    # The shared list from Private\_ObjSecurity.ps1, not a local copy. This file used to
+    # declare a byte-identical literal, so adding a principal in one place left this check
+    # grading by the old set: process.dacl-injectable silently kept the narrower view.
+    $lowSids = $script:TcpkLowPrivSids
 
     $procs = if ($PSCmdlet.ParameterSetName -eq 'ByName') {
         Get-TcpkProcess -ProcessName $ProcessName

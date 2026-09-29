@@ -76,13 +76,9 @@ function Test-TcpkVendorDriverAcl {
 
     # ---- risky principals -----------------------------------------------------------
     # Compare on both the friendly name (locale-dependent) and the SID (portable).
-    $riskySids = @(
-        'S-1-1-0',      # Everyone
-        'S-1-5-11',     # Authenticated Users
-        'S-1-5-32-545', # BUILTIN\Users
-        'S-1-5-4',      # INTERACTIVE
-        'S-1-5-32-547'  # BUILTIN\Power Users
-    )
+    # Shared list from Private\_ObjSecurity.ps1, which is a superset of what this file
+    # used to declare (it adds ANONYMOUS, Guests and the AppContainer package SIDs).
+    $riskySids = $script:TcpkLowPrivSids
     $riskyNameRx = '(?i)\b(Everyone|Authenticated Users|Users|INTERACTIVE|BUILTIN\\(Users|Power Users))\b'
 
     function _AceIsRisky([Security.AccessControl.AccessRule]$ace, [int]$mask) {
