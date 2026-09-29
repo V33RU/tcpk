@@ -65,7 +65,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <a href="#recon">Recon</a>
   <a href="#exploits">Exploits</a>
   <a href="#sbom">SBOM</a>
-  <a href="#mitigations">Mitigations</a>
+  <a href="#mitigations">Hardening</a>
   <a href="#signing">Signing</a>
   <a href="#logs">Logs</a>
   <div class="grp">Active testing</div>
@@ -179,13 +179,13 @@ Start-TCPKGui</code></pre>
 <hr>
 
 <section id="mitigations">
-<h2>Mitigations</h2>
-<figure><img src="screenshots/gui-mitigations.png" alt="TCPK GUI Mitigations tab"></figure>
+<h2>Hardening</h2>
+<figure><img src="screenshots/gui-mitigations.png" alt="TCPK GUI Hardening tab"></figure>
 <p>Binary hardening status for every DLL and EXE in the target.</p>
 <ul>
 <li><b>Colour key</b> -- Red = WEAK (missing critical mitigations), Orange = PARTIAL, Green = HARDENED.</li>
 <li><b>Filter</b> -- narrow by DLL name or status.</li>
-<li><b>Mitigations table</b> -- ListView with columns: DLL, Arch, ASLR, DEP, CFG, HighEntropyVA, SafeSEH, GS (stack cookies), ForceIntegrity, Status, Missing.</li>
+<li><b>Hardening table</b> -- ListView with columns: DLL, Arch, ASLR, DEP, CFG, HighEntropyVA, SafeSEH, GS (stack cookies), ForceIntegrity, Status, Missing.</li>
 </ul>
 <div class="how"><b>How to use:</b> Run an audit. The table shows the hardening posture of every binary. Sort by "Status" to find WEAK modules first. The "Missing" column lists exactly which mitigations are absent. Focus remediation on binaries that handle untrusted input.</div>
 </section>

@@ -51,7 +51,7 @@ authorization disclaimer.
 
 The GUI has 15 tabs organised into five areas:
 **Overview** (Dashboard), **Scan** (Audit, Recon, Exploits, SBOM,
-Mitigations, Signing, Logs), **Active testing** (Intercept, Creds),
+Hardening, Signing, Logs), **Active testing** (Intercept, Creds),
 **Runtime** (Runtime, ProcMon), and **Files** (Asar, Hex, Decompiler).
 
 ---
@@ -157,7 +157,7 @@ shows known vulnerabilities when Online CVE is enabled.
 
 ---
 
-### Mitigations
+### Hardening
 
 ![Mitigations](screenshots/gui-mitigations.png)
 
@@ -166,7 +166,7 @@ Binary hardening status for every DLL and EXE in the target.
 - **Colour key** -- Red = WEAK (missing critical mitigations), Orange =
   PARTIAL, Green = HARDENED.
 - **Filter** -- narrow by DLL name or status.
-- **Mitigations table** -- ListView with columns: DLL, Arch, ASLR, DEP,
+- **Hardening table** -- ListView with columns: DLL, Arch, ASLR, DEP,
   CFG, HighEntropyVA, SafeSEH, GS (stack cookies), ForceIntegrity,
   Status, Missing.
 
@@ -469,7 +469,7 @@ specific action in the app.
 3. **Run Audit** -- click with Full profile for comprehensive coverage.
 4. **Dashboard** -- review the security posture at a glance.
 5. **Audit** -- review individual findings with evidence and remediation.
-6. **Mitigations** -- check binary hardening (ASLR, DEP, CFG).
+6. **Hardening** -- check binary hardening (ASLR, DEP, CFG).
 7. **Signing** -- verify code signing status.
 8. **SBOM** -- review bundled components and known CVEs.
 9. **Recon** -- read the full reconnaissance profile.

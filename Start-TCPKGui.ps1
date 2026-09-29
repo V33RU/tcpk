@@ -900,7 +900,7 @@ $lvSbom.BringToFront()
 
 # --- DLL exploit-mitigation matrix tab ---
 $tabHard = New-Object System.Windows.Forms.TabPage
-$tabHard.Text = ' Mitigations '
+$tabHard.Text = ' Hardening '
 $tabHard.BackColor = [System.Drawing.Color]::FromArgb(30, 30, 30)
 [void]$tabs.TabPages.Add($tabHard)
 $hardHeader = New-Object System.Windows.Forms.Panel
@@ -4576,7 +4576,7 @@ function Test-DecIsManagedPe([string]$Path) {
 # Native PE analysis panel. Selecting a native DLL used to be a dead end that told you to
 # go to another tab; a target like a device configurator is mostly native, so that made the
 # tab useless exactly where it was most needed. Everything shown here reuses public cmdlets
-# (Get-TcpkPeHardening) and the shared PE reader, so it agrees with the Mitigations tab.
+# (Get-TcpkPeHardening) and the shared PE reader, so it agrees with the Hardening tab.
 function Show-DecNativePe([string]$path) {
     $leaf = Split-Path $path -Leaf
     $lblDecStatus.Text = "$leaf is a NATIVE binary -- no IL to decompile. Showing PE analysis instead."
@@ -4604,7 +4604,7 @@ function Show-DecNativePe([string]$path) {
     [void]$sb.AppendLine(("SIZE        {0:N0} bytes, SizeOfCode {1:N0}" -f (Get-Item -LiteralPath $path).Length, $info.SizeOfCode))
     [void]$sb.AppendLine('')
 
-    # Hardening via the public cmdlet, so this panel and the Mitigations tab cannot disagree.
+    # Hardening via the public cmdlet, so this panel and the Hardening tab cannot disagree.
     $h = $null
     try { $h = @(Get-TcpkPeHardening -Path $path)[0] } catch { }
     if ($h) {
@@ -4652,7 +4652,7 @@ function Show-DecNativePe([string]$path) {
     [void]$sb.AppendLine("SECTIONS    $((@($info.SectionNames)) -join ', ')")
     [void]$sb.AppendLine('')
     [void]$sb.AppendLine('NEXT        "Open in Hex" (button above) for the raw bytes and strings.')
-    [void]$sb.AppendLine('            The Mitigations and Signing tabs show this file alongside every')
+    [void]$sb.AppendLine('            The Hardening and Signing tabs show this file alongside every')
     [void]$sb.AppendLine('            other binary in the target after an audit run.')
 
     $txtDecCode.Text = $sb.ToString()
@@ -4857,7 +4857,7 @@ $btnDecScan.Add_Click({
     $capNote = ''
     if ($found.Count -ge 800) { $capNote = ' (scan capped at 800 files)' }
     if ($managed -eq 0) {
-        $lblDecStatus.Text = ("No .NET assemblies under {0} -- all {1} binaries are native. This looks like a native or Electron app; use Mitigations / Signing for PE posture, or the Asar tab if it ships app.asar.{2}" -f $base, $native, $capNote)
+        $lblDecStatus.Text = ("No .NET assemblies under {0} -- all {1} binaries are native. This looks like a native or Electron app; use Hardening / Signing for PE posture, or the Asar tab if it ships app.asar.{2}" -f $base, $native, $capNote)
     } else {
         $lblDecStatus.Text = ("{0} .NET assembly(ies) under {1}  ({2} native binaries skipped -- not decompilable){3}" -f $managed, $base, $native, $capNote)
     }
@@ -6693,7 +6693,7 @@ function Populate-Hardening([string]$OutDir) {
     [System.Windows.Forms.Application]::DoEvents()
 }
 
-# Live filter for the DLL Mitigation Matrix tab.
+# Live filter for the Hardening tab.
 function Filter-Hardening {
     if ($null -eq $script:HardItems) { return }
     $q = "$($txtHardFilter.Text)".ToLowerInvariant().Trim()
@@ -8014,10 +8014,10 @@ $btnRun.Add_Click({
         Write-LogLine "SBOM render failed: $($_.Exception.Message)" ([System.Drawing.Color]::FromArgb(214, 137, 16))
     }
 
-    # Populate the DLL Mitigation Matrix tab from hardening.json
+    # Populate the Hardening tab from hardening.json
     try {
         Populate-Hardening $outDir
-        Write-LogLine "DLL mitigation matrix ready -- click the 'DLL Mitigation Matrix' tab ($($lvHard.Items.Count) DLLs)." ([System.Drawing.Color]::FromArgb(102, 217, 239))
+        Write-LogLine "Binary hardening matrix ready -- click the 'Hardening' tab ($($lvHard.Items.Count) DLLs)." ([System.Drawing.Color]::FromArgb(102, 217, 239))
     } catch {
         Write-LogLine "DLL matrix render failed: $($_.Exception.Message)" ([System.Drawing.Color]::FromArgb(214, 137, 16))
     }

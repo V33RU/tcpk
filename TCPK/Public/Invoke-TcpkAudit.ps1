@@ -390,7 +390,7 @@ function Invoke-TcpkAudit {
     # ----- Bucket A (static binary analysis, 93 cmdlets) -----
     _RunCheck 'Test-TcpkSignature'           { Test-TcpkSignature           -Path $Target   }
     # Missing binary-hardening (ASLR/DEP/CFG/HighEntropyVA) is reported as POSTURE in
-    # the DLL Mitigation Matrix (Get-TcpkPeHardening -> hardening.json, below), NOT as
+    # the GUI Hardening tab (Get-TcpkPeHardening -> hardening.json, below), NOT as
     # findings: a missing mitigation is defense-in-depth, not an exploitable bug on its
     # own, and a per-DLL HIGH/MEDIUM finding per module would drown the real issues.
     # Run Test-TcpkPeMitigations manually if an engagement specifically needs them as
@@ -1174,7 +1174,7 @@ function Invoke-TcpkAudit {
     $all | Export-TcpkReportJson -OutFile $jsonPath -Profile $targetProfile
 
     # Per-DLL hardening matrix (ASLR/DEP/CFG/HighEntropyVA/...) for the Excel sheet
-    # AND as a JSON sidecar the GUI's "DLL Mitigation Matrix" tab reads.
+    # AND as a JSON sidecar the GUI's "Hardening" tab reads.
     $hardening = @()
     $hardening = @(_RunStage 'hardening' {
         try { Get-TcpkPeHardening -Path $expanded }
