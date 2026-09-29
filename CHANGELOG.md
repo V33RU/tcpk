@@ -4,6 +4,22 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+**TCPK was recommending the weakness.**
+
+The `named-pipe-server` advice told the analyst to "Check: GetNamedPipeClientProcessId +
+VerifyProcess". Resolving a caller to a process ID is not identity: a PID is reusable, it can
+be recycled onto a different process between the lookup and the decision, and a caller can
+arrange for the PID the server sees to belong to a binary the caller did not write. Any check
+that maps that PID to an image path, publisher or Authenticode signature is spoofable. The
+advice is corrected and now points at the token instead.
+
+New rule `callsites.pipe-client-pid-auth` (HIGH) flags the pattern:
+`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`, `GetNamedPipeClientSessionId`.
+This is the commonest authorisation shape in thick-client helper services, where a privileged
+service exposes a pipe, resolves the client PID, confirms the image is the vendor's own signed
+GUI and trusts the request. The description says plainly that a PID feeding only a log line is
+not a finding, and that the fix is to authorise on the impersonated token.
+
 **The DCOM permission check was backwards, and graded half the surface.**
 
 `Test-TcpkComPrivilegeEscalation` asked only whether `LaunchPermission` was ABSENT. An AppID

@@ -144,3 +144,48 @@ Describe 'Rule metadata is complete' {
         @($p.patterns).Count | Should -BeGreaterThan 0
     }
 }
+
+Describe 'Named-pipe caller identified by PID' {
+
+    # CVE-free but well documented: a PID is reusable and can be made to point at a binary
+    # the caller did not write, so resolving the client PID and checking its image path or
+    # signature is a spoofable authorisation decision. This is the commonest authorisation
+    # pattern in thick-client helper services, which is why it is HIGH.
+
+    BeforeAll {
+        $script:pipeFx = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-pipe-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $script:pipeFx | Out-Null
+        $script:pidDll = Join-Path $script:pipeFx 'PipePidAuth.dll'
+        try {
+            Add-Type -TypeDefinition @'
+public class PipePidAuth {
+    public string a = "GetNamedPipeClientProcessId";
+    public string b = "NamedPipeServerStream";
+}
+'@ -OutputAssembly $script:pidDll -OutputType Library -ErrorAction Stop
+        } catch { $script:pidDll = $null }
+    }
+    AfterAll {
+        if ($script:pipeFx -and (Test-Path $script:pipeFx)) {
+            Remove-Item $script:pipeFx -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'flags a pipe server that resolves the client PID' {
+        if (-not $script:pidDll) { Set-ItResult -Skipped -Because 'C# compiler unavailable'; return }
+        $f = @(Test-TcpkCallsites -Path $script:pidDll | Where-Object { $_.RuleId -eq 'callsites.pipe-client-pid-auth' })
+        $f | Should -Not -BeNullOrEmpty
+        $f[0].Severity | Should -Be 'HIGH'
+    }
+
+    It 'no longer recommends PID verification as the mitigation' {
+        # The named-pipe-server advice used to say "GetNamedPipeClientProcessId +
+        # VerifyProcess", which is the control this rule exists to flag. TCPK was
+        # recommending the weakness.
+        $desc = & (Get-Module TCPK) {
+            ((Get-TcpkData).callsite_patterns | Where-Object { $_.id -eq 'named-pipe-server' }).description
+        }
+        $desc | Should -Not -Match 'GetNamedPipeClientProcessId \+ VerifyProcess'
+        $desc | Should -Match 'ImpersonateNamedPipeClient'
+    }
+}
