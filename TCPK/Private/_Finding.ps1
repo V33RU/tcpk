@@ -228,6 +228,7 @@ $script:TcpkCvssArchetypeFlavor = @{
     'weak-crypto'     = 'local'
     'hardening'       = 'local'
     'cleartext-net'   = 'network'
+    'network-at-rest' = 'network'
     'local-tempfile'  = 'local'
 }
 

@@ -4,6 +4,14 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+Two fixes. `network-at-rest` was referenced by the gRPC reflection rule but defined in no
+archetype map, so it fell back to the local attack flavor and scored a network finding with
+AV:Local. Added to the flavor map as network.
+
+`Test-TcpkSecrets` scanned any `.dmp` in the target tree, attributing another product's crash
+dump to the audit target and reading an unbounded file. Dumps are now skipped on a directory
+walk; the deliberate single-file scan from `Test-TcpkMemoryDump` still runs.
+
 **GLM (Zhipu AI) added as an LLM provider.**
 
 OpenAI-compatible surface, so it uses the existing `openai` dialect and the GUI's Test AI

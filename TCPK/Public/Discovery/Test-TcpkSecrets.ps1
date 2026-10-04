@@ -35,7 +35,15 @@ function Test-TcpkSecrets {
     # matching the AWS 'ANPA' prefix). Treat them like the other Chromium runtime data we skip.
     $skipExt = @('.png','.jpg','.jpeg','.ico','.otf','.ttf','.pri','.cat','.p7x','.woff','.woff2','.svg','.gif','.bmp','.tif','.tiff','.webp','.mp3','.mp4','.wav','.ogg','.m4a','.pak')
 
-    $files = if ((Get-Item -LiteralPath $Path).PSIsContainer) {
+    # A .dmp is a process memory dump: unbounded in size, and its secrets are runtime state
+    # of UNKNOWN origin when it is just sitting in the scanned tree -- a browser crash dump in
+    # the target folder is not the target's secret. The DELIBERATE place to scan a dump is
+    # Test-TcpkMemoryDump, which creates its own and passes it as a single-file -Path. So
+    # dumps are skipped on a DIRECTORY walk only; an explicit -Path to a .dmp still scans.
+    $isDirWalk = (Get-Item -LiteralPath $Path).PSIsContainer
+    $skipExtDirOnly = @('.dmp', '.dump')
+
+    $files = if ($isDirWalk) {
         Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue
     } else {
         Get-Item -LiteralPath $Path
@@ -95,6 +103,7 @@ function Test-TcpkSecrets {
         Write-TcpkHeartbeat -Component 'Test-TcpkSecrets' -Index $fileIdx -Total $fileTotal -Current $f.Name -CurrentBytes $f.Length
         Write-TcpkProgress -Id 77 -ParentId 1 -Activity 'Secrets scan' -Status ("{0} ({1} MB) [{2}/{3}]" -f $f.Name, [int]($f.Length / 1MB), $fileIdx, $fileTotal) -Current $fileIdx -Total $fileTotal
         if ($f.Extension.ToLowerInvariant() -in $skipExt) { continue }
+        if ($isDirWalk -and $f.Extension.ToLowerInvariant() -in $skipExtDirOnly) { continue }
         if (Test-TcpkIsFrameworkFile $f.Name)             { continue }
         # Skip bundled runtime / Chromium / NSIS / license files (a secret matched inside a
         # framework binary or third-party licence text is not a first-party finding).
