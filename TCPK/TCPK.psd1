@@ -204,6 +204,7 @@
         'Test-TcpkIotCloudCreds',
         'Test-TcpkInstallDirAcl',
         'Test-TcpkInstallerHostsWrite',
+        'Test-TcpkLoopbackExempt',
         'Test-TcpkInstallerPlanting',
         'Test-TcpkJavaBundle',
         'Test-TcpkJavaNativeLoad',

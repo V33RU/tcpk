@@ -4,6 +4,14 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+`appcontainer.loopback-exempt` (MEDIUM). A packaged app registering a loopback exemption
+(CheckNetIsolation LoopbackExempt, or NetworkIsolationSetAppContainerConfig) turns off the
+network isolation that stops a sandboxed app reaching 127.0.0.1. The nine Project Zero
+AppContainer bugs are Windows enforcement bugs, not vendor bugs; this flags the vendor
+removing the boundary itself, usually a developer shortcut left in a shipping build. Static
+scan of shipped scripts and binaries. The capability-declaration side was already covered by
+msix.capability.*, which grades enterpriseAuthentication, runFullTrust and the rest.
+
 `attackgraph.privileged-writable-image` (CRITICAL). A process running as SYSTEM whose image
 sits inside a user-writable directory: replace the binary, run as SYSTEM. This is the sound
 half of the arbitrary-file-write class. It is a RELATIONAL join, not a presence recipe: the

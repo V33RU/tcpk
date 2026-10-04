@@ -573,6 +573,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkRegistryLoadPoints'  { Test-TcpkRegistryLoadPoints  -Path $expanded }
     _RunCheck 'Test-TcpkInstallerPlanting'   { Test-TcpkInstallerPlanting   -Path $expanded }
     _RunCheck 'Test-TcpkInstallerHostsWrite' { Test-TcpkInstallerHostsWrite -Path $expanded }
+    _RunCheck 'Test-TcpkLoopbackExempt'      { Test-TcpkLoopbackExempt      -Path $expanded }
     _RunCheck 'Test-TcpkMsiCustomActions'   { Test-TcpkMsiCustomActions    -Path $expanded }
     _RunCheck 'Test-TcpkMsiLaunchConditions' { Test-TcpkMsiLaunchConditions -Path $expanded }
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }

@@ -303,6 +303,7 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^comhijack\.managed-assembly-plantable';                                                                                                                A = 'local-privesc' }
     @{ Rx = '^comhijack\.server-missing-plantable';                                                                                                                  A = 'local-privesc' }
     @{ Rx = '^comhijack\.server-writable';                                                                                                                           A = 'local-privesc' }
+    @{ Rx = '^appcontainer\.loopback-exempt';                                                                                                                        A = 'hardening' }
     @{ Rx = '^comhijack\.';                                                                                                                                          A = 'hardening' }
     @{ Rx = '^wer\.dump-folder-readable';                                                                                                                            A = 'local-at-rest' }
     @{ Rx = '^crashreporter\.(dumps-present|db-user-writable)';                                                                                                      A = 'local-at-rest' }
