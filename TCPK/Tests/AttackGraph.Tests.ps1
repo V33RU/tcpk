@@ -8,6 +8,9 @@ BeforeAll {
     function New-F($rid, $sev) {
         & (Get-Module TCPK) { param($r, $s) New-TcpkFinding -Module 'x' -RuleId $r -Severity $s -Confidence 'Confirmed' -Title $r -File 'f' } $rid $sev
     }
+    function New-FP($rid, $sev, $file, $subject) {
+        & (Get-Module TCPK) { param($r,$s,$fl,$su) New-TcpkFinding -Module 'x' -RuleId $r -Severity $s -Confidence 'Confirmed' -Title $r -File $fl -Subject $su } $rid $sev $file $subject
+    }
 }
 
 Describe 'Get-TcpkAttackGraph' {
@@ -42,5 +45,35 @@ Describe 'Get-TcpkAttackGraph' {
         $demoted = & (Get-Module TCPK) { New-TcpkFinding -Module 'x' -RuleId 'callsites.command-execution' -Severity 'HIGH' -Confidence 'Likely-FP (LLM)' -Title 't' }
         $g = @(@((New-F 'protocol-handler.registered' 'MEDIUM'), $demoted) | Get-TcpkAttackGraph)
         ($g | Where-Object { $_.RuleId -eq 'attackgraph.reachable-goal' -and $_.Title -match 'Code execution' }) | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Privileged-writer join (relational, not presence)' {
+
+    # The sound half of the arbitrary-file-write class: a SYSTEM process whose image sits in
+    # a user-writable directory. Proven by path containment, so co-presence of an unrelated
+    # ProgramData folder does NOT trigger it.
+
+    It 'raises CRITICAL when the SYSTEM image is inside a user-writable dir' {
+        $priv = New-FP 'process.running-as-system' 'HIGH' 'svc.exe (PID 4)' 'C:\Program Files\App\svc.exe'
+        $wr   = New-FP 'install-dir.user-writable' 'MEDIUM' 'C:\Program Files\App' 'C:\Program Files\App'
+        $g = @(@($priv, $wr) | Get-TcpkAttackGraph)
+        ($g | Where-Object { $_.RuleId -eq 'attackgraph.privileged-writable-image' }) | Should -Not -BeNullOrEmpty
+        ($g | Where-Object { $_.RuleId -eq 'attackgraph.privileged-writable-image' })[0].Severity | Should -Be 'CRITICAL'
+    }
+
+    It 'does NOT fire for a SYSTEM process + an unrelated writable ProgramData dir' {
+        # The flood case the presence recipe was kept from doing. No containment -> no match.
+        $priv = New-FP 'process.running-as-system' 'HIGH' 'svc.exe (PID 4)' 'C:\Program Files\App\svc.exe'
+        $wr   = New-FP 'acl.programdata-user-writable' 'HIGH' 'C:\ProgramData\Other' 'C:\ProgramData\Other'
+        $g = @(@($priv, $wr) | Get-TcpkAttackGraph)
+        ($g | Where-Object { $_.RuleId -eq 'attackgraph.privileged-writable-image' }) | Should -BeNullOrEmpty
+    }
+
+    It 'does NOT fire when the privileged finding has no image path' {
+        $priv = New-F 'process.running-as-system' 'HIGH'
+        $wr   = New-FP 'install-dir.user-writable' 'MEDIUM' 'C:\Program Files\App' 'C:\Program Files\App'
+        $g = @(@($priv, $wr) | Get-TcpkAttackGraph)
+        ($g | Where-Object { $_.RuleId -eq 'attackgraph.privileged-writable-image' }) | Should -BeNullOrEmpty
     }
 }

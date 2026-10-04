@@ -4,6 +4,13 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+`attackgraph.privileged-writable-image` (CRITICAL). A process running as SYSTEM whose image
+sits inside a user-writable directory: replace the binary, run as SYSTEM. This is the sound
+half of the arbitrary-file-write class. It is a RELATIONAL join, not a presence recipe: the
+link is proven by path containment, so a SYSTEM service plus an unrelated writable ProgramData
+folder (co-presence, no containment) does not fire. The privileged finding now carries its
+image path in Subject so the graph can test it.
+
 `callsites.creates-filesystem-link` (MEDIUM, CWE-59). The app creating a symlink, hard link or
 reparse point is a redirection primitive; a privileged component creating one under a
 user-writable path is local privilege escalation. The twelve Project Zero symlink/reparse CVEs

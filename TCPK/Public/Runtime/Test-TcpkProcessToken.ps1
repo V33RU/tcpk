@@ -43,11 +43,18 @@ function Test-TcpkProcessToken {
 
         # Flag SYSTEM-running interactive processes (rare and worth noting)
         if ($owner -eq 'NT AUTHORITY\SYSTEM') {
+            # Subject carries the image path so the attack-graph join can test whether this
+            # privileged process runs from a user-writable directory. Falls back to empty,
+            # which the join treats as "no image path, cannot correlate".
+            $imgPath = ''
+            try { if ($wp -and $wp.ExecutablePath) { $imgPath = "$($wp.ExecutablePath)" } } catch { }
             New-TcpkFinding -Module 'runtime' -RuleId 'process.running-as-system' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title "$($p.Name) is running as SYSTEM" `
                 -File "$($p.Name) (PID $($p.Id))" `
+                -Subject $imgPath `
                 -Cwe @('CWE-250') `
+                -Evidence ("image=$imgPath") `
                 -Description 'SYSTEM is the highest local privilege; any code-exec primitive in this process becomes a full local compromise.'
         }
 

@@ -82,20 +82,13 @@ function Get-TcpkAttackGraph {
                     # not an escalation. Without it the pair still raises goal.rce above.
                     @('prim.hijackname', 'prim.loaddir', 'prim.priv')
 
-                    # DELIBERATELY ABSENT: @('prim.priv', 'prim.loaddir').
-                    # "A privileged process exists AND some load/trust directory is
-                    # user-writable" is the shape of the Windows arbitrary-file-write
-                    # escalation class, and adding it here would be a one-line change that
-                    # raises a CRITICAL goal. It is left out because the two halves are not
-                    # yet tied to each other: prim.priv can match a finding about one
-                    # process while prim.loaddir matches a directory that process never
-                    # loads from, and the recipe engine takes the FIRST finding per
-                    # category (see the $present loop above) rather than checking they
-                    # concern the same component. The honest version needs the writable
-                    # directory to be on that process's own load path, which is what
-                    # prim.hijackname supplies in the recipe above. Do not add the pair
-                    # without that link, or every target with a service and a writable
-                    # ProgramData folder reports CRITICAL SYSTEM compromise.
+                    # NOT a presence recipe: @('prim.priv', 'prim.loaddir') must not be
+                    # added here, because the recipe engine only checks co-presence and
+                    # would flood CRITICAL on any service plus an unrelated writable
+                    # ProgramData folder. The sound version of this join is done RELATIONALLY
+                    # above (attackgraph.privileged-writable-image), gated on path
+                    # containment: it fires only when the privileged image actually sits
+                    # inside the user-writable directory.
                 ) }
             @{ Id = 'goal.credtheft'; Label = 'Credential / session theft'; Sev = 'HIGH'; Cwe = @('CWE-522'); Recipes = @(
                     @('prim.secret', 'entry.network'), @('prim.authbypass', 'entry.network')
@@ -119,6 +112,71 @@ function Get-TcpkAttackGraph {
 
         $out = New-Object System.Collections.Generic.List[object]
         $anyGoal = $false
+
+        # RELATIONAL JOIN (not a presence recipe): a privileged process whose IMAGE lives
+        # inside a user-writable directory. This is the sound half of the arbitrary-file-write
+        # / privileged-writer class. The presence recipes deliberately omit prim.priv +
+        # prim.loaddir (see the comment on goal.system) because co-presence is not a chain:
+        # a SYSTEM service and a writable ProgramData folder it never loads from would flood
+        # CRITICAL. Here the link is PROVEN by path containment -- the privileged image
+        # directory and the writable path are in an ancestor/descendant relationship, which
+        # for a separate ProgramData directory is false and correctly does not match. The
+        # privileged finding carries its image path in Subject (Test-TcpkProcessToken).
+        $privRx = $catById['prim.priv'].Rx
+        $ddRx   = $catById['prim.loaddir'].Rx
+        function _normDir([string]$p) {
+            if (-not $p) { return '' }
+            try { $f = [IO.Path]::GetFullPath($p) } catch { return '' }
+            return $f.TrimEnd('').ToLowerInvariant()
+        }
+        function _contains([string]$a, [string]$b) {
+            # true if a == b or a is an ancestor of b
+            if (-not $a -or -not $b) { return $false }
+            return ($a -eq $b) -or $b.StartsWith($a + '')
+        }
+        $privFindings = @($all | Where-Object {
+            "$($_.Confidence)" -notmatch 'Likely-FP' -and "$($_.RuleId)" -match $privRx -and "$($_.Subject)"
+        })
+        $ddFindings = @($all | Where-Object {
+            "$($_.Confidence)" -notmatch 'Likely-FP' -and "$($_.RuleId)" -match $ddRx
+        })
+        $pwSeen = New-Object 'System.Collections.Generic.HashSet[string]'
+        foreach ($pf in $privFindings) {
+            $imgDir = _normDir ([IO.Path]::GetDirectoryName("$($pf.Subject)"))
+            if (-not $imgDir) { continue }
+            foreach ($df in $ddFindings) {
+                $raw = "$($df.File)"
+                # the writable path may be a file inside the tree or the directory itself
+                $wPath = _normDir $raw
+                $wDir  = $wPath
+                try { if ([IO.Path]::HasExtension($raw)) { $wDir = _normDir ([IO.Path]::GetDirectoryName($raw)) } } catch { }
+                if (-not $wDir) { continue }
+                # sound: the privileged image sits inside the user-writable tree (plant -> run as SYSTEM)
+                if (-not (_contains $wDir $imgDir)) { continue }
+                $key = "$imgDir|$wDir"
+                if (-not $pwSeen.Add($key)) { continue }
+                $anyGoal = $true
+                $nodes['ATTACKER']  = @{ Shape = 'stadium'; Label = 'Attacker' }
+                $nodes['prim.priv'] = @{ Shape = 'rect'; Label = $catById['prim.priv'].Label }
+                $nodes['prim.loaddir'] = @{ Shape = 'rect'; Label = $catById['prim.loaddir'].Label }
+                $nodes['goal.system']  = @{ Shape = 'hex'; Label = 'Local privilege escalation to SYSTEM' }
+                & $addEdge 'ATTACKER' 'prim.loaddir' $false 'local'
+                & $addEdge 'prim.loaddir' 'prim.priv' $false 'plant'
+                & $addEdge 'prim.priv' 'goal.system' $false $null
+                $out.Add((New-TcpkFinding -Module 'chain' -RuleId 'attackgraph.privileged-writable-image' -Severity 'CRITICAL' `
+                        -Confidence 'Inferred' -Cwe @('CWE-269','CWE-732') `
+                        -Title "Privileged process runs from a user-writable directory: $($pf.Title)" `
+                        -File $pf.Subject `
+                        -Evidence ("image=$($pf.Subject); user-writable=$($df.File) [$($df.RuleId)]") `
+                        -Description ("A process running as SYSTEM loads from '$imgDir', and '$wDir' in that tree is " +
+                            "writable by a standard user ($($df.RuleId)). Planting or replacing a file the process loads " +
+                            "runs as SYSTEM, which is local privilege escalation. Unlike the other attack-graph paths, " +
+                            "the link here is proven by path containment, not co-presence: the writable directory " +
+                            "actually contains the privileged image. Confirm which file the process loads from that " +
+                            "directory and that the ACL grant is reachable by a non-admin.")))
+            }
+        }
+
         foreach ($g in $goals) {
             $satisfied = @($g.Recipes | Where-Object { $r = $_; @($r | Where-Object { $present.ContainsKey($_) }).Count -eq @($r).Count })
             if (-not $satisfied.Count) { continue }
