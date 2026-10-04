@@ -4,6 +4,12 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+`callsites.creates-filesystem-link` (MEDIUM, CWE-59). The app creating a symlink, hard link or
+reparse point is a redirection primitive; a privileged component creating one under a
+user-writable path is local privilege escalation. The twelve Project Zero symlink/reparse CVEs
+are Windows-kernel bugs, not vendor bugs, so this flags only the vendor-owned half (the API
+the app calls), not an absence of reparse guards.
+
 Two fixes. `network-at-rest` was referenced by the gRPC reflection rule but defined in no
 archetype map, so it fell back to the local attack flavor and scored a network finding with
 AV:Local. Added to the flavor map as network.

@@ -271,3 +271,40 @@ public class CimClient {
         $src | Should -Not -Match 'remote-input-rce'
     }
 }
+
+Describe 'App creates a filesystem link (symlink/reparse residue)' {
+
+    # The twelve Project Zero symlink/reparse CVEs are all Windows-kernel bugs, not vendor
+    # bugs. The half a vendor owns is CREATING the link: a redirection primitive that becomes
+    # privilege escalation when a privileged component makes one under a user-writable path.
+    # This is a positive match (an API the app calls), not an absence proof.
+
+    BeforeAll {
+        $script:lnkFx = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-lnk-' + [guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Path $script:lnkFx | Out-Null
+        function New-LnkDll([string]$Name,[string]$Body){
+            $d=Join-Path $script:lnkFx $Name
+            try { Add-Type -TypeDefinition $Body -OutputAssembly $d -OutputType Library -ErrorAction Stop } catch { return $null }
+            if (Test-Path $d){ return $d }; return $null
+        }
+        $script:mk = New-LnkDll 'MakesLink.dll' @'
+public class MakesLink { public string a = "CreateSymbolicLinkW"; public string b = "CreateHardLinkW"; }
+'@
+        $script:plain = New-LnkDll 'PlainIo.dll' @'
+public class PlainIo { public string a = "CreateFileW"; public string b = "ReadFile"; public string c = "WriteFile"; }
+'@
+    }
+    AfterAll { if ($script:lnkFx -and (Test-Path $script:lnkFx)){ Remove-Item $script:lnkFx -Recurse -Force -ErrorAction SilentlyContinue } }
+
+    It 'flags an app that creates symlinks / hard links' {
+        if (-not $script:mk){ Set-ItResult -Skipped -Because 'C# compiler unavailable'; return }
+        @(Test-TcpkCallsites -Path $script:mk | Select-Object -ExpandProperty RuleId) |
+            Should -Contain 'callsites.creates-filesystem-link'
+    }
+
+    It 'does NOT flag plain file I/O' {
+        if (-not $script:plain){ Set-ItResult -Skipped -Because 'C# compiler unavailable'; return }
+        @(Test-TcpkCallsites -Path $script:plain | Select-Object -ExpandProperty RuleId) |
+            Should -Not -Contain 'callsites.creates-filesystem-link'
+    }
+}
