@@ -29,6 +29,7 @@ function Test-TcpkAppConfigSecrets {
 
         if ($t -match '(?is)<connectionStrings>[\s\S]*?(password|pwd)\s*=\s*[^;""\s<>]+') {
             New-TcpkFinding -Module 'creds' -RuleId 'app-config.connstring-password' `
+                -Description 'A database connection string in the application .config carries the password in plaintext. Anyone who can read the config file, which is any local user and anyone who obtains the shipped artifact, gets working database credentials with no further effort.' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title 'Connection string with embedded password in .config' `
                 -File $f.FullName -Evidence 'connectionStrings with Password=' `

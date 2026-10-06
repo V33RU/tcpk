@@ -93,6 +93,7 @@ function Test-TcpkSignature {
         $sig = Get-AuthenticodeSignature -FilePath $Path
         if ($sig.Status -ne 'Valid') {
             New-TcpkFinding -Module 'static' -RuleId 'authenticode.msix-not-valid' `
+                -Description 'The MSIX package signature does not validate. Without a valid signature the OS cannot confirm the package came from the stated publisher or that its contents are unmodified, so a tampered or repackaged build installs indistinguishably from the genuine one.' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title "MSIX signature status = $($sig.Status)" `
                 -File $Path -Evidence $sig.StatusMessage -Cwe @('CWE-347') `
@@ -154,6 +155,7 @@ function Test-TcpkSignature {
             }
             'HashMismatch' {
                 New-TcpkFinding -Module 'static' -RuleId 'authenticode.tampered' `
+                    -Description 'The PE Authenticode hash does not match its signature, so the file was modified after it was signed. The signature no longer vouches for these bytes and this binary cannot be trusted as the publisher''s.' `
                     -Severity 'HIGH' -Confidence 'Confirmed' `
                     -Title "$($pe.Name) HashMismatch -- file modified after signing" `
                     -File $pe.FullName -Evidence $sig.StatusMessage -Cwe @('CWE-347')

@@ -34,6 +34,7 @@ function Test-TcpkWv2HostObjects {
         }
         if ($text -match 'AreHostObjectsAllowed\s*=\s*true') {
             New-TcpkFinding -Module 'webview2' -RuleId 'webview2.are-host-objects-allowed' `
+                -Description 'WebView2 has AreHostObjectsAllowed set to true, so web content in the control can call the native host objects the app exposed. If any navigable content is remote or attacker-influenced, that web-to-native bridge is a code-execution path into the host process.' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title 'WebView2 AreHostObjectsAllowed=true' `
                 -File $pe.FullName -Evidence $matches[0] `

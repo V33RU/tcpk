@@ -37,6 +37,7 @@ function Test-TcpkServicePermissions {
                 if ($w) {
                     $grant = ($w | ForEach-Object { "$($_.IdentityReference) $($_.FileSystemRights)" }) -join '; '
                     New-TcpkFinding -Module 'os' -RuleId 'service.writable-binary' `
+                        -Description 'The service executable is writable by a non-admin user. The service account, usually LocalSystem, runs whatever is at that path, so replacing the binary is direct code execution as SYSTEM.' `
                         -Severity 'HIGH' -Confidence 'Confirmed' `
                         -Title "Service '$($s.Name)' binary writable by non-admin" `
                         -File $exe -Evidence $grant -Cwe @('CWE-732')
@@ -47,6 +48,7 @@ function Test-TcpkServicePermissions {
         $sddl = & sc.exe sdshow $s.Name 2>$null
         if ($sddl -and ($sddl -match 'D:[^;]*?\(A;;[^;]*?[KW][CD][^;]*?;;[^;]*?(WD|BU|AU)\)')) {
             New-TcpkFinding -Module 'os' -RuleId 'service.weak-dacl' `
+                -Description 'The service DACL grants a non-admin principal control-class access: change config, start or stop, or change permissions. A standard user can repoint the service binary or account and gain code execution as the service account.' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title "Service '$($s.Name)' grants control-class access to non-admin" `
                 -File $s.Name -Evidence ($sddl -join ' ') -Cwe @('CWE-732')

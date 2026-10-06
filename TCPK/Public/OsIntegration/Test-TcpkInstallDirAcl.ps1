@@ -32,6 +32,7 @@ function Test-TcpkInstallDirAcl {
         if ($bad) {
             $grant = ($bad | ForEach-Object { "$($_.IdentityReference) -> $($_.FileSystemRights)" }) -join '; '
             New-TcpkFinding -Module 'os' -RuleId 'install-dir.user-writable' `
+                -Description 'An item in the application install directory is writable by a non-admin user, in a location the app and its services load from with elevated trust. A standard user replaces that file and the next privileged load runs attacker-controlled content, which is local privilege escalation.' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title "User-writable item in admin install context: $($e.Name)" `
                 -File $e.FullName -Evidence $grant `

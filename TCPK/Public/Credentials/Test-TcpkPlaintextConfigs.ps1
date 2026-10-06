@@ -48,6 +48,7 @@ function Test-TcpkPlaintextConfigs {
                 if ($hit -match $placeholderRx) { continue }   # template/placeholder, not a real secret
                 # value shown in full (un-redacted)
                 New-TcpkFinding -Module 'creds' -RuleId "config.$($r.N)" `
+                    -Description 'A config or data file shipped with the application contains a token-shaped secret in plaintext (a JWT, bearer token, API key, connection-string password or similar). Anyone who can read the file, which is any local user and anyone who obtains the artifact, gets the live credential; placeholder and template values are filtered out so this fires only on real-looking secrets.' `
                     -Severity 'HIGH' -Confidence 'Confirmed' `
                     -Title "Token-shaped string in $($f.Name)" `
                     -File $f.FullName -Evidence $hit `

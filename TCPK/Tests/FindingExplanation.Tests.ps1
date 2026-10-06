@@ -26,9 +26,43 @@ Describe 'CRITICAL and HIGH findings explain themselves' {
     BeforeAll {
         $script:PublicDir = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'Public'
 
-        # Walk every New-TcpkFinding invocation, following backtick continuations, and
-        # report the CRITICAL/HIGH ones that carry neither -Description nor -Impact.
-        # A single-line grep cannot do this: these calls routinely span eight lines.
+        # Walk every New-TcpkFinding invocation and report the CRITICAL/HIGH ones that carry
+        # neither -Description nor -Impact. A single-line grep cannot do this: these calls
+        # routinely span eight lines. A call continues onto the next line when the current line
+        # ends with a backtick OR a bracket is still open, so -Description written as a
+        # multi-line ('...' + '...') argument is seen, not missed. Brackets inside string
+        # literals do not count, so the quoted text of a message cannot end the walk early.
+        $stripStrings = {
+            param([string]$s)
+            $sb = New-Object System.Text.StringBuilder
+            $k = 0
+            while ($k -lt $s.Length) {
+                $c = $s[$k]
+                if ($c -eq "'") {
+                    $k++
+                    while ($k -lt $s.Length) {
+                        if ($s[$k] -eq "'") {
+                            if ($k + 1 -lt $s.Length -and $s[$k + 1] -eq "'") { $k += 2; continue }
+                            $k++; break
+                        }
+                        $k++
+                    }
+                } elseif ($c -eq '"') {
+                    $k++
+                    while ($k -lt $s.Length) {
+                        if ($s[$k] -eq '"') {
+                            if ($k + 1 -lt $s.Length -and $s[$k + 1] -eq '"') { $k += 2; continue }
+                            $k++; break
+                        }
+                        $k++
+                    }
+                } else {
+                    [void]$sb.Append($c); $k++
+                }
+            }
+            $sb.ToString()
+        }
+
         $script:Unexplained = @()
         foreach ($file in (Get-ChildItem -LiteralPath $script:PublicDir -Recurse -File -Filter '*.ps1' | Sort-Object FullName)) {
             $lines = [IO.File]::ReadAllLines($file.FullName)
@@ -39,9 +73,13 @@ Describe 'CRITICAL and HIGH findings explain themselves' {
 
                 $buf = New-Object 'System.Collections.Generic.List[string]'
                 $j = $i
+                $depth = 0
                 while ($j -lt $lines.Count) {
                     $buf.Add($lines[$j])
-                    if (-not $lines[$j].TrimEnd().EndsWith('`')) { break }
+                    $stripped = & $stripStrings $lines[$j]
+                    $depth += ([regex]::Matches($stripped, '[\(\[\{]').Count - [regex]::Matches($stripped, '[\)\]\}]').Count)
+                    $endBacktick = $lines[$j].TrimEnd().EndsWith('`')
+                    if (-not $endBacktick -and $depth -le 0) { break }
                     $j++
                 }
                 $call = ($buf.ToArray()) -join "`n"
@@ -59,29 +97,9 @@ Describe 'CRITICAL and HIGH findings explain themselves' {
 
         # The backlog, worst severity first when it was captured. Delete a line when you
         # write that rule's explanation. Do not add to it without a reason in the commit.
-        $script:KnownMissing = @(
-            'Test-TcpkPlaintextConfigs:dynamic'
-            'app-config.connstring-password'
-            'authenticode.msix-not-valid'
-            'authenticode.tampered'
-            'authmatrix.no-auth-accepted'
-            'authmatrix.vertical-escalation'
-            'dpapi.user-decryptable'
-            'fuzz.crash-minimized'
-            'install-dir.user-writable'
-            'javasign.incomplete-coverage'
-            'jni.library-path-writable'
-            'jni.manifest-classpath-writable'
-            'jwt.nbf-not-enforced-accepted'
-            'jwt.privilege-escalation-accepted'
-            'loadpoint.writable'
-            'service.unquoted-path'
-            'service.weak-dacl'
-            'service.writable-binary'
-            'wcf.basichttp-cleartext'
-            'wcf.no-auth'
-            'webview2.are-host-objects-allowed'
-        )
+        # Empty: every CRITICAL/HIGH emitter now carries -Description or -Impact. If a new
+        # one lands without either, write the explanation rather than re-populating this.
+        $script:KnownMissing = @()
     }
 
     It 'finds emitters to check at all' {

@@ -27,6 +27,7 @@
     })
     foreach ($s in $svcs) {
         New-TcpkFinding -Module 'os' -RuleId 'service.unquoted-path' `
+            -Description 'The service ImagePath is unquoted and contains spaces. Windows resolves such a path by trying each space-delimited prefix, so a file planted at an earlier prefix (for example C:\Program.exe) runs as the service account instead of the real binary.' `
             -Severity 'HIGH' -Confidence 'Confirmed' `
             -Title "Unquoted service path: $($s.Name)" `
             -File $s.Name -Evidence $s.PathName -Cwe @('CWE-428') `

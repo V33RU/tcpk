@@ -42,6 +42,7 @@ function Test-TcpkDpapiBlobs {
             $prev = ([Text.Encoding]::UTF8.GetString($clear) -replace '[^\x20-\x7E]','.')
             if ($prev.Length -gt 120) { $prev = $prev.Substring(0,120) }
             New-TcpkFinding -Module 'creds' -RuleId 'dpapi.user-decryptable' `
+                -Description 'The DPAPI blob is protected to CurrentUser scope, so it decrypts with nothing beyond being logged in as that user. Any code running in the user session, malware included, recovers the plaintext by calling Unprotect. This protects data from other users, not from the user''s own context.' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title 'DPAPI CurrentUser blob -- decryptable as logged-in user' `
                 -File $f.FullName -Evidence $prev `

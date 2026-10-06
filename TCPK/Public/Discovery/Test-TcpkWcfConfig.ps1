@@ -29,6 +29,7 @@ function Test-TcpkWcfConfig {
         if ($t -match '(?i)BasicHttpBinding' -and
             $t -notmatch '(?i)security mode="(Transport|TransportWithMessageCredential)') {
             New-TcpkFinding -Module 'static' -RuleId 'wcf.basichttp-cleartext' `
+                -Description 'A WCF BasicHttpBinding is configured without transport security, so SOAP traffic including any credentials travels in cleartext over HTTP and an on-path attacker reads or tampers with it.' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title "BasicHttpBinding without transport security (cleartext SOAP)" `
                 -File $f.FullName -Evidence 'BasicHttpBinding without security mode=Transport' `
@@ -38,6 +39,7 @@ function Test-TcpkWcfConfig {
 
         if ($t -match '<authentication[^>]*mode="None"') {
             New-TcpkFinding -Module 'static' -RuleId 'wcf.no-auth' `
+                -Description 'The WCF service is declared with authentication mode None. The endpoint performs no caller authentication, so any client that can reach it invokes its operations.' `
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title "WCF service declared with authentication mode='None'" `
                 -File $f.FullName -Evidence 'authentication mode="None"' `

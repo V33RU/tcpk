@@ -62,12 +62,13 @@ function Test-TcpkCredentialLiterals {
             $litTotal = 0
             foreach ($s in $sites) { $litTotal = $litTotal + [int]$s.LiteralCount }
 
+            $ev = "$litTotal string literal(s) loaded as arguments to " + ($apis -join ', ') +
+                  " at $($first.Type)::$($first.Method) ($($first.Token))"
             New-TcpkFinding -Module 'creds' -RuleId 'secrets.code-literal-credential' `
                 -Severity 'HIGH' -Confidence 'Confirmed (IL)' `
                 -Title "Credential passed as a hardcoded literal in $($pe.Name): $($first.Type)::$($first.Method)" `
                 -File $pe.FullName `
-                -Evidence ("$litTotal string literal(s) loaded as arguments to " + ($apis -join ', ') +
-                           " at $($first.Type)::$($first.Method) ($($first.Token))") `
+                -Evidence $ev `
                 -Cwe @('CWE-798', 'CWE-259') `
                 -Description ("String constants are loaded straight into an API that takes a credential, so the " +
                     "secret is compiled into this assembly. Every copy of the application carries it, anyone who " +
