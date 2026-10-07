@@ -1866,6 +1866,13 @@ $lblTgtP = New-Object System.Windows.Forms.Label; $lblTgtP.Text = "Target host/U
 $txtTargetP = New-Object System.Windows.Forms.TextBox; $txtTargetP.Location = New-Object System.Drawing.Point(144,95); $txtTargetP.Size = New-Object System.Drawing.Size(270,24); $txtTargetP.Font = New-Object System.Drawing.Font('Consolas', 9); $txtTargetP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtTargetP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtTargetP)
 $chkConfirmP = New-Object System.Windows.Forms.CheckBox; $chkConfirmP.Text = "confirm (send)"; $chkConfirmP.ForeColor = [System.Drawing.Color]::White; $chkConfirmP.Location = New-Object System.Drawing.Point(430,97); $chkConfirmP.Size = New-Object System.Drawing.Size(132,20); $gbActive.Controls.Add($chkConfirmP)
 $chkUnsafeP = New-Object System.Windows.Forms.CheckBox; $chkUnsafeP.Text = "allow unsafe verbs"; $chkUnsafeP.ForeColor = [System.Drawing.Color]::White; $chkUnsafeP.Location = New-Object System.Drawing.Point(566,97); $chkUnsafeP.Size = New-Object System.Drawing.Size(162,20); $gbActive.Controls.Add($chkUnsafeP)
+# Param tamper + Auth matrix: placed in the empty area right of the request box so no existing
+# control moves. Both reuse the raw request + target + gate; Auth matrix builds a two-role set
+# (A from the request's own creds, B from the B-token field) for the common vertical-escalation
+# check, and points at the CLI for richer role lists.
+$btnPtamperP = New-Object System.Windows.Forms.Button; $btnPtamperP.Text = "Param tamper"; $btnPtamperP.Location = New-Object System.Drawing.Point(730,42); $btnPtamperP.Size = New-Object System.Drawing.Size(120,26); $btnPtamperP.FlatStyle = 'Flat'; $btnPtamperP.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnPtamperP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnPtamperP)
+$btnAuthMxP = New-Object System.Windows.Forms.Button; $btnAuthMxP.Text = "Auth matrix"; $btnAuthMxP.Location = New-Object System.Drawing.Point(856,42); $btnAuthMxP.Size = New-Object System.Drawing.Size(120,26); $btnAuthMxP.FlatStyle = 'Flat'; $btnAuthMxP.BackColor = [System.Drawing.Color]::FromArgb(155,0,0); $btnAuthMxP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($btnAuthMxP)
+$lblActHint2 = New-Object System.Windows.Forms.Label; $lblActHint2.Text = "Param tamper: one request, every param. Auth matrix: A (this request) vs B token; more roles via CLI."; $lblActHint2.ForeColor = [System.Drawing.Color]::FromArgb(140,140,140); $lblActHint2.Location = New-Object System.Drawing.Point(730,72); $lblActHint2.Size = New-Object System.Drawing.Size(412,34); $gbActive.Controls.Add($lblActHint2)
 $lblSwapP = New-Object System.Windows.Forms.Label; $lblSwapP.Text = "IDOR swap id:"; $lblSwapP.ForeColor = [System.Drawing.Color]::White; $lblSwapP.Location = New-Object System.Drawing.Point(12,126); $lblSwapP.Size = New-Object System.Drawing.Size(106,18); $gbActive.Controls.Add($lblSwapP)
 $txtSwapP = New-Object System.Windows.Forms.TextBox; $txtSwapP.Location = New-Object System.Drawing.Point(120,123); $txtSwapP.Size = New-Object System.Drawing.Size(82,24); $txtSwapP.BackColor = [System.Drawing.Color]::FromArgb(45,45,48); $txtSwapP.ForeColor = [System.Drawing.Color]::White; $gbActive.Controls.Add($txtSwapP)
 $lblSecondP = New-Object System.Windows.Forms.Label; $lblSecondP.Text = "B token:"; $lblSecondP.ForeColor = [System.Drawing.Color]::White; $lblSecondP.Location = New-Object System.Drawing.Point(206,126); $lblSecondP.Size = New-Object System.Drawing.Size(68,18); $gbActive.Controls.Add($lblSecondP)
@@ -1913,6 +1920,32 @@ $btnJwtAttackP.Add_Click({
     if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
     if ($txtSecretP.Text.Trim()) { $p.Secret = $txtSecretP.Text.Trim() }
     Invoke-IcptTool $txtOutR "JWT attack (live)" { Invoke-TcpkJwtAttack @p }
+})
+$btnPtamperP.Add_Click({
+    if (-not (Test-IcptGate $chkGateR $txtOutR)) { return }
+    $p = @{ RequestText = $txtReqP.Text; Target = $txtTargetP.Text.Trim() }
+    if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
+    if ($chkUnsafeP.Checked) { $p.AllowUnsafeMethods = $true }
+    Invoke-IcptTool $txtOutR "Param tamper (live)" { Invoke-TcpkParamTamper @p }
+})
+$btnAuthMxP.Add_Click({
+    if (-not (Test-IcptGate $chkGateR $txtOutR)) { return }
+    # Two-role matrix: role A from the request's own creds, role B from the B-token field.
+    $auth   = ([regex]::Match($txtReqP.Text, '(?im)^Authorization:\s*(.+)$')).Groups[1].Value.Trim()
+    $cookie = ([regex]::Match($txtReqP.Text, '(?im)^Cookie:\s*(.+)$')).Groups[1].Value.Trim()
+    $roleA = @{ Name = 'A' }
+    if ($auth)   { $roleA.Header = "Authorization: $auth" }
+    if ($cookie) { $roleA.Cookie = $cookie }
+    $roleB = @{ Name = 'B' }
+    if ($txtSecondP.Text.Trim()) { $roleB.Header = "Authorization: Bearer $($txtSecondP.Text.Trim())" }
+    if (-not ($roleA.Header -or $roleA.Cookie) -or -not $roleB.Header) {
+        $txtOutR.AppendText("Auth matrix needs identity A creds in the request (Authorization or Cookie) and a B token. For more than two roles, use the CLI: Invoke-TcpkAuthMatrix -Role @(@{Name='admin';Header='...'},@{Name='user';Header='...'}).`r`n")
+        return
+    }
+    $p = @{ RequestText = $txtReqP.Text; Target = $txtTargetP.Text.Trim(); Role = @($roleA, $roleB) }
+    if ($chkConfirmP.Checked) { $p.ConfirmActive = $true }
+    if ($chkUnsafeP.Checked) { $p.AllowUnsafeMethods = $true }
+    Invoke-IcptTool $txtOutR "Auth matrix (live)" { Invoke-TcpkAuthMatrix @p }
 })
 $tabPcap.Controls.Add($ctlP)
 

@@ -414,6 +414,10 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkXxe'                 { Test-TcpkXxe                 -Path $expanded }
     _RunCheck 'Test-TcpkWcfConfig'           { Test-TcpkWcfConfig           -Path $expanded }
     _RunCheck 'Test-TcpkCodeIntegrity'       { Test-TcpkCodeIntegrity       -Path $Target   }
+    # Whole-file embedded-format scan on the ORIGINAL artifact (installer / single exe),
+    # where a PE / archive / database / private key is carried at an undeclared offset.
+    # Scanned against $Target, not the expanded tree, to keep it to the primary artifact.
+    _RunCheck 'Test-TcpkEmbeddedBlobs'       { Test-TcpkEmbeddedBlobs       -Path $Target   }
     _RunCheck 'Test-TcpkReflectionLoading'   { Test-TcpkReflectionLoading   -Path $expanded }
     _RunCheck 'Test-TcpkPInvokeSurface'      { Test-TcpkPInvokeSurface      -Path $expanded }
     _RunCheck 'Test-TcpkHollowingApis'     { Test-TcpkHollowingApis       -Path $expanded }
@@ -639,9 +643,18 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkLocalDb'             { Test-TcpkLocalDb             -Path $expanded -NameLike $idTerms }
     if ($idTerms.Count) {
         _RunCheck 'Test-TcpkCredentialManager'  { Test-TcpkCredentialManager  -NameLike $idTerms }
-        # WebView2 creds need PackageFamilyName not Name; defer to user passing it
-        if ($PSBoundParameters.ContainsKey('PackageFamilyName')) {
-            _RunCheck 'Test-TcpkWebViewCreds'   { Test-TcpkWebViewCreds       -PackageFamilyName $PackageFamilyName }
+        # WebView2 creds need a PackageFamilyName: the cred store lives under
+        # %LOCALAPPDATA%\Packages\<PFN>\AC\... . Use the operator-supplied PFN, else derive it
+        # from a WindowsApps install path (the only place it reads reliably without querying the
+        # operator's installed packages). If neither yields one, record the check as GatedNoPfn
+        # so coverage.json shows it was deliberately not run rather than silently absent.
+        $wvPfn = if ($PSBoundParameters.ContainsKey('PackageFamilyName')) { $PackageFamilyName } else { '' }
+        if (-not $wvPfn) { $wvPfn = Get-TcpkPackageFamilyFromPath -Path $Target }
+        if (-not $wvPfn) { $wvPfn = Get-TcpkPackageFamilyFromPath -Path $expanded }
+        if ($wvPfn) {
+            _RunCheck 'Test-TcpkWebViewCreds'   { Test-TcpkWebViewCreds       -PackageFamilyName $wvPfn }
+        } else {
+            Add-TcpkCoverage -Name 'Test-TcpkWebViewCreds' -Status 'GatedNoPfn'
         }
         _RunCheck 'Test-TcpkBrowserTokenStore'  { Test-TcpkBrowserTokenStore  -NameLike $idTerms }
         _RunCheck 'Test-TcpkChromiumCleartextStores' { Test-TcpkChromiumCleartextStores -NameLike $idTerms }

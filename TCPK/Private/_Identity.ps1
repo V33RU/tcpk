@@ -160,6 +160,20 @@ function Test-TcpkPathUnderTarget {
     } catch { return $false }
 }
 
+# Derive an MSIX PackageFamilyName from a WindowsApps install path. The installed-package
+# folder is named <Name>_<version>_<arch>__<publisherId>, and the family name is
+# <Name>_<publisherId>. Returns '' when the path is not a WindowsApps package path. This reads
+# ONLY the path string (no Get-AppxPackage), so nothing about the operator's other installed
+# packages can leak in -- the same derivation the web host's Auto-Detect uses.
+function Get-TcpkPackageFamilyFromPath {
+    [CmdletBinding()] param([AllowNull()][string]$Path)
+    if (-not $Path) { return '' }
+    if ("$Path" -match 'WindowsApps[\\/]([A-Za-z0-9.\-]+)_[\d.]+_[a-z0-9]+__([a-z0-9]+)') {
+        return "$($matches[1])_$($matches[2])"
+    }
+    return ''
+}
+
 # Normalize a -NameLike term set: drop blanks and the legacy '*' wildcard sentinel.
 # Returns string[] (possibly empty). Use for the survey-style checks.
 function Get-TcpkNameTerms {

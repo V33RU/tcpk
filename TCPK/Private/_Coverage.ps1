@@ -4,7 +4,7 @@
 # implemented, or failed -- so "was this audit 100%?" is answerable instead of invisible.
 # Written to coverage.json and surfaced in the HTML/Excel reports + a console summary line.
 
-$script:TcpkCoverageStatuses = @('Ran','SkippedQuickProfile','GatedNoProcess','GatedNoTerms','NeedsElevation','NotImplemented','Failed')
+$script:TcpkCoverageStatuses = @('Ran','SkippedQuickProfile','GatedNoProcess','GatedNoTerms','GatedNoPfn','NeedsElevation','NotImplemented','Failed')
 
 function Clear-TcpkCoverage {
     $script:TcpkCoverage = New-Object 'System.Collections.Generic.List[object]'
@@ -62,7 +62,7 @@ function New-TcpkCoverageManifest {
     $totals = [ordered]@{
         ran            = @($cov | Where-Object { $_.status -eq 'Ran' }).Count
         skippedQuick   = @($cov | Where-Object { $_.status -eq 'SkippedQuickProfile' }).Count
-        gated          = @($cov | Where-Object { $_.status -in 'GatedNoProcess','GatedNoTerms' }).Count
+        gated          = @($cov | Where-Object { $_.status -in 'GatedNoProcess','GatedNoTerms','GatedNoPfn' }).Count
         needsElevation = @($cov | Where-Object { $_.status -eq 'NeedsElevation' }).Count
         notImplemented = @($cov | Where-Object { $_.status -eq 'NotImplemented' }).Count
         failed         = @($cov | Where-Object { $_.status -eq 'Failed' }).Count

@@ -162,6 +162,10 @@ function Get-TcpkAgentModules {
 # a cmdlet + how it is invoked (process / system-wide / target-path). The gated ETW DLL-hijack
 # trace and the heavy memory dump are deliberately NOT in the map, so this pane can never
 # launch, instrument, or dump a target -- it only reads live state.
+# Test-TcpkClipboardSecrets and Test-TcpkDllSearchTrace are also deliberately excluded: both
+# are time-bounded LIVE CAPTURES (the clipboard check polls for -DurationSec, default 30s),
+# not instant reads, so they would block a single request/response for their whole window.
+# They stay GUI-only, where a progress bar and cancellation fit; this is intentional, not a gap.
 function Get-TcpkAgentRuntime {
     [CmdletBinding()] param([string]$Check, [string]$Process, [string]$Path)
     $map = @{

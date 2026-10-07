@@ -259,6 +259,15 @@ $script:ToolHandlers = @{
             }
             $params.ProcessName = $proc
         }
+        # Optional scan profile. Validate against the known set so a model cannot push an
+        # arbitrary string into -ScanProfile; the GUI and web host both pass this already.
+        $scanProfile = Get-Arg $a 'profile'
+        if ($scanProfile) {
+            if ("$scanProfile" -notin 'Quick','Standard','Full') {
+                throw "Refused: profile '$scanProfile' is not one of Quick, Standard, Full."
+            }
+            $params.ScanProfile = "$scanProfile"
+        }
         Log-Stderr "tcpk_audit start: $target -> $outDir"
         Invoke-TcpkAudit @params *>$null
         Log-Stderr "tcpk_audit done"
@@ -457,6 +466,7 @@ $script:ToolDefs = @(
             target = @{ type = 'string'; description = 'MSIX file or install directory' }
             packageName = @{ type = 'string'; description = 'e.g. YourApp -- enables OS/registry/service checks' }
             processName = @{ type = 'string'; description = 'e.g. "YourApp" -- enables live-process checks if running' }
+            profile = @{ type = 'string'; enum = @('Quick','Standard','Full'); description = 'Scan depth. Quick runs a fast subset; Standard/Full run everything. Defaults to Full.' }
             outDir = @{ type = 'string'; description = 'Output directory. Must resolve inside the TCPK tool folder; UNC paths are refused.' }
             runInstaller = @{ type = 'boolean'; description = 'Required ONLY for an .msi target. TCPK unpacks an .msi by running it (msiexec /a), which executes the installer''s own custom actions on this machine. Leave unset for any other target type.' }
         }; required = @('target') } },
