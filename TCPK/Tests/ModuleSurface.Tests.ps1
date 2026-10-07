@@ -52,7 +52,10 @@ Describe 'GUI does not call module-private helpers from GUI scope' {
         # handler. Approximate that structurally: count the calls, and require at least
         # as many `& $mod {` module-scope entries in the file.
         $calls = ([regex]::Matches($src, 'New-TcpkFinding')).Count
-        if ($calls -eq 0) { $true | Should -BeTrue; return }
+        # The GUI is known to construct findings (Clipboard + DLL-search transcripts), so zero
+        # matches means the scan regex broke, not that the invariant holds. Fail loudly instead
+        # of passing vacuously, which would silently stop this guard from guarding anything.
+        $calls | Should -BeGreaterThan 0 -Because 'the GUI constructs findings; zero matches means the scan broke'
         $modScopes = ([regex]::Matches($src, '&\s*\$mod\s*\{')).Count
         $modScopes | Should -BeGreaterThan 0 -Because 'a private helper can only be reached via & $mod { }'
     }

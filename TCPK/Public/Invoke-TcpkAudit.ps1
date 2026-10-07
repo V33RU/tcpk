@@ -587,6 +587,24 @@ function Invoke-TcpkAudit {
     # All name-targeted checks are app-aware: they take the FULL derived term set so
     # they find data keyed by product code / CLSID / brand name / vendor, not just one
     # hand-typed package name. They run whenever any term was derived (or supplied).
+    # When NO identity term was derived, these three blocks are skipped. Record them as
+    # GatedNoTerms so coverage.json shows them as deliberately not run (the same honesty as
+    # GatedNoProcess for the live-process bucket), rather than silently omitting them. One
+    # list, recorded once, because all three blocks share the $idTerms.Count condition.
+    $nameGatedChecks = @(
+        'Test-TcpkRegistryFootprint','Test-TcpkRegistryAcl','Test-TcpkRegistryValues',
+        'Test-TcpkFirewallRules','Test-TcpkAvExclusions','Test-TcpkServiceBinaryAcl',
+        'Test-TcpkMailslotDacl','Test-TcpkServicePermissions','Test-TcpkUnquotedServicePath',
+        'Test-TcpkUninstallStringHijack','Test-TcpkAutoStart','Test-TcpkProgramDataAcls',
+        'Test-TcpkScheduledTaskAcl','Test-TcpkWmiPersistence','Test-TcpkProtocolHandlers',
+        'Test-TcpkShimCache','Test-TcpkAppPaths','Test-TcpkIfeoHijack',
+        'Test-TcpkCredentialManager','Test-TcpkBrowserTokenStore','Test-TcpkChromiumCleartextStores',
+        'Test-TcpkNamedPipes','Test-TcpkNamedPipeDacl','Test-TcpkComObjects',
+        'Test-TcpkComPrivilegeEscalation','Test-TcpkMailslotsAlpc'
+    )
+    if (-not $idTerms.Count) {
+        foreach ($n in $nameGatedChecks) { Add-TcpkCoverage -Name $n -Status 'GatedNoTerms' }
+    }
     if ($idTerms.Count) {
         _RunCheck 'Test-TcpkRegistryFootprint'   { Test-TcpkRegistryFootprint   -NameLike $idTerms }
         _RunCheck 'Test-TcpkRegistryAcl'         { Test-TcpkRegistryAcl         -NameLike $idTerms }

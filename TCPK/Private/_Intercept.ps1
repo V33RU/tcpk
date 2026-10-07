@@ -151,7 +151,8 @@ function Add-TcpkElectronProxyArgs {
 }
 
 # Luhn check -- keeps the payment-card (PAN) response-mining rule from firing on any
-# random 13-16 digit run. Returns $true only for a Luhn-valid digit string.
+# random digit run. A PAN is 13 to 19 digits (Amex 15, Visa 13/16, Maestro up to 19),
+# so the length window is 13-19. Returns $true only for a Luhn-valid digit string.
 function Test-TcpkLuhn {
     [CmdletBinding()] param([string]$Digits)
     $d = "$Digits" -replace '\D', ''
