@@ -13,11 +13,17 @@ function Test-TcpkIfeoHijack {
 .PARAMETER NameLike
     Substring to match against the .exe key name (default '*').
 
+.PARAMETER Path
+    The audited target's install/expand root. An IFEO/SilentProcessExit entry is reported at
+    its actionable severity only when the substituted binary (Debugger / MonitorProcess)
+    resolves inside this tree; an entry on the operator's machine that merely name-matches is
+    reported AMBIENT at INFO.
+
 .OUTPUTS
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string[]]$NameLike = @())
+    param([string[]]$NameLike = @(), [string]$Path)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkIfeoHijack')) { return }
 
@@ -31,12 +37,14 @@ function Test-TcpkIfeoHijack {
         $debugger = (Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction SilentlyContinue).Debugger
         if (-not $debugger) { continue }
 
+        $sa = Resolve-TcpkHostStateBasis -ImagePath $debugger -TargetRoot $Path -ActionableSeverity 'HIGH' -Subject $k.PSPath -MatchDetail "IFEO entry '$($k.PSChildName)' matched target term"
         New-TcpkFinding -Module 'os' -RuleId 'ifeo.debugger-hijack' `
-            -Severity 'HIGH' -Confidence 'Confirmed' `
+            -Severity $sa.Severity -Confidence 'Confirmed' `
             -Title "IFEO debugger hijack: $($k.PSChildName) -> $debugger" `
             -File $k.PSPath -Evidence $debugger `
             -Cwe @('CWE-732','CWE-426') `
             -Description 'The OS replaces the named executable with the configured Debugger at launch. Unexpected entries are persistence / privesc primitives.' `
+            -AttributionBasis $sa.Basis -Subject $sa.Subject `
             -Fix 'Confirm legitimacy. Remove the Debugger value if unintended.'
     }
 
@@ -67,11 +75,13 @@ function Test-TcpkIfeoHijack {
             try { $flag = (Get-ItemProperty -LiteralPath $ifeoKey -ErrorAction SilentlyContinue).GlobalFlag } catch { }
             $armed = ($flag -and ([int]$flag -band 0x200))
             $sev = if ($armed) { 'HIGH' } else { 'MEDIUM' }
+            $sa = Resolve-TcpkHostStateBasis -ImagePath $monitor -TargetRoot $Path -ActionableSeverity $sev -Subject $k.PSPath -MatchDetail "SilentProcessExit entry '$($k.PSChildName)' matched target term"
             New-TcpkFinding -Module 'os' -RuleId 'ifeo.silent-process-exit' `
-                -Severity $sev -Confidence 'Confirmed' `
+                -Severity $sa.Severity -Confidence 'Confirmed' `
                 -Title "SilentProcessExit callback: $($k.PSChildName) -> $monitor" `
                 -File $k.PSPath -Evidence "MonitorProcess=$monitor; LocalDumpFolder=$folder; ReportingMode=$mode; GlobalFlag=$flag (armed=$armed)" `
                 -Cwe @('CWE-732','CWE-426','CWE-269') `
+                -AttributionBasis $sa.Basis -Subject $sa.Subject `
                 -Description ('An entry under HKLM\...\SilentProcessExit\<exe> tells Windows to spawn ' +
                     'MonitorProcess as SYSTEM when the named executable exits normally. Persistence + ' +
                     'privilege-escalation primitive; unlike IFEO Debugger it only fires on process EXIT, ' +

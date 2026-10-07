@@ -172,13 +172,18 @@ function Test-TcpkPersistenceLoadPoints {
         $inTree = if ($target) { _AnnotateInTree $target } else { '' }
         $ev = "value='$value'; resolved='$target'; $($tw.What)$inTree"
         if ($tw.Grant) { $ev += "; $($tw.Grant)" }
+        # These load points are fixed machine-wide OS keys (Winlogon / boot / LSA): present on
+        # every host regardless of the target. Report at the actionable tier only when the value
+        # resolves to a file inside the audited tree (install-footprint); otherwise it is operator
+        # machine state and CAP8 reframes it AMBIENT/INFO.
+        $sa = Resolve-TcpkHostStateBasis -ImagePath $target -TargetRoot $Path -ActionableSeverity $sev -Subject $target -MatchDetail "$ruleId load point ($file)"
         New-TcpkFinding -Module 'os' -RuleId $ruleId `
-            -Severity $sev -Confidence 'Confirmed' `
+            -Severity $sa.Severity -Confidence 'Confirmed' `
             -Title $title -File $file -Evidence $ev `
-            -Cwe @($cwe1, $cwe2) -Description $desc -Fix $fix
+            -Cwe @($cwe1, $cwe2) -Description $desc -AttributionBasis $sa.Basis -Subject $sa.Subject -Fix $fix
         if ($tw.Writable) {
             New-TcpkFinding -Module 'os' -RuleId 'loadpoint.value-target-writable' `
-                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Severity ($(if ($sa.Established) { 'HIGH' } else { 'INFO' })) -Confidence 'Confirmed' `
                 -Title "Load-point target is non-admin writable: $target" `
                 -File $target -Evidence "reached via $ruleId : $($tw.What); $($tw.Grant)" `
                 -Cwe @('CWE-732','CWE-427') `
@@ -186,6 +191,7 @@ function Test-TcpkPersistenceLoadPoints {
                     'a non-admin principal a right that permits replacing / creating the load target. Any ' +
                     'user who fits the grant can plant code that the load point will then run as the host ' +
                     'process principal (SYSTEM for logon / smss / spoolsv / lsass load points).') `
+                -AttributionBasis $sa.Basis -Subject $sa.Subject `
                 -Fix 'Restrict the load target and its parent to SYSTEM + BUILTIN\Administrators write. If the load point itself is not needed, delete the registry value.'
         }
     }
@@ -388,11 +394,16 @@ function Test-TcpkPersistenceLoadPoints {
             $bad = @($kdAcl.Access | Where-Object { _AceIsRisky $_ })
             if ($bad.Count -gt 0) {
                 $g = ($bad | ForEach-Object { "$($_.IdentityReference) -> $($_.RegistryRights)" } | Select-Object -First 3) -join '; '
+                # KnownDLLs is a fixed machine-wide OS key with no target-attributable path; its
+                # ACL state exists independent of the audited artifact, so it is reported AMBIENT
+                # (INFO) rather than attributed to the target as a HIGH finding.
+                $sa = Resolve-TcpkHostStateBasis -ImagePath '' -TargetRoot $Path -ActionableSeverity 'HIGH' -Subject $kd
                 New-TcpkFinding -Module 'os' -RuleId 'loadpoint.knowndlls-writable' `
-                    -Severity 'HIGH' -Confidence 'Confirmed' `
+                    -Severity $sa.Severity -Confidence 'Confirmed' `
                     -Title 'KnownDLLs registry key is non-admin writable' `
                     -File $kd -Evidence $g `
                     -Cwe @('CWE-732','CWE-427') `
+                    -AttributionBasis $sa.Basis -Subject $sa.Subject `
                     -Description ('The KnownDLLs key lists module names Windows will resolve directly to ' +
                         '%SystemRoot%\System32 rather than through the DLL search order. Non-admin write on ' +
                         'this key lets an attacker either remove an entry (forcing a search-order fallback the ' +

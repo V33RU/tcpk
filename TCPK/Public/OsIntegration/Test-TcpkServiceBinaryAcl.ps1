@@ -17,7 +17,7 @@
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string[]]$NameLike = @())
+    param([string[]]$NameLike = @(), [string]$Path)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkServiceBinaryAcl')) { return }
 
@@ -41,11 +41,13 @@
             if ($bad) {
                 $grant = ($bad | ForEach-Object { "$($_.IdentityReference) -> $($_.FileSystemRights)" } | Select-Object -Unique) -join '; '
                 $what = if ($t -eq $file) { 'binary' } else { 'binary directory' }
+                $sa = Resolve-TcpkHostStateBasis -ImagePath $file -TargetRoot $Path -ActionableSeverity 'HIGH' -Subject $t -MatchDetail "$ctx matched target term"
                 New-TcpkFinding -Module 'os' -RuleId $ruleId `
-                    -Severity 'HIGH' -Confidence 'Confirmed' `
+                    -Severity $sa.Severity -Confidence 'Confirmed' `
                     -Title "$ctx $what is non-admin writable: $(Split-Path -Leaf $t)" `
                     -File $t -Evidence "$grant | $ctx" -Cwe @('CWE-732','CWE-276','CWE-269') `
                     -Description 'A non-admin principal can replace the executable (or drop a planted DLL into its directory) that this service/task runs with elevated privileges. Overwriting it yields code execution as the service account at next launch.' `
+                    -AttributionBasis $sa.Basis -Subject $sa.Subject `
                     -Fix 'Restrict the binary and its directory to admin-only write (inherit from Program Files); remove explicit grants to non-admin groups.'
             }
         }

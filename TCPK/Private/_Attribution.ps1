@@ -144,6 +144,78 @@ function Test-TcpkAttributionEstablished {
     }
 }
 
+function Resolve-TcpkHostStateBasis {
+<#
+.SYNOPSIS
+    C8 - Decide attribution and emission severity for a host-state object (a service, a
+    scheduled task, a driver, a Run/App Paths/IFEO entry, a registry load point) by whether
+    its on-disk image sits inside the audited target tree.
+
+.DESCRIPTION
+    A name/string match between a machine object and the target is NOT attribution: the
+    operator's own machine carries services, tasks and drivers whose names collide with the
+    target's search terms. This helper resolves the question the scan-host defect turns on -
+    WOULD THIS OBJECT EXIST IF THE TARGET WERE NOT INSTALLED - with the one piece of evidence
+    these checks can measure: is the matched object's binary under the target's install tree?
+
+      * ImagePath resolves under TargetRoot  -> install-footprint -> basis 'established-*',
+        Severity = the caller's actionable severity (the finding is a real target artifact).
+      * otherwise (name match only, or no resolvable path at all) -> basis 'name-match-only'
+        / 'unproven', Severity 'INFO'. Invoke-TcpkAttributionFilter then re-frames it AMBIENT.
+
+    Severity is decided HERE, in the detector, rather than left to the CAP8 filter, because
+    aggregation (Resolve-TcpkFindings -AggregateOnly) runs before CAP8 and merges findings by
+    RuleId+Severity+Confidence into a clone that carries no AttributionBasis. Deciding the
+    severity up front keeps a name-only INFO and a footprint HIGH in separate aggregation
+    groups, so the clone can never launder an unattributed finding back up to the actionable
+    tier. This mirrors the inline scope gate in Test-TcpkComHijack.
+
+.PARAMETER ImagePath
+    The matched object's resolvable filesystem path (service binary, task Exec command, driver
+    .sys, debugger/monitor binary, load-point DLL). Empty/absent when the object has no path
+    (a WMI event filter, a fixed OS registry key) - then attribution can never be established.
+
+.PARAMETER TargetRoot
+    The audited target's install/expand root (-Path in the calling check). Empty disables the
+    footprint test, so the finding resolves to name-match-only / INFO.
+
+.PARAMETER MatchDetail
+    Human-readable reason the object was selected (e.g. "Service 'Foo' matched target term").
+
+.PARAMETER ActionableSeverity
+    The severity to use WHEN attribution is established. Default 'HIGH'.
+
+.PARAMETER Subject
+    Override for the finding -Subject. Defaults to ImagePath; pass the registry/WMI object path
+    for pathless objects so the finding still names what was examined.
+
+.OUTPUTS
+    PSCustomObject { Basis; Subject; Severity; Established }
+#>
+    [CmdletBinding()]
+    param(
+        [AllowNull()][string]$ImagePath,
+        [AllowNull()][string]$TargetRoot,
+        [string]$MatchDetail = '',
+        [string]$ActionableSeverity = 'HIGH',
+        [AllowNull()][string]$Subject
+    )
+    $ev = @()
+    if ($MatchDetail) { $ev += New-TcpkAttributionEvidence -Type 'name-match' -Detail $MatchDetail }
+    if ($ImagePath -and $TargetRoot -and (Test-TcpkPathUnderTarget -Value $ImagePath -InstallDir $TargetRoot)) {
+        $ev += New-TcpkAttributionEvidence -Type 'install-footprint' -Detail "$ImagePath is under the audited target tree"
+    }
+    $a = Test-TcpkAttributionEstablished -Evidence $ev
+    $subj = if ($PSBoundParameters.ContainsKey('Subject') -and $Subject) { $Subject }
+            elseif ($ImagePath) { $ImagePath } else { '' }
+    [pscustomobject]@{
+        Basis       = $a.Basis
+        Subject     = $subj
+        Severity    = if ($a.Established) { $ActionableSeverity } else { 'INFO' }
+        Established = $a.Established
+    }
+}
+
 function Invoke-TcpkAttributionFilter {
 <#
 .SYNOPSIS

@@ -155,11 +155,16 @@ function Test-TcpkKernelDrivers {
             try { $props = Get-ItemProperty -LiteralPath $k.PSPath -ErrorAction Stop } catch { continue }
             # Type 1 = kernel driver, Type 2 = file-system driver
             if ($props.Type -in 1,2) {
+                # Selected by a name match on the HKLM service key alone, which is operator
+                # machine state. Attribute to the target only when the driver image resolves
+                # inside the audited tree; otherwise CAP8 reframes it AMBIENT/INFO.
+                $sa = Resolve-TcpkHostStateBasis -ImagePath "$($props.ImagePath)" -TargetRoot $Path -ActionableSeverity 'MEDIUM' -Subject "$($props.ImagePath)" -MatchDetail "Driver service '$($k.PSChildName)' matched target term"
                 New-TcpkFinding -Module 'os' -RuleId 'driver.installed-service' `
-                    -Severity 'MEDIUM' -Confidence 'Confirmed' `
+                    -Severity $sa.Severity -Confidence 'Confirmed' `
                     -Title "Kernel driver service installed: $($k.PSChildName)" `
                     -File ($k.PSPath -replace 'Microsoft\.PowerShell\.Core\\Registry::','') `
                     -Evidence "ImagePath=$($props.ImagePath); Start=$($props.Start)" -Cwe @('CWE-1188') `
+                    -AttributionBasis $sa.Basis -Subject $sa.Subject `
                     -Description 'A kernel driver is registered as a service on this host by the product. Confirm its IOCTL surface and load permissions.'
             }
         }

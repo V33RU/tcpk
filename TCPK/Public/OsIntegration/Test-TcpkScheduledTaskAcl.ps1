@@ -19,7 +19,7 @@ function Test-TcpkScheduledTaskAcl {
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string[]]$NameLike)
+    param([string[]]$NameLike, [string]$Path)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkScheduledTaskAcl')) { return }
 
@@ -55,11 +55,14 @@ function Test-TcpkScheduledTaskAcl {
         $runsPrivileged = $runAs -match '(?i)SYSTEM|HighestAvailable|Administrators|S-1-5-18'
         if ($weak -and $runsPrivileged) {
             $grant = ($weak | ForEach-Object { "$($_.IdentityReference)=$($_.FileSystemRights)" } | Select-Object -Unique) -join '; '
+            $taskSubject = if ($action) { $action } else { $f.FullName }
+            $sa = Resolve-TcpkHostStateBasis -ImagePath $action -TargetRoot $Path -ActionableSeverity 'HIGH' -Subject $taskSubject -MatchDetail "Scheduled task '$($f.Name)' matched target term"
             New-TcpkFinding -Module 'os' -RuleId 'scheduled-task.user-writable' `
-                -Severity 'HIGH' -Confidence 'Confirmed' `
+                -Severity $sa.Severity -Confidence 'Confirmed' `
                 -Title "User-writable privileged task: $($f.Name) runs as $runAs" `
                 -File $f.FullName -Evidence "action=$action | $grant" -Cwe @('CWE-732','CWE-269') `
                 -Description 'A standard user can rewrite this task definition, which executes at a privileged identity. Editing the Action grants arbitrary code execution as that identity (privilege escalation).' `
+                -AttributionBasis $sa.Basis -Subject $sa.Subject `
                 -Fix 'Restrict the task file (and its HKLM\...\Schedule\TaskCache twin) so only SYSTEM/Administrators can write.'
         }
         else {

@@ -12,11 +12,16 @@ function Test-TcpkAppPaths {
 .PARAMETER NameLike
     Substring to match against the .exe key name (default '*').
 
+.PARAMETER Path
+    The audited target's install/expand root. A writable App Paths target is reported at HIGH
+    only when the referenced binary resolves inside this tree; an entry on the operator's
+    machine that merely name-matches is reported AMBIENT at INFO.
+
 .OUTPUTS
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string[]]$NameLike = @())
+    param([string[]]$NameLike = @(), [string]$Path)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkAppPaths')) { return }
 
@@ -48,10 +53,12 @@ function Test-TcpkAppPaths {
                     if ($w) { $sev = 'HIGH'; $note = ' (target writable by non-admin)' }
                 } catch { }
             }
+            $sa = Resolve-TcpkHostStateBasis -ImagePath $default -TargetRoot $Path -ActionableSeverity $sev -Subject $k.PSPath -MatchDetail "App Paths entry '$($k.PSChildName)' matched target term"
             New-TcpkFinding -Module 'os' -RuleId 'app-paths.entry' `
-                -Severity $sev -Confidence 'Confirmed' `
+                -Severity $sa.Severity -Confidence 'Confirmed' `
                 -Title "App Paths: $($k.PSChildName) -> $default$note" `
                 -File $k.PSPath -Evidence $default `
+                -AttributionBasis $sa.Basis -Subject $sa.Subject `
                 -Cwe @('CWE-426','CWE-427')
         }
     }

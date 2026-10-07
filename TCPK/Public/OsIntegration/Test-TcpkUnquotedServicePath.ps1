@@ -15,7 +15,7 @@
     [TcpkFinding]
 #>
     [CmdletBinding()]
-    param([string[]]$NameLike = @())
+    param([string[]]$NameLike = @(), [string]$Path)
 
     if (-not (Assert-TcpkWindows 'Test-TcpkUnquotedServicePath')) { return }
 
@@ -26,11 +26,13 @@
         $_.PathName -notmatch '^[A-Za-z]:\\[^ ]+\.exe$'
     })
     foreach ($s in $svcs) {
+        $sa = Resolve-TcpkHostStateBasis -ImagePath $s.PathName -TargetRoot $Path -ActionableSeverity 'HIGH' -MatchDetail "Service '$($s.Name)' matched target term"
         New-TcpkFinding -Module 'os' -RuleId 'service.unquoted-path' `
             -Description 'The service ImagePath is unquoted and contains spaces. Windows resolves such a path by trying each space-delimited prefix, so a file planted at an earlier prefix (for example C:\Program.exe) runs as the service account instead of the real binary.' `
-            -Severity 'HIGH' -Confidence 'Confirmed' `
+            -Severity $sa.Severity -Confidence 'Confirmed' `
             -Title "Unquoted service path: $($s.Name)" `
             -File $s.Name -Evidence $s.PathName -Cwe @('CWE-428') `
+            -AttributionBasis $sa.Basis -Subject $sa.Subject `
             -Fix "sc.exe config $($s.Name) binPath= '\""C:\\Path With Spaces\\svc.exe\""'"
     }
 }
