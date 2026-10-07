@@ -439,6 +439,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkEmbeddedScripts'     { Test-TcpkEmbeddedScripts     -Path $expanded }
     _RunCheck 'Test-TcpkWebViewNavTargets'   { Test-TcpkWebViewNavTargets   -Path $expanded }
     _RunCheck 'Test-TcpkNamedObjects'        { Test-TcpkNamedObjects        -Path $expanded }
+    _RunCheck 'Test-TcpkReparseLoops'        { Test-TcpkReparseLoops        -Path $expanded }
     _RunCheck 'Test-TcpkTempFileToctou'     { Test-TcpkTempFileToctou      -Path $expanded }
     _RunCheck 'Test-TcpkPacker'              { Test-TcpkPacker              -Path $expanded }
     _RunCheck 'Test-TcpkAuthFlags'           { Test-TcpkAuthFlags           -Path $expanded }
@@ -625,6 +626,7 @@ function Invoke-TcpkAudit {
             _RunCheck 'Test-TcpkWebViewCreds'   { Test-TcpkWebViewCreds       -PackageFamilyName $PackageFamilyName }
         }
         _RunCheck 'Test-TcpkBrowserTokenStore'  { Test-TcpkBrowserTokenStore  -NameLike $idTerms }
+        _RunCheck 'Test-TcpkChromiumCleartextStores' { Test-TcpkChromiumCleartextStores -NameLike $idTerms }
     }
 
     # ----- Bucket E (runtime / live process, 29 cmdlets) -----

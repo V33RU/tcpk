@@ -70,13 +70,6 @@ $script:SevColour = @{
     'INFO'     = [System.Drawing.Color]::FromArgb(86, 101, 115)
 }
 
-# Per-profile cmdlet selection
-$script:Profiles = @{
-    'Quick'    = @('Test-TcpkPeMitigations','Test-TcpkPeImports','Test-TcpkPeExports','Test-TcpkSecrets','Test-TcpkEndpoints','Test-TcpkDeserialization','Test-TcpkCallsites','Test-TcpkTlsBypass','Test-TcpkDependencyCves','Test-TcpkMsixCapabilities','Test-TcpkMsixFrameworkDeps')
-    'Standard' = $null   # null = full minus deep
-    'Full'     = $null   # alias for Standard
-}
-
 # Build the form
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "TCPK -- Thick Client Pentest Kit   [ AUTHORIZED USE ONLY ]"
