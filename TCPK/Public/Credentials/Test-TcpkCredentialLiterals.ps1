@@ -27,6 +27,16 @@ function Test-TcpkCredentialLiterals {
     Invoke-TcpkSecretRecovery and Test-TcpkCredentialLiveness are the cmdlets that establish
     that, and a confirmed live credential is what earns CRITICAL.
 
+    SCOPE / KNOWN LIMITATION. This matches the INLINE shape only: a string constant loaded
+    (ldstr) within the short instruction window immediately before the credential call, which
+    is how a C# inline literal or a nearby local compiles. It does NOT do dataflow, so two
+    real shapes are missed and are a false-negative, not a clean result: a literal held in a
+    field and loaded with ldsfld (a const assigned in the type constructor), and a literal
+    assigned to a local many instructions before the call. Closing those needs a backward
+    def-use chain (resolve ldsfld to the cctor literal, track the local across the method),
+    which is the planned extension. When this check is silent, that silence is bounded by the
+    inline window, not proof that no hardcoded credential exists.
+
     THE VALUE IS NOT PRINTED. Evidence names the API, the declaring type, the method and the
     metadata token, and reports how many literals were involved. It does not reproduce the
     secret, because a findings file and an HTML report travel further than the binary did.
