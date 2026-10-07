@@ -40,8 +40,16 @@ function Test-TcpkSecrets {
     # the target folder is not the target's secret. The DELIBERATE place to scan a dump is
     # Test-TcpkMemoryDump, which creates its own and passes it as a single-file -Path. So
     # dumps are skipped on a DIRECTORY walk only; an explicit -Path to a .dmp still scans.
+    # Office / PDF / report containers are skipped on a DIRECTORY walk for the same reason as
+    # dumps: they are ZIP/binary documents, not the target's shipped config or source, so
+    # byte-scanning them yields natural-language false positives, and the classic case is an
+    # operator's own pentest report or notes left in the scanned folder being reported as the
+    # target's cleartext credential (the scan-host attribution trap). A target's real secrets
+    # live in .config/.json/.xml/.ini/source, which are still scanned. An explicit single-file
+    # -Path to one of these still scans, so nothing is lost when the operator means it.
     $isDirWalk = (Get-Item -LiteralPath $Path).PSIsContainer
-    $skipExtDirOnly = @('.dmp', '.dump')
+    $skipExtDirOnly = @('.dmp', '.dump',
+        '.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.odt', '.ods', '.odp', '.rtf')
 
     $files = if ($isDirWalk) {
         Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue

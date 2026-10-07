@@ -125,11 +125,17 @@ function Test-TcpkTokenCaches {
         $hits = @()
         try { $hits = @(Get-ChildItem -Path $e.Glob -File -ErrorAction SilentlyContinue) } catch { }
         foreach ($f in $hits) {
+            # These well-known caches live in the OPERATOR's profile (%APPDATA% / %USERPROFILE%),
+            # not under the audited target. They are the credentials of whoever runs TCPK, not the
+            # target's, so they are reported AMBIENT (C8 'unproven' -> INFO) instead of being
+            # attributed to the target. This keeps the operator-hygiene signal without handing a
+            # client report the pentester's own gh / az / gcloud tokens as target findings.
             New-TcpkFinding -Module 'creds' -RuleId $e.RuleId `
                 -Severity $e.Sev -Confidence 'Confirmed' `
                 -Title $e.Title `
                 -File $f.FullName -Evidence "size=$($f.Length) bytes; mtime=$($f.LastWriteTime.ToString('u'))" `
                 -Cwe $e.Cwe `
+                -AttributionBasis 'unproven' -Subject $f.FullName `
                 -Description $e.Desc `
                 -Fix 'Prefer short-lived credentials issued at process start via a broker (aws-vault, aws-sso-util-cli, gcloud impersonation, GitHub CLI device flow) rather than long-lived files on disk. If the file must persist, restrict its DACL to the operator SID only.'
         }

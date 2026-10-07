@@ -51,6 +51,11 @@ function Test-TcpkComMachineDefaults {
 
     if (-not (Assert-TcpkWindows 'Test-TcpkComMachineDefaults')) { return }
 
+    # HKLM\SOFTWARE\Microsoft\Ole is a machine-wide OS surface: its DCOM defaults exist on the
+    # host independent of the audited target (C8 - "would this condition exist if the target
+    # were not installed?" -> yes). Every finding here is therefore reported AMBIENT:
+    # AttributionBasis 'unproven' lets Invoke-TcpkAttributionFilter reframe it to INFO/AMBIENT
+    # so host posture is never attributed to the target as an actionable finding.
     $ole = 'HKLM:\SOFTWARE\Microsoft\Ole'
     if (-not (Test-Path -LiteralPath $ole)) { return }
     $props = $null
@@ -65,6 +70,7 @@ function Test-TcpkComMachineDefaults {
             -Severity 'MEDIUM' -Confidence 'Confirmed' `
             -Title 'DCOM network activation is enabled machine-wide' `
             -File $ole -Evidence $ev `
+            -AttributionBasis 'unproven' -Subject $ole `
             -Cwe @('CWE-284') `
             -Description ('HKLM\SOFTWARE\Microsoft\Ole\EnableDCOM is Y (or unset, which defaults to Y on ' +
                 'older Windows). Any COM server exposed via an AppID can then be activated over the network by ' +
@@ -99,6 +105,7 @@ function Test-TcpkComMachineDefaults {
                 -Severity 'HIGH' -Confidence 'Confirmed' `
                 -Title "Weak machine-default COM permission: $valueName grants a broad principal" `
                 -File "$ole\$valueName" -Evidence "SDDL=$sddl; risky ACEs: $(($badAces | Select-Object -First 3) -join ' ')" `
+                -AttributionBasis 'unproven' -Subject "$ole\$valueName" `
                 -Cwe @('CWE-284','CWE-732') `
                 -Description ("The machine-default COM security descriptor '$valueName' grants a broad non-admin " +
                     'principal (Everyone / Authenticated Users / Users / INTERACTIVE / ANONYMOUS) a launch, ' +
@@ -115,6 +122,7 @@ function Test-TcpkComMachineDefaults {
             -Severity 'LOW' -Confidence 'Confirmed' `
             -Title 'No machine-default COM launch/access restriction is set' `
             -File $ole -Evidence 'MachineLaunchRestriction / MachineAccessRestriction not present' `
+            -AttributionBasis 'unproven' -Subject $ole `
             -Cwe @('CWE-284') `
             -Description ('Neither MachineLaunchRestriction nor MachineAccessRestriction is set, so the OS ' +
                 'legacy per-machine default applies to every permission-less COM server. On modern Windows ' +
