@@ -138,3 +138,35 @@ Describe 'Every graph category still matches a real rule ID' {
         }
     }
 }
+
+Describe 'uiAccess image inside a user-writable tree correlates' {
+    # The join fires only when the uiAccess image directory is CONTAINED in a user-writable
+    # tree (proven by path containment), mirroring attackgraph.privileged-writable-image. The
+    # boundary case also guards the _contains fix: a writable dir that is only a string prefix
+    # of the image dir ('C:\foo' vs 'C:\foobar') must NOT match.
+    function Get-UiaChain {
+        param([object[]]$Findings)
+        $g = InModuleScope TCPK -Parameters @{ fs = $Findings } { param($fs) @($fs | Get-TcpkAttackGraph) }
+        return @($g | Where-Object { $_.RuleId -eq 'attackgraph.uiaccess-plantable' })
+    }
+
+    It 'fires when the uiAccess image sits inside a user-writable directory' {
+        $f = @(
+            (New-Fx 'uac.ui-access' 'MEDIUM' 'C:\app\sub\tool.exe'),
+            (New-Fx 'install-dir.user-writable' 'HIGH' 'C:\app')
+        )
+        (Get-UiaChain -Findings $f).Count | Should -BeGreaterThan 0 -Because 'C:\app contains the uiAccess image, so a plant runs with uiAccess'
+    }
+
+    It 'does NOT fire on a mere string-prefix directory (separator boundary)' {
+        $f = @(
+            (New-Fx 'uac.ui-access' 'MEDIUM' 'C:\foobar\tool.exe'),
+            (New-Fx 'install-dir.user-writable' 'HIGH' 'C:\foo')
+        )
+        (Get-UiaChain -Findings $f).Count | Should -Be 0 -Because 'C:\foo is not an ancestor of C:\foobar'
+    }
+
+    It 'does NOT fire from a uiAccess image with no writable directory' {
+        (Get-UiaChain -Findings @((New-Fx 'uac.ui-access' 'MEDIUM' 'C:\app\tool.exe'))).Count | Should -Be 0
+    }
+}

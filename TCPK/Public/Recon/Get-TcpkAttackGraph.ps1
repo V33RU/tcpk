@@ -127,12 +127,14 @@ function Get-TcpkAttackGraph {
         function _normDir([string]$p) {
             if (-not $p) { return '' }
             try { $f = [IO.Path]::GetFullPath($p) } catch { return '' }
-            return $f.TrimEnd('').ToLowerInvariant()
+            # Normalise separators and strip a trailing one so 'C:\A\' and 'C:\A' compare equal.
+            return ($f -replace '/', '\').TrimEnd('\').ToLowerInvariant()
         }
         function _contains([string]$a, [string]$b) {
-            # true if a == b or a is an ancestor of b
+            # true if a == b or a is a STRICT ancestor of b. The separator on the prefix is
+            # required: without it 'C:\foo' would wrongly contain 'C:\foobar'.
             if (-not $a -or -not $b) { return $false }
-            return ($a -eq $b) -or $b.StartsWith($a + '')
+            return ($a -eq $b) -or $b.StartsWith($a + '\')
         }
         $privFindings = @($all | Where-Object {
             "$($_.Confidence)" -notmatch 'Likely-FP' -and "$($_.RuleId)" -match $privRx -and "$($_.Subject)"
@@ -174,6 +176,55 @@ function Get-TcpkAttackGraph {
                             "the link here is proven by path containment, not co-presence: the writable directory " +
                             "actually contains the privileged image. Confirm which file the process loads from that " +
                             "directory and that the ACL grant is reachable by a non-admin.")))
+            }
+        }
+
+        # RELATIONAL JOIN: a uiAccess=true image whose directory sits inside a user-writable
+        # tree. uiAccess lets a process send input to and read the UI of higher-integrity
+        # windows; if the image (or a file it loads) is plantable by a standard user, the
+        # attacker runs code WITH uiAccess and can click through or scrape an elevated /
+        # Administrator-Protection UI. Same soundness rule as the privileged-image join above:
+        # PROVEN by path containment, not co-presence, so a separate writable ProgramData
+        # folder the binary never loads from does not match. HIGH not CRITICAL: uiAccess drives
+        # elevated UI, it is not direct SYSTEM execution. uac.ui-access carries its image in
+        # -File (Test-TcpkUacManifest). No co-presence recipe is added, for the reason on
+        # goal.system: co-presence of a uiAccess binary and an unrelated writable path is noise.
+        $uiaFindings = @($all | Where-Object {
+            "$($_.Confidence)" -notmatch 'Likely-FP' -and "$($_.RuleId)" -match '^uac\.ui-access' -and "$($_.File)"
+        })
+        $uaSeen = New-Object 'System.Collections.Generic.HashSet[string]'
+        foreach ($uf in $uiaFindings) {
+            $imgDir = _normDir ([IO.Path]::GetDirectoryName("$($uf.File)"))
+            if (-not $imgDir) { continue }
+            foreach ($df in $ddFindings) {
+                $raw = "$($df.File)"
+                $wPath = _normDir $raw
+                $wDir  = $wPath
+                try { if ([IO.Path]::HasExtension($raw)) { $wDir = _normDir ([IO.Path]::GetDirectoryName($raw)) } } catch { }
+                if (-not $wDir) { continue }
+                if (-not (_contains $wDir $imgDir)) { continue }
+                $key = "$imgDir|$wDir|uia"
+                if (-not $uaSeen.Add($key)) { continue }
+                $anyGoal = $true
+                $nodes['ATTACKER']     = @{ Shape = 'stadium'; Label = 'Attacker' }
+                $nodes['cap.uiaccess'] = @{ Shape = 'rect'; Label = 'uiAccess=true image' }
+                $nodes['prim.loaddir'] = @{ Shape = 'rect'; Label = $catById['prim.loaddir'].Label }
+                $nodes['goal.uiaccess'] = @{ Shape = 'hex'; Label = 'Drive elevated UI via UIAccess' }
+                & $addEdge 'ATTACKER' 'prim.loaddir' $false 'local'
+                & $addEdge 'prim.loaddir' 'cap.uiaccess' $false 'plant'
+                & $addEdge 'cap.uiaccess' 'goal.uiaccess' $false $null
+                $out.Add((New-TcpkFinding -Module 'chain' -RuleId 'attackgraph.uiaccess-plantable' -Severity 'HIGH' `
+                        -Confidence 'Inferred' -Cwe @('CWE-1021','CWE-269') `
+                        -Title "uiAccess image runs from a user-writable directory: $($uf.Title)" `
+                        -File $uf.File `
+                        -Evidence ("uiAccess-image=$($uf.File); user-writable=$($df.File) [$($df.RuleId)]") `
+                        -Description ("A binary manifesting uiAccess=true loads from '$imgDir', and '$wDir' in that tree " +
+                            "is writable by a standard user ($($df.RuleId)). uiAccess lets the process send input to and " +
+                            "read the UI of higher-integrity windows, so planting or replacing a file it loads runs " +
+                            "attacker code with uiAccess, which can drive or scrape an elevated / Administrator-Protection " +
+                            "UI (for example confirming a consent prompt). The link is proven by path containment, not " +
+                            "co-presence: the writable directory actually contains the uiAccess image. Confirm which file " +
+                            "the process loads from that directory and that the ACL grant is reachable by a non-admin.")))
             }
         }
 
