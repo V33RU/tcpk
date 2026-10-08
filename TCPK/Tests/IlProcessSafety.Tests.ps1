@@ -43,6 +43,20 @@ public class HandleBad {
         $script:hndDll = Join-Path $script:work 'HandleBad.dll'
         Add-Type -TypeDefinition $hnd -OutputAssembly $script:hndDll -OutputType Library
         $script:hv = @(& (Get-Module TCPK) { param($d) Get-TcpkHandleInheritVerdicts -DllPath $d } $script:hndDll)
+
+        $pipe = @'
+using System; using System.Runtime.InteropServices;
+public class PipeBad {
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)]
+  static extern IntPtr CreateNamedPipeW(string name, uint openMode, uint pipeMode, uint maxInstances, uint outBuf, uint inBuf, uint timeout, IntPtr sa);
+  public void SquatMe(){ CreateNamedPipeW(@"\\.\pipe\myapp", 0x3u, 0u, 1u, 0u, 0u, 0u, IntPtr.Zero); }
+  public void FirstInstance(){ CreateNamedPipeW(@"\\.\pipe\safe", 0x80003u, 0u, 1u, 0u, 0u, 0u, IntPtr.Zero); }
+  public void Computed(uint extra){ CreateNamedPipeW(@"\\.\pipe\x", 0x3u | extra, 0u, 1u, 0u, 0u, 0u, IntPtr.Zero); }
+}
+'@
+        $script:pipeDll = Join-Path $script:work 'PipeBad.dll'
+        Add-Type -TypeDefinition $pipe -OutputAssembly $script:pipeDll -OutputType Library
+        $script:pv = @(& (Get-Module TCPK) { param($d) Get-TcpkPipeFirstInstanceVerdicts -DllPath $d } $script:pipeDll)
     }
 }
 
@@ -93,5 +107,25 @@ Describe 'Get-TcpkHandleInheritVerdicts (blanket handle inheritance)' {
     It 'surfaces end-to-end as handle.inherit-leak.* findings' {
         $f = @(Test-TcpkHandleInheritance -Path $script:work)
         ($f | Where-Object { $_.RuleId -like 'handle.inherit-leak.*' }) | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-TcpkPipeFirstInstanceVerdicts (named-pipe squatting)' {
+    BeforeEach {
+        if (-not $script:cecil) { Set-ItResult -Skipped -Because 'Mono.Cecil not available' }
+        elseif (-not $script:desktop) { Set-ItResult -Skipped -Because 'fixture compiles under Desktop/Framework only' }
+    }
+    It 'flags a literal open mode lacking FILE_FLAG_FIRST_PIPE_INSTANCE' {
+        ($script:pv | Where-Object { $_.Method -eq 'SquatMe' }) | Should -Not -BeNullOrEmpty
+    }
+    It 'does NOT flag an open mode that carries the flag (precision)' {
+        ($script:pv | Where-Object { $_.Method -eq 'FirstInstance' }) | Should -BeNullOrEmpty
+    }
+    It 'does NOT flag a computed (non-literal) open mode (no false positive)' {
+        ($script:pv | Where-Object { $_.Method -eq 'Computed' }) | Should -BeNullOrEmpty
+    }
+    It 'surfaces end-to-end as pipe.no-first-instance (Confirmed IL)' {
+        $f = @(Test-TcpkNamedPipeHardening -Path $script:work)
+        ($f | Where-Object { $_.RuleId -eq 'pipe.no-first-instance' -and $_.Confidence -eq 'Confirmed (IL)' }) | Should -Not -BeNullOrEmpty
     }
 }

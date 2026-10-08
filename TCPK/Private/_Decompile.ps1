@@ -1858,3 +1858,75 @@ function Get-TcpkHandleInheritVerdicts {
         if ($asm) { $asm.Dispose() }
     }
 }
+
+# Named-pipe server with no FILE_FLAG_FIRST_PIPE_INSTANCE from IL. A server that creates a
+# fixed-named pipe without that flag (0x00080000 in dwOpenMode) lets a low-privilege process
+# pre-create the pipe first and capture the server's first client (squatting / spoofing).
+# A text scan cannot prove the NEGATIVE: FILE_FLAG_FIRST_PIPE_INSTANCE is a numeric immediate,
+# never a string, so flagging on the API name alone would fire on every pipe server. This
+# reads the ACTUAL dwOpenMode argument. CreateNamedPipe's dwOpenMode is argument index 1 of 8;
+# reading the Nth argument by position is only sound when every argument is a single leaf load
+# (a constant / ldstr / ldnull / ldloc / ldarg / ldsfld that pushes one value and pops none),
+# so the instructions immediately before the call map 1:1 to the arguments. If any argument is
+# a computed expression the mapping is ambiguous and this SKIPS (no false positive). It also
+# requires a fixed literal pipe name (ldstr), since a random/GUID name is not squattable.
+$script:TcpkIlLeafLoadRx = '^(ldc\.i4(\.\w+)?|ldc\.i8|ldc\.r4|ldc\.r8|ldstr|ldnull|ldloc(\.\w+)?|ldloca(\.s)?|ldarg(\.\w+)?|ldarga(\.s)?|ldsfld|ldsflda|ldtoken|sizeof)$'
+function Get-TcpkPipeFirstInstanceVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $FFPI = 0x00080000   # FILE_FLAG_FIRST_PIPE_INSTANCE
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    $opn = $ins.OpCode.Name
+                    if ($opn -ne 'call' -and $opn -ne 'callvirt') { continue }
+                    $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($null -eq $mref -or "$($mref.Name)" -notmatch '^CreateNamedPipe') { continue }
+                    $np = 0; try { $np = [int]$mref.Parameters.Count } catch { $np = 0 }
+                    if ($np -lt 8) { continue }   # trust only the real 8-arg CreateNamedPipe(W) signature
+                    # Collect the $np leaf loads immediately before the call; bail on any non-leaf.
+                    $argList = New-Object 'System.Collections.Generic.List[object]'
+                    $p = $ins.Previous
+                    while ($p -and $argList.Count -lt $np) {
+                        if ($p.OpCode.Name -eq 'nop') { $p = $p.Previous; continue }
+                        if ($p.OpCode.Name -notmatch $script:TcpkIlLeafLoadRx) { break }
+                        $argList.Insert(0, $p); $p = $p.Previous
+                    }
+                    if ($argList.Count -ne $np) { continue }   # arguments did not map 1:1 -> skip
+                    $lpName = $argList[0]; $dwOpenMode = $argList[1]
+                    if ($lpName.OpCode.Name -ne 'ldstr') { continue }   # fixed name only
+                    $mode = Get-TcpkIlI4Value $dwOpenMode
+                    if ($null -eq $mode) { continue }                   # open mode not an int literal
+                    if (($mode -band $FFPI) -ne 0) { continue }         # flag present -> safe
+                    $back = New-Object 'System.Collections.Generic.List[object]'
+                    $q = $ins; $c = 0
+                    while ($q -and $c -lt 5) { $back.Insert(0, $q); $q = $q.Previous; $c++ }
+                    $snip = New-Object 'System.Collections.Generic.List[string]'
+                    foreach ($bi in $back) {
+                        $bo = if ($null -ne $bi.Operand) { " $($bi.Operand)" } else { '' }
+                        $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo))
+                    }
+                    $ns  = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+                    $out.Add([pscustomobject]@{
+                        File = $fileName; Assembly = $asm.MainModule.Name; Namespace = $ns
+                        Type = $t.FullName; Method = $m.Name
+                        Token = ('0x{0:X8}' -f $m.MetadataToken.ToInt32())
+                        PipeName = "$($lpName.Operand)"; OpenMode = ('0x{0:X}' -f $mode)
+                        Il = ($snip -join "`n")
+                    })
+                }
+            }
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}

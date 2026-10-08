@@ -170,6 +170,7 @@
         'Test-TcpkDeserialization',
         'Test-TcpkHandleInheritance',
         'Test-TcpkImpersonationBalance',
+        'Test-TcpkNamedPipeHardening',
         'Test-TcpkDevArtifacts',
         'Test-TcpkDeviceComm',
         'Test-TcpkDiagConfig',
