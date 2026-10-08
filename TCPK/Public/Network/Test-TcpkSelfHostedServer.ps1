@@ -33,6 +33,17 @@ function Test-TcpkSelfHostedServer {
     )
     $rxBindAny   = [regex]'(?i)(https?://(\+|0\.0\.0\.0|\*|\[::\])):\d{2,5}'
     $rxBindLocal = [regex]'(?i)https?://(localhost|127\.0\.0\.1):\d{2,5}'
+    # Cross-origin defence markers. A loopback listener is reachable by any page the user
+    # visits (CSRF / DNS-rebinding); these are the named-framework signals that SOME defence
+    # (anti-forgery token, Host-header filtering, or a CORS/Origin allow-list) is present in
+    # the self-hosting assembly. Absence is a string signal, not proof none exists, so the
+    # finding stays Inferred.
+    $defenseMarkers = @(
+        'AddAntiforgery','IAntiforgery','ValidateAntiForgeryToken','AutoValidateAntiforgeryToken',
+        'RequestVerificationToken','__RequestVerificationToken','XSRF-TOKEN','X-CSRF','X-XSRF-TOKEN',
+        'HostFilteringMiddleware','UseHostFiltering','AddHostFiltering','AllowedHosts',
+        'UseCors','AddCors','WithOrigins','SetIsOriginAllowed','CorsPolicyBuilder','Access-Control-Allow-Origin'
+    )
 
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if ($pe.Extension -notin '.dll','.exe') { continue }
@@ -69,6 +80,25 @@ function Test-TcpkSelfHostedServer {
                 -File $pe.FullName -Evidence $ev -Cwe @('CWE-352','CWE-1327') `
                 -Description 'The app appears to self-host an HTTP server (likely localhost). Local web servers are reachable by any browser page (CSRF / DNS-rebinding) and by other local users unless authenticated.' `
                 -Fix 'Require auth on every endpoint, validate Origin/Host headers, use unguessable per-session tokens, and restrict to 127.0.0.1.'
+        }
+
+        # Is the listener DEFENDED against cross-origin abuse? The binary self-hosts (first-party,
+        # already established above); if it carries no anti-forgery / Host-filtering / CORS marker,
+        # a page the user merely visits can drive the loopback listener with the user's privileges.
+        $hasDefense = $false
+        foreach ($d in $defenseMarkers) {
+            if ($text.IndexOf($d, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $hasDefense = $true; break }
+        }
+        if (-not $hasDefense) {
+            New-TcpkFinding -Module 'network' -RuleId 'selfhost.no-origin-check' `
+                -Severity 'HIGH' -Confidence 'Inferred' `
+                -Title "Self-hosted server has no Origin/Host or anti-forgery defence in $($pe.Name)" `
+                -File $pe.FullName `
+                -Evidence ("self-host markers: " + (($hit | Select-Object -First 4) -join ', ') + " | no Origin allow-list / Host-filtering / anti-forgery marker found in this assembly") `
+                -Cwe @('CWE-352','CWE-346') `
+                -AttributionBasis 'established-code' -Subject $pe.FullName `
+                -Description 'The app self-hosts an HTTP listener but its binary carries no Origin allow-list, Host-header filtering, or anti-forgery token marker. A page the user merely visits can issue cross-origin requests to the loopback listener (CSRF / DNS-rebinding) and act with the user''s local privileges. This is a string signal (no KNOWN defence marker found), not proof none exists -- confirm by sending a request with a foreign Origin header to the running listener; an app that rolls its own inline Origin/Host check will not carry a named marker.' `
+                -Fix 'Require auth on every endpoint, validate Origin/Host headers against an allow-list, use unguessable per-session anti-forgery tokens, and restrict to 127.0.0.1. Prefer named pipes for local IPC.'
         }
     }
 }
