@@ -1719,3 +1719,142 @@ function Get-TcpkCallsiteUsage {
         # (Clear-TcpkCecilCache) -- do NOT dispose here or the next sink reuses a dead handle.
     }
 }
+
+# Unbalanced impersonation from IL. A thick-client helper service that impersonates its IPC
+# client and does not revert on every exit path keeps the (attacker-influenced) client token
+# on the thread after a return or a thrown exception -- a local privilege-escalation class.
+# SOUND SUBSET without executing: for each method that calls a MANUAL-revert impersonation
+# sink (ImpersonateNamedPipeClient / ImpersonateLoggedOnUser / SetThreadToken), if NO revert
+# appears ANYWHERE in the same body (RevertToSelf, or WindowsImpersonationContext.Undo/Dispose)
+# and no auto-reverting wrapper is used (WindowsIdentity.RunImpersonated, or WindowsIdentity.
+# Impersonate() in a using, which compiles to a finally{Dispose}), the method reverts on no
+# path of its own. Emitted Inferred, not Confirmed: a method could delegate the revert to a
+# callee/caller (cross-method), which this single-body view cannot see -- so it is a strong
+# lead to confirm, not proof. Reads only call targets (no constant/stack analysis).
+function Get-TcpkImpersonationVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                $sinkIns = $null; $sinkName = ''; $hasRevert = $false; $autoRevert = $false
+                foreach ($ins in $m.Body.Instructions) {
+                    $opn = $ins.OpCode.Name
+                    if ($opn -ne 'call' -and $opn -ne 'callvirt' -and $opn -ne 'newobj') { continue }
+                    $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($null -eq $mref) { continue }
+                    $n = "$($mref.Name)"; $dt = "$($mref.DeclaringType.FullName)"
+                    if ($n -eq 'ImpersonateNamedPipeClient' -or $n -eq 'ImpersonateLoggedOnUser' -or $n -eq 'SetThreadToken') {
+                        if ($null -eq $sinkIns) { $sinkIns = $ins; $sinkName = $n }
+                    }
+                    # RevertToSelf is the definitive native revert. Undo/Dispose count ONLY on the
+                    # managed impersonation context (a random unrelated .Dispose must not suppress).
+                    if ($n -eq 'RevertToSelf') { $hasRevert = $true }
+                    elseif (($n -eq 'Undo' -or $n -eq 'Dispose') -and $dt -match 'ImpersonationContext|SafeAccessTokenHandle') { $hasRevert = $true }
+                    if ($n -eq 'RunImpersonated' -or $n -eq 'RunImpersonatedAsync' -or ($n -eq 'Impersonate' -and $dt -match 'WindowsIdentity')) { $autoRevert = $true }
+                }
+                if (-not $sinkIns -or $hasRevert -or $autoRevert) { continue }
+                $back = New-Object 'System.Collections.Generic.List[object]'
+                $p = $sinkIns; $c = 0
+                while ($p -and $c -lt 4) { $back.Insert(0, $p); $p = $p.Previous; $c++ }
+                $snip = New-Object 'System.Collections.Generic.List[string]'
+                foreach ($bi in $back) {
+                    $bo = if ($null -ne $bi.Operand) { " $($bi.Operand)" } else { '' }
+                    $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo))
+                }
+                $ns  = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+                $tok = '0x{0:X8}' -f $m.MetadataToken.ToInt32()
+                $out.Add([pscustomobject]@{
+                    File = $fileName; Assembly = $asm.MainModule.Name; Namespace = $ns
+                    Type = $t.FullName; Method = $m.Name; Token = $tok; Sink = $sinkName
+                    Il = ($snip -join "`n")
+                })
+            }
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}
+
+# Handle-inheritance leak from IL. A process that spawns a less-trusted child with blanket
+# handle inheritance leaks every inheritable handle it holds into that child. Two constant-
+# readable shapes, each proven the same single-slot-back way Get-TcpkXxeVerdicts reads a setter
+# argument (the value is the instruction immediately before the call/stfld):
+#   * SetHandleInformation(h, dwMask, dwFlags): dwFlags is the last pushed arg. Flag
+#     HANDLE_FLAG_INHERIT = 0x1 being SET turns inheritance ON. If dwMask also has 0x1 the
+#     call definitely changes the inherit bit -> Confirmed (IL); mask unknown -> Inferred.
+#   * A marshalled SECURITY_ATTRIBUTES whose bInheritHandle field is stored a non-zero
+#     constant (TRUE) -> Confirmed (IL). A zero store is the explicit-FALSE safe case, skipped.
+# A runtime-computed value (not a literal) yields $null and is never emitted (no false positive).
+function Get-TcpkHandleInheritVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    $opn = $ins.OpCode.Name
+                    $kind = $null; $conf = $null; $reason = $null
+                    if ($opn -eq 'call' -or $opn -eq 'callvirt') {
+                        $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                        if ($null -eq $mref -or "$($mref.Name)" -notmatch '^SetHandleInformation') { continue }
+                        $fi = $ins.Previous
+                        while ($fi -and $fi.OpCode.Name -eq 'nop') { $fi = $fi.Previous }
+                        $flags = Get-TcpkIlI4Value $fi
+                        if ($null -eq $flags -or ($flags -band 1) -ne 1) { continue }
+                        $mi = if ($fi) { $fi.Previous } else { $null }
+                        while ($mi -and $mi.OpCode.Name -eq 'nop') { $mi = $mi.Previous }
+                        $mask = Get-TcpkIlI4Value $mi
+                        $conf = if ($null -ne $mask -and ($mask -band 1) -eq 1) { 'Confirmed (IL)' } else { 'Inferred' }
+                        $kind = 'sethandleinformation-inherit'
+                        $reason = "SetHandleInformation sets HANDLE_FLAG_INHERIT (dwFlags bit 0x1); the handle becomes inheritable by child processes."
+                    } elseif ($opn -eq 'stfld') {
+                        $fref = $ins.Operand -as [Mono.Cecil.FieldReference]
+                        if ($null -eq $fref -or "$($fref.Name)" -notmatch '^(bInheritHandle|InheritHandle)$') { continue }
+                        $vi = $ins.Previous
+                        while ($vi -and $vi.OpCode.Name -eq 'nop') { $vi = $vi.Previous }
+                        $v = Get-TcpkIlI4Value $vi
+                        if ($null -eq $v -or $v -eq 0) { continue }
+                        $conf = 'Confirmed (IL)'
+                        $kind = 'security-attributes-inherit'
+                        $reason = "SECURITY_ATTRIBUTES.$($fref.Name) is set to a non-zero constant (TRUE): handles are inheritable by a spawned child."
+                    } else { continue }
+                    if (-not $kind) { continue }
+                    $back = New-Object 'System.Collections.Generic.List[object]'
+                    $p = $ins; $c = 0
+                    while ($p -and $c -lt 4) { $back.Insert(0, $p); $p = $p.Previous; $c++ }
+                    $snip = New-Object 'System.Collections.Generic.List[string]'
+                    foreach ($bi in $back) {
+                        $bo = if ($null -ne $bi.Operand) { " $($bi.Operand)" } else { '' }
+                        $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo))
+                    }
+                    $ns  = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+                    $tok = '0x{0:X8}' -f $m.MetadataToken.ToInt32()
+                    $out.Add([pscustomobject]@{
+                        File = $fileName; Assembly = $asm.MainModule.Name; Namespace = $ns
+                        Type = $t.FullName; Method = $m.Name; Token = $tok
+                        Kind = $kind; Confidence = $conf; Reason = $reason; Il = ($snip -join "`n")
+                    })
+                }
+            }
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}

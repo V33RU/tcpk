@@ -168,6 +168,8 @@
         'Test-TcpkDependencyConfusion',
         'Test-TcpkDeserBinder',
         'Test-TcpkDeserialization',
+        'Test-TcpkHandleInheritance',
+        'Test-TcpkImpersonationBalance',
         'Test-TcpkDevArtifacts',
         'Test-TcpkDeviceComm',
         'Test-TcpkDiagConfig',

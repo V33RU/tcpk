@@ -412,6 +412,8 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkTlsBypass'           { Test-TcpkTlsBypass           -Path $expanded }
     _RunCheck 'Test-TcpkNativeCertFlags'     { Test-TcpkNativeCertFlags     -Path $expanded }
     _RunCheck 'Test-TcpkXxe'                 { Test-TcpkXxe                 -Path $expanded }
+    _RunCheck 'Test-TcpkImpersonationBalance' { Test-TcpkImpersonationBalance -Path $expanded }
+    _RunCheck 'Test-TcpkHandleInheritance'   { Test-TcpkHandleInheritance   -Path $expanded }
     _RunCheck 'Test-TcpkWcfConfig'           { Test-TcpkWcfConfig           -Path $expanded }
     _RunCheck 'Test-TcpkCodeIntegrity'       { Test-TcpkCodeIntegrity       -Path $Target   }
     # Whole-file embedded-format scan on the ORIGINAL artifact (installer / single exe),
