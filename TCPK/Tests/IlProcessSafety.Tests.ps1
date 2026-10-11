@@ -57,6 +57,19 @@ public class PipeBad {
         $script:pipeDll = Join-Path $script:work 'PipeBad.dll'
         Add-Type -TypeDefinition $pipe -OutputAssembly $script:pipeDll -OutputType Library
         $script:pv = @(& (Get-Module TCPK) { param($d) Get-TcpkPipeFirstInstanceVerdicts -DllPath $d } $script:pipeDll)
+
+        $dlldir = @'
+using System; using System.Runtime.InteropServices;
+public class DllDirBad {
+  [DllImport("kernel32.dll", CharSet=CharSet.Unicode)] static extern bool SetDllDirectory(string path);
+  public void Relative(){ SetDllDirectory("plugins"); }
+  public void Empty(){ SetDllDirectory(""); }
+  public void Absolute(){ SetDllDirectory(@"C:\Program Files\App\lib"); }
+}
+'@
+        $script:dllDirDll = Join-Path $script:work 'DllDirBad.dll'
+        Add-Type -TypeDefinition $dlldir -OutputAssembly $script:dllDirDll -OutputType Library
+        $script:dv = @(& (Get-Module TCPK) { param($d) Get-TcpkDllSearchWidenVerdicts -DllPath $d } $script:dllDirDll)
     }
 }
 
@@ -127,5 +140,25 @@ Describe 'Get-TcpkPipeFirstInstanceVerdicts (named-pipe squatting)' {
     It 'surfaces end-to-end as pipe.no-first-instance (Confirmed IL)' {
         $f = @(Test-TcpkNamedPipeHardening -Path $script:work)
         ($f | Where-Object { $_.RuleId -eq 'pipe.no-first-instance' -and $_.Confidence -eq 'Confirmed (IL)' }) | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-TcpkDllSearchWidenVerdicts (relative SetDllDirectory)' {
+    BeforeEach {
+        if (-not $script:cecil) { Set-ItResult -Skipped -Because 'Mono.Cecil not available' }
+        elseif (-not $script:desktop) { Set-ItResult -Skipped -Because 'fixture compiles under Desktop/Framework only' }
+    }
+    It 'flags a relative path added to the search order' {
+        ($script:dv | Where-Object { $_.Method -eq 'Relative' }) | Should -Not -BeNullOrEmpty
+    }
+    It 'does NOT flag the empty-string hardening form (precision)' {
+        ($script:dv | Where-Object { $_.Method -eq 'Empty' }) | Should -BeNullOrEmpty
+    }
+    It 'does NOT flag a rooted absolute path (precision)' {
+        ($script:dv | Where-Object { $_.Method -eq 'Absolute' }) | Should -BeNullOrEmpty
+    }
+    It 'surfaces end-to-end as dllsearch.setdlldirectory-relative' {
+        $f = @(Test-TcpkPInvokeSurface -Path $script:work)
+        ($f | Where-Object { $_.RuleId -eq 'dllsearch.setdlldirectory-relative' }) | Should -Not -BeNullOrEmpty
     }
 }

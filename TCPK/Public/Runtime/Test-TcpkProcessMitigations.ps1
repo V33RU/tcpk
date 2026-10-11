@@ -37,6 +37,13 @@ function Test-TcpkProcessMitigations {
         @{ Path='CFG.Enable';                              Sev='MEDIUM'; Name='CFG' }
         @{ Path='SEHOP.Enable';                            Sev='MEDIUM'; Name='SEHOP' }
         @{ Path='ChildProcess.DisallowChildProcessCreation';Sev='LOW';   Name='NoChildProcess' }
+        # Image-load policy: the direct defence against DLL search-order hijack / sideload.
+        # PreferSystem32 resolves system DLLs from System32 first; BlockRemoteImageLoads
+        # refuses DLLs from UNC/remote paths; BlockLowLabelImageLoads refuses low-integrity
+        # images. A wrong property name just resolves to $null and is skipped, never errors.
+        @{ Path='ImageLoad.PreferSystem32';          Sev='MEDIUM'; Name='ImageLoad.PreferSystem32';   Cwe=@('CWE-427') }
+        @{ Path='ImageLoad.BlockRemoteImageLoads';   Sev='MEDIUM'; Name='ImageLoad.BlockRemoteImages'; Cwe=@('CWE-427','CWE-114') }
+        @{ Path='ImageLoad.BlockLowLabelImageLoads'; Sev='LOW';    Name='ImageLoad.BlockLowLabelImages'; Cwe=@('CWE-427') }
     )
     foreach ($p in $procs) {
         $m = Get-ProcessMitigation -Id $p.Id -ErrorAction SilentlyContinue
@@ -54,7 +61,7 @@ function Test-TcpkProcessMitigations {
                     -Title "$($p.Name): $($c.Name) is not ON ($val)" `
                     -File "$($p.Name) (PID $($p.Id))" `
                     -Evidence "$($c.Path)=$val" `
-                    -Cwe @('CWE-1037') `
+                    -Cwe ($(if ($c.Cwe) { $c.Cwe } else { @('CWE-1037') })) `
                     -Fix 'Enable via Set-ProcessMitigation or rebuild with the right compiler/linker flags.'
             }
         }

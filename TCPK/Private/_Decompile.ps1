@@ -1930,3 +1930,61 @@ function Get-TcpkPipeFirstInstanceVerdicts {
         if ($asm) { $asm.Dispose() }
     }
 }
+
+# DLL search-path widening from IL. SetDllDirectory(lpPathName) inserts a directory into the
+# DLL search order. The EMPTY-string form SetDllDirectory("") is the hardening call (it removes
+# the current directory), so it is never flagged. A non-empty ROOTED path (C:\..., \\server\...)
+# is a deliberate, usually-trusted directory and is skipped to avoid noise. A RELATIVE literal
+# (plugins, ..\lib, .\x) is resolved against the current directory, which an attacker can often
+# control, so a DLL planted there loads into the process -- that is the finding. The path is
+# read single-slot-back (the ldstr immediately before the call), the same proven pattern the
+# XXE / handle-inherit verdicts use; a non-literal argument is skipped (no false positive).
+function Get-TcpkDllSearchWidenVerdicts {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $out = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.HasBody) { continue }
+                foreach ($ins in $m.Body.Instructions) {
+                    $opn = $ins.OpCode.Name
+                    if ($opn -ne 'call' -and $opn -ne 'callvirt') { continue }
+                    $mref = $ins.Operand -as [Mono.Cecil.MethodReference]
+                    if ($null -eq $mref -or "$($mref.Name)" -notmatch '^SetDllDirectory') { continue }
+                    $arg = $ins.Previous
+                    while ($arg -and $arg.OpCode.Name -eq 'nop') { $arg = $arg.Previous }
+                    if ($null -eq $arg -or $arg.OpCode.Name -ne 'ldstr') { continue }   # literal paths only
+                    $pathArg = "$($arg.Operand)"
+                    if (-not $pathArg) { continue }                                     # "" removes CWD -> secure
+                    $rooted = $false
+                    try { $rooted = [System.IO.Path]::IsPathRooted($pathArg) } catch { $rooted = $false }
+                    if ($rooted) { continue }                                           # absolute/trusted -> skip
+                    $back = New-Object 'System.Collections.Generic.List[object]'
+                    $q = $ins; $c = 0
+                    while ($q -and $c -lt 4) { $back.Insert(0, $q); $q = $q.Previous; $c++ }
+                    $snip = New-Object 'System.Collections.Generic.List[string]'
+                    foreach ($bi in $back) {
+                        $bo = if ($null -ne $bi.Operand) { " $($bi.Operand)" } else { '' }
+                        $snip.Add(("  {0,-12}{1}" -f $bi.OpCode.Name, $bo))
+                    }
+                    $ns  = if ($t.Namespace) { $t.Namespace } else { '(global namespace)' }
+                    $out.Add([pscustomobject]@{
+                        File = $fileName; Assembly = $asm.MainModule.Name; Namespace = $ns
+                        Type = $t.FullName; Method = $m.Name
+                        Token = ('0x{0:X8}' -f $m.MetadataToken.ToInt32())
+                        PathArg = $pathArg; Il = ($snip -join "`n")
+                    })
+                }
+            }
+        }
+        return $out.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}

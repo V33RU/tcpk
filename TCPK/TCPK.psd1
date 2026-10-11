@@ -168,6 +168,7 @@
         'Test-TcpkDependencyConfusion',
         'Test-TcpkDeserBinder',
         'Test-TcpkDeserialization',
+        'Test-TcpkDotLocalRedirection',
         'Test-TcpkHandleInheritance',
         'Test-TcpkImpersonationBalance',
         'Test-TcpkNamedPipeHardening',

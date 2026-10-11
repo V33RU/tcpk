@@ -423,6 +423,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkEmbeddedBlobs'       { Test-TcpkEmbeddedBlobs       -Path $Target   }
     _RunCheck 'Test-TcpkReflectionLoading'   { Test-TcpkReflectionLoading   -Path $expanded }
     _RunCheck 'Test-TcpkPInvokeSurface'      { Test-TcpkPInvokeSurface      -Path $expanded }
+    _RunCheck 'Test-TcpkDotLocalRedirection' { Test-TcpkDotLocalRedirection -Path $expanded }
     _RunCheck 'Test-TcpkHollowingApis'     { Test-TcpkHollowingApis       -Path $expanded }
     _RunCheck 'Test-TcpkAmsiSurface'       { Test-TcpkAmsiSurface         -Path $expanded }
     _RunCheck 'Test-TcpkNativeInterop'       { Test-TcpkNativeInterop       -Path $expanded }
