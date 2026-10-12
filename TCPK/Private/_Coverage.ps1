@@ -14,7 +14,7 @@ function Add-TcpkCoverage {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][ValidateSet('Ran','SkippedQuickProfile','GatedNoProcess','GatedNoTerms','NeedsElevation','NotImplemented','Failed')][string]$Status,
+        [Parameter(Mandatory)][ValidateSet('Ran','SkippedQuickProfile','GatedNoProcess','GatedNoTerms','GatedNoPfn','NeedsElevation','NotImplemented','Failed')][string]$Status,
         [int]$Count = 0,
         [int]$DurationMs = 0
     )

@@ -125,7 +125,9 @@ function Get-TcpkDerivedSearchSurface {
     )
 
     $catalog = $script:TcpkStoreCatalog
-    $platformKey = if ($catalog.ContainsKey($PlatformClass)) { $PlatformClass } else { 'unknown' }
+    # $catalog is an [ordered] dictionary (OrderedDictionary): it has .Contains, NOT .ContainsKey.
+    # The inner per-platform value is a plain hashtable, so .ContainsKey is correct there.
+    $platformKey = if ($catalog.Contains($PlatformClass)) { $PlatformClass } else { 'unknown' }
     $entries     = if ($catalog[$platformKey].ContainsKey($StoreClass)) {
         $catalog[$platformKey][$StoreClass]
     } else {
