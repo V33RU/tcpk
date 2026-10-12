@@ -17,7 +17,9 @@ function Get-TcpkInfo {
     [CmdletBinding()] param([switch]$Banner)
 
     $manifest = Import-PowerShellDataFile (Join-Path $script:TcpkRoot 'TCPK.psd1')
-    $totalPublic = (Get-ChildItem (Join-Path $script:TcpkRoot 'Public') -Recurse -Filter '*.ps1' -EA SilentlyContinue).Count
+    # Exported cmdlets = the manifest's FunctionsToExport, not the Public .ps1 file count:
+    # several files define more than one function, so the file count undercounts.
+    $totalPublic = @($manifest.FunctionsToExport).Count
 
     $info = [pscustomobject]@{
         Version          = $manifest.ModuleVersion
