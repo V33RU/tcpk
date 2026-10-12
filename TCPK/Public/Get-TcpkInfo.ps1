@@ -64,30 +64,31 @@ function Get-TcpkInfo {
     Write-Host ("  {0}" -f $bar) -ForegroundColor Cyan
     Write-Host ''
 
+    # Each row is a pscustomobject on purpose: an array literal of inner @(...) arrays
+    # unrolls into one flat list in PowerShell, so a row would not survive as a 4-item array.
     $rows = @(
-        @('Static / Discovery', $info.DiscoveryCount, 'Exploit', $info.Exploit)
-        @('Manifest',           $info.ManifestCount,  'Verify',  $info.Verify)
-        @('OS integration',     $info.OsIntegration,  'Report',  $info.Report)
-        @('Credentials',        $info.Credentials,    'Recon',   $info.Recon)
-        @('Runtime',            $info.Runtime,        'LLM',     $info.Llm)
-        @('Network',            $info.Network,        '',        $null)
-        @('WebView2',           $info.WebView2,       '',        $null)
-        @('Logging',            $info.Logging,        '',        $null)
-        @('Memory',             $info.Memory,         '',        $null)
-        @('Anti-debug',         $info.AntiDebug,      '',        $null)
+        [pscustomobject]@{ L='Static / Discovery'; LV=$info.DiscoveryCount; R='Exploit'; RV=$info.Exploit }
+        [pscustomobject]@{ L='OS integration';     LV=$info.OsIntegration;  R='Verify';  RV=$info.Verify }
+        [pscustomobject]@{ L='Runtime';            LV=$info.Runtime;        R='Report';  RV=$info.Report }
+        [pscustomobject]@{ L='Credentials';        LV=$info.Credentials;    R='Recon';   RV=$info.Recon }
+        [pscustomobject]@{ L='Network';            LV=$info.Network;        R='LLM';     RV=$info.Llm }
+        [pscustomobject]@{ L='Manifest';           LV=$info.ManifestCount;  R='';        RV=$null }
+        [pscustomobject]@{ L='WebView2';           LV=$info.WebView2;       R='';        RV=$null }
+        [pscustomobject]@{ L='Logging';            LV=$info.Logging;        R='';        RV=$null }
+        [pscustomobject]@{ L='Memory';             LV=$info.Memory;         R='';        RV=$null }
+        [pscustomobject]@{ L='Anti-debug';         LV=$info.AntiDebug;      R='';        RV=$null }
     )
     foreach ($r in $rows) {
-        Write-Host ('   {0,-20}' -f $r[0]) -ForegroundColor Gray -NoNewline
-        Write-Host ('{0,4}' -f $r[1])      -ForegroundColor Cyan -NoNewline
-        if ($r[2]) {
-            Write-Host ('      {0,-14}' -f $r[2]) -ForegroundColor Gray -NoNewline
-            Write-Host ('{0,4}' -f $r[3])        -ForegroundColor Cyan
+        Write-Host ('   {0,-20}' -f $r.L) -ForegroundColor Gray -NoNewline
+        Write-Host ('{0,4}' -f $r.LV)     -ForegroundColor Cyan -NoNewline
+        if ($r.R) {
+            Write-Host ('      {0,-14}' -f $r.R) -ForegroundColor Gray -NoNewline
+            Write-Host ('{0,4}' -f $r.RV)        -ForegroundColor Cyan
         } else {
             Write-Host ''
         }
     }
     Write-Host ''
-    Write-Host ('   {0,-20}{1,4}      {2,-14}{3,4}' -f 'Total cmdlets',$info.TotalCmdlets,'Checks',$totalPublic) -ForegroundColor Green
-    Write-Host ('   {0,-20}{1}' -f 'Finding types','800+') -ForegroundColor Green
+    Write-Host ('   {0,-20}{1,4}      {2,-14}{3}' -f 'Cmdlets',$info.TotalCmdlets,'Finding types','800+') -ForegroundColor Green
     Write-Host ''
 }
