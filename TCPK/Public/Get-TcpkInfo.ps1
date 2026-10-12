@@ -45,15 +45,23 @@ function Get-TcpkInfo {
 
     if (-not $Banner) { return $info }
 
-    # --- framed console banner (for a screenshot) -----------------------------------------
-    $bar = ([string][char]0x2550) * 52
-    $tl=[char]0x2554; $tr=[char]0x2557; $bl=[char]0x255A; $br=[char]0x255D; $v=[char]0x2551
+    # --- console banner (for a screenshot) ------------------------------------------------
+    # Plain-ASCII logo on purpose: block/box glyphs corrupt when PS 5.1 loads a .ps1 that has
+    # no BOM, so the art uses only ASCII and the rule below is built from a char code.
+    $bar  = ([string][char]0x2500) * 56   # horizontal rule
     $elev = if ($info.Elevated) { 'yes' } else { 'no' }
     Write-Host ''
-    Write-Host ("  {0}{1}{2}" -f $tl,$bar,$tr) -ForegroundColor Cyan
-    Write-Host ("  {0} {1,-50} {2}" -f $v,'TCPK   Thick Client Pentest Kit',$v) -ForegroundColor Cyan
-    Write-Host ("  {0} {1,-50} {2}" -f $v,("v{0}   PowerShell {1}   elevated: {2}" -f $info.Version,$info.PowerShell,$elev),$v) -ForegroundColor DarkGray
-    Write-Host ("  {0}{1}{2}" -f $bl,$bar,$br) -ForegroundColor Cyan
+    foreach ($ln in @(
+        " _____  ____ ____  _  __",
+        "|_   _|/ ___|  _ \| |/ /",
+        "  | | | |   | |_) | ' / ",
+        "  | | | |___|  __/| . \ ",
+        "  |_|  \____|_|   |_|\_\"
+    )) { Write-Host ("   " + $ln) -ForegroundColor Cyan }
+    Write-Host ''
+    Write-Host ("   Thick Client Pentest Kit    v{0}" -f $info.Version) -ForegroundColor White
+    Write-Host ("   PowerShell {0}    elevated: {1}    windows: {2}" -f $info.PowerShell,$elev,$info.IsWindows) -ForegroundColor DarkGray
+    Write-Host ("  {0}" -f $bar) -ForegroundColor Cyan
     Write-Host ''
 
     $rows = @(
