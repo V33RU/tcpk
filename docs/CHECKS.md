@@ -1,6 +1,6 @@
 # TCPK - Check Catalogue
 
-Public cmdlets, grouped by bucket. This page covers a subset of the 316 that ship; run
+Public cmdlets, grouped by bucket. This page covers a subset of the 335 that ship; run
 `Get-TcpkInfo` or `Get-Command -Module TCPK` for the authoritative live list.
 **GATED** cmdlets require `Enable-TcpkExploit -Acknowledge`.
 
@@ -365,4 +365,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 ---
 **Not every cmdlet is documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (329 cmdlets across 19 buckets, 221 of them `Test-*` detection checks).
+from this page (335 cmdlets across 19 categories, 227 of them `Test-*` detection checks).

@@ -81,7 +81,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 <div class="wrap">
 <nav class="toc">
   <div class="brand"><img src="tcpk-mark.png" alt="" width="26" height="26">TCPK</div>
-  <div class="ver">v2.11.0 &middot; 329 cmdlets</div>
+  <div class="ver">v2.11.0 &middot; 335 cmdlets</div>
   <a href="#tldr">TL;DR</a>
   <a href="#threat">Why thick clients</a>
   <a href="#principles">Design principles</a>
@@ -119,7 +119,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
   <div class="badges">
     <span class="badge"><b>v2.11.0</b></span>
-    <span class="badge"><b>329</b> cmdlets</span>
+    <span class="badge"><b>335</b> cmdlets</span>
     <span class="badge">PowerShell <b>5.1+</b></span>
     <span class="badge">WinForms GUI + <b>MCP</b> server</span>
     <span class="badge">CVSS <b>v4.0</b> (computed)</span>
@@ -142,7 +142,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
 
 <section id="tldr">
 <h2><span class="num">00</span>TL;DR</h2>
-<p class="lead">Point TCPK at an installed app or an <code>.msix</code>. It collects findings from 221 detection checks across 19 buckets, kills the false positives deterministically by reading the IL, scores what survives with a faithful CVSS v4.0 implementation, correlates co-occurring weaknesses into exploit chains, and writes an analyst-grade HTML + Excel report plus machine-readable JSON and a CycloneDX SBOM.</p>
+<p class="lead">Point TCPK at an installed app or an <code>.msix</code>. It collects findings from 237 detection checks across 10 buckets, kills the false positives deterministically by reading the IL, scores what survives with a faithful CVSS v4.0 implementation, correlates co-occurring weaknesses into exploit chains, and writes an analyst-grade HTML + Excel report plus machine-readable JSON and a CycloneDX SBOM.</p>
 <pre><code class="language-powershell">Import-Module .\TCPK\TCPK.psd1
 
 # full static + posture audit, reports to .\out\App
@@ -253,7 +253,7 @@ Start-TcpkMcpServer.ps1    # Model Context Protocol server for AI agents</code><
 }</code></pre>
 
 <h3 id="buckets">Detection buckets</h3>
-<p>Checks are grouped A-L. The CLI runs them in order; the GUI runs the same set and streams each result live.</p>
+<p>Checks are grouped A-J. The CLI runs them in order; the GUI runs the same set and streams each result live.</p>
 <table>
 <thead><tr><th>Bucket</th><th>Module</th><th>What it interrogates</th><th>Examples</th></tr></thead>
 <tbody>
@@ -607,7 +607,7 @@ powershell -STA -ExecutionPolicy Bypass -File .\Start-TCPKGui.ps1</code></pre>
 </ul>
 <pre><code class="language-powershell"># clone / unzip, then:
 Import-Module .\TCPK\TCPK.psd1
-Get-Command -Module TCPK | Measure-Object   # 329 cmdlets
+Get-Command -Module TCPK | Measure-Object   # 335 cmdlets
 Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
@@ -617,7 +617,7 @@ Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
 <footer>
-<p><b>TCPK v2.11.0</b> &middot; Thick Client Pentest Kit &middot; 329 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+<p><b>TCPK v2.11.0</b> &middot; Thick Client Pentest Kit &middot; 335 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
 </footer>
 </main>
 </div>

@@ -460,7 +460,7 @@
 
 <div class="page">
   <h1>TCPK v2.11.0 -- Architecture Flowchart</h1>
-  <p class="subtitle"><span>329 cmdlets</span> | 78 private helpers | 12 audit buckets | 4 UI surfaces</p>
+  <p class="subtitle"><span>335 cmdlets</span> | 85 private helpers | 10 audit buckets | 4 UI surfaces</p>
 
   <div class="legend">
     <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Entry point / core</div>
@@ -510,7 +510,7 @@
       <div class="arrow">&#x2192;</div>
       <div class="node process">Invoke-TcpkAudit -Target ...</div>
     </div>
-    <div class="note">All 4 surfaces share the same module -- TCPK.psm1 loads Classes/ then Private/ then Public/ (sorted by path). 260 public functions are exported.</div>
+    <div class="note">All 4 surfaces share the same module -- TCPK.psm1 loads Classes/ then Private/ then Public/ (sorted by path). 335 public functions are exported.</div>
   </div>
 
   <!-- ===== SECTION 2: MODULE LOADING ===== -->
@@ -529,13 +529,13 @@
       </div>
       <div class="phase">
         <div class="phase-num">Step 2</div>
-        <div class="phase-title">Private/ (51 files)</div>
-        <div class="phase-detail">_Decompile.ps1 (Cecil)<br>_Finding.ps1 (factory)<br>_Cvss40.ps1 (FIRST.org)<br>_Attack.ps1 (ATT&CK)<br>_Identity.ps1 (terms)<br>_Expand.ps1 (unwrap)<br>... 45 more helpers</div>
+        <div class="phase-title">Private/ (85 files)</div>
+        <div class="phase-detail">_Decompile.ps1 (Cecil)<br>_Finding.ps1 (factory)<br>_Cvss40.ps1 (FIRST.org)<br>_Attack.ps1 (ATT&CK)<br>_Identity.ps1 (terms)<br>_Expand.ps1 (unwrap)<br>... 79 more helpers</div>
         <div class="phase-arrow">&#x25B6;</div>
       </div>
       <div class="phase">
         <div class="phase-num">Step 3</div>
-        <div class="phase-title">Public/ (329 cmdlets)</div>
+        <div class="phase-title">Public/ (335 cmdlets)</div>
         <div class="phase-detail">Invoke-TcpkAudit<br>Test-Tcpk* (scanners)<br>Get-Tcpk* (queries)<br>Export-Tcpk* (reports)<br>Confirm-Tcpk* (verify)<br>Invoke-Tcpk* (exploit)<br>Start-TcpkAgentic</div>
       </div>
     </div>
@@ -565,7 +565,7 @@
       <div class="phase">
         <div class="phase-num">Phase 3</div>
         <div class="phase-title">Run Checks</div>
-        <div class="phase-detail">_RunCheck x 228<br>across 19 buckets<br>(A-L). Each check<br>emits [TcpkFinding]<br>+ TCPKFND stream</div>
+        <div class="phase-detail">_RunCheck x 237<br>across 10 buckets<br>(A-J). Each check<br>emits [TcpkFinding]<br>+ TCPKFND stream</div>
         <div class="phase-arrow">&#x25B6;</div>
       </div>
       <div class="phase">
@@ -618,13 +618,13 @@
   <!-- ===== SECTION 3c: BUCKETS ===== -->
   <div class="section-header">
     <div class="num" style="background:var(--accent2-dim);color:var(--accent2)">3c</div>
-    Audit Buckets (A-L) -- 121 Checks
+    Audit Buckets (A-J) -- 237 Checks
   </div>
 
   <div class="flow">
     <div class="bucket-grid">
       <div class="bucket">
-        <div class="bucket-title">A: Static Binary Analysis <span class="count">~82 checks</span></div>
+        <div class="bucket-title">A: Static Binary Analysis <span class="count">115 checks</span></div>
         <ul>
           <li>Test-TcpkSignature</li>
           <li>Test-TcpkSecrets, EntropySecrets</li>
@@ -638,7 +638,7 @@
         </ul>
       </div>
       <div class="bucket">
-        <div class="bucket-title">B: MSIX Manifest <span class="count">9 checks</span></div>
+        <div class="bucket-title">B: MSIX Manifest <span class="count">10 checks</span></div>
         <ul>
           <li>Test-TcpkMsixCapabilities</li>
           <li>Test-TcpkMsixProtocols</li>
@@ -652,7 +652,7 @@
         </ul>
       </div>
       <div class="bucket">
-        <div class="bucket-title">C: OS Integration <span class="count">~38 checks</span></div>
+        <div class="bucket-title">C: OS Integration <span class="count">40 checks</span></div>
         <ul>
           <li>Test-TcpkInstallDirAcl, FolderAcls</li>
           <li>Test-TcpkWritablePath</li>
@@ -665,7 +665,7 @@
         </ul>
       </div>
       <div class="bucket">
-        <div class="bucket-title">D: Credential Storage <span class="count">~8 checks</span></div>
+        <div class="bucket-title">D: Credential Storage <span class="count">11 checks</span></div>
         <ul>
           <li>Test-TcpkDpapiBlobs</li>
           <li>Test-TcpkPlaintextConfigs</li>
@@ -677,7 +677,7 @@
         </ul>
       </div>
       <div class="bucket">
-        <div class="bucket-title">E: Runtime / Live Process <span class="count">~31 checks</span></div>
+        <div class="bucket-title">E: Runtime / Live Process <span class="count">29 checks</span></div>
         <ul>
           <li>Test-TcpkProcessMitigations</li>
           <li>Test-TcpkListeningPorts</li>
@@ -691,7 +691,7 @@
         </ul>
       </div>
       <div class="bucket">
-        <div class="bucket-title">F: Network <span class="count">12 checks</span></div>
+        <div class="bucket-title">F: Network <span class="count">10 checks</span></div>
         <ul>
           <li>Test-TcpkTlsPinning, TlsProtocols</li>
           <li>Test-TcpkUpdateFlow</li>
@@ -715,7 +715,7 @@
         </ul>
       </div>
       <div class="bucket">
-        <div class="bucket-title">H: Logging <span class="count">4 checks</span></div>
+        <div class="bucket-title">H: Logging <span class="count">7 checks</span></div>
         <ul>
           <li>Test-TcpkLogFiles</li>
           <li>Test-TcpkTelemetrySdks</li>
@@ -732,7 +732,7 @@
         </ul>
       </div>
       <div class="bucket">
-        <div class="bucket-title">J: Anti-Debug <span class="count">4 checks</span></div>
+        <div class="bucket-title">J: Anti-Debug <span class="count">5 checks</span></div>
         <ul>
           <li>Test-TcpkAntiDebugRefs</li>
           <li>Test-TcpkSelfIntegrityCheck</li>
@@ -1029,7 +1029,7 @@
   <!-- ===== SECTION 9: PRIVATE HELPERS ===== -->
   <div class="section-header">
     <div class="num" style="background:var(--accent-dim);color:var(--accent)">9</div>
-    Key Private Helpers (51 files in Private/)
+    Key Private Helpers (85 files in Private/)
   </div>
 
   <div class="flow">
