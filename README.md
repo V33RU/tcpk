@@ -90,6 +90,8 @@ MCP setup (Claude Code, Claude Desktop, Cursor): [`docs/MCP-USAGE.md`](docs/MCP-
 `F` Network - `G` WebView2 - `H` Logging - `I` Memory - `J` Anti-debug - `K` Exploit (gated) --
 plus Recon / Report.
 
+![TCPK architecture and audit pipeline](assets/tcpk-architecture.png)
+
 Full check catalogue in [`docs/CHECKS.md`](docs/CHECKS.md); the 55-case thick-client test plan is
 auto-correlated in the Excel **Checklist** sheet (31 of 55 fully automated, 23 partial, 1 gap). Full technical write-up at
 [v33ru.github.io/tcpk](https://v33ru.github.io/tcpk/).
