@@ -517,7 +517,7 @@ $($cveRows -join "`n")
                 foreach ($at in @(Get-TcpkAttackTechnique -RuleId $f.RuleId)) { if ($at) { $tagItems.Add("<span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>$(ConvertTo-TcpkHtmlSafe ([string]$at))</span>") } }
                 # TASVS tags show ONLY TASVS-* categories; the Desktop Top 10 (DA*) now comes
                 # solely from Get-TcpkOwaspDa below, so the two no longer disagree on a card.
-                foreach ($tv in @(Get-TcpkTasvsControl -RuleId $f.RuleId | Where-Object { $_ -notmatch '^DA\d' })) { if ($tv) { $tagItems.Add("<span class='ftag ftag-tasvs' title='OWASP TASVS'>$(ConvertTo-TcpkHtmlSafe ([string]$tv))</span>") } }
+                foreach ($tv in @(Get-TcpkCategoryList -RuleId $f.RuleId | Where-Object { $_ -notmatch '^DA\d' })) { if ($tv) { $tagItems.Add("<span class='ftag ftag-tasvs' title='OWASP TASVS'>$(ConvertTo-TcpkHtmlSafe ([string]$tv))</span>") } }
                 $oda = Get-TcpkOwaspDa -RuleId $f.RuleId; if ($oda) { $tagItems.Add("<span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>$(ConvertTo-TcpkHtmlSafe ([string]$oda))</span>") }
                 $tagRow = if ($tagItems.Count) { "<div class='ftags'>" + ($tagItems -join '') + "</div>" } else { '' }
 

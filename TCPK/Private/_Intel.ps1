@@ -27,7 +27,7 @@ function Get-TcpkIntelModel {
         $attack = ''; try { $attack = "$(Get-TcpkAttackText $f.RuleId)" } catch { }
         # TASVS string keeps only TASVS-* categories; the OWASP Desktop Top 10 (DA*) comes from
         # the single authoritative Get-TcpkOwaspDa, so the intel report matches HTML/Excel/SARIF.
-        $tasvs  = ''; try { $tasvs  = "$((Get-TcpkTasvsControl $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; ')" } catch { }
+        $tasvs  = ''; try { $tasvs  = "$((Get-TcpkCategoryList $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; ')" } catch { }
         $owaspDa = ''; try { $owaspDa = "$(Get-TcpkOwaspDa $f.RuleId)" } catch { }
         $impact = ''; try { $impact = "$(Get-TcpkImpactText $f)" } catch { }
         $verify = ''; try { $verify = "$(Get-TcpkVerifyHint -RuleId $f.RuleId -File $f.File -Evidence $f.Evidence)" } catch { }

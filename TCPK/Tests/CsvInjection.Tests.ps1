@@ -62,7 +62,7 @@ Describe 'Test-TcpkCsvInjection' {
     It 'has report mappings (ATT&CK + TASVS + verify hint) wired for csv.*' {
         & (Get-Module TCPK) {
             (Get-TcpkAttackText 'csv.formula-injection-risk') | Should -Not -BeNullOrEmpty
-            (Get-TcpkTasvsText  'csv.formula-injection-risk') | Should -Match 'DA1 Injection'
+            (Get-TcpkCategoryText  'csv.formula-injection-risk') | Should -Match 'DA1 Injection'
             (Get-TcpkVerifyHint -RuleId 'csv.formula-injection-risk' -File 'x.dll' -Evidence 'e') | Should -Match 'formula'
         }
     }

@@ -78,7 +78,7 @@ $script:TcpkTasvsMap = @(
     @{ rx='^injection\.';                                                                   tasvs=@('TASVS-CODE Code Quality & Build Settings'); da=@('DA8 Poor Code Quality') }
 )
 
-function Get-TcpkTasvsControl {
+function Get-TcpkCategoryList {
     [CmdletBinding()]
     param([Parameter(Mandatory)][AllowEmptyString()][string]$RuleId)
     if ([string]::IsNullOrEmpty($RuleId)) { return @() }
@@ -93,8 +93,8 @@ function Get-TcpkTasvsControl {
 }
 
 # Single display string (TASVS + Desktop Top 10) for a RuleId.
-function Get-TcpkTasvsText {
+function Get-TcpkCategoryText {
     [CmdletBinding()]
     param([Parameter(Mandatory)][AllowEmptyString()][string]$RuleId)
-    (Get-TcpkTasvsControl -RuleId $RuleId) -join '; '
+    (Get-TcpkCategoryList -RuleId $RuleId) -join '; '
 }

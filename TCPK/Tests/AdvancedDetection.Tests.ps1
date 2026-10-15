@@ -329,17 +329,17 @@ Describe 'ATT&CK and TASVS mappings for new RuleIds' {
         ($tech -join ' ') | Should -BeLike '*T1059*'
     }
     It 'TASVS maps appdomain.* to TASVS-PLATFORM' {
-        $ctrl = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'appdomain.manager-configured' }
+        $ctrl = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'appdomain.manager-configured' }
         $ctrl | Should -Not -BeNullOrEmpty
         ($ctrl -join ' ') | Should -BeLike '*TASVS-PLATFORM*'
     }
     It 'TASVS maps clickonce.* to TASVS-NETWORK' {
-        $ctrl = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'clickonce.manifest-http' }
+        $ctrl = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'clickonce.manifest-http' }
         $ctrl | Should -Not -BeNullOrEmpty
         ($ctrl -join ' ') | Should -BeLike '*TASVS-NETWORK*'
     }
     It 'TASVS maps msix.psf* to TASVS-PLATFORM' {
-        $ctrl = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'msix.psf-full-trust' }
+        $ctrl = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'msix.psf-full-trust' }
         $ctrl | Should -Not -BeNullOrEmpty
         ($ctrl -join ' ') | Should -BeLike '*TASVS-PLATFORM*'
     }

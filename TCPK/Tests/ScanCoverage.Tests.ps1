@@ -111,7 +111,7 @@ Describe 'scan rule ID is registered in the mapping tables' {
     It 'maps scan.incomplete-coverage to an ATT&CK technique and a TASVS control' {
         $tech = & (Get-Module TCPK) { Get-TcpkAttackTechnique -RuleId 'scan.incomplete-coverage' }
         @($tech).Count | Should -BeGreaterThan 0
-        $ctl = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'scan.incomplete-coverage' }
+        $ctl = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'scan.incomplete-coverage' }
         @($ctl).Count | Should -BeGreaterThan 0
     }
 }

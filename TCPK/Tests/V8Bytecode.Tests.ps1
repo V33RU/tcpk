@@ -94,7 +94,7 @@ Describe 'electron.v8-bytecode is registered in the mapping tables' {
         $t = & (Get-Module TCPK) { Get-TcpkAttackTechnique -RuleId 'electron.v8-bytecode' }
         @($t).Count | Should -BeGreaterThan 0
         ($t -join ' ') | Should -Match 'T1027'
-        $c = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'electron.v8-bytecode' }
+        $c = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'electron.v8-bytecode' }
         @($c).Count | Should -BeGreaterThan 0
     }
 }

@@ -1,4 +1,4 @@
-function Get-TcpkTasvsMap {
+function Get-TcpkCategoryMap {
 <#
 .SYNOPSIS
     Map TCPK findings / rule IDs to OWASP TASVS controls and the OWASP Desktop App
@@ -32,7 +32,7 @@ function Get-TcpkTasvsMap {
     )
     begin {
         function _Split($rid) {
-            $all = @(Get-TcpkTasvsControl -RuleId $rid)
+            $all = @(Get-TcpkCategoryList -RuleId $rid)
             [pscustomobject]@{
                 Tasvs        = ($all | Where-Object { $_ -like 'TASVS-*' }) -join '; '
                 DesktopTop10 = ($all | Where-Object { $_ -like 'DA*' })    -join '; '

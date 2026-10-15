@@ -312,19 +312,19 @@ Describe 'ATT&CK mappings for new attack surface detections' {
 
 Describe 'TASVS mappings for new attack surface detections' {
     It 'maps phantom DLL to TASVS-PLATFORM' {
-        $t = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'dllsearch.phantom-dll' }
+        $t = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'dllsearch.phantom-dll' }
         ($t -join ';') | Should -Match 'TASVS-PLATFORM'
     }
     It 'maps COM hijack to TASVS-PLATFORM' {
-        $t = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'comhijack.per-user-plantable' }
+        $t = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'comhijack.per-user-plantable' }
         ($t -join ';') | Should -Match 'TASVS-PLATFORM'
     }
     It 'maps WER to TASVS-STORAGE' {
-        $t = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'wer.dump-folder-readable' }
+        $t = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'wer.dump-folder-readable' }
         ($t -join ';') | Should -Match 'TASVS-STORAGE'
     }
     It 'maps diag to TASVS-CODE' {
-        $t = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'diag.config-shipped' }
+        $t = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'diag.config-shipped' }
         ($t -join ';') | Should -Match 'TASVS-CODE'
     }
 }

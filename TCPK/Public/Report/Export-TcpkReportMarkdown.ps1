@@ -114,7 +114,7 @@ function Export-TcpkReportMarkdown {
                 if ($f.Cwe) { _w "- CWE: $((@($f.Cwe)) -join ', ')" }
                 $att = (Get-TcpkAttackTechnique -RuleId $f.RuleId) -join '; '
                 if ($att) { _w "- ATT&CK: $att" }
-                $tas = (Get-TcpkTasvsControl -RuleId $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; '
+                $tas = (Get-TcpkCategoryList -RuleId $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; '
                 if ($tas) { _w "- OWASP TASVS: $tas" }
                 $oda = Get-TcpkOwaspDa -RuleId $f.RuleId
                 if ($oda) { _w "- OWASP Desktop Top 10: $oda" }

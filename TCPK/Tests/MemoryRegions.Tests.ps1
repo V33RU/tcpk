@@ -64,7 +64,7 @@ Describe 'memregion rule IDs are registered in the mapping tables' {
         $rid = $_
         $tech = & (Get-Module TCPK) { param($r) Get-TcpkAttackTechnique -RuleId $r } $rid
         @($tech).Count | Should -BeGreaterThan 0 -Because "$rid must map to an ATT&CK technique"
-        $ctl = & (Get-Module TCPK) { param($r) Get-TcpkTasvsControl -RuleId $r } $rid
+        $ctl = & (Get-Module TCPK) { param($r) Get-TcpkCategoryList -RuleId $r } $rid
         @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a TASVS control"
     }
 

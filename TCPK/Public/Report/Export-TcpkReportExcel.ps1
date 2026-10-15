@@ -99,7 +99,7 @@ function Export-TcpkReportExcel {
                 "$($f.Evidence)",
                 "$(if ($f.Cwe) { ($f.Cwe -join ', ') } else { '' })",
                 "$(Get-TcpkAttackText $f.RuleId)",
-                "$((Get-TcpkTasvsControl $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; ')",
+                "$((Get-TcpkCategoryList $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; ')",
                 "$(Get-TcpkOwaspDa $f.RuleId)",
                 "$(Get-TcpkImpactText $f)",
                 "$($f.Fix)",

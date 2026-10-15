@@ -49,7 +49,7 @@ Describe 'Load-point rule IDs are registered in every mapping table' {
     }
 
     It 'maps <_> to at least one TASVS control' -ForEach $script:RuleIds {
-        $c = @(Get-TcpkTasvsControl -RuleId $_)
+        $c = @(Get-TcpkCategoryList -RuleId $_)
         $c.Count | Should -BeGreaterThan 0 -Because "$_ has no entry in TcpkTasvsMap (_Tasvs.ps1)"
     }
 

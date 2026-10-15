@@ -71,7 +71,7 @@
         'Get-TcpkSpecCredentialFingerprint',
         'Get-TcpkStoredCredentials',
         'Get-TcpkTargetProfile',
-        'Get-TcpkTasvsMap',
+        'Get-TcpkCategoryMap',
         'Invoke-TcpkActivityTrace',
         'Invoke-TcpkAgentAudit',
         'Invoke-TcpkApiTrace',

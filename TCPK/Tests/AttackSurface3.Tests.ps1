@@ -166,19 +166,19 @@ Describe 'ATT&CK mappings for Tier 2 detections' {
 
 Describe 'TASVS mappings for Tier 2 detections' {
     It 'maps gRPC to TASVS-NETWORK' {
-        $t = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'grpc.proto-shipped' }
+        $t = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'grpc.proto-shipped' }
         ($t -join ';') | Should -Match 'TASVS-NETWORK'
     }
     It 'maps WebView2 sideload to TASVS-PLATFORM' {
-        $t = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'wv2.sideload-surface' }
+        $t = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'wv2.sideload-surface' }
         ($t -join ';') | Should -Match 'TASVS-PLATFORM'
     }
     It 'maps AMSI to TASVS-RESILIENCE' {
-        $t = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'amsi.init-surface' }
+        $t = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'amsi.init-surface' }
         ($t -join ';') | Should -Match 'TASVS-RESILIENCE'
     }
     It 'maps injection to TASVS-CODE' {
-        $t = & (Get-Module TCPK) { Get-TcpkTasvsControl -RuleId 'injection.hollowing-apis' }
+        $t = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'injection.hollowing-apis' }
         ($t -join ';') | Should -Match 'TASVS-CODE'
     }
 }
