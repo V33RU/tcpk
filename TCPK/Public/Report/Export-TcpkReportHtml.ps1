@@ -116,6 +116,13 @@ function Export-TcpkReportHtml {
         $maxCount = ($sevCounts.Values | Measure-Object -Maximum).Maximum
         if (-not $maxCount -or $maxCount -lt 1) { $maxCount = 1 }
 
+        # proven-only severity counts: the headline RISK INDEX is computed from PROVEN findings so
+        # unverified leads do not inflate the single scariest number on the report. The severity
+        # donut and the full findings table below still show ALL findings -- nothing is hidden.
+        $provenSet = @($all | Where-Object { "$($_.Confidence)" -like 'Confirmed*' })
+        $sevCountsProven = @{}
+        foreach ($s in $sevOrder) { $sevCountsProven[$s] = ($provenSet | Where-Object Severity -eq $s).Count }
+
         # evidence-tier rollup (honest confidence summary -- so a reader does not treat an Inferred
         # string-scan hit the same as an IL-proven one). Proven = IL or dynamic; Confirmed = other
         # Confirmed tiers; Inferred = unverified heuristic; Weak = Likely-FP / Uncertain.
@@ -148,8 +155,12 @@ function Export-TcpkReportHtml {
         $evidPhrase = if ($evidBits.Count) { ' Evidence grade: ' + ($evidBits -join '; ') + '.' } else { '' }
         $chainCount = @($all | Where-Object { "$($_.RuleId)" -like 'chain.*' -or "$($_.Module)" -eq 'chain' }).Count
         $chainPhrase = if ($chainCount -gt 0) { " $chainCount correlated attack path$(if ($chainCount -ne 1){'s'}) identified (see Likely attack paths below)." } else { '' }
-        $topF = @($all | Where-Object { "$($_.Severity)" -in 'CRITICAL','HIGH' } | Sort-Object @{ E = { Get-TcpkSeverityRank $_.Severity }; Descending = $true } | Select-Object -First 3)
-        $topPhrase = if ($topF.Count) { ' Most significant: ' + (($topF | ForEach-Object { ConvertTo-TcpkHtmlSafe ([string]$_.Title) }) -join '; ') + '.' } else { '' }
+        # Rank proven first, then severity -- so the "Most significant" line never headlines an
+        # unverified guess above a proven finding. Any lead that still appears is labelled.
+        $topF = @($all | Where-Object { "$($_.Severity)" -in 'CRITICAL','HIGH' } |
+            Sort-Object @{ E = { if ("$($_.Confidence)" -like 'Confirmed*') { 1 } else { 0 } }; Descending = $true }, @{ E = { Get-TcpkSeverityRank $_.Severity }; Descending = $true } |
+            Select-Object -First 3)
+        $topPhrase = if ($topF.Count) { ' Most significant: ' + (($topF | ForEach-Object { $tt = ConvertTo-TcpkHtmlSafe ([string]$_.Title); if ("$($_.Confidence)" -notlike 'Confirmed*') { "$tt (lead - verify)" } else { $tt } }) -join '; ') + '.' } else { '' }
         $execSummaryHtml = "<section class='card execsum'><h3 class='exechead'>Executive summary</h3><p class='exectext'>This audit of <b>$execTarget</b> produced <b>$($all.Count)</b> finding$(if ($all.Count -ne 1){'s'}) ($sevPhrase).$evidPhrase$chainPhrase$topPhrase</p></section>"
 
         # ---------------- header card ----------------
@@ -308,7 +319,10 @@ $($rowsKv -join "`n")
         # ---------------- dashboard: risk gauge + severity donut ----------------
         # The flat bar chart is replaced by an SVG risk gauge + severity donut (computed from the
         # real counts). Risk is a transparent weighted aggregate of finding severities (0-100).
-        $risk = [int][math]::Min(100, ($sevCounts['CRITICAL']*45 + $sevCounts['HIGH']*18 + $sevCounts['MEDIUM']*6 + $sevCounts['LOW']*2))
+        # Headline risk is PROVEN-only so leads do not inflate it; $riskAll keeps the all-inclusive
+        # number visible in the gauge caption below.
+        $risk    = [int][math]::Min(100, ($sevCountsProven['CRITICAL']*45 + $sevCountsProven['HIGH']*18 + $sevCountsProven['MEDIUM']*6 + $sevCountsProven['LOW']*2))
+        $riskAll = [int][math]::Min(100, ($sevCounts['CRITICAL']*45 + $sevCounts['HIGH']*18 + $sevCounts['MEDIUM']*6 + $sevCounts['LOW']*2))
         if     ($risk -ge 80) { $gaugeColor = $sevColor['CRITICAL']; $bandLabel = 'CRITICAL' }
         elseif ($risk -ge 55) { $gaugeColor = $sevColor['HIGH'];     $bandLabel = 'HIGH' }
         elseif ($risk -ge 30) { $gaugeColor = $sevColor['MEDIUM'];   $bandLabel = 'MEDIUM' }
@@ -348,6 +362,7 @@ $($rowsKv -join "`n")
           <text x='60' y='77' text-anchor='middle' fill='$gaugeColor' style='font:700 10px "Cascadia Code","Fira Code",Consolas,monospace'>$bandLabel</text>
         </svg>
       </div>
+      <div style='font-size:9px;color:#8b949e;text-align:center;margin-top:3px'>proven findings &middot; $riskAll with unverified leads</div>
     </div>
     <div class='dcell'>
       <h4>SEVERITY ($($all.Count))</h4>

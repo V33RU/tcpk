@@ -1084,6 +1084,20 @@ function Invoke-TcpkAudit {
 
     # --- summary ---
     Write-Information -MessageData "" -InformationAction Continue
+    # Lead with the proof-weighted verdict, not raw counts: a wall of CRITICAL/HIGH that is mostly
+    # unverified leads reads as scarier than the target is. Get-TcpkRiskLine always reports the raw
+    # HIGH+ total too, and the full severity breakdown still follows, so this prioritizes without
+    # hiding anything.
+    $riskLine = Get-TcpkRiskLine -Findings $all
+    Write-Information -MessageData $riskLine.Text -InformationAction Continue
+    $provenSplit = Get-TcpkAssuranceSplit -Findings $all
+    if ($provenSplit.ProvenCount -gt 0) {
+        $topProven = @($provenSplit.Proven | Sort-Object @{ E = { Get-TcpkSeverityRank $_.Severity }; Descending = $true } | Select-Object -First 3)
+        foreach ($p in $topProven) {
+            Write-Information -MessageData ("  proven: [{0}] {1}" -f $p.Severity, $p.Title) -InformationAction Continue
+        }
+    }
+    Write-Information -MessageData "" -InformationAction Continue
     Write-Information -MessageData "Severity breakdown:" -InformationAction Continue
     foreach ($sev in 'CRITICAL','HIGH','MEDIUM','LOW','INFO') {
         $count = ($all | Where-Object Severity -eq $sev).Count

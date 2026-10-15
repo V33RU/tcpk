@@ -473,3 +473,30 @@ function Get-TcpkAssuranceSplit {
         LeadCount   = $leads.Count
     }
 }
+
+# A one-line CONTEXTUAL risk verdict -- the sibling of Get-TcpkReadinessLine (which verdicts
+# COVERAGE). The complaint it answers: raw "CRITICAL n / HIGH n" counts read as the headline even
+# when they are unverified leads on a signed, non-writable app. This states how much of the HIGH+
+# mass is actually PROVEN vs still a lead, and ALWAYS reports the raw HIGH+ total too -- it
+# summarizes, it must never hide a finding.
+function Get-TcpkRiskLine {
+    [CmdletBinding()]
+    param([object[]]$Findings)
+    $all    = @($Findings)
+    $split  = Get-TcpkAssuranceSplit -Findings $all
+    $hiRank = Get-TcpkSeverityRank 'HIGH'
+    $provenHigh = @($split.Proven | Where-Object { (Get-TcpkSeverityRank "$($_.Severity)") -ge $hiRank }).Count
+    $rawHigh    = @($all          | Where-Object { (Get-TcpkSeverityRank "$($_.Severity)") -ge $hiRank }).Count
+    if ($provenHigh -gt 0) {
+        $state = 'act'
+        $text  = "Risk: $provenHigh proven HIGH+ to act on"
+        $text += if ($rawHigh -gt $provenHigh) { " ($rawHigh HIGH+ total; the other $($rawHigh - $provenHigh) are unverified leads)." } else { " ($rawHigh HIGH+ total)." }
+    } elseif ($rawHigh -gt 0) {
+        $state = 'leads-only'
+        $text  = "Risk: 0 proven HIGH+; $rawHigh HIGH+ are unverified leads to triage, not confirmed bugs."
+    } else {
+        $state = 'low'
+        $text  = "Risk: no HIGH+ findings ($($split.ProvenCount) proven, $($split.LeadCount) leads)."
+    }
+    return [pscustomobject]@{ State = $state; Text = $text; ProvenHigh = [int]$provenHigh; RawHigh = [int]$rawHigh }
+}
