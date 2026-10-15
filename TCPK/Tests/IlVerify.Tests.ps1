@@ -74,10 +74,13 @@ Describe 'Confirm-TcpkCallsiteUsage (IL reachability + argument analysis)' {
         elseif (-not $script:fxReady) { Set-ItResult -Skipped -Because "C# fixtures did not compile on this runtime: $script:fxError" }
     }
 
-    It 'marks a reachable call with a dynamic argument as Confirmed (IL)' {
+    It 'promotes a proven-tainted injection sink to Confirmed (IL) and HIGH' {
+        # IlvA.Dyn(string u) -> Process.Start(u): a caller parameter reaches the sink. Proven
+        # taint is a real injectable path, so severity is raised to HIGH (was left at MEDIUM
+        # before the asymmetry fix -- Confidence upgraded but Severity untouched).
         $r = & $script:JudgeSb $script:dllA
         $r.Confidence | Should -Be 'Confirmed (IL)'
-        $r.Severity   | Should -Be 'MEDIUM'   # not demoted
+        $r.Severity   | Should -Be 'HIGH'
     }
 
     It 'marks a constant-argument-only call as Likely-FP (IL) and demotes severity' {
@@ -128,10 +131,20 @@ Describe 'Confirm-TcpkCallsiteUsage (P/Invoke, deserialization, bounded taint)' 
         $r.Severity   | Should -Be 'INFO'
     }
 
-    It 'confirms a P/Invoke command exec fed by a caller parameter as Confirmed (IL)' {
+    It 'confirms a P/Invoke command exec fed by a caller parameter as Confirmed (IL) and HIGH' {
         $r = & $script:JudgeR 'callsites.command-execution' 'MEDIUM' $script:dllExecP
         $r.Confidence | Should -Be 'Confirmed (IL)'
-        $r.Severity   | Should -Be 'MEDIUM'
+        $r.Severity   | Should -Be 'HIGH'   # proven taint reaching an injection sink -> HIGH
+    }
+
+    It 'floors a proven injection at HIGH without claiming CRITICAL (base HIGH stays HIGH)' {
+        $r = & $script:JudgeR 'callsites.command-execution' 'HIGH' $script:dllExecP
+        $r.Severity | Should -Be 'HIGH'      # CRITICAL stays reserved for a measured impact fact
+    }
+
+    It 'leaves an already-CRITICAL injection at CRITICAL (floor, not cap)' {
+        $r = & $script:JudgeR 'callsites.command-execution' 'CRITICAL' $script:dllExecP
+        $r.Severity | Should -Be 'CRITICAL'
     }
 
     It 'demotes a capability P/Invoke that is declared but never called to Likely-FP (IL) / INFO' {

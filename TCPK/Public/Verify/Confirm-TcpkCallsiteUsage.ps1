@@ -174,7 +174,20 @@ function Confirm-TcpkCallsiteUsage {
                 # proven taint: an external-input source in the method, or a caller
                 # parameter, flows into a reachable sink -> a real data-flow bug.
                 $f.Confidence = 'Confirmed (IL)'
-                $f.Description = "$($f.Description) [TCPK IL: reachable call where external input reaches the sink ($total call site(s)) -- the method reads an external source (file/registry/network/IPC/HTTP request) or a caller parameter flows into the argument. No neutralizer was proven between source and sink. Treat as a real injectable path and review.]"
+                # Promote severity to at least HIGH. Injection rules are emitted at a cautious base
+                # (e.g. callsites.sql-command-construction is MEDIUM) because a bare string match
+                # might be a constant or a safe call. Once the IL proves external input reaches the
+                # sink with no neutralizer, that caution no longer applies: a proven SQL/command/
+                # path injection is a HIGH-class bug, not a MEDIUM lead. This closes the asymmetry
+                # where the pass upgraded Confidence to 'Confirmed (IL)' but left Severity untouched.
+                # CRITICAL is deliberately NOT claimed here -- it stays reserved for a measured
+                # impact fact (Resolve-TcpkImpact's policy), which an IL taint signal is not.
+                $promoNote = ''
+                if ($rank["$($f.Severity)"] -lt $rank['HIGH']) {
+                    $promoNote = " Severity raised $($f.Severity)->HIGH on this proof."
+                    $f.Severity = 'HIGH'
+                }
+                $f.Description = "$($f.Description) [TCPK IL: reachable call where external input reaches the sink ($total call site(s)) -- the method reads an external source (file/registry/network/IPC/HTTP request) or a caller parameter flows into the argument. No neutralizer was proven between source and sink. Treat as a real injectable path and review.$promoNote]"
             }
             elseif ($spec.Inj -and -not $anyDyn -and $anyConst) {
                 $r = if ($rank.ContainsKey("$($f.Severity)")) { [Math]::Max(0, $rank["$($f.Severity)"] - 1) } else { 1 }

@@ -58,7 +58,7 @@ Describe 'Interprocedural taint (cross-method source -> sink)' {
     It 'confirms input that reaches a sink via a local from another method' {
         $r = & $script:Judge $script:dllInterproc
         $r.Confidence | Should -Be 'Confirmed (IL)'
-        $r.Severity   | Should -Be 'MEDIUM'
+        $r.Severity   | Should -Be 'HIGH'   # proven taint reaching an injection sink -> HIGH
     }
 
     It 'confirms input that reaches a sink inline from another method call' {

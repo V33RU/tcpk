@@ -50,7 +50,7 @@ Describe 'StringBuilder-carried taint (Append -> ToString -> sink)' {
     It 'confirms input appended to a StringBuilder then materialised into a sink' {
         $r = & $script:Judge $script:dllPos
         $r.Confidence | Should -Be 'Confirmed (IL)'
-        $r.Severity   | Should -Be 'MEDIUM'
+        $r.Severity   | Should -Be 'HIGH'   # proven taint reaching an injection sink -> HIGH
     }
 
     It 'confirms input passed through AppendFormat then materialised into a sink' {
