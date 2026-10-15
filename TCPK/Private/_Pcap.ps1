@@ -561,7 +561,7 @@ function Get-TcpkPcapFindings {
     return $out.ToArray()
 }
 
-# ─── cipher weakness helper ──────────────────────────────────────────────────────
+# --- cipher weakness helper ------------------------------------------------------
 # Returns @{Severity; Reason} when the cipher name or hex/decimal code is known weak.
 # tshark outputs human-readable names (TLS_RSA_WITH_RC4_128_SHA), hex codes (0x0005),
 # or decimal (5) depending on version and whether the cipher is in its name table.
@@ -606,7 +606,7 @@ function Test-TcpkCipherWeak {
     return $null
 }
 
-# ─── TLS handshake tree (ClientHello + ServerHello per server:port) ───────────────
+# --- TLS handshake tree (ClientHello + ServerHello per server:port) ---------------
 # Returns ordered dict keyed by "server_ip:port". Each value has:
 #   ClientHellos - list of {Client, SNI, OfferedCiphers[], SupportedVersions[]}
 #   ServerHellos - list of {NegotiatedVersion, SelectedCipher, KeyGroup, WeakCipher}
@@ -713,7 +713,7 @@ function Get-TcpkTlsSessionTree {
 
     $splitField = { param($raw) @("$raw" -split $us | Where-Object {$_} | ForEach-Object {$_.Trim()} | Select-Object -Unique) }
 
-    # ── IANA cipher suite registry (hex lowercase 4-digit -> name) ──────────────
+    # -- IANA cipher suite registry (hex lowercase 4-digit -> name) --------------
     $cipherNames = @{
         '0x1301'='TLS_AES_128_GCM_SHA256'; '0x1302'='TLS_AES_256_GCM_SHA384'
         '0x1303'='TLS_CHACHA20_POLY1305_SHA256'; '0x1304'='TLS_AES_128_CCM_SHA256'
@@ -977,7 +977,7 @@ function Get-TcpkTlsSessionTree {
     return $sessions
 }
 
-# ─── conversation statistics ───────────────────────────────────────────────────────
+# --- conversation statistics -------------------------------------------------------
 # Returns ordered dicts (sorted by bytes descending) with:
 #   Date, Time, SrcIP, SrcPort, SrcMAC, DstIP, DstPort, DstMAC, Protocol, Packets, Bytes, FirstInfo
 function Get-TcpkConvStats {
@@ -1023,7 +1023,7 @@ function Get-TcpkConvStats {
     return @($convs.Values | Sort-Object { -($_.Bytes) })
 }
 
-# ─── packet string / regex search ─────────────────────────────────────────────────
+# --- packet string / regex search -------------------------------------------------
 # Applies a tshark display filter "frame matches (?i)PATTERN" and returns matching rows.
 # If -Regex is set, $Pattern is used as a literal PCRE regex; otherwise it is escaped.
 # Protocol restricts to frames of that dissector (e.g. 'http', 'dns', 'btle').
@@ -1047,7 +1047,7 @@ function Invoke-TcpkPcapStringSearch {
         -Fields @('frame.number','frame.time_relative','ip.src','ip.dst','_ws.col.Protocol','_ws.col.Info'))
 }
 
-# ─── Bluetooth / BLE pcap analysis ────────────────────────────────────────────────
+# --- Bluetooth / BLE pcap analysis ------------------------------------------------
 # Returns TcpkFindings. Empty array if no BT frames are present.
 function Get-TcpkBtPcapFindings {
     [CmdletBinding()]
@@ -1132,7 +1132,7 @@ function Get-TcpkBtPcapFindings {
     return $out.ToArray()
 }
 
-# ─── Zigbee / IEEE 802.15.4 pcap analysis ─────────────────────────────────────────
+# --- Zigbee / IEEE 802.15.4 pcap analysis -----------------------------------------
 # Returns TcpkFindings. Empty array if no Zigbee/802.15.4 frames are present.
 function Get-TcpkZigbeePcapFindings {
     [CmdletBinding()]
