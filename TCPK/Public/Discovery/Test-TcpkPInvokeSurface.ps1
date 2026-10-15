@@ -27,41 +27,39 @@ function Test-TcpkPInvokeSurface {
         'kernelbase.dll','win32u.dll','sechost.dll','bcrypt.dll','ncrypt.dll',
         'mscoree.dll','clr.dll','coreclr.dll'
     )
-    $rx = [regex]'DllImport[^"]{0,80}"([A-Za-z0-9._\-]+\.dll)"'
-
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
-        $text = Read-TcpkAllText -Path $pe.FullName
-        if (-not $text) { continue }
 
-        # Does this binary neutralise the default DLL search order? SetDefaultDllDirectories
-        # (with LOAD_LIBRARY_SEARCH_SYSTEM32) is the fix that makes a bare-name import safe.
-        # If the binary references it at all, keep bare-name at LOW; if it does not, the
-        # insecure default order applies and a bare-name import is genuinely search-order
-        # attackable, so raise to MEDIUM.
-        $hardenedSearch = $text.Contains('SetDefaultDllDirectories')
+        # P/Invoke imports read from IL metadata (ImplMap/ModuleRef) via Cecil -- NOT a PE-text
+        # scan. A compiled [DllImport("x.dll")] stores "x.dll" as a bare ModuleRef string and never
+        # emits the token "DllImport", so the former `DllImport...".dll"` text regex matched zero
+        # real binaries (confirmed dead 2026-10-15). Native PEs return nothing here (Cecil cannot
+        # read unmanaged binaries); a native import-table parser would be a separate piece.
+        $piv = @(Get-TcpkPInvokeImportVerdicts -DllPath $pe.FullName)
+        if ($piv.Count) {
+            # SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32) is the fix that makes a
+            # bare-name import safe; if the assembly imports it keep bare-name at LOW, else the
+            # insecure default search order applies and it is genuinely attackable -> MEDIUM.
+            $sumRow = @($piv | Where-Object { $_.Kind -eq 'summary' })[0]
+            $hardenedSearch = [bool]($sumRow -and $sumRow.HardenedSearch)
+            $suspect = @($piv | Where-Object { $_.Kind -eq 'import' } |
+                Where-Object { $_.Module -notmatch '[\\/]' -and $_.Module -notmatch '^[a-z]:' } |
+                Where-Object { $_.Module -notin $known } |
+                Where-Object { $_.Module -notmatch '^(api-ms-win-|ext-ms-win-)' } |
+                Select-Object -ExpandProperty Module -Unique)
 
-        $bare = @{}
-        foreach ($m in $rx.Matches($text)) {
-            $dll = $m.Groups[1].Value.ToLowerInvariant()
-            if ($dll -match '[\\/]' -or $dll -match '^[a-z]:') { continue }
-            $bare[$dll] = $true
-        }
-
-        $suspect = $bare.Keys |
-            Where-Object { $_ -notin $known } |
-            Where-Object { $_ -notmatch '^(api-ms-win-|ext-ms-win-)' }
-
-        foreach ($s in $suspect) {
-            $sev = if ($hardenedSearch) { 'LOW' } else { 'MEDIUM' }
-            $ev  = "DllImport(`"$s`")" + $(if ($hardenedSearch) { ' | SetDefaultDllDirectories referenced' } else { ' | no SetDefaultDllDirectories call -- default search order applies' })
-            New-TcpkFinding -Module 'static' -RuleId 'pinvoke.bare-name' `
-                -Severity $sev -Confidence 'Inferred' `
-                -Title "$($pe.Name) DllImports '$s' by bare name" `
-                -File $pe.FullName -Evidence $ev `
-                -Cwe @('CWE-427') `
-                -Description 'The binary imports this DLL by bare filename, so it is resolved through the OS DLL search order. When the binary does not call SetDefaultDllDirectories (raised to MEDIUM here), a non-System32 DLL of this name planted earlier on the search path -- the application directory, a writable PATH entry, or the current directory -- loads instead, which is DLL search-order hijacking. Confirm the DLL is not shipped in System32 and that no writable directory precedes it on the search path.' `
-                -Fix 'Use a full path, or call SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR) at startup so bare-name imports resolve only from trusted directories.'
+            foreach ($s in $suspect) {
+                $sev = if ($hardenedSearch) { 'LOW' } else { 'MEDIUM' }
+                $ev  = "P/Invoke imports '$s' by bare name (IL: ImplMap/ModuleRef)" + $(if ($hardenedSearch) { ' | SetDefaultDllDirectories imported' } else { ' | no SetDefaultDllDirectories import -- default search order applies' })
+                New-TcpkFinding -Module 'static' -RuleId 'pinvoke.bare-name' `
+                    -Severity $sev -Confidence 'Inferred' `
+                    -Title "$($pe.Name) imports '$s' by bare name (P/Invoke)" `
+                    -File $pe.FullName -Evidence $ev `
+                    -Cwe @('CWE-427') `
+                    -AttributionBasis 'established-code' -Subject $pe.FullName `
+                    -Description 'The binary declares a P/Invoke that imports this DLL by bare filename, so it is resolved through the OS DLL search order. When the binary does not import SetDefaultDllDirectories (raised to MEDIUM here), a non-System32 DLL of this name planted earlier on the search path -- the application directory, a writable PATH entry, or the current directory -- loads instead, which is DLL search-order hijacking. Confirm the DLL is not shipped in System32 and that no writable directory precedes it on the search path.' `
+                    -Fix 'Use a full path, or call SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32 | LOAD_LIBRARY_SEARCH_APPLICATION_DIR) at startup so bare-name imports resolve only from trusted directories.'
+            }
         }
 
         # SetDllDirectory with a RELATIVE literal path widens the search order with a

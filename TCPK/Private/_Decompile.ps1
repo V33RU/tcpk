@@ -1939,6 +1939,56 @@ function Get-TcpkPipeFirstInstanceVerdicts {
 # control, so a DLL planted there loads into the process -- that is the finding. The path is
 # read single-slot-back (the ldstr immediately before the call), the same proven pattern the
 # XXE / handle-inherit verdicts use; a non-literal argument is skipped (no false positive).
+function Get-TcpkPInvokeImportVerdicts {
+<#
+.SYNOPSIS
+    IL-accurate P/Invoke import reader. Returns a managed assembly's real DllImport declarations
+    from its ImplMap/ModuleRef metadata (Mono.Cecil PInvokeInfo), NOT a source-style text scan.
+.DESCRIPTION
+    A compiled [DllImport("x.dll")] lowers to a pinvokeimpl flag + an ImplMap/ModuleRef entry, so
+    the imported name is stored as a BARE string ("x.dll", no surrounding quotes) and the token
+    "DllImport" is never emitted. A PE-text regex therefore matches zero real binaries; this reads
+    the metadata instead. Native (unmanaged) PEs are not handled here -- Cecil cannot read them, so
+    the caller gets an empty set for those (a native import-table parser would be a separate piece).
+.OUTPUTS
+    One summary object { Kind='summary'; File; HardenedSearch=[bool] } (HardenedSearch is true when
+    the assembly imports SetDefaultDllDirectories), followed by one { Kind='import'; File; Type;
+    Method; Module (lowercased imported dll); EntryPoint } per P/Invoke method.
+#>
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$DllPath)
+    if (-not (Initialize-TcpkCecil)) { return @() }
+    if (-not (Test-Path -LiteralPath $DllPath)) { return @() }
+    $asm = $null
+    try { $asm = [Mono.Cecil.AssemblyDefinition]::ReadAssembly($DllPath) } catch { return @() }
+    $fileName = Split-Path -Leaf $DllPath
+    $imports  = New-Object 'System.Collections.Generic.List[object]'
+    $hardened = $false
+    try {
+        foreach ($t in $asm.MainModule.GetTypes()) {
+            foreach ($m in $t.Methods) {
+                if (-not $m.IsPInvokeImpl) { continue }
+                $pi = $m.PInvokeInfo
+                if ($null -eq $pi -or $null -eq $pi.Module) { continue }
+                $mod   = "$($pi.Module.Name)"
+                $entry = "$($pi.EntryPoint)"; if (-not $entry) { $entry = "$($m.Name)" }
+                if ($entry -match '^SetDefaultDllDirectories') { $hardened = $true }
+                $imports.Add([pscustomobject]@{
+                    Kind = 'import'; File = $fileName; Type = $t.FullName; Method = "$($m.Name)"
+                    Module = $mod.ToLowerInvariant(); EntryPoint = $entry
+                })
+            }
+        }
+        # Materialize to plain objects (summary first) BEFORE Dispose, so nothing holds a Cecil ref.
+        $result = New-Object 'System.Collections.Generic.List[object]'
+        $result.Add([pscustomobject]@{ Kind = 'summary'; File = $fileName; HardenedSearch = [bool]$hardened })
+        foreach ($o in $imports) { $result.Add($o) }
+        return $result.ToArray()
+    } finally {
+        if ($asm) { $asm.Dispose() }
+    }
+}
+
 function Get-TcpkDllSearchWidenVerdicts {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$DllPath)

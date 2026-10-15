@@ -70,6 +70,34 @@ public class DllDirBad {
         $script:dllDirDll = Join-Path $script:work 'DllDirBad.dll'
         Add-Type -TypeDefinition $dlldir -OutputAssembly $script:dllDirDll -OutputType Library
         $script:dv = @(& (Get-Module TCPK) { param($d) Get-TcpkDllSearchWidenVerdicts -DllPath $d } $script:dllDirDll)
+
+        # P/Invoke bare-name imports (read from ImplMap/ModuleRef metadata, NOT a text scan).
+        # These live in their OWN subdir so the end-to-end Test-TcpkPInvokeSurface call below sees
+        # only them, not the other fixtures above.
+        $script:pinvDir = Join-Path $script:work 'pinv'
+        New-Item -ItemType Directory -Path $script:pinvDir -Force | Out-Null
+        $pinv = @'
+using System; using System.Runtime.InteropServices;
+public class PinvBare {
+  [DllImport("myplugin.dll")] static extern int DoThing();
+  public void Use(){ DoThing(); }
+}
+'@
+        $script:pinvBareDll = Join-Path $script:pinvDir 'PinvBare.dll'
+        Add-Type -TypeDefinition $pinv -OutputAssembly $script:pinvBareDll -OutputType Library
+
+        $pinvH = @'
+using System; using System.Runtime.InteropServices;
+public class PinvHardened {
+  [DllImport("myplugin.dll")] static extern int DoThing();
+  [DllImport("kernel32.dll")] static extern bool SetDefaultDllDirectories(uint f);
+  public void Use(){ DoThing(); SetDefaultDllDirectories(0x800u); }
+}
+'@
+        $script:pinvHardDll = Join-Path $script:pinvDir 'PinvHardened.dll'
+        Add-Type -TypeDefinition $pinvH -OutputAssembly $script:pinvHardDll -OutputType Library
+        $script:pivBare = @(& (Get-Module TCPK) { param($d) Get-TcpkPInvokeImportVerdicts -DllPath $d } $script:pinvBareDll)
+        $script:pivHard = @(& (Get-Module TCPK) { param($d) Get-TcpkPInvokeImportVerdicts -DllPath $d } $script:pinvHardDll)
     }
 }
 
@@ -160,5 +188,35 @@ Describe 'Get-TcpkDllSearchWidenVerdicts (relative SetDllDirectory)' {
     It 'surfaces end-to-end as dllsearch.setdlldirectory-relative' {
         $f = @(Test-TcpkPInvokeSurface -Path $script:work)
         ($f | Where-Object { $_.RuleId -eq 'dllsearch.setdlldirectory-relative' }) | Should -Not -BeNullOrEmpty
+    }
+}
+
+Describe 'Get-TcpkPInvokeImportVerdicts + pinvoke.bare-name (IL metadata, replaces the dead text regex)' {
+    BeforeEach {
+        if (-not $script:cecil) { Set-ItResult -Skipped -Because 'Mono.Cecil not available' }
+        elseif (-not $script:desktop) { Set-ItResult -Skipped -Because 'fixture compiles under Desktop/Framework only' }
+    }
+    It 'reads the bare ModuleRef import from metadata (what the old text regex could never see)' {
+        ($script:pivBare | Where-Object { $_.Kind -eq 'import' -and $_.Module -eq 'myplugin.dll' }) | Should -Not -BeNullOrEmpty
+    }
+    It 'reports HardenedSearch=$false when SetDefaultDllDirectories is NOT imported' {
+        (@($script:pivBare | Where-Object { $_.Kind -eq 'summary' })[0]).HardenedSearch | Should -BeFalse
+    }
+    It 'reports HardenedSearch=$true when SetDefaultDllDirectories IS imported' {
+        (@($script:pivHard | Where-Object { $_.Kind -eq 'summary' })[0]).HardenedSearch | Should -BeTrue
+    }
+    It 'flags a bare non-System32 import as MEDIUM when the search order is not hardened' {
+        $f = @(Test-TcpkPInvokeSurface -Path $script:pinvBareDll)
+        $m = @($f | Where-Object { $_.RuleId -eq 'pinvoke.bare-name' -and $_.Title -like '*myplugin.dll*' })
+        $m | Should -Not -BeNullOrEmpty
+        $m[0].Severity | Should -Be 'MEDIUM'
+    }
+    It 'keeps the bare import at LOW when SetDefaultDllDirectories is imported' {
+        $f = @(Test-TcpkPInvokeSurface -Path $script:pinvHardDll)
+        @($f | Where-Object { $_.RuleId -eq 'pinvoke.bare-name' -and $_.Title -like '*myplugin.dll*' })[0].Severity | Should -Be 'LOW'
+    }
+    It 'does NOT flag a known System32 import (kernel32) as bare-name' {
+        $f = @(Test-TcpkPInvokeSurface -Path $script:pinvHardDll)
+        ($f | Where-Object { $_.RuleId -eq 'pinvoke.bare-name' -and $_.Title -like '*kernel32*' }) | Should -BeNullOrEmpty
     }
 }
