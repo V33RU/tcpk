@@ -40,7 +40,7 @@ function Get-TcpkArtifactParseLevel {
 #>
     [CmdletBinding()]
     param([string]$ArtifactType)
-    $key = if ($script:TcpkArtifactParsers.ContainsKey("$ArtifactType".ToLower())) { "$ArtifactType".ToLower() } else { 'unknown' }
+    $key = if ($script:TcpkArtifactParsers.Contains("$ArtifactType".ToLower())) { "$ArtifactType".ToLower() } else { 'unknown' }
     $info = $script:TcpkArtifactParsers[$key]
     return [pscustomobject]@{
         ArtifactType    = $key
@@ -173,7 +173,7 @@ function ConvertTo-TcpkCspModel {
         $values = if ($tokens.Count -gt 1) {
             @($tokens[1..($tokens.Count-1)] | ForEach-Object { $_.ToLower() })
         } else { @() }
-        if (-not $model.ContainsKey($name)) { $model[$name] = $values }  # first-wins (RFC)
+        if (-not $model.Contains($name)) { $model[$name] = $values }  # first-wins (RFC)
     }
     return $model
 }
@@ -184,7 +184,7 @@ function _TcpkCspEffectiveValues {
     if ($CspModel.ContainsKey($dir)) {
         return [pscustomobject]@{ Values=$CspModel[$dir]; ResolvedFrom=$dir; NoRestriction=$false }
     }
-    $chain = if ($script:TcpkCspFallback.ContainsKey($dir)) { $script:TcpkCspFallback[$dir] } else { @('default-src') }
+    $chain = if ($script:TcpkCspFallback.Contains($dir)) { $script:TcpkCspFallback[$dir] } else { @('default-src') }
     foreach ($fb in $chain) {
         if ($CspModel.ContainsKey($fb)) {
             return [pscustomobject]@{ Values=$CspModel[$fb]; ResolvedFrom=$fb; NoRestriction=$false }

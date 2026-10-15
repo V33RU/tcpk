@@ -193,7 +193,7 @@ function Invoke-TcpkConsistencyCheck {
         for ($k = 0; $k -lt $all.Count; $k++) {
             $subj = Get-TcpkNormalizedSubject "$($all[$k].Subject)"
             if (-not $subj) { continue }
-            if (-not $groups.ContainsKey($subj)) { $groups[$subj] = [System.Collections.Generic.List[int]]::new() }
+            if (-not $groups.Contains($subj)) { $groups[$subj] = [System.Collections.Generic.List[int]]::new() }
             $groups[$subj].Add($k)
         }
 

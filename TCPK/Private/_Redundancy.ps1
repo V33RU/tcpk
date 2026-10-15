@@ -241,7 +241,7 @@ function Invoke-TcpkRedundancyCorrelation {
         for ($k = 0; $k -lt $all.Count; $k++) {
             $subj = Get-TcpkNormalizedSubject "$($all[$k].Subject)"
             if (-not $subj) { continue }   # no subject -> not correlated
-            if (-not $groups.ContainsKey($subj)) { $groups[$subj] = [System.Collections.Generic.List[int]]::new() }
+            if (-not $groups.Contains($subj)) { $groups[$subj] = [System.Collections.Generic.List[int]]::new() }
             $groups[$subj].Add($k)
         }
 

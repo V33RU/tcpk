@@ -103,11 +103,20 @@ function Resolve-TcpkFindings {
                 $baseDesc = "$($rep.Description)".Trim()
                 $newDesc = $aggNote
                 if ($baseDesc) { $newDesc = $baseDesc + ' ' + $aggNote }
+                # The aggregate clone MUST carry the representative's attribution + SDVB fields.
+                # Omitting -AttributionBasis/-Subject reset them to '', so an 'unproven' HIGH
+                # (e.g. com.machine-default-perms-weak, creds.aws-sso-cache) slipped past
+                # Invoke-TcpkAttributionFilter and shipped as a target finding. Members share one
+                # RuleId|Severity|Confidence group, so the representative's basis is the group's.
                 $clone = New-TcpkFinding -Module $rep.Module -RuleId $rep.RuleId -Severity $rep.Severity `
                     -Confidence $rep.Confidence -Title $newTitle -File $newFile -Evidence $aggEvidence `
                     -Description $newDesc `
-                    -Cwe ([string[]]@($rep.Cwe)) -Impact "$($rep.Impact)" -Cvss "$($rep.Cvss)" -Fix "$($rep.Fix)"
+                    -Cwe ([string[]]@($rep.Cwe)) -Impact "$($rep.Impact)" -Cvss "$($rep.Cvss)" -Fix "$($rep.Fix)" `
+                    -AttributionBasis "$($rep.AttributionBasis)" -Subject "$($rep.Subject)" `
+                    -Dimension "$($rep.Dimension)" -ObsValue "$($rep.ObsValue)" `
+                    -Basis "$($rep.Basis)" -BasisInputs ([string[]]@($rep.BasisInputs))
                 $clone.Affected = [string[]]$locs
+                $clone.AdjustmentLog = [string[]]@($rep.AdjustmentLog)
                 $clone
             }
         }
