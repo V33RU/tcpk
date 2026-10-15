@@ -6,7 +6,7 @@
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="tcpk-mark.png">
 <title>TCPK - Thick Client Pentest Kit | Technical Deep-Dive</title>
-<meta name="description" content="TCPK is a portable PowerShell engine for auditing Windows thick-client / MSIX applications: data-driven static detection, deterministic IL verification (Mono.Cecil), computed CVSS v4.0, ATT&CK + OWASP TASVS mapping, SBOM/CVE, and exploit-chain correlation.">
+<meta name="description" content="TCPK is a portable PowerShell engine for auditing Windows thick-client / MSIX applications: data-driven static detection, deterministic IL verification (Mono.Cecil), computed CVSS v4.0, MITRE ATT&CK mapping, security-category tagging, SBOM/CVE, and exploit-chain correlation.">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <style>
 :root{
@@ -100,7 +100,7 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <a href="#sbom">SBOM + CVE</a>
   <a href="#ai">AI verification layer</a>
   <a href="#agentic">Agentic AI workbench</a>
-  <a href="#mapping">ATT&amp;CK / TASVS / checklist</a>
+  <a href="#mapping">ATT&amp;CK / categories / checklist</a>
   <div class="grp">Operate</div>
   <a href="#reports">Reporting outputs</a>
   <a href="#usage">Usage (CLI / GUI / MCP)</a>
@@ -116,14 +116,14 @@ footer{border-top:1px solid var(--line);margin-top:80px;padding:28px 0;color:var
   <div class="kicker">Windows thick-client / MSIX security auditing</div>
   <h1>TCPK -- Thick Client Pentest Kit</h1>
   <p class="tag">Evidence over assertion. A scanner that proves its findings.</p>
-  <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and OWASP TASVS provenance.</p>
+  <p class="lede">TCPK is a portable, dependency-light PowerShell engine for auditing Windows desktop applications -- MSIX, MSI, ClickOnce, and portable apps; managed .NET, native PE, and Electron alike. It is built around one opinion: a string match is a <em>lead</em>, not a finding. Every dangerous-API hit is lifted to IL with Mono.Cecil and run through a bounded source-to-sink taint pass before it is allowed to call itself "Confirmed", every score is the real FIRST.org CVSS v4.0 number derived from an attack-archetype vector, and every finding carries CWE, MITRE ATT&amp;CK, and security-category provenance.</p>
   <div class="badges">
     <span class="badge"><b>v2.11.0</b></span>
     <span class="badge"><b>335</b> cmdlets</span>
     <span class="badge">PowerShell <b>5.1+</b></span>
     <span class="badge">WinForms GUI + <b>MCP</b> server</span>
     <span class="badge">CVSS <b>v4.0</b> (computed)</span>
-    <span class="badge">OWASP <b>TASVS v1.8</b></span>
+    <span class="badge">Security <b>categories</b></span>
     <span class="badge">CycloneDX <b>SBOM</b></span>
     <span class="badge">No external runtime</span>
   </div>
@@ -193,7 +193,7 @@ Invoke-TcpkAudit -Target 'C:\Apps\Contoso' -Acknowledge -FailOn HIGH</code></pre
     _Cvss40.ps1            # FIRST.org CVSS v4.0 base-score engine
     _Decompile.ps1         # Mono.Cecil IL bridge (callsites, taint, TLS verdicts)
     _Attack.ps1            # MITRE ATT&CK technique map
-    _Tasvs.ps1             # OWASP TASVS + Desktop App Top 10 map
+    _Tasvs.ps1             # security-category + risk-class map
     _VerifyHint.ps1        # per-rule manual re-validation playbook
     _PeReader.ps1          # raw PE parser (DllCharacteristics, load-config, ...)
     _Llm.ps1              # multi-provider LLM client (local-first, cloud-gated)
@@ -520,10 +520,9 @@ Invoke-TcpkAgentAudit -Target 'C:\App' -Goal 'Find deserialization bugs' -Model 
 </section>
 
 <section id="mapping">
-<h2><span class="num">14</span>ATT&amp;CK, OWASP TASVS, and the 55-case checklist</h2>
-<p>Every finding is mapped, at report time, to a MITRE ATT&amp;CK technique and to OWASP TASVS v1.8 + the Desktop App Security Top 10. Mapping is a pure prefix lookup over the RuleId, so it stays in sync with the [TcpkFinding] schema. Findings are also auto-correlated to a 55-case thick-client methodology (TC01-TC55); the auto-status is TCPK's read, and the tester sets the final PASS/FAIL -- a NO-FINDINGS status is explicitly <em>not</em> a pass.</p>
-<pre><code class="language-powershell">Get-TcpkAttackText 'callsites.command-execution'   # T1059 Command and Scripting Interpreter
-Get-TcpkTasvsText  'secrets.aws-access-key-id'      # TASVS-STORAGE ...; DA3 Sensitive Data Exposure</code></pre>
+<h2><span class="num">14</span>ATT&amp;CK, security categories, and the 55-case checklist</h2>
+<p>Every finding is mapped, at report time, to a MITRE ATT&amp;CK technique and to a thick-client security category + risk class. Mapping is a pure prefix lookup over the RuleId, so it stays in sync with the [TcpkFinding] schema. Findings are also auto-correlated to a 55-case thick-client methodology (TC01-TC55); the auto-status is TCPK's read, and the tester sets the final PASS/FAIL -- a NO-FINDINGS status is explicitly <em>not</em> a pass.</p>
+<pre><code class="language-powershell">Get-TcpkAttackText 'callsites.command-execution'   # T1059 Command and Scripting Interpreter</code></pre>
 </section>
 
 <hr>
@@ -534,7 +533,7 @@ Get-TcpkTasvsText  'secrets.aws-access-key-id'      # TASVS-STORAGE ...; DA3 Sen
 <table>
 <thead><tr><th>File</th><th>Audience</th><th>Contents</th></tr></thead>
 <tbody>
-<tr><td><code>index.html</code></td><td>analyst</td><td>severity-grouped findings, live filter/search, rule summary, recon, CVE, hardening + signing matrices, SBOM; computed CVSS + ATT&amp;CK + TASVS + verify playbook per finding</td></tr>
+<tr><td><code>index.html</code></td><td>analyst</td><td>severity-grouped findings, live filter/search, rule summary, recon, CVE, hardening + signing matrices, SBOM; computed CVSS + ATT&amp;CK + security category + verify playbook per finding</td></tr>
 <tr><td><code>intel.html</code></td><td>analyst / triage</td><td>self-contained offline "program intelligence" dashboard: severity + confidence with the evidence ladder explained, a classified recon endpoint map, and filterable per-finding cards -- one file, no server, no CDN</td></tr>
 <tr><td><code>report.xlsx</code></td><td>reviewer / triage</td><td>Summary, Findings, Checklist, DLL Hardening, DLL Signing, CVEs, Recon, SBOM sheets (pure-PowerShell, no Excel needed)</td></tr>
 <tr><td><code>findings.json</code></td><td>tooling / CI</td><td>the full typed finding pipeline</td></tr>
@@ -617,7 +616,7 @@ Invoke-TcpkAudit -Target '&lt;app&gt;' -OutDir .\out -Acknowledge</code></pre>
 </section>
 
 <footer>
-<p><b>TCPK v2.11.0</b> &middot; Thick Client Pentest Kit &middot; 335 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; OWASP TASVS v1.8. Reporting is for authorized security assessment. Find. Verify. Report.</p>
+<p><b>TCPK v2.11.0</b> &middot; Thick Client Pentest Kit &middot; 335 cmdlets &middot; CVSS v4.0 (computed) &middot; MITRE ATT&amp;CK &middot; security categories. Reporting is for authorized security assessment. Find. Verify. Report.</p>
 </footer>
 </main>
 </div>

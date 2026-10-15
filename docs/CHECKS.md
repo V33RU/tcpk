@@ -37,7 +37,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkDependencyConfusion** - C29. Dependency confusion attack surface in package manager configuration.
 - **Test-TcpkDeserBinder** - A71. Whether a type-reconstructing formatter sink is actually guarded by a `SerializationBinder`. Absence assembly-wide is what makes the sink exploitable; a call-site scan is silent about it. Rules: `deser.binder-absent` (HIGH), `deser.binder-present` (INFO, de-escalation evidence).
 - **Test-TcpkDeserialization** - A10. Static heuristic for unsafe .NET deserialization patterns.
-- **Test-TcpkDevArtifacts** - A36. Leftover dev/build artifacts shipped in the release (TASVS-CONF-1.4): debug symbols, source, backups, dev-config, API specs, .git/IDE dirs.
+- **Test-TcpkDevArtifacts** - A36. Leftover dev/build artifacts shipped in the release (build hygiene): debug symbols, source, backups, dev-config, API specs, .git/IDE dirs.
 - **Test-TcpkDeviceComm** - A50. Device-communication surface: serial, USB HID/WinUSB/libusb, BLE, Bluetooth Classic and DeviceIoControl driver calls. Reads .NET IL and native PE imports; emits one finding per channel referenced.
 - **Test-TcpkDiagConfig** - A30. Shipped diagnostic/logging framework configs with exposure risk.
 - **Test-TcpkDiscoveryProtocols** - A51. Local-network discovery protocols the client speaks: mDNS, SSDP/UPnP, WS-Discovery, ONVIF, LLMNR/NetBIOS, vendor UDP broadcast.
@@ -128,7 +128,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Compare-TcpkFileSnapshot** - C19b. Diff two file-system snapshots -- files the app created/modified/deleted at runtime (exec drops HIGH).
 - **Compare-TcpkRegistrySnapshot** - C18b. Diff two registry snapshots (Regshot-style) -- what the app changed.
 - **Expand-TcpkAsar** - Parse an Electron app.asar file-table, extract each module to disk, and scan the extracted JS/config for secrets + insecure Electron flags.
-- **Get-TcpkTasvsMap** - Map findings / rule IDs to OWASP TASVS controls and the OWASP Desktop App Security Top 10 (report-time lookup; pipe findings, pass -RuleId, or dump the table).
+- **Get-TcpkTasvsMap** - Map findings / rule IDs to a thick-client security category and risk class (report-time lookup; pipe findings, pass -RuleId, or dump the table).
 - **Save-TcpkFileSnapshot** - C19a. Regshot-style file-system snapshot (path/size/mtime/SHA-256) for before/after diffing.
 - **Save-TcpkRegistrySnapshot** - C18a. Regshot-style registry snapshot (before/after the app runs).
 - **Test-TcpkAppInitDlls** - C25. AppInit_DLLs and AppCertDlls (T1546.010 / T1546.009). Every user-mode process that loads user32.dll also loads whatever AppInit_DLLs names, which makes it a machine-wide injection point. Reports the configured state, whether Secure Boot / RequireSignedAppInit mitigates it, and whether any listed DLL is writable. Separates the two attributions that matter: a DLL the AUDITED APP registered is a vendor finding, while a value already present from other software is machine state the vendor cannot fix. Emits appinit.clean on a clean read so silence is not ambiguous.
@@ -349,7 +349,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Export-TcpkReportHtml** - Export TCPK findings as a self-contained, interactive HTML report (leads with an executive summary + attack-path callout).
 - **Export-TcpkReportIntel** - Export a self-contained offline intel.html dashboard (severity/confidence + evidence ladder, recon endpoint map, filterable cards).
 - **Export-TcpkReportJson** - Export TCPK findings as JSON for CI / re-processing.
-- **Export-TcpkReportMarkdown** - Export findings as a plain-text Markdown report (exec summary + severity-grouped findings with full CVSS / CWE / ATT&CK / TASVS / Desktop-Top-10 mapping).
+- **Export-TcpkReportMarkdown** - Export findings as a plain-text Markdown report (exec summary + severity-grouped findings with full CVSS / CWE / ATT&CK / security-category mapping).
 - **Export-TcpkReportSarif** - Export SARIF 2.1.0 for GitHub / Azure DevOps code-scanning ingest.
 - **Export-TcpkSbom** - Export a CycloneDX 1.5 SBOM (software bill of materials) of bundled components.
 

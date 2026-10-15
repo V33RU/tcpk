@@ -170,7 +170,7 @@ Available report formats:
   remediation.
 - **SARIF** -- machine-readable format for IDE integration.
 - **Intel HTML** -- self-contained HTML report with interactive filtering.
-- **Checklist XLSX** -- maps findings to the OWASP TASVS checklist.
+- **Checklist XLSX** -- maps findings to the thick-client security checklist.
 - **findings.json** -- raw JSON for scripting and CI pipelines.
 
 **How to use:** Run an audit first (step 3). The download links appear here

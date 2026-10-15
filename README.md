@@ -55,7 +55,7 @@ with the evidence grade for every one. Nothing in it is fabricated.
 Point it at an MSIX package, an installed folder, or a single `.exe`, click **Run Audit**, and
 TCPK runs 237 checks (335 cmdlets across 19 categories, 227 of them detection scanners), streams findings live, and writes HTML + Excel
 reports. Every finding carries a confidence label, a **computed CVSS v4.0** base score, CWE,
-MITRE ATT&CK, and an OWASP TASVS mapping. The same engine drives the CLI, a native **MCP
+MITRE ATT&CK, and a security-category mapping. The same engine drives the CLI, a native **MCP
 server**, and an **agentic AI workbench** (`TCPK-Agentic.bat` -- loopback, token-gated,
 discovery-only) with decompile, local AI review, and an autonomous agent.
 
