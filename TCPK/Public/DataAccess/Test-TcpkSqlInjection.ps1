@@ -101,7 +101,7 @@ function Test-TcpkSqlInjection {
         $isJava = $src.Extension.ToLowerInvariant() -eq '.java'
         $patterns = if ($isJava) { $javaPatterns } else { $dotNetPatterns }
 
-        try { $lines = Get-Content $src.FullName -ErrorAction Stop } catch { continue }
+        try { $lines = @(Get-Content $src.FullName -ErrorAction Stop) } catch { continue }
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $line = $lines[$i]
             # Skip pure comment lines

@@ -102,13 +102,25 @@ Describe 'Test-TcpkDeviceComm: synthetic PE-like blob' {
         [IO.File]::WriteAllBytes($script:winusbFile, [Text.Encoding]::ASCII.GetBytes($blob))
     }
 
-    It 'reports the usb-winusb channel and no others when only WinUsb symbols are present' {
+    It 'reports the usb-winusb channel (HIGH, 2 corroborating symbols) and no others' {
         InModuleScope TCPK -Parameters @{ p = $script:winusbFile } {
             param($p)
             $rows = @(Test-TcpkDeviceComm -Path $p)
             $kinds = @($rows | ForEach-Object { $_.RuleId })
             $kinds | Should -Contain 'devcomm.usb-winusb'
+            @($rows | Where-Object { $_.RuleId -eq 'devcomm.usb-winusb' })[0].Severity | Should -Be 'HIGH'
             @($kinds | Where-Object { $_ -eq 'devcomm.ble' }).Count | Should -Be 0
+        }
+    }
+
+    It 'a single incidental device-comm import is an INFO scope note, not the channel severity' {
+        $single = Join-Path $script:work 'usb-single.dll'
+        [IO.File]::WriteAllBytes($single, [Text.Encoding]::ASCII.GetBytes("prefix bytes `0 WinUsb_Initialize `0 tail"))
+        InModuleScope TCPK -Parameters @{ p = $single } {
+            param($p)
+            $row = @(Test-TcpkDeviceComm -Path $p | Where-Object { $_.RuleId -eq 'devcomm.usb-winusb' })
+            $row.Count | Should -Be 1
+            $row[0].Severity | Should -Be 'INFO'
         }
     }
 }

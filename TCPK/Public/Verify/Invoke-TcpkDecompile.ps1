@@ -73,7 +73,7 @@ function Invoke-TcpkDecompile {
             if (-not $tmp) {
                 Write-Warning "ilspycmd produced no .cs output in $tmpDir; falling back to byte-grep."
             } else {
-                $lines = Get-Content -LiteralPath $tmp
+                $lines = @(Get-Content -LiteralPath $tmp)
                 $sb = New-Object Text.StringBuilder
                 for ($i = 0; $i -lt $lines.Count; $i++) {
                     if ($lines[$i] -match [regex]::Escape($Search)) {

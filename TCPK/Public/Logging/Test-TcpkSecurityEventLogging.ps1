@@ -139,7 +139,7 @@ function Test-TcpkSecurityEventLogging {
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($src in $srcFiles) {
-        try { $lines = Get-Content $src.FullName -ErrorAction Stop } catch { continue }
+        try { $lines = @(Get-Content $src.FullName -ErrorAction Stop) } catch { continue }
         $lineCount = $lines.Count
 
         for ($i = 0; $i -lt $lineCount; $i++) {
@@ -238,7 +238,7 @@ function Test-TcpkSecurityEventLogging {
 
     foreach ($src in $srcFiles) {
         $lines = $null
-        try { $lines = Get-Content -LiteralPath $src.FullName -ErrorAction Stop } catch { continue }
+        try { $lines = @(Get-Content -LiteralPath $src.FullName -ErrorAction Stop) } catch { continue }
         if (-not $lines) { continue }
         for ($i = 0; $i -lt $lines.Count; $i++) {
             if ($lines[$i] -notmatch $cfgMethodRx) { continue }

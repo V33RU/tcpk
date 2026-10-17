@@ -244,7 +244,7 @@ function Get-TcpkImpactAudit {
 
     $files = Get-ChildItem -LiteralPath $PublicPath -Recurse -Filter '*.ps1' -File -ErrorAction SilentlyContinue
     foreach ($f in $files) {
-        $lines = Get-Content $f.FullName -ErrorAction SilentlyContinue
+        $lines = @(Get-Content $f.FullName -ErrorAction SilentlyContinue)
         if (-not $lines) { continue }
         $usesLayer = ($lines | Select-String -Pattern 'Resolve-TcpkImpact' -Quiet)
 

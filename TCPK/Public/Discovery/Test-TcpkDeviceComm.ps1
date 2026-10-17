@@ -97,9 +97,17 @@ function Test-TcpkDeviceComm {
             }
             if ($hitTerms.Count -eq 0) { continue }
 
+            # A SINGLE incidental API reference is capability surface, not a device client: a bundled
+            # native module or a general desktop app can reference one device-comm symbol without
+            # talking to a device. A real implementation uses several APIs of the channel together
+            # (e.g. WinUsb_Initialize + WinUsb_ReadPipe + WinUsb_WritePipe). Require >=2 distinct hits
+            # to emit at the channel severity; a lone hit is an INFO scope note. This stops the check
+            # firing at HIGH across a general app tree (78 findings, incl. HIGH, on a VS Code audit).
+            $sev = if ($hitTerms.Count -ge 2) { $c.Sev } else { 'INFO' }
+
             $rule = "devcomm.$($c.Kind)"
             New-TcpkFinding -Module 'discovery' -RuleId $rule `
-                -Severity $c.Sev -Confidence 'Inferred' `
+                -Severity $sev -Confidence 'Inferred' `
                 -Title "$($pe.Name) references the $($c.Kind) device-communication surface" `
                 -File $pe.FullName -Evidence (($hitTerms | Select-Object -First 6) -join ', ') `
                 -Description ("The binary contains references consistent with talking to a device over the " +

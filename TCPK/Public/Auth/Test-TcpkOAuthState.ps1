@@ -70,7 +70,9 @@ function Test-TcpkOAuthState {
     $pkceShapeRx     = '(?i)(code_verifier|code_challenge|WithPkce|WithProofKey|CryptographicallyRandomString|CodeChallengeMethod|GeneratePkceValues)'
 
     foreach ($src in $srcFiles) {
-        try { $lines = Get-Content $src.FullName -ErrorAction Stop } catch { continue }
+        # @(...) is load-bearing: a one-line file makes Get-Content return a bare [string], and
+        # then $lines[$i] indexes INTO the string and returns a [char] (whose .TrimStart() throws).
+        try { $lines = @(Get-Content $src.FullName -ErrorAction Stop) } catch { continue }
         $lineCount = $lines.Count
         $fileText  = $lines -join "`n"
 

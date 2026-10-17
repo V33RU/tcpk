@@ -36,6 +36,14 @@ Describe 'Test-TcpkFirmwareManifest: shape gate' {
         [void](script:WriteJson 'about.json' @{ version='1.0.0'; author='vendor' })
         @(Test-TcpkFirmwareManifest -Path $script:work).Count | Should -Be 0
     }
+    It 'ignores an npm package.json (version + nested repository.url) - the VS Code false positive' {
+        [void](script:WriteJson 'package.json' @{ version='1.2.3'; repository=@{ url='https://github.com/vendor/app.git' }; homepage='https://vendor.com' })
+        @(Test-TcpkFirmwareManifest -Path $script:work).Count | Should -Be 0
+    }
+    It 'ignores a manifest whose only url is a source repo, not a firmware image' {
+        [void](script:WriteJson 'build.json' @{ version='1.2.3'; url='https://github.com/vendor/app' })
+        @(Test-TcpkFirmwareManifest -Path $script:work).Count | Should -Be 0
+    }
 }
 
 Describe 'Test-TcpkFirmwareManifest: signature rules' {
@@ -91,13 +99,13 @@ Describe 'Test-TcpkFirmwareManifest: rollback' {
     BeforeEach { Get-ChildItem -LiteralPath $script:work -File | Remove-Item -Force -ErrorAction SilentlyContinue }
 
     It 'reports no-rollback-guard when the manifest declares no minVersion' {
-        [void](script:WriteJson 'fw.json' @{ version='1.2.3'; url='https://x/y' })
+        [void](script:WriteJson 'fw.json' @{ version='1.2.3'; url='https://x/y/fw.bin' })
         (@(Test-TcpkFirmwareManifest -Path $script:work) | Where-Object { $_.RuleId -eq 'firmware.manifest.no-rollback-guard' }).Count |
             Should -BeGreaterThan 0
     }
 
     It 'does NOT fire no-rollback-guard when minVersion is present' {
-        [void](script:WriteJson 'fw.json' @{ version='1.2.3'; url='https://x/y'; minVersion='1.2.0' })
+        [void](script:WriteJson 'fw.json' @{ version='1.2.3'; url='https://x/y/fw.bin'; minVersion='1.2.0' })
         @(Test-TcpkFirmwareManifest -Path $script:work | Where-Object { $_.RuleId -eq 'firmware.manifest.no-rollback-guard' }).Count |
             Should -Be 0
     }

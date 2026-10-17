@@ -73,6 +73,15 @@ function Test-TcpkFirmwareManifest {
     # Weak / collision-attackable integrity algorithms, matched against the winning KEY name.
     $weakKeys   = @('md5','sha1','crc32','xxhash')
 
+    # Relevance gate (added 2026-10-17). version+url ALONE matches every npm package.json
+    # (version + nested repository.url) and most config JSON, so this check over-fired by the
+    # hundreds on bundled application trees (208 findings on a VS Code audit). A real firmware
+    # manifest's url points at a downloadable IMAGE to flash, not a source repo or a homepage.
+    $skipNames    = @('package.json','package-lock.json','npm-shrinkwrap.json','composer.json',
+                      'bower.json','tsconfig.json','jsconfig.json','angular.json','manifest.json',
+                      'app.json','project.json','deno.json','vcpkg.json','global.json')
+    $fwArtifactRx = '(?i)\.(bin|img|hex|fw|dfu|uf2|elf|srec|s19|s37|cyacd|ota|rom|swu|upd|raucb|fip|sb|nb0)(\?|#|$)|/(firmware|fota|ota|flash)/'
+
     $item = Get-Item -LiteralPath $Path
     $files = @()
     if ($item.PSIsContainer) {
@@ -141,7 +150,18 @@ function Test-TcpkFirmwareManifest {
         # Extract the specific values for evidence and for the plaintext-url check.
         $ver = ''; $url = ''
         foreach ($k in $verKeys) { if ($leaves.ContainsKey($k)) { $ver = "$($leaves[$k])"; break } }
-        foreach ($k in $urlKeys) { if ($leaves.ContainsKey($k)) { $url = "$($leaves[$k])"; break } }
+        # Collect ALL url-like values and prefer one that looks like a firmware image artifact
+        # (a manifest can carry both a source-repo url and the real firmware url).
+        $urlVals = @(); foreach ($k in $urlKeys) { if ($leaves.ContainsKey($k)) { $urlVals += "$($leaves[$k])" } }
+        $url = @($urlVals | Where-Object { $_ -match $fwArtifactRx })[0]
+        if (-not $url) { $url = @($urlVals)[0] }
+
+        # RELEVANCE GATE: skip well-known package/config manifests, and require the url to point
+        # at a downloadable firmware/update image (a git repo or homepage is not a firmware
+        # manifest). A real manifest whose url carries no file extension is a rare miss, accepted
+        # to kill the mass false positive on software package trees.
+        if ($f.Name.ToLowerInvariant() -in $skipNames) { continue }
+        if (-not $url -or $url -notmatch $fwArtifactRx) { continue }
 
         $hasSig = $false; foreach ($k in $sigKeys)    { if ($leaves.ContainsKey($k)) { $hasSig = $true;    break } }
         $hasHash= $false; foreach ($k in $hashKeys)   { if ($leaves.ContainsKey($k)) { $hasHash = $true;   break } }

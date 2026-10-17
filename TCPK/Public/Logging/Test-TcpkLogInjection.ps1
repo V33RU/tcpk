@@ -219,7 +219,7 @@ function Test-TcpkLogInjection {
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($src in $srcFiles) {
-        try { $lines = Get-Content $src.FullName -ErrorAction Stop } catch { continue }
+        try { $lines = @(Get-Content $src.FullName -ErrorAction Stop) } catch { continue }
         for ($i = 0; $i -lt $lines.Count; $i++) {
             $line = $lines[$i]
             if ($line -notmatch $logCallRx) { continue }

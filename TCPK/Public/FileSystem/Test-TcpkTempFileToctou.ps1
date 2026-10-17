@@ -115,7 +115,7 @@ function Test-TcpkTempFileToctou {
     $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($src in $srcFiles) {
-        try { $lines = Get-Content $src.FullName -ErrorAction Stop } catch { continue }
+        try { $lines = @(Get-Content $src.FullName -ErrorAction Stop) } catch { continue }
         $lineCount = $lines.Count
 
         # Track GetTempFileName variable name to detect delete+recreate
