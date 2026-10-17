@@ -59,7 +59,7 @@ Describe 'Test-TcpkCsvInjection' {
         $r.Count | Should -Be 0
     }
 
-    It 'has report mappings (ATT&CK + TASVS + verify hint) wired for csv.*' {
+    It 'has report mappings (ATT&CK + category + verify hint) wired for csv.*' {
         & (Get-Module TCPK) {
             (Get-TcpkAttackText 'csv.formula-injection-risk') | Should -Not -BeNullOrEmpty
             (Get-TcpkCategoryText  'csv.formula-injection-risk') | Should -Match 'DA1 Injection'

@@ -90,7 +90,7 @@ Describe 'Test-TcpkV8Bytecode' {
 }
 
 Describe 'electron.v8-bytecode is registered in the mapping tables' {
-    It 'maps to an ATT&CK technique and a TASVS control' {
+    It 'maps to an ATT&CK technique and a security category' {
         $t = & (Get-Module TCPK) { Get-TcpkAttackTechnique -RuleId 'electron.v8-bytecode' }
         @($t).Count | Should -BeGreaterThan 0
         ($t -join ' ') | Should -Match 'T1027'

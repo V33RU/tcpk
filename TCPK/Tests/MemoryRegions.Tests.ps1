@@ -56,7 +56,7 @@ Describe 'Test-TcpkMemoryRegions' -Skip:(-not $script:isWin) {
 }
 
 Describe 'memregion rule IDs are registered in the mapping tables' {
-    It 'maps <_> to an ATT&CK technique and a TASVS control' -ForEach @(
+    It 'maps <_> to an ATT&CK technique and a security category' -ForEach @(
         'memregion.rwx'
         'memregion.private-exec'
         'memregion.summary'
@@ -65,7 +65,7 @@ Describe 'memregion rule IDs are registered in the mapping tables' {
         $tech = & (Get-Module TCPK) { param($r) Get-TcpkAttackTechnique -RuleId $r } $rid
         @($tech).Count | Should -BeGreaterThan 0 -Because "$rid must map to an ATT&CK technique"
         $ctl = & (Get-Module TCPK) { param($r) Get-TcpkCategoryList -RuleId $r } $rid
-        @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a TASVS control"
+        @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a security category"
     }
 
     It 'maps the injection-shaped rules to T1055 and T1620' {

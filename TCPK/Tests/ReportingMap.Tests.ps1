@@ -1,6 +1,6 @@
 #requires -Version 5.1
 # Pester 5: reporting batch - CVSS v4.0 banding (v3.1 dropped), per-finding Impact,
-# and OWASP TASVS / Desktop App Top 10 mapping (Get-TcpkCategoryMap).
+# and security-category / Desktop App Top 10 mapping (Get-TcpkCategoryMap).
 
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
@@ -144,14 +144,14 @@ Describe 'Get-TcpkCategoryMap' {
     It 'is exported' {
         Get-Command Get-TcpkCategoryMap -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
     }
-    It 'maps a storage rule to TASVS-STORAGE + DA3' {
+    It 'maps a storage rule to Sensitive Data Storage + DA3' {
         $m = Get-TcpkCategoryMap -RuleId 'secrets.azure-key'
-        $m.Tasvs | Should -Match 'TASVS-STORAGE'
+        $m.Category | Should -Match 'Sensitive Data Storage'
         $m.DesktopTop10 | Should -Match 'DA3'
     }
-    It 'maps a TLS rule to TASVS-NETWORK + DA7' {
+    It 'maps a TLS rule to Network Communication + DA7' {
         $m = Get-TcpkCategoryMap -RuleId 'tls-bypass.foo'
-        $m.Tasvs | Should -Match 'TASVS-NETWORK'
+        $m.Category | Should -Match 'Network Communication'
         $m.DesktopTop10 | Should -Match 'DA7'
     }
     It 'dumps the full table with no args' {
@@ -159,6 +159,6 @@ Describe 'Get-TcpkCategoryMap' {
     }
     It 'maps piped findings' {
         $rows = & (Get-Module TCPK) { New-TcpkFinding -Module 'creds' -RuleId 'localdb.sqlite-unencrypted' -Severity 'HIGH' -Title 'db' } | Get-TcpkCategoryMap
-        $rows.Tasvs | Should -Match 'TASVS-STORAGE'
+        $rows.Category | Should -Match 'Sensitive Data Storage'
     }
 }

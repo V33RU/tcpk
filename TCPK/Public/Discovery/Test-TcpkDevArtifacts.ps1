@@ -1,8 +1,8 @@
 function Test-TcpkDevArtifacts {
 <#
 .SYNOPSIS
-    A36. Leftover development / build artifacts shipped in the release (TASVS-CONF-1.4,
-    TASVS-CODE-2.4).
+    A36. Leftover development / build artifacts shipped in the release (build-config and
+    debug-symbol hygiene).
 
 .DESCRIPTION
     A release build should not carry development leftovers - they enlarge the attack

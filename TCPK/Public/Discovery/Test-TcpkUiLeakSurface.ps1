@@ -4,7 +4,7 @@ function Test-TcpkUiLeakSurface {
     A37. UI data-leak surface: screen-capture protection and clipboard-history hygiene.
 
 .DESCRIPTION
-    Two OWASP Desktop / TASVS UI-security controls that are statically detectable on
+    Two OWASP Desktop Top 10 UI-security controls that are statically detectable on
     Windows but that most thick-client checks ignore:
 
       * Screen-capture protection -- a sensitive window should call

@@ -1,5 +1,5 @@
 #requires -Version 5.1
-# Pester 5: TASVS-gap "quick wins" batch - package-manifest CVEs, file-system snapshot
+# Pester 5: coverage-gap "quick wins" batch - package-manifest CVEs, file-system snapshot
 # diff, log stack-trace leakage, TLS hostname-verifier bypass, and the new NoSQLi
 # injection-sink rule. (Registry world-readable + %TEMP% sweep are environment-specific
 # and exercised by the audit, not unit-asserted here.)

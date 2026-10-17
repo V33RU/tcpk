@@ -3,7 +3,7 @@
 #
 # WHY THIS EXISTS. A rule ID reaches four independent lookup tables -- ATT&CK
 # (_Attack.ps1 TcpkAttackMap), OWASP Desktop Top 10 (_Attack.ps1 TcpkOwaspDaMap),
-# TASVS (_Tasvs.ps1) and the CVSS archetype (_Finding.ps1). Every one of them is a
+# category map (_Category.ps1) and the CVSS archetype (_Finding.ps1). Every one of them is a
 # list of narrow alternation regexes, and a miss is SILENT: the finding still renders,
 # just with no technique, no control and a default vector. That is worse than a crash,
 # because the report looks complete. These tests turn each silent miss into a failure.
@@ -48,9 +48,9 @@ Describe 'Load-point rule IDs are registered in every mapping table' {
         (Get-TcpkOwaspDa -RuleId $_) | Should -Not -BeNullOrEmpty -Because "$_ has no entry in TcpkOwaspDaMap (_Attack.ps1)"
     }
 
-    It 'maps <_> to at least one TASVS control' -ForEach $script:RuleIds {
+    It 'maps <_> to at least one security category' -ForEach $script:RuleIds {
         $c = @(Get-TcpkCategoryList -RuleId $_)
-        $c.Count | Should -BeGreaterThan 0 -Because "$_ has no entry in TcpkTasvsMap (_Tasvs.ps1)"
+        $c.Count | Should -BeGreaterThan 0 -Because "$_ has no entry in TcpkCategoryMap (_Category.ps1)"
     }
 
     It 'resolves <_> to a CVSS archetype rather than the per-finding fallback' -ForEach $script:RuleIds {

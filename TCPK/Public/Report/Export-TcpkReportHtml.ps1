@@ -511,13 +511,13 @@ $($cveRows -join "`n")
                 $searchText = ConvertTo-TcpkHtmlSafe (("$($f.Title) $($f.RuleId) $($f.File) $($f.Evidence) $($f.Description)").ToLowerInvariant())
 
                 # Standards mapping as compact tags under the header (CWE + MITRE ATT&CK
-                # techniques + OWASP TASVS / Desktop Top 10) -- kept, not dropped, just tighter.
+                # techniques + security category / Desktop Top 10) -- kept, not dropped, just tighter.
                 $tagItems = New-Object 'System.Collections.Generic.List[string]'
                 foreach ($cw in @($f.Cwe))                              { if ($cw) { $tagItems.Add("<span class='ftag ftag-cwe'>$(ConvertTo-TcpkHtmlSafe ([string]$cw))</span>") } }
                 foreach ($at in @(Get-TcpkAttackTechnique -RuleId $f.RuleId)) { if ($at) { $tagItems.Add("<span class='ftag ftag-attack' title='MITRE ATT&amp;CK'>$(ConvertTo-TcpkHtmlSafe ([string]$at))</span>") } }
-                # TASVS tags show ONLY TASVS-* categories; the Desktop Top 10 (DA*) now comes
+                # Category tags show ONLY the security-category items; the Desktop Top 10 (DA*) comes
                 # solely from Get-TcpkOwaspDa below, so the two no longer disagree on a card.
-                foreach ($tv in @(Get-TcpkCategoryList -RuleId $f.RuleId | Where-Object { $_ -notmatch '^DA\d' })) { if ($tv) { $tagItems.Add("<span class='ftag ftag-tasvs' title='OWASP TASVS'>$(ConvertTo-TcpkHtmlSafe ([string]$tv))</span>") } }
+                foreach ($tv in @(Get-TcpkCategoryList -RuleId $f.RuleId | Where-Object { $_ -notmatch '^DA\d' })) { if ($tv) { $tagItems.Add("<span class='ftag ftag-cat' title='Security category'>$(ConvertTo-TcpkHtmlSafe ([string]$tv))</span>") } }
                 $oda = Get-TcpkOwaspDa -RuleId $f.RuleId; if ($oda) { $tagItems.Add("<span class='ftag ftag-owasp' title='OWASP Desktop Application Top 10 (2021)'>$(ConvertTo-TcpkHtmlSafe ([string]$oda))</span>") }
                 $tagRow = if ($tagItems.Count) { "<div class='ftags'>" + ($tagItems -join '') + "</div>" } else { '' }
 
@@ -986,7 +986,7 @@ h3{font-size:15px;margin:0 0 11px;color:var(--tx)}
 .ftag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:11px;background:var(--panel2);color:var(--mut);border:1px solid var(--bd2);font-family:"Cascadia Code","Fira Code",Consolas,monospace}
 .ftag-cwe{color:#f0908a;border-color:#5c2b2b}
 .ftag-attack{color:#c4a3f5;border-color:#4a3a6e}
-.ftag-tasvs{color:#7cc0ff;border-color:#234a6e}
+.ftag-cat{color:#7cc0ff;border-color:#234a6e}
 .ftag-owasp{color:#5ad6a0;border-color:#1f5a45}
 .afflist{margin:4px 0 0;padding-left:18px}
 .afflist li{margin:2px 0}

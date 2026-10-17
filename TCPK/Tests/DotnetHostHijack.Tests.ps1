@@ -85,10 +85,10 @@ App.exe
 }
 
 # Same guard as the crashreporter suite: these tables use narrow alternation regexes, so a
-# new rule id that does not match ships silently with no ATT&CK technique, no TASVS control
+# new rule id that does not match ships silently with no ATT&CK technique, no security category
 # and a default CVSS archetype.
 Describe 'dotnethost rule IDs are registered in the mapping tables' {
-    It 'maps <_> to an ATT&CK technique and a TASVS control' -ForEach @(
+    It 'maps <_> to an ATT&CK technique and a security category' -ForEach @(
         'dotnethost.runtimeconfig-writable'
         'dotnethost.probing-path-writable'
         'dotnethost.deps-writable'
@@ -102,7 +102,7 @@ Describe 'dotnethost rule IDs are registered in the mapping tables' {
         @($tech).Count | Should -BeGreaterThan 0 -Because "$rid must map to an ATT&CK technique"
 
         $ctl = & (Get-Module TCPK) { param($r) Get-TcpkCategoryList -RuleId $r } $rid
-        @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a TASVS control"
+        @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a security category"
     }
 
     It 'maps the profiler rule specifically to T1574.012' {

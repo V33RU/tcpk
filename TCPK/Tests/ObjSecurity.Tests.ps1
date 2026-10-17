@@ -102,7 +102,7 @@ Describe 'Test-TcpkProcessVirtualization' -Skip:(-not $script:isWin) {
 }
 
 Describe 'thread / token / virtualization rule IDs are registered' {
-    It 'maps <_> to an ATT&CK technique and a TASVS control' -ForEach @(
+    It 'maps <_> to an ATT&CK technique and a security category' -ForEach @(
         'thread.dacl-hijackable'
         'token.dacl-weak'
         'virtualization.enabled'
@@ -112,7 +112,7 @@ Describe 'thread / token / virtualization rule IDs are registered' {
         $tech = & (Get-Module TCPK) { param($r) Get-TcpkAttackTechnique -RuleId $r } $rid
         @($tech).Count | Should -BeGreaterThan 0 -Because "$rid must map to an ATT&CK technique"
         $ctl = & (Get-Module TCPK) { param($r) Get-TcpkCategoryList -RuleId $r } $rid
-        @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a TASVS control"
+        @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a security category"
     }
 
     It 'maps thread hijacking to T1055.003 and token abuse to T1134' {

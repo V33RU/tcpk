@@ -303,7 +303,7 @@ $script:ToolHandlers = @{
         $raw  = @(Read-JsonFile (Join-Path $outDir 'findings.json') | Where-Object { $_ })
         $prof = Read-JsonFile (Join-Path $outDir 'profile.json')
         # Enrich through the SAME intel model the HTML/Excel reports use, so an agent gets the
-        # computed CVSS + ATT&CK + TASVS + how-to-verify -- not just the raw finding record.
+        # computed CVSS + ATT&CK + category + how-to-verify -- not just the raw finding record.
         $recs = $null
         try {
             $model = & $script:TcpkMod { param($f, $p) Get-TcpkIntelModel -Findings $f -Target '' -Profile $p } $raw $prof
@@ -325,7 +325,7 @@ $script:ToolHandlers = @{
             # Compact projection (built explicitly -- these records are ordered dictionaries).
             $res = @($res | ForEach-Object { [ordered]@{
                 sev = $_.sev; conf = $_.conf; rule = $_.rule; title = $_.title; file = $_.file
-                cvss = $_.cvss; cwe = $_.cwe; attack = $_.attack; tasvs = $_.tasvs; verify = $_.verify
+                cvss = $_.cvss; cwe = $_.cwe; attack = $_.attack; category = $_.category; verify = $_.verify
             } })
         }
         return ([ordered]@{ count = @($res).Count; total = @($recs).Count; findings = $res } | ConvertTo-Json -Depth 6)
@@ -471,7 +471,7 @@ $script:ToolDefs = @(
             runInstaller = @{ type = 'boolean'; description = 'Required ONLY for an .msi target. TCPK unpacks an .msi by running it (msiexec /a), which executes the installer''s own custom actions on this machine. Leave unset for any other target type.' }
         }; required = @('target') } },
 
-    [ordered]@{ name = 'tcpk_get_findings'; description = 'Read findings from a completed audit outDir, ENRICHED through the same intel model the HTML/Excel reports use: each finding carries its computed CVSS v4.0, CWE, ATT&CK technique, OWASP TASVS control and a how-to-verify hint, plus the confidence ladder (Inferred / Confirmed / Confirmed (IL) / Confirmed (dynamic)). Filter by severity or ruleId.';
+    [ordered]@{ name = 'tcpk_get_findings'; description = 'Read findings from a completed audit outDir, ENRICHED through the same intel model the HTML/Excel reports use: each finding carries its computed CVSS v4.0, CWE, ATT&CK technique, security category and a how-to-verify hint, plus the confidence ladder (Inferred / Confirmed / Confirmed (IL) / Confirmed (dynamic)). Filter by severity or ruleId.';
         inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{
             outDir = @{ type = 'string' }
             severity = @{ type = 'string'; enum = @('CRITICAL','HIGH','MEDIUM','LOW','INFO') }

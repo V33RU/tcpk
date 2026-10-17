@@ -82,9 +82,9 @@ crashReporter.start({ submitURL: 'https://crash.example.com/submit', uploadToSer
 
 # Guard for the trap hit while adding dllsearch.delayload-phantom: the mapping tables use
 # narrow alternation regexes, so a new RuleId that does not match silently ships with no
-# ATT&CK technique, no TASVS control, and a default CVSS archetype.
+# ATT&CK technique, no security category, and a default CVSS archetype.
 Describe 'crashreporter rule IDs are registered in the mapping tables' {
-    It 'maps <_> to an ATT&CK technique and a TASVS control' -ForEach @(
+    It 'maps <_> to an ATT&CK technique and a security category' -ForEach @(
         'crashreporter.crashpad-present'
         'crashreporter.uploads-enabled'
         'crashreporter.extra-params'
@@ -97,6 +97,6 @@ Describe 'crashreporter rule IDs are registered in the mapping tables' {
         @($tech).Count | Should -BeGreaterThan 0 -Because "$rid must map to an ATT&CK technique"
 
         $ctl = & (Get-Module TCPK) { param($r) Get-TcpkCategoryList -RuleId $r } $rid
-        @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a TASVS control"
+        @($ctl).Count | Should -BeGreaterThan 0 -Because "$rid must map to a security category"
     }
 }

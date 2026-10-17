@@ -302,7 +302,7 @@ Describe 'MSIX PSF runFullTrust + PSF combination' {
     }
 }
 
-Describe 'ATT&CK and TASVS mappings for new RuleIds' {
+Describe 'ATT&CK and Category mappings for new RuleIds' {
     It 'maps appdomain.* to T1574.014' {
         $tech = & (Get-Module TCPK) { Get-TcpkAttackTechnique -RuleId 'appdomain.config-writable' }
         $tech | Should -Not -BeNullOrEmpty
@@ -328,20 +328,20 @@ Describe 'ATT&CK and TASVS mappings for new RuleIds' {
         $tech | Should -Not -BeNullOrEmpty
         ($tech -join ' ') | Should -BeLike '*T1059*'
     }
-    It 'TASVS maps appdomain.* to TASVS-PLATFORM' {
+    It 'category maps appdomain.* to Platform Interaction' {
         $ctrl = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'appdomain.manager-configured' }
         $ctrl | Should -Not -BeNullOrEmpty
-        ($ctrl -join ' ') | Should -BeLike '*TASVS-PLATFORM*'
+        ($ctrl -join ' ') | Should -BeLike '*Platform Interaction*'
     }
-    It 'TASVS maps clickonce.* to TASVS-NETWORK' {
+    It 'category maps clickonce.* to Network Communication' {
         $ctrl = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'clickonce.manifest-http' }
         $ctrl | Should -Not -BeNullOrEmpty
-        ($ctrl -join ' ') | Should -BeLike '*TASVS-NETWORK*'
+        ($ctrl -join ' ') | Should -BeLike '*Network Communication*'
     }
-    It 'TASVS maps msix.psf* to TASVS-PLATFORM' {
+    It 'category maps msix.psf* to Platform Interaction' {
         $ctrl = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'msix.psf-full-trust' }
         $ctrl | Should -Not -BeNullOrEmpty
-        ($ctrl -join ' ') | Should -BeLike '*TASVS-PLATFORM*'
+        ($ctrl -join ' ') | Should -BeLike '*Platform Interaction*'
     }
 }
 

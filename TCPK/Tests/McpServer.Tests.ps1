@@ -128,7 +128,7 @@ Describe 'tools/list' {
 }
 
 Describe 'tcpk_get_findings is enriched by the intel model' {
-    It 'returns the computed CVSS / CWE / TASVS / verify-hint, not just the raw finding' {
+    It 'returns the computed CVSS / CWE / category / verify-hint, not just the raw finding' {
         $d = $script:R['3'].result.content[0].text | ConvertFrom-Json
         $script:R['3'].result.isError | Should -BeFalse
         $d.total | Should -Be 2
@@ -138,7 +138,7 @@ Describe 'tcpk_get_findings is enriched by the intel model' {
         $top.cvss | Should -Match '^\d+\.\d'   # e.g. "8.5 (High) CVSS:4.0/..."
         $top.cvss | Should -Match 'CVSS:4\.0'
         $top.verify | Should -Not -BeNullOrEmpty
-        $top.tasvs  | Should -Not -BeNullOrEmpty
+        $top.category  | Should -Not -BeNullOrEmpty
     }
     It 'applies the severity filter against the enriched shape' {
         $d = $script:R['4'].result.content[0].text | ConvertFrom-Json

@@ -108,7 +108,7 @@ Describe 'Test-TcpkScanCoverage' {
 }
 
 Describe 'scan rule ID is registered in the mapping tables' {
-    It 'maps scan.incomplete-coverage to an ATT&CK technique and a TASVS control' {
+    It 'maps scan.incomplete-coverage to an ATT&CK technique and a security category' {
         $tech = & (Get-Module TCPK) { Get-TcpkAttackTechnique -RuleId 'scan.incomplete-coverage' }
         @($tech).Count | Should -BeGreaterThan 0
         $ctl = & (Get-Module TCPK) { Get-TcpkCategoryList -RuleId 'scan.incomplete-coverage' }

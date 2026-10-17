@@ -65,7 +65,7 @@ function Test-TcpkComObjects {
             # NOTE: the RuleId is built dynamically and resolves to 'com.InprocServer32',
             # 'com.LocalServer32' or 'com.InprocHandler32'. A grep for those literals will
             # NOT find them here. Keep the names in this comment so rule-ID censuses and
-            # the _Attack/_Tasvs/_Finding mapping tables stay in sync with what is emitted.
+            # the _Attack/_Category/_Finding mapping tables stay in sync with what is emitted.
             New-TcpkFinding -Module 'runtime' -RuleId "com.$serverType" `
                 -Severity 'MEDIUM' -Confidence 'Confirmed' `
                 -Title "COM $serverType CLSID $clsid -> $val" `

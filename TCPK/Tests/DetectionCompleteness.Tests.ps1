@@ -1,20 +1,20 @@
 #requires -Version 5.1
-# Pester 5: TASVS v1.8 completeness batch -
-#   CODE-4.6 format-string sink, NETWORK-4.1 mail-injection sink (callsite rules),
-#   CONF-1.4 leftover dev artifacts (Test-TcpkDevArtifacts),
-#   CODE-2.4 debug-build detection (Test-TcpkDebugFlags + DebuggableAttribute via Cecil).
+# Pester 5: detection-completeness batch -
+#   format-string sink, mail-injection sink (callsite rules),
+#   leftover dev artifacts (Test-TcpkDevArtifacts),
+#   debug-build detection (Test-TcpkDebugFlags + DebuggableAttribute via Cecil).
 
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
-    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-tasvsc-' + [guid]::NewGuid().ToString('N'))
+    $script:fx = Join-Path ([System.IO.Path]::GetTempPath()) ('tcpk-detcomp-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:fx | Out-Null
 }
 AfterAll {
     if ($script:fx -and (Test-Path $script:fx)) { Remove-Item $script:fx -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
-Describe 'New injection-sink rules (CODE-4.6 / NETWORK-4.1)' {
+Describe 'New injection-sink rules (format-string / mail-injection)' {
     It 'Test-TcpkCallsites flags format-string and mail APIs (Inferred)' {
         'var s = String.Format(userInput); new SmtpClient().Send(new MailMessage());' |
             Set-Content -LiteralPath (Join-Path $script:fx 'Mail.dll') -Encoding UTF8
@@ -25,7 +25,7 @@ Describe 'New injection-sink rules (CODE-4.6 / NETWORK-4.1)' {
     }
 }
 
-Describe 'Test-TcpkDevArtifacts (CONF-1.4)' {
+Describe 'Test-TcpkDevArtifacts' {
     It 'is exported' { Get-Command Test-TcpkDevArtifacts -EA SilentlyContinue | Should -Not -BeNullOrEmpty }
     It 'flags shipped debug symbols, source, backups, dev-config, api-spec, and .git' {
         $d = Join-Path $script:fx 'app'; New-Item -ItemType Directory -Path $d | Out-Null
@@ -44,7 +44,7 @@ Describe 'Test-TcpkDevArtifacts (CONF-1.4)' {
     }
 }
 
-Describe 'Test-TcpkDebugFlags - debug-build detection (CODE-2.4)' {
+Describe 'Test-TcpkDebugFlags - debug-build detection' {
     It 'flags a Debug-compiled assembly (JIT optimizer disabled)' {
         $cecil = & (Get-Module TCPK) { Initialize-TcpkCecil }
         $dbgDll = Join-Path $script:fx 'DebugBuilt.dll'

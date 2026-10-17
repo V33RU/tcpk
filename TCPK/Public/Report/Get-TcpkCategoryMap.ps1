@@ -1,18 +1,17 @@
 function Get-TcpkCategoryMap {
 <#
 .SYNOPSIS
-    Map TCPK findings / rule IDs to OWASP TASVS controls and the OWASP Desktop App
-    Security Top 10.
+    Map TCPK findings / rule IDs to a security category and a risk class.
 
 .DESCRIPTION
-    A pure lookup (same model as the MITRE ATT&CK mapping) that resolves a RuleId to
-    its OWASP TASVS category and Desktop App Security Top 10 item, so reports and
-    coverage matrices can be aligned to those standards.
+    A pure lookup (same model as the MITRE ATT&CK mapping) that resolves a RuleId to its
+    security category (area) and a risk-class item, so reports and coverage matrices can be
+    aligned by topic.
 
     Three modes:
-      - pipe in findings (or pass -Findings)  -> one row per finding with TASVS + Top 10
+      - pipe in findings (or pass -Findings)  -> one row per finding with Category + risk
       - pass -RuleId                          -> the mapping for that single rule
-      - no args                               -> dump the full rule-regex -> control table
+      - no args                               -> dump the full rule-regex -> category table
 
 .PARAMETER Findings
     TcpkFinding objects (e.g. from Invoke-TcpkAudit / Get-Tcpk*). Accepts pipeline.
@@ -34,8 +33,8 @@ function Get-TcpkCategoryMap {
         function _Split($rid) {
             $all = @(Get-TcpkCategoryList -RuleId $rid)
             [pscustomobject]@{
-                Tasvs        = ($all | Where-Object { $_ -like 'TASVS-*' }) -join '; '
-                DesktopTop10 = ($all | Where-Object { $_ -like 'DA*' })    -join '; '
+                Category     = ($all | Where-Object { $_ -notmatch '^DA\d' }) -join '; '
+                DesktopTop10 = ($all | Where-Object { $_ -match  '^DA\d' }) -join '; '
             }
         }
     }
@@ -47,7 +46,7 @@ function Get-TcpkCategoryMap {
                     RuleId       = $f.RuleId
                     Severity     = $f.Severity
                     Title        = $f.Title
-                    Tasvs        = $m.Tasvs
+                    Category     = $m.Category
                     DesktopTop10 = $m.DesktopTop10
                 }
             }
@@ -56,13 +55,13 @@ function Get-TcpkCategoryMap {
     end {
         if ($PSCmdlet.ParameterSetName -eq 'Rule') {
             $m = _Split $RuleId
-            [pscustomobject]@{ RuleId = $RuleId; Tasvs = $m.Tasvs; DesktopTop10 = $m.DesktopTop10 }
+            [pscustomobject]@{ RuleId = $RuleId; Category = $m.Category; DesktopTop10 = $m.DesktopTop10 }
         }
         elseif ($PSCmdlet.ParameterSetName -eq 'Table') {
-            foreach ($e in $script:TcpkTasvsMap) {
+            foreach ($e in $script:TcpkCategoryMap) {
                 [pscustomobject]@{
                     RulePattern  = $e.rx
-                    Tasvs        = ($e.tasvs -join '; ')
+                    Category     = ($e.area -join '; ')
                     DesktopTop10 = ($e.da -join '; ')
                 }
             }

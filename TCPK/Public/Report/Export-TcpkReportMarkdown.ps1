@@ -9,7 +9,7 @@ function Export-TcpkReportMarkdown {
     (severity + evidence-tier rollup, the correlated attack paths when present,
     and the top findings), then lists findings grouped by severity carrying the
     same standards mapping as the HTML report: computed CVSS v4.0, CWE, MITRE
-    ATT&CK, OWASP TASVS, and the OWASP Desktop App Top 10 (Get-TcpkOwaspDa),
+    ATT&CK, a security category, and the OWASP Desktop App Top 10 (Get-TcpkOwaspDa),
     plus impact, evidence, the affected list, how-to-verify and the fix.
 
     Pure ASCII; internal [TCPK]/[LLM] process notes are stripped from the
@@ -115,7 +115,7 @@ function Export-TcpkReportMarkdown {
                 $att = (Get-TcpkAttackTechnique -RuleId $f.RuleId) -join '; '
                 if ($att) { _w "- ATT&CK: $att" }
                 $tas = (Get-TcpkCategoryList -RuleId $f.RuleId | Where-Object { $_ -notmatch '^DA\d' }) -join '; '
-                if ($tas) { _w "- OWASP TASVS: $tas" }
+                if ($tas) { _w "- Security category: $tas" }
                 $oda = Get-TcpkOwaspDa -RuleId $f.RuleId
                 if ($oda) { _w "- OWASP Desktop Top 10: $oda" }
                 $impact = Get-TcpkImpactText $f

@@ -91,10 +91,10 @@ Describe 'Attack-path callout (correlated chains)' {
 }
 
 Describe 'Standards mapping kept (as tags)' {
-    It 'renders CWE / ATT&CK / TASVS tags on the card' {
+    It 'renders CWE / ATT&CK / category tags on the card' {
         $script:html | Should -Match "ftag-cwe'>CWE-377"
         $script:html | Should -Match "ftag-attack'"
-        $script:html | Should -Match "ftag-tasvs'"
+        $script:html | Should -Match "ftag-cat'"
     }
 }
 

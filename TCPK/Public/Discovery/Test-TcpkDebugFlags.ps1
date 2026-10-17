@@ -90,7 +90,7 @@ function Test-TcpkDebugFlags {
         }
     }
 
-    # TASVS-CODE-2.4: release-build verification via the managed DebuggableAttribute.
+    # Release-build verification via the managed DebuggableAttribute.
     # A Debug build sets isJITOptimizerDisabled / DebuggingModes.DisableOptimizations,
     # ships extra debug metadata, and is not a hardened release artifact. Read the
     # attribute from metadata (accurate -> Confirmed) when Mono.Cecil is available.
@@ -117,7 +117,7 @@ function Test-TcpkDebugFlags {
                             -Severity 'MEDIUM' -Confidence 'Confirmed' `
                             -Title "Debug build (JIT optimizer disabled): $($pe.Name)" `
                             -File $pe.FullName -Evidence 'DebuggableAttribute: IsJITOptimizerDisabled=true' -Cwe @('CWE-489') `
-                            -Description 'TASVS-CODE-2.4. This assembly was compiled in Debug configuration (JIT optimizations disabled), so it ships extra debug metadata and is not a hardened release build.' `
+                            -Description 'This assembly was compiled in Debug configuration (JIT optimizations disabled), so it ships extra debug metadata and is not a hardened release build.' `
                             -Fix 'Build in Release configuration (optimizations on, no DEBUG constant) and strip debug symbols from the shipped artifact.'
                         $dn++
                     }

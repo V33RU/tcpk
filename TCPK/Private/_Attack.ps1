@@ -142,7 +142,7 @@ function Get-TcpkAttackText {
 
 # --- OWASP Desktop Application Top 10 (2021) mapping -----------------------------
 # Pure lookup, computed at report time from a finding's RuleId (same convention as
-# ATT&CK / TASVS / CVSS), so the [TcpkFinding] class is unchanged. Returns the single
+# ATT&CK / category / CVSS), so the [TcpkFinding] class is unchanged. Returns the single
 # best-fit (primary) DA category; FIRST matching entry wins, so order = most-specific
 # first. Returns '' when no family matches.
 $script:TcpkOwaspDaMap = @(
@@ -163,7 +163,7 @@ $script:TcpkOwaspDaMap = @(
     @{ rx = '^(authenticode|strongname|codeintegrity|pe-|pe\.|peimports|peexports|native|antidebug|antiinjection|timing|selfintegrity|packer|obfusc|debugflags|procmit|integrity)|loaded\.(unsigned|non-system)|signing'; da = 'DA8 Poor Code Quality' }
     # install-?dir: Test-TcpkInstallDirAcl emits 'install-dir.user-writable' (HIGH) with a
     # hyphen. Only _Finding.ps1 spelled it correctly, so the flagship writable-install-dir
-    # finding carried no OWASP DA category and no TASVS control.
+    # finding carried no OWASP DA category and no security category.
     @{ rx = '^(install-?dir|folderacl|registry|servicepermissions|servicebin|unquoted|processtoken|process\.dacl|uac|programdata|scheduledtaskacl|kerneldrivers|sharedmem)';    da = 'DA5 Improper Authorization' }
     @{ rx = '^appdomain\.';                                                                                         da = 'DA5 Improper Authorization' }
     @{ rx = '^clickonce\.';                                                                                          da = 'DA7 Insecure Communication' }

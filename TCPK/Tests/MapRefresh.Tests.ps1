@@ -1,5 +1,5 @@
 #requires -Version 5.1
-# ATT&CK / OWASP-TASVS map refresh + new exploit chains for the v2.6.x detection rule
+# ATT&CK / security-category map refresh + new exploit chains for the v2.6.x detection rule
 # families (process token privileges, Electron IPC->sink, intercept response mining +
 # tamper, URI activation, browser store decryption).
 
