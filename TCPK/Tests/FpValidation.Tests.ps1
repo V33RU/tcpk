@@ -145,14 +145,14 @@ Describe 'FP regression: hollowing-apis provenance and sandbox suppression' {
                 # -> would have been TRUE without SetThreadContext
                 # New code: $isHollowing = $hasUnmap -and $hasWrite -and $hasContext -and $hasResume
                 # -> must be FALSE without SetThreadContext
-                $hasUnmap=true; $hasWrite=true; $hasResume=true; $hasContext=$false
+                $hasUnmap=$true; $hasWrite=$true; $hasResume=$true; $hasContext=$false
                 $isHollowing = $hasUnmap -and $hasWrite -and $hasContext -and $hasResume
                 $isHollowing | Should -Be $false
             }
         }
         It 'hollowing detection fires when all four APIs are present' {
             InModuleScope TCPK {
-                $hasUnmap=true; $hasWrite=true; $hasResume=true; $hasContext=true
+                $hasUnmap=$true; $hasWrite=$true; $hasResume=$true; $hasContext=$true
                 $isHollowing = $hasUnmap -and $hasWrite -and $hasContext -and $hasResume
                 $isHollowing | Should -Be $true
             }
