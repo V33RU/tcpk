@@ -830,7 +830,7 @@ $($remRows -join "`n")
         $css = @'
 *{box-sizing:border-box}
 :root{--bg:#0a0d13;--panel:#11161f;--panel2:#161c27;--sub:#0d1117;--bd:#242c3a;--bd2:#2f3a4d;--tx:#e6edf3;--mut:#9aa4b2;--dim:#6a7585;--acc:#56d364;--acc2:#3fb950;--blue:#58a6ff;--amber:#d29922;--red:#f85149;--crit:#f85149;--high:#db6d28;--med:#d29922;--low:#3fb950;--info:#6a7585}
-body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;margin:0;background:var(--bg);color:var(--tx);line-height:1.55}
+body{font-family:"Cascadia Code","Fira Code",Consolas,monospace;margin:0;background:var(--bg);color:var(--tx);line-height:1.55}
 .wrap{max-width:1180px;margin:0 auto;padding:26px 22px 100px}
 h1{font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px}
 .sub{color:var(--dim);font-size:13.5px;margin:3px 0 20px;font-family:"Cascadia Code","Fira Code",Consolas,monospace}
@@ -934,7 +934,7 @@ h1{font-size:25px;margin:0;font-weight:700;letter-spacing:-.2px}
 .kv{width:100%;border-collapse:collapse;margin-top:10px}
 .kv th{text-align:left;vertical-align:top;padding:5px 12px 5px 0;font-weight:600;font-size:12px;color:var(--mut);width:104px;text-transform:uppercase;letter-spacing:.03em}
 .kv td{padding:5px 0;font-size:14px;vertical-align:top;color:var(--tx)}
-code{font-family:"Cascadia Code","Fira Code",Consolas,Menlo,monospace;font-size:13px;background:var(--sub);color:#c9d1d9;padding:1px 6px;border-radius:4px;border:1px solid var(--bd);word-break:break-word}
+code{font-family:"Cascadia Code","Fira Code",Consolas,monospace;font-size:13px;background:var(--sub);color:#c9d1d9;padding:1px 6px;border-radius:4px;border:1px solid var(--bd);word-break:break-word}
 code.evidence{background:rgba(210,153,34,.12);color:#f0b65c;font-weight:700;padding:2px 7px;border:1px solid #6e5320}
 details.evtoggle{display:inline-block}
 details.evtoggle summary{cursor:pointer;list-style:none;outline:none}

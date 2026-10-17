@@ -1118,7 +1118,7 @@ $script:TCPK_AGENTIC_HTML = @'
 --il:#2ea043;--dyn:#39c5cf;--llm:#bc8cff;--mono:"Cascadia Code","Fira Code",Consolas,monospace;
 --hxNull:#5a5a5a;--hxWs:#61afef;--hxAsc:#98c379;--hxCtl:#d19a66;--hxHigh:#c678dd;--hxSep:#5a6472}
 *{box-sizing:border-box}html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 "Segoe UI",system-ui,Arial,sans-serif}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.5 var(--mono)}
 a{color:var(--blue);cursor:pointer;text-decoration:none}a:hover{text-decoration:underline}
 .app{display:grid;grid-template-rows:auto 1fr auto;height:100vh}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:9px 16px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#0e131d,#0a0d13)}
@@ -1452,7 +1452,7 @@ th,td{padding:7px 11px}
       </div>
 
       <div class="pane" data-p="7">
-        <h2>Autonomous agent <span style="font:600 11px sans-serif;color:#fff;background:#2ea043;border-radius:8px;padding:2px 8px;vertical-align:middle">AUTONOMOUS</span></h2>
+        <h2>Autonomous agent <span style="font:600 11px 'Cascadia Code','Fira Code',Consolas,monospace;color:#fff;background:#2ea043;border-radius:8px;padding:2px 8px;vertical-align:middle">AUTONOMOUS</span></h2>
         <p class="lead"><b>This is the autonomous mode.</b> You give a goal in plain English; a local model then investigates on its own -- it reads the code, picks which methods to inspect, walks the call graph, and submits what it believes are bugs. It does NOT get the final say: the deterministic IL prover re-checks every submission and marks it <b>CONFIRMED</b> (proven path to the sink), <b>NEEDS REVIEW</b>, or <b>REFUTED</b>. The agent proposes, the prover disposes. Read-only tools only; the exploit bucket is never exposed.</p>
         <div class="panel">
           <div class="row">
@@ -1712,7 +1712,7 @@ function go(n){document.querySelectorAll('.pane').forEach(function(p){p.classLis
   if(n===0){renderDash();}}
 function mark(n){document.querySelectorAll('.step').forEach(function(s){if(+s.dataset.p<=n)s.classList.add('done');});}
 document.querySelectorAll('.step').forEach(function(s){s.addEventListener('click',function(){go(+s.dataset.p);});});
-$('stop').addEventListener('click',async function(){try{await api('/api/shutdown',{method:'POST'});}catch(e){}document.body.innerHTML='<p style="padding:30px;font-family:monospace">server stopped -- you can close this tab.</p>';});
+$('stop').addEventListener('click',async function(){try{await api('/api/shutdown',{method:'POST'});}catch(e){}document.body.innerHTML='<p style="padding:30px;font-family:\'Cascadia Code\',\'Fira Code\',Consolas,monospace">server stopped -- you can close this tab.</p>';});
 (async function(){try{var p=await api('/api/ping');$('conn').innerHTML='session authenticated -- engine v'+esc(p.version||'?')+' ready.';$('ver').textContent='v'+(p.version||'?');}catch(e){$('conn').textContent='cannot reach the local engine.';}})();
 refreshAgentChip();
 (function(){var qt=P.get('target');if(qt){$('target').value=qt;$('toAudit').disabled=false;onTargetSet(qt);detect();var mp=P.get('method');if(mp){window._dcDll=qt;window._dcMethod=mp;}var ph=P.get('phase');if(ph){go(+ph);}else{go(3);if(P.get('autorun')==='1'){setTimeout(run,1200);}}if(mp&&ph==='5'){setTimeout(function(){prepReview();runReview();},700);}if(ph==='7'&&P.get('auto')==='1'){setTimeout(runAuto,600);}}})();
@@ -1969,7 +1969,7 @@ function agRenderSvg(src){
     var x1=p1.x+nodeW,y1=p1.y+nodeH/2,x2=p2.x,y2=p2.y+nodeH/2;
     var mk=e.dashed?'ahd':'ah',st=e.dashed?'stroke-dasharray:5,4;stroke:var(--dim)':'stroke:var(--text)';
     svg+='<line x1="'+x1+'" y1="'+y1+'" x2="'+x2+'" y2="'+y2+'" style="'+st+';stroke-width:1.5" marker-end="url(#'+mk+')"/>';
-    if(e.label){var mx=(x1+x2)/2,my=(y1+y2)/2-6;svg+='<text x="'+mx+'" y="'+my+'" text-anchor="middle" style="font:10px sans-serif;fill:var(--dim)">'+esc(e.label)+'</text>';}});
+    if(e.label){var mx=(x1+x2)/2,my=(y1+y2)/2-6;svg+='<text x="'+mx+'" y="'+my+'" text-anchor="middle" style="font:10px \'Cascadia Code\',\'Fira Code\',Consolas,monospace;fill:var(--dim)">'+esc(e.label)+'</text>';}});
   nodeList.forEach(function(n){var p=pos[n.id];if(!p)return;
     var fill,stroke,rx=6;
     if(n.shape==='stadium'){fill='var(--accent)';stroke='var(--accent)';rx=nodeH/2;}
@@ -1979,7 +1979,7 @@ function agRenderSvg(src){
     svg+='<rect x="'+p.x+'" y="'+p.y+'" width="'+nodeW+'" height="'+nodeH+'" rx="'+rx+'" style="fill:'+fill+';stroke:'+stroke+';stroke-width:1.5;opacity:0.85"/>';
     var lines=n.label.length>18?[n.label.substring(0,18),n.label.substring(18,36)]:[n.label];
     var ty=p.y+nodeH/2-(lines.length-1)*7;
-    lines.forEach(function(ln,i){svg+='<text x="'+(p.x+nodeW/2)+'" y="'+(ty+i*14)+'" text-anchor="middle" dominant-baseline="central" style="font:bold 11px sans-serif;fill:#fff">'+esc(ln)+'</text>';});});
+    lines.forEach(function(ln,i){svg+='<text x="'+(p.x+nodeW/2)+'" y="'+(ty+i*14)+'" text-anchor="middle" dominant-baseline="central" style="font:bold 11px \'Cascadia Code\',\'Fira Code\',Consolas,monospace;fill:#fff">'+esc(ln)+'</text>';});});
   svg+='</svg>';
   $('agDiagram').innerHTML=svg;}
 function openDock(){$('dock').classList.remove('collapsed');}

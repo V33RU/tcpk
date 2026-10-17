@@ -60,61 +60,61 @@ $script:TCPK_INTEL_TEMPLATE = @'
 <style>
 :root{--bg:#0b0e14;--panel:#161b22;--panel2:#1c2230;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--dim:#6e7681;
 --crit:#f85149;--high:#db6d28;--med:#d29922;--low:#3fb950;--info:#8b949e;--il:#3fb950;--dyn:#39c5cf;--llm:#bc8cff;--inf:#8b949e;--accent:#56d364;}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Segoe UI",system-ui,Arial,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Cascadia Code","Fira Code",Consolas,monospace}
 .wrap{max-width:1140px;margin:0 auto;padding:22px}
 a{color:#58a6ff}
 .hd{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:18px}
-.brand{font:700 26px Consolas,monospace;color:var(--muted)}
+.brand{font:700 26px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--muted)}
 .hdl{display:flex;align-items:center;gap:12px}
 .sub{color:var(--muted);font-size:13px;margin-top:2px}
-.metar{color:var(--dim);font:12px Consolas,monospace;text-align:right}
+.metar{color:var(--dim);font:12px "Cascadia Code","Fira Code",Consolas,monospace;text-align:right}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
 .stat{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
-.stat b{font:700 30px Consolas,monospace;display:block;line-height:1.1}
+.stat b{font:700 30px "Cascadia Code","Fira Code",Consolas,monospace;display:block;line-height:1.1}
 .stat small{color:var(--muted);font-size:12px}
 .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px}
-.panel h3{margin:0 0 10px;font:700 13px Consolas,monospace;color:var(--muted);letter-spacing:.04em}
+.panel h3{margin:0 0 10px;font:700 13px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--muted);letter-spacing:.04em}
 .sevbar{display:flex;height:14px;border-radius:7px;overflow:hidden;border:1px solid var(--border)}
 .sevbar i{display:block}
 .legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
 .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
 .confrow{display:flex;gap:10px;flex-wrap:wrap}
-.confpill{border:1px solid var(--border);border-radius:20px;padding:4px 11px;font:12px Consolas,monospace;background:var(--panel2)}
+.confpill{border:1px solid var(--border);border-radius:20px;padding:4px 11px;font:12px "Cascadia Code","Fira Code",Consolas,monospace;background:var(--panel2)}
 .recon{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
-.eprow{display:flex;align-items:center;gap:8px;font:12px Consolas,monospace;padding:4px 0;border-bottom:1px solid #21262d}
+.eprow{display:flex;align-items:center;gap:8px;font:12px "Cascadia Code","Fira Code",Consolas,monospace;padding:4px 0;border-bottom:1px solid #21262d}
 .cat{font-size:10px;padding:1px 7px;border-radius:9px;border:1px solid var(--border);color:var(--muted)}
 .cat.telemetry{color:#d29922;border-color:#d29922}.cat.cloud-storage{color:#39c5cf;border-color:#39c5cf}
 .cat.auth{color:#bc8cff;border-color:#bc8cff}.cat.cdn{color:#58a6ff;border-color:#58a6ff}.cat.update{color:#8b949e}
 .cat.first-party{color:#56d364;border-color:#3fb950}
 .flag{font-size:10px;color:var(--crit)}
 .bar2{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;border-bottom:1px solid var(--border);margin-bottom:14px}
-.chip{cursor:pointer;user-select:none;border:1px solid var(--border);border-radius:20px;padding:5px 12px;font:12px Consolas,monospace;color:var(--muted);background:var(--panel)}
+.chip{cursor:pointer;user-select:none;border:1px solid var(--border);border-radius:20px;padding:5px 12px;font:12px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--muted);background:var(--panel)}
 .chip.on{color:var(--bg);font-weight:700}
 .chip.crit.on{background:var(--crit);border-color:var(--crit)}.chip.high.on{background:var(--high);border-color:var(--high)}
 .chip.med.on{background:var(--med);border-color:var(--med)}.chip.low.on{background:var(--low);border-color:var(--low)}
 .chip.info.on{background:var(--info);border-color:var(--info)}
 .chip.conf.on{background:var(--accent);border-color:var(--accent)}
-.search{flex:1;min-width:160px;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 11px;font:13px Consolas,monospace}
+.search{flex:1;min-width:160px;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:7px 11px;font:13px "Cascadia Code","Fira Code",Consolas,monospace}
 .card{background:var(--panel);border:1px solid var(--border);border-left-width:4px;border-radius:10px;margin-bottom:10px;overflow:hidden}
 .card.crit{border-left-color:var(--crit)}.card.high{border-left-color:var(--high)}.card.med{border-left-color:var(--med)}
 .card.low{border-left-color:var(--low)}.card.info{border-left-color:var(--info)}
 .head{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;flex-wrap:wrap}
-.pill{font:700 10px Consolas,monospace;padding:2px 8px;border-radius:5px;color:#0b0e14}
+.pill{font:700 10px "Cascadia Code","Fira Code",Consolas,monospace;padding:2px 8px;border-radius:5px;color:#0b0e14}
 .pill.crit{background:var(--crit)}.pill.high{background:var(--high)}.pill.med{background:var(--med)}.pill.low{background:var(--low)}.pill.info{background:var(--info)}
-.badge{font:11px Consolas,monospace;padding:2px 8px;border-radius:12px;border:1px solid}
+.badge{font:11px "Cascadia Code","Fira Code",Consolas,monospace;padding:2px 8px;border-radius:12px;border:1px solid}
 .badge.il{color:var(--il);border-color:var(--il)}.badge.dyn{color:var(--dyn);border-color:var(--dyn)}
 .badge.llm{color:var(--llm);border-color:var(--llm)}.badge.inf{color:var(--inf);border-color:var(--border)}
-.cvss{font:11px Consolas,monospace;color:var(--muted)}
+.cvss{font:11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--muted)}
 .ttl{font-weight:600;flex:1;min-width:200px}
-.rule{font:11px Consolas,monospace;color:var(--dim)}
+.rule{font:11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--dim)}
 .body{display:none;padding:0 14px 14px;border-top:1px solid #21262d}
 .card.open .body{display:block}
-.sec{margin-top:12px}.sec h4{margin:0 0 5px;font:700 11px Consolas,monospace;color:var(--muted);letter-spacing:.04em}
+.sec{margin-top:12px}.sec h4{margin:0 0 5px;font:700 11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--muted);letter-spacing:.04em}
 .sec p{margin:0;color:#c9d1d9}
-pre.ev{background:#010409;border:1px solid var(--border);border-radius:7px;padding:10px;overflow:auto;font:12px Consolas,monospace;color:#c9d1d9;white-space:pre-wrap;word-break:break-word}
-.kv{font:11px Consolas,monospace;color:var(--muted)}.kv b{color:#c9d1d9}
+pre.ev{background:#010409;border:1px solid var(--border);border-radius:7px;padding:10px;overflow:auto;font:12px "Cascadia Code","Fira Code",Consolas,monospace;color:#c9d1d9;white-space:pre-wrap;word-break:break-word}
+.kv{font:11px "Cascadia Code","Fira Code",Consolas,monospace;color:var(--muted)}.kv b{color:#c9d1d9}
 .empty{color:var(--muted);text-align:center;padding:30px}
-.foot{color:var(--dim);font:11px Consolas,monospace;text-align:center;margin-top:24px;padding-top:14px;border-top:1px solid var(--border)}
+.foot{color:var(--dim);font:11px "Cascadia Code","Fira Code",Consolas,monospace;text-align:center;margin-top:24px;padding-top:14px;border-top:1px solid var(--border)}
 </style></head><body><div class="wrap" id="app"></div>
 <script id="tcpk-data" type="application/json">__TCPK_DATA__</script>
 <script>

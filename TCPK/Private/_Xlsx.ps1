@@ -48,9 +48,9 @@ function New-TcpkXlsx {
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
 <fonts count="3">
-<font><sz val="11"/><color theme="1"/><name val="Calibri"/></font>
-<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>
-<font><b/><sz val="11"/><color rgb="FF1A1A1A"/><name val="Calibri"/></font>
+<font><sz val="11"/><color theme="1"/><name val="Cascadia Code"/></font>
+<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Cascadia Code"/></font>
+<font><b/><sz val="11"/><color rgb="FF1A1A1A"/><name val="Cascadia Code"/></font>
 </fonts>
 <fills count="10">
 <fill><patternFill patternType="none"/></fill>
