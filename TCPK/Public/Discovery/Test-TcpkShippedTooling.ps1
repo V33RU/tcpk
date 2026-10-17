@@ -30,7 +30,7 @@ function Test-TcpkShippedTooling {
 
     # Filename plus a one-liner on what it does. Match is case-insensitive, exact stem plus .exe.
     $tools = @(
-        @{ Name='esptool.exe';               Vendor='Espressif'; Function='ESP32 / ESP8266 flasher and secure-boot / eFuse writer' }
+        @{ Name='esptool.exe';               Vendor='Espressif'; Function='ESP32 / ESP8266 serial flasher' }
         @{ Name='espefuse.exe';              Vendor='Espressif'; Function='ESP32 eFuse programmer (writes secure-boot keys and permanent bits)' }
         @{ Name='espsecure.exe';             Vendor='Espressif'; Function='ESP32 image signer / secure-boot key handling' }
         @{ Name='ST-LINK_CLI.exe';           Vendor='STMicroelectronics'; Function='STM32 flasher and option-byte writer' }
