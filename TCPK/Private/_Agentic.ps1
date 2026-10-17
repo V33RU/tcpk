@@ -1134,7 +1134,7 @@ a{color:var(--blue);cursor:pointer;text-decoration:none}a:hover{text-decoration:
 .step:hover{background:var(--panel)}.step.active{opacity:1;border-left-color:var(--accent);background:var(--panel)}.step.done{opacity:1}
 .step .num{flex:0 0 24px;height:24px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font:700 11px var(--mono);color:var(--muted)}
 .step.active .num{border-color:var(--accent);color:var(--accent)}.step.done .num{background:var(--accent);color:#08130a;border-color:var(--accent)}
-.step .t{font:600 13px var(--mono)}.step .s{font:11px var(--mono);color:var(--dim)}
+.step .t{font:600 13px var(--mono)}.step .s{display:none}
 .legend{margin:14px 16px 0;border-top:1px solid var(--border);padding-top:12px}
 .legend h5{margin:0 0 8px;font:700 10px var(--mono);color:var(--muted);letter-spacing:.06em}
 .legend div{font:11px var(--mono);color:var(--muted);margin:4px 0;display:flex;gap:8px;align-items:center}
@@ -1295,26 +1295,26 @@ th,td{padding:7px 11px}
     <nav class="rail">
       <div class="railsep first" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:4px">OVERVIEW</div>
       <div class="step active" data-p="0"><div class="num" style="border:none;font-size:15px">::</div><div><div class="t">Dashboard</div><div class="s">security posture</div></div></div>
-      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">SCAN<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Guided. You drive each step; optionally AI-verify the leads.</div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">SCAN</div>
       <div class="step" data-p="1"><div class="num">1</div><div><div class="t">Connect</div><div class="s">session + agent</div></div></div>
       <div class="step" data-p="2"><div class="num">2</div><div><div class="t">Target</div><div class="s">pick the app</div></div></div>
       <div class="step" data-p="3"><div class="num">3</div><div><div class="t">Audit</div><div class="s">discovery scan</div></div></div>
       <div class="step" data-p="4"><div class="num">4</div><div><div class="t">Decompile</div><div class="s">code to source</div></div></div>
       <div class="step" data-p="5"><div class="num">5</div><div><div class="t">AI review</div><div class="s">line-by-line</div></div></div>
       <div class="step" data-p="6"><div class="num">6</div><div><div class="t">Report</div><div class="s">export</div></div></div>
-      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">AGENT <span style="font-weight:600;font-size:9px;color:#fff;background:#2ea043;border-radius:8px;padding:1px 6px">AUTONOMOUS</span><div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Give a goal; the model investigates on its own. The IL prover confirms each finding.</div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">AGENT <span style="font-weight:600;font-size:9px;color:#fff;background:#2ea043;border-radius:8px;padding:1px 6px">AUTONOMOUS</span></div>
       <div class="step" data-p="7"><div class="num">7</div><div><div class="t">Agent</div><div class="s">full auto</div></div></div>
-      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">INTERCEPT<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Review a proxy or hook capture you made with the CLI.</div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">INTERCEPT</div>
       <div class="step" data-p="8"><div class="num">8</div><div><div class="t">Intercept</div><div class="s">review capture</div></div></div>
       <div class="step" data-p="13"><div class="num">13</div><div><div class="t">Pcap</div><div class="s">packet capture</div></div></div>
       <div class="step" data-p="15"><div class="num">15</div><div><div class="t">Replay</div><div class="s">replay / IDOR / JWT</div></div></div>
-      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">RUNTIME<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Read-only live checks on a running process.</div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">RUNTIME</div>
       <div class="step" data-p="9"><div class="num">9</div><div><div class="t">Runtime</div><div class="s">live process</div></div></div>
       <div class="step" data-p="12"><div class="num">12</div><div><div class="t">Process</div><div class="s">live watch</div></div></div>
-      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">FILES<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Unpack an Electron app.asar, or hex-view any file.</div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">FILES</div>
       <div class="step" data-p="10"><div class="num">10</div><div><div class="t">Asar</div><div class="s">unpack + browse</div></div></div>
       <div class="step" data-p="11"><div class="num">11</div><div><div class="t">Hex</div><div class="s">byte view</div></div></div>
-      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">ANALYSIS<div style="font-weight:400;font-size:10px;color:var(--dim);margin-top:2px;line-height:1.3">Correlate findings into attack paths.</div></div>
+      <div class="railsep" style="text-transform:none;color:var(--text);font-weight:700;font-size:12px;padding-top:8px;margin-top:10px">ANALYSIS</div>
       <div class="step" data-p="14"><div class="num">14</div><div><div class="t">Graph</div><div class="s">attack paths</div></div></div>
     </nav>
 
