@@ -14,6 +14,10 @@ BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
 
+    # Get-TcpkBlockEntropy is a private helper (underscore file, not exported). Dot-source it
+    # into the test scope so the cases below can call it directly.
+    . (Join-Path (Split-Path $psd1 -Parent) 'Private\_Entropy.ps1')
+
     $script:work = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-entropy-' + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $script:work | Out-Null
 
@@ -120,7 +124,10 @@ Describe 'Get-TcpkBlockEntropy: edges' {
     It 'returns empty for a zero-length file' {
         $f = Join-Path $script:work 'empty.bin'
         [IO.File]::WriteAllBytes($f, (New-Object 'byte[]' 0))
-        @(Get-TcpkBlockEntropy -Path $f).Count | Should -Be 0
+        # Capture then wrap (same idiom as the missing-file case above): the function returns
+        # the empty-array ', @()' idiom, which collapses to an empty array on assignment.
+        $e = Get-TcpkBlockEntropy -Path $f
+        @($e).Count | Should -Be 0
     }
 
     It 'raises an absurdly small block size to a usable one' {
