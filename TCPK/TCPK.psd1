@@ -107,6 +107,7 @@
         'Invoke-TcpkRpcProbe',
         'Invoke-TcpkSecretRecovery',
         'Invoke-TcpkSweep',
+        'Invoke-TcpkTriageAgent',
         'New-TcpkChainPoc',
         'New-TcpkComHijackTemplate',
         'New-TcpkFridaTlsBypass',
