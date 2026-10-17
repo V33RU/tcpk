@@ -63,6 +63,107 @@ function Initialize-TcpkCecil {
 
 function Test-TcpkCecilAvailable { Initialize-TcpkCecil }
 
+# ---------------------------------------------------------------------------
+# ILSpy decompiler engine (ICSharpCode.Decompiler): produces readable C#, not
+# just raw IL. Ships INSIDE the module at TCPK\lib\Decompiler\ -- the engine plus
+# the System.Reflection.Metadata / Immutable / Memory facade chain a
+# netstandard2.0 library needs under .NET Framework -- so detailed C# works with
+# no ilspycmd install and no PATH dependency. Same bundling model as Mono.Cecil.
+#
+# All DLLs are byte-loaded (Mark-of-the-Web proof, like Cecil), and an
+# AssemblyResolve hook hands the engine OUR bundled facade copies by simple name.
+# That sidesteps the binding-redirect problem netstandard2.0-on-.NET-Framework
+# otherwise hits: the engine references System.Collections.Immutable 6.0.0.0 etc.,
+# the host (PowerShell 5.1 / .NET FW) does not ship it, and the resolver returns
+# the copy we already loaded instead of throwing FileLoadException.
+$script:TcpkDecompilerLoaded = $false
+$script:TcpkDecompilerLoadError = $null
+$script:TcpkDecompilerAsms = @{}
+$script:TcpkDecompilerResolverAdded = $false
+
+function Initialize-TcpkDecompilerEngine {
+    [CmdletBinding()] param()
+    if ($script:TcpkDecompilerLoaded) { return $true }
+    $candidates = @(
+        (Join-Path $script:TcpkRoot 'lib\Decompiler'),
+        (Join-Path $script:TcpkRoot '..\tools\ILSpy\Decompiler')
+    )
+    $libDir = $candidates |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_ 'ICSharpCode.Decompiler.dll') } |
+        Select-Object -First 1
+    if (-not $libDir) {
+        $script:TcpkDecompilerLoadError = 'decompiler engine not bundled (looked in TCPK\lib\Decompiler\ICSharpCode.Decompiler.dll)'
+        return $false
+    }
+    # Byte-load every DLL in the folder; remember each by simple name for the resolver.
+    foreach ($dll in @(Get-ChildItem -LiteralPath $libDir -Filter '*.dll' -File -ErrorAction SilentlyContinue)) {
+        try {
+            $asm = [System.Reflection.Assembly]::Load([System.IO.File]::ReadAllBytes($dll.FullName))
+            $script:TcpkDecompilerAsms[$asm.GetName().Name] = $asm
+        } catch {
+            # A facade the host already provides can refuse a second byte-load; the resolver
+            # still covers the reference, so keep going rather than aborting the whole engine.
+        }
+    }
+    if (-not $script:TcpkDecompilerResolverAdded) {
+        $resolver = [System.ResolveEventHandler]{
+            param($eventSender, $e)
+            try {
+                $want = (New-Object System.Reflection.AssemblyName $e.Name).Name
+                if ($script:TcpkDecompilerAsms.ContainsKey($want)) { return $script:TcpkDecompilerAsms[$want] }
+            } catch { }
+            return $null
+        }
+        [System.AppDomain]::CurrentDomain.add_AssemblyResolve($resolver)
+        $script:TcpkDecompilerResolverAdded = $true
+    }
+    if ([ICSharpCode.Decompiler.CSharp.CSharpDecompiler] -as [type]) {
+        $script:TcpkDecompilerLoaded = $true
+        return $true
+    }
+    $script:TcpkDecompilerLoadError = 'ICSharpCode.Decompiler bytes loaded but CSharpDecompiler type did not resolve'
+    return $false
+}
+
+function Test-TcpkDecompilerEngineAvailable { Initialize-TcpkDecompilerEngine }
+
+# Per-run cache of decompiled C# text, keyed "resolvedPath|typeOrEmpty". A whole-module
+# decompile is reused across method clicks; a type decompile is reused when toggled.
+$script:TcpkCSharpCache = @{}
+
+function Get-TcpkCSharpDecompile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Dll,
+        [string]$TypeFullName
+    )
+    if (-not (Initialize-TcpkDecompilerEngine)) { return $null }
+    if (-not (Test-Path -LiteralPath $Dll)) { return $null }
+    $path = $Dll
+    try { $path = (Resolve-Path -LiteralPath $Dll -ErrorAction Stop).Path } catch { }
+    $key = "$path|$TypeFullName"
+    if ($script:TcpkCSharpCache.ContainsKey($key)) { return $script:TcpkCSharpCache[$key] }
+    $cs = $null
+    try {
+        $settings = New-Object -TypeName ICSharpCode.Decompiler.DecompilerSettings
+        $dec = New-Object -TypeName ICSharpCode.Decompiler.CSharp.CSharpDecompiler -ArgumentList $path, $settings
+        if ($TypeFullName) {
+            # Cecil FullName uses '/' for a nested type; the reflection name ICSharpCode
+            # expects uses '+'. Normalise so a nested type still resolves.
+            $refName = $TypeFullName -replace '/', '+'
+            $ftn = New-Object -TypeName ICSharpCode.Decompiler.TypeSystem.FullTypeName -ArgumentList $refName
+            $cs = $dec.DecompileTypeAsString($ftn)
+        } else {
+            $cs = $dec.DecompileWholeModuleAsString()
+        }
+    } catch {
+        $script:TcpkDecompilerLoadError = "$($_.Exception.Message)"
+        return $null
+    }
+    if ($cs) { $script:TcpkCSharpCache[$key] = $cs }
+    return $cs
+}
+
 function Test-TcpkIsAotBinary {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Path)
@@ -111,6 +212,7 @@ function Clear-TcpkCecilCache {
     $script:TcpkTaintedReturningCache = @{}
     $script:TcpkTaintedFieldCache = @{}
     $script:TcpkCrossAsmCache = @{}
+    $script:TcpkCSharpCache = @{}
 }
 
 # Find a method whose name (or a method that references a token) matches a needle,

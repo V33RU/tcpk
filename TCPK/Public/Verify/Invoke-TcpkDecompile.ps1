@@ -1,20 +1,29 @@
 function Invoke-TcpkDecompile {
 <#
 .SYNOPSIS
-    Drive ILSpy CLI to decompile and return source context for a method.
+    Decompile a .NET assembly to C# and return source for a method or type.
 
 .DESCRIPTION
-    Uses ilspycmd (a dotnet global tool that ships with ILSpy) to decompile
-    the named assembly and search for the named method. Returns the
-    decompiled C# around the match. If ilspycmd is not on PATH, falls back
-    to a literal string-grep against the binary's UTF-8 + UTF-16LE views
-    and returns the surrounding byte context.
+    Primary path is the ILSpy engine (ICSharpCode.Decompiler) bundled INSIDE the
+    module at TCPK\lib\Decompiler\ and byte-loaded in-process, so full, readable
+    C# is produced with no ilspycmd install and no PATH dependency.
+
+      -Type given  : returns the whole decompiled type (best visibility).
+      -Type absent : decompiles the module and returns C# context around -Search.
+
+    Falls back, in order, to ilspycmd on PATH (if present) and finally to a
+    literal string-grep over the binary's UTF-8 + UTF-16LE views (byte context,
+    NOT decompiled) so the call still returns something on a native/packed PE.
 
 .PARAMETER Dll
     Path to the .NET assembly.
 
 .PARAMETER Search
     Method or symbol name to find.
+
+.PARAMETER Type
+    Full type name (e.g. 'MyApp.DBAccessClass'). When given, the whole type is
+    decompiled to C# via the bundled engine and returned as-is.
 
 .PARAMETER Context
     Number of lines of context around each match. Default 6.
@@ -26,18 +35,50 @@ function Invoke-TcpkDecompile {
 .EXAMPLE
     Invoke-TcpkDecompile -Dll '.\YourApp.dll' -Search 'ServerCertificateCustomValidationCallback'
 
+.EXAMPLE
+    Invoke-TcpkDecompile -Dll '.\DBAccess.dll' -Search 'checkLogin' -Type 'DBAccess.DBAccessClass'
+
 .OUTPUTS
-    [string] -- the decompiled or byte-context source around the match.
+    [string] -- the decompiled C# (whole type, or context around the match) or,
+    as a last resort, byte context.
 #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Dll,
         [Parameter(Mandatory)][string]$Search,
+        [string]$Type,
         [int]$Context = 6,
         [string]$IlspycmdPath
     )
 
     if (-not (Test-Path -LiteralPath $Dll)) { throw "DLL not found: $Dll" }
+
+    # 0) In-process ILSpy engine (bundled) -- real C#, no ilspycmd / PATH needed.
+    if ($Type) {
+        $typeCs = Get-TcpkCSharpDecompile -Dll $Dll -TypeFullName $Type
+        if ($typeCs) { return $typeCs }
+    } else {
+        $moduleCs = Get-TcpkCSharpDecompile -Dll $Dll
+        if ($moduleCs) {
+            $lines = @($moduleCs -split '\r?\n')
+            $sb = New-Object Text.StringBuilder
+            for ($i = 0; $i -lt $lines.Count; $i++) {
+                if ($lines[$i] -match [regex]::Escape($Search)) {
+                    $start = [Math]::Max(0, $i - $Context)
+                    $end   = [Math]::Min($lines.Count - 1, $i + $Context)
+                    [void]$sb.AppendLine("--- match at line $($i+1) ---")
+                    for ($j = $start; $j -le $end; $j++) {
+                        [void]$sb.AppendLine(("{0,5}: {1}" -f ($j+1), $lines[$j]))
+                    }
+                    [void]$sb.AppendLine('')
+                }
+            }
+            if ($sb.Length -gt 0) { return $sb.ToString() }
+            # Decompiled fine but the search term is not in the source (e.g. a compiler-
+            # generated name). Return the whole module rather than dropping to byte-grep.
+            return $moduleCs
+        }
+    }
 
     # 1) Find ilspycmd
     if (-not $IlspycmdPath) {

@@ -33,9 +33,10 @@ The exact folder names TCPK probes:
 | frida | `tools\frida\` |
 | mitmdump | `tools\mitmproxy\` |
 | procdump | `tools\Procdump\` |
-| ilspycmd | `tools\ilspycmd\` |
+| ilspycmd | `tools\ilspycmd\` (optional; C# is already bundled, see below) |
 | cfr.jar | `tools\cfr\` (needs a JRE on PATH) |
 | Mono.Cecil | `TCPK\lib\Cecil\` (already shipped, inside the module) |
+| ILSpy engine (C#) | `TCPK\lib\Decompiler\` (already shipped, inside the module) |
 
 Those names are matched exactly. `tools\Wireshark\` works on Windows because its file
 system is case-insensitive, but keep to the casing above.
@@ -51,7 +52,7 @@ system is case-insensitive, but keep to the casing above.
 | **frida** | no hook bypass, no runtime TLS-pinning bypass, no API tracing |
 | **mitmdump** | no Intercept proxy or tamper mode |
 | **procdump** | no memory-secret scanning |
-| **ilspycmd** | IL still works; only C# reconstruction is unavailable |
+| **ilspycmd** | nothing is lost: C# reconstruction is bundled (`TCPK\lib\Decompiler\`). ilspycmd is now only a legacy fallback |
 | **cfr.jar + JRE** | Java targets fall back to class constant-pool context, which finds the symbol but is not decompiled source |
 | **upx** | UPX-packed binaries are detected but not auto-unpacked |
 | **Ollama / API key** | no AI verification; every deterministic check is unaffected |
@@ -155,10 +156,12 @@ procdump -accepteula -?
 
 ## ilspycmd
 
-Optional. Reconstructs C# in the Decompiler tab. IL disassembly always works without it,
-because Mono.Cecil is bundled.
+Not required. C# reconstruction in the Decompiler tab is bundled: the ILSpy engine
+(`ICSharpCode.Decompiler`) ships inside the module at `TCPK\lib\Decompiler\` and is loaded
+in-process, so readable C# works with no install. IL disassembly also always works, because
+Mono.Cecil is bundled. ilspycmd remains only as a legacy fallback.
 
-Needs the .NET SDK, not just the runtime:
+If you still want ilspycmd, it needs the .NET SDK, not just the runtime:
 
 ```powershell
 winget install Microsoft.DotNet.SDK.8

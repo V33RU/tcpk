@@ -4667,7 +4667,7 @@ $btnDecIl = New-Object System.Windows.Forms.Button; $btnDecIl.Text = 'IL'; $btnD
 $btnDecCs = New-Object System.Windows.Forms.Button; $btnDecCs.Text = 'Decompile C#'; $btnDecCs.Location = New-Object System.Drawing.Point(66, 2); $btnDecCs.Size = New-Object System.Drawing.Size(120, 24)
 $btnDecHex = New-Object System.Windows.Forms.Button; $btnDecHex.Text = 'Open in Hex'; $btnDecHex.Location = New-Object System.Drawing.Point(192, 2); $btnDecHex.Size = New-Object System.Drawing.Size(104, 24); $btnDecHex.Enabled = $false
 $chkDecWrap = New-Object System.Windows.Forms.CheckBox; $chkDecWrap.Text = 'Wrap'; $chkDecWrap.Checked = $true; $chkDecWrap.Location = New-Object System.Drawing.Point(304, 5); $chkDecWrap.Size = New-Object System.Drawing.Size(60, 20)
-$lblDecCodeHint = New-Object System.Windows.Forms.Label; $lblDecCodeHint.Text = 'IL via Mono.Cecil (always); C# needs ilspycmd on PATH. Native PE shows analysis, not IL.'; $lblDecCodeHint.Location = New-Object System.Drawing.Point(372, 2); $lblDecCodeHint.Size = New-Object System.Drawing.Size(700, 24); $lblDecCodeHint.TextAlign = 'MiddleLeft'
+$lblDecCodeHint = New-Object System.Windows.Forms.Label; $lblDecCodeHint.Text = 'IL via Mono.Cecil; C# via bundled ILSpy engine (no install). Native PE shows analysis, not IL.'; $lblDecCodeHint.Location = New-Object System.Drawing.Point(372, 2); $lblDecCodeHint.Size = New-Object System.Drawing.Size(700, 24); $lblDecCodeHint.TextAlign = 'MiddleLeft'
 $decCodeBar.Controls.Add($btnDecIl); $decCodeBar.Controls.Add($btnDecCs); $decCodeBar.Controls.Add($btnDecHex); $decCodeBar.Controls.Add($chkDecWrap); $decCodeBar.Controls.Add($lblDecCodeHint)
 # Staged by Load-DecAssembly when the selection turns out to be native, so the operator can
 # go straight to the bytes instead of retyping the path into the Hex tab.
@@ -4680,7 +4680,7 @@ $btnDecHex.Add_Click({
     Load-GuiHex 0
 })
 $txtDecCode = New-Object System.Windows.Forms.RichTextBox; $txtDecCode.Dock = 'Fill'; $txtDecCode.ReadOnly = $true; $txtDecCode.Font = New-Object System.Drawing.Font('Consolas', 9.5); $txtDecCode.WordWrap = $true
-$txtDecCode.Text = "Select a type on the left, then a method, to disassemble its IL here." + [Environment]::NewLine + "Click 'Decompile C#' to reconstruct C# for the selected method (requires ilspycmd)."
+$txtDecCode.Text = "Select a type on the left, then a method, to disassemble its IL here." + [Environment]::NewLine + "Click 'Decompile C#' to reconstruct the whole type as readable C# (bundled ILSpy engine, no install)."
 $decCodeBox.Controls.Add($txtDecCode); $decCodeBox.Controls.Add($decCodeBar)
 $decMain.Controls.Add($decCodeBox, 2, 0)
 # Wrap toggle: long IL operand lines (fully-qualified type names) overflow otherwise.
@@ -4707,6 +4707,14 @@ function Ensure-DecCecil {
     $m = @(Get-Module TCPK)
     if ($m.Count) { try { [void](& $m[0] { Test-TcpkCecilAvailable }) } catch { } }
     return (('Mono.Cecil.AssemblyDefinition' -as [type]) -ne $null)
+}
+
+function Ensure-DecEngine {
+    # Load the bundled ILSpy engine (ICSharpCode.Decompiler) for real C# output.
+    if ('ICSharpCode.Decompiler.CSharp.CSharpDecompiler' -as [type]) { return $true }
+    $m = @(Get-Module TCPK)
+    if ($m.Count) { try { [void](& $m[0] { Test-TcpkDecompilerEngineAvailable }) } catch { } }
+    return (('ICSharpCode.Decompiler.CSharp.CSharpDecompiler' -as [type]) -ne $null)
 }
 
 function Populate-DecTypes {
@@ -5092,13 +5100,20 @@ $btnDecCs.Add_Click({
     # before touching .Name, or this reads the wrapper instead of the MethodDefinition.
     if ($m -and $m.PSObject.Properties['Method']) { $m = $m.Method }
     if (-not $m -or -not $script:DecDllPath) { $lblDecStatus.Text = 'Select a method first.'; return }
-    $lblDecStatus.Text = "Decompiling $($m.Name) (this can take a while on large assemblies)..."
-    $txtDecCode.Text = 'Running ilspycmd (or byte-context fallback)...'; [System.Windows.Forms.Application]::DoEvents()
+    [void](Ensure-DecEngine)
+    # Decompile the WHOLE declaring type (best visibility), then scroll to the method.
+    $declType = "$($m.DeclaringType.FullName)"
+    $lblDecStatus.Text = "Decompiling $declType to C# (first call loads the engine)..."
+    $txtDecCode.Text = 'Decompiling to C# via the bundled ILSpy engine...'; [System.Windows.Forms.Application]::DoEvents()
     try {
-        $res = Invoke-TcpkDecompile -Dll $script:DecDllPath -Search $m.Name -Context 10 3>$null
-        if (-not $res -or -not "$res".Trim()) { $res = "(no C# match for '$($m.Name)'. If ilspycmd is not installed, only IL is available.)" }
-        $txtDecCode.Text = "$res"; $txtDecCode.SelectionStart = 0; $txtDecCode.ScrollToCaret()
-        $lblDecStatus.Text = "Decompiled $($m.Name)."
+        $res = Invoke-TcpkDecompile -Dll $script:DecDllPath -Search $m.Name -Type $declType -Context 10 3>$null
+        if (-not $res -or -not "$res".Trim()) { $res = "(no C# produced for '$declType'. The assembly may be native, packed, or obfuscated; IL is still available via the 'IL' button.)" }
+        $txtDecCode.Text = "$res"
+        # Scroll to the selected method inside the decompiled type.
+        $idx = $txtDecCode.Find($m.Name)
+        if ($idx -ge 0) { $txtDecCode.Select($idx, $m.Name.Length); $txtDecCode.ScrollToCaret() }
+        else { $txtDecCode.SelectionStart = 0; $txtDecCode.ScrollToCaret() }
+        $lblDecStatus.Text = "Decompiled $declType to C#."
     } catch { $txtDecCode.Text = "Decompile failed: $($_.Exception.Message)"; $lblDecStatus.Text = 'Decompile failed.' }
 })
 

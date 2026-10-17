@@ -72,7 +72,7 @@ Invoke-TcpkDecompile `
     -Search 'ServerCertificateCustomValidationCallback'
 ```
 
-This returns the decompiled C# (if ilspycmd installed) or byte context (fallback).
+This returns decompiled C# via the bundled ILSpy engine (no install), or byte context as a last-resort fallback on a native/packed PE.
 
 ### Phase 4. Disclosure
 
