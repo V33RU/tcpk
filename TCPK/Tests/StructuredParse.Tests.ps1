@@ -1,6 +1,6 @@
 Describe 'TCPK C9 - Structured Parse' {
     BeforeAll {
-        $manifest = Join-Path $PSScriptRoot '..' 'TCPK.psd1'
+        $manifest = Join-Path (Join-Path $PSScriptRoot '..') 'TCPK.psd1'
         Import-Module (Resolve-Path $manifest) -Force -ErrorAction Stop
     }
 

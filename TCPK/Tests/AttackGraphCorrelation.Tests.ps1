@@ -18,24 +18,24 @@
 BeforeAll {
     $psd1 = Join-Path (Split-Path (Split-Path $PSCommandPath -Parent) -Parent) 'TCPK.psd1'
     Import-Module $psd1 -Force
-}
 
-# Build a finding without depending on the private constructor signature.
-function New-Fx {
-    param([string]$RuleId, [string]$Severity = 'MEDIUM', [string]$File = 'C:\app\app.exe')
-    InModuleScope TCPK -Parameters @{ r = $RuleId; s = $Severity; f = $File } {
-        param($r, $s, $f)
-        New-TcpkFinding -Module 'static' -RuleId $r -Severity $s -Confidence 'Confirmed' `
-            -Title "synthetic $r" -File $f
+    # Build a finding without depending on the private constructor signature.
+    function New-Fx {
+        param([string]$RuleId, [string]$Severity = 'MEDIUM', [string]$File = 'C:\app\app.exe')
+        InModuleScope TCPK -Parameters @{ r = $RuleId; s = $Severity; f = $File } {
+            param($r, $s, $f)
+            New-TcpkFinding -Module 'static' -RuleId $r -Severity $s -Confidence 'Confirmed' `
+                -Title "synthetic $r" -File $f
+        }
     }
-}
 
-function Get-Goals {
-    param([object[]]$Findings)
-    $g = InModuleScope TCPK -Parameters @{ fs = $Findings } {
-        param($fs) @($fs | Get-TcpkAttackGraph)
+    function Get-Goals {
+        param([object[]]$Findings)
+        $g = InModuleScope TCPK -Parameters @{ fs = $Findings } {
+            param($fs) @($fs | Get-TcpkAttackGraph)
+        }
+        return @($g | Where-Object { $_.RuleId -eq 'attackgraph.reachable-goal' })
     }
-    return @($g | Where-Object { $_.RuleId -eq 'attackgraph.reachable-goal' })
 }
 
 Describe 'Phantom DLL + writable search path correlate' {
@@ -144,10 +144,13 @@ Describe 'uiAccess image inside a user-writable tree correlates' {
     # tree (proven by path containment), mirroring attackgraph.privileged-writable-image. The
     # boundary case also guards the _contains fix: a writable dir that is only a string prefix
     # of the image dir ('C:\foo' vs 'C:\foobar') must NOT match.
-    function Get-UiaChain {
-        param([object[]]$Findings)
-        $g = InModuleScope TCPK -Parameters @{ fs = $Findings } { param($fs) @($fs | Get-TcpkAttackGraph) }
-        return @($g | Where-Object { $_.RuleId -eq 'attackgraph.uiaccess-plantable' })
+    BeforeAll {
+        # Defined in BeforeAll (not at the Describe body) so Pester has it in scope at run time.
+        function Get-UiaChain {
+            param([object[]]$Findings)
+            $g = InModuleScope TCPK -Parameters @{ fs = $Findings } { param($fs) @($fs | Get-TcpkAttackGraph) }
+            return @($g | Where-Object { $_.RuleId -eq 'attackgraph.uiaccess-plantable' })
+        }
     }
 
     It 'fires when the uiAccess image sits inside a user-writable directory' {

@@ -84,142 +84,142 @@ BeforeAll {
     $script:fakeBlob[0] = [byte][char]'v'
     $script:fakeBlob[1] = [byte][char]'1'
     $script:fakeBlob[2] = [byte][char]'0'
+
+    # Shared helper: make a temp app tree and redirect $env:APPDATA.
+    # Returns a hashtable with the paths created.
+    function script:New-AppFixture {
+        param(
+            [string]$AppName,
+            [string]$Layout = 'single',  # 'single' | 'multiprofile'
+            [bool]$HasCookies    = $true,
+            [bool]$HasLoginData  = $false,
+            [bool]$HasWebData    = $false,
+            [bool]$HasLocalState = $true,
+            [bool]$UseAbeKey     = $false,
+            [bool]$UseDpapiKey   = $true,
+            [bool]$MakeCookieLocked = $false,
+            [bool]$MakeCookieCorrupt = $false,
+            [bool]$MakeCookieZero = $false,
+            [string]$CookieSchema = 'CREATE TABLE cookies (encrypted_value BLOB)',
+            [string[]]$CookieInserts = @()
+        )
+
+        $root    = Join-Path $env:TEMP "TcpkTest_$(New-Guid)"
+        $appDir  = Join-Path $root $AppName
+
+        $cookieDir = if ($Layout -eq 'multiprofile') {
+            Join-Path $appDir 'User Data\Default\Network'
+        } else {
+            Join-Path $appDir 'Network'
+        }
+        New-Item -Path $cookieDir -ItemType Directory -Force | Out-Null
+
+        $cookiePath  = $null
+        $lockStream  = $null
+
+        if ($HasCookies) {
+            $cookiePath = Join-Path $cookieDir 'Cookies'
+            if ($MakeCookieZero) {
+                [System.IO.File]::WriteAllBytes($cookiePath, [byte[]]::new(0))
+            } elseif ($MakeCookieCorrupt) {
+                [System.IO.File]::WriteAllBytes($cookiePath, [System.Text.Encoding]::ASCII.GetBytes('NOT A SQLITE FILE'))
+            } else {
+                New-ChromiumStoreSqlite -Path $cookiePath `
+                    -Schema $CookieSchema -Inserts $CookieInserts | Out-Null
+            }
+
+            if ($MakeCookieLocked) {
+                $lockStream = [System.IO.FileStream]::new(
+                    $cookiePath,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::ReadWrite,
+                    [System.IO.FileShare]::None)
+            }
+        }
+
+        $loginPath = $null
+        if ($HasLoginData) {
+            $loginPath = Join-Path (Split-Path $cookieDir) 'Login Data'
+            New-ChromiumStoreSqlite -Path $loginPath `
+                -Schema 'CREATE TABLE logins (username TEXT, password_value BLOB)' `
+                -Inserts @("INSERT INTO logins VALUES('user@example.com', X'763130AABBCC')") | Out-Null
+        }
+
+        $webDataPath = $null
+        if ($HasWebData) {
+            $webDataPath = Join-Path (Split-Path $cookieDir) 'Web Data'
+            New-ChromiumStoreSqlite -Path $webDataPath `
+                -Schema 'CREATE TABLE autofill (name TEXT, value TEXT)' `
+                -Inserts @("INSERT INTO autofill VALUES('email','user@example.com')") | Out-Null
+        }
+
+        $localStatePath = $null
+        if ($HasLocalState) {
+            $lsDir = if ($Layout -eq 'multiprofile') { Join-Path $appDir 'User Data' } else { $appDir }
+            New-Item -Path $lsDir -ItemType Directory -Force | Out-Null
+            $localStatePath = Join-Path $lsDir 'Local State'
+            $osCrypt = if ($UseAbeKey) {
+                @{ os_crypt = @{ app_bound_encrypted_key = 'QUJCQQ==' } }
+            } elseif ($UseDpapiKey) {
+                @{ os_crypt = @{ encrypted_key = 'QUJCQQ==' } }
+            } else {
+                @{ os_crypt = @{} }
+            }
+            $osCrypt | ConvertTo-Json | Set-Content -Path $localStatePath -Encoding UTF8
+        }
+
+        return @{
+            Root            = $root
+            AppDir          = $appDir
+            CookiePath      = $cookiePath
+            LoginPath       = $loginPath
+            WebDataPath     = $webDataPath
+            LocalStatePath  = $localStatePath
+            LockStream      = $lockStream
+        }
+    }
+
+    function script:Invoke-InModuleWithMocks {
+        param(
+            [string]$AppName,
+            [hashtable]$Fixture,
+            [string]$RuntimeText = 'Electron/1.0.0 Chrome/114.0.0.0',
+            [bool]$MasterKeySucceeds = $false,
+            [bool]$GcmSucceeds       = $false
+        )
+        $origAppdata = $env:APPDATA
+        $env:APPDATA = $Fixture.Root
+        try {
+            InModuleScope TCPK -Parameters @{
+                AppName          = $AppName
+                RuntimeText      = $RuntimeText
+                MasterKeySucceeds = $MasterKeySucceeds
+                GcmSucceeds      = $GcmSucceeds
+                FakeKey          = $script:fakeKey
+            } {
+                param($AppName, $RuntimeText, $MasterKeySucceeds, $GcmSucceeds, $FakeKey)
+
+                Mock Assert-TcpkWindows { return $true }
+                Mock Read-TcpkAllText { return $RuntimeText }
+                Mock Get-TcpkChromiumMasterKey {
+                    if ($MasterKeySucceeds) { return $FakeKey } else { return $null }
+                }
+                Mock Unprotect-TcpkChromiumBlob {
+                    if ($GcmSucceeds) { return 'decrypted-value' } else { return $null }
+                }
+
+                @(Test-TcpkBrowserTokenStore -NameLike $AppName)
+            }
+        } finally {
+            $env:APPDATA = $origAppdata
+            if ($Fixture.LockStream) { $Fixture.LockStream.Dispose() }
+            Remove-Item $Fixture.Root -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 AfterAll {
     Remove-Item $script:_probe -Force -ErrorAction SilentlyContinue
-}
-
-# Shared helper: make a temp app tree and redirect $env:APPDATA.
-# Returns a hashtable with the paths created.
-function script:New-AppFixture {
-    param(
-        [string]$AppName,
-        [string]$Layout = 'single',  # 'single' | 'multiprofile'
-        [bool]$HasCookies    = $true,
-        [bool]$HasLoginData  = $false,
-        [bool]$HasWebData    = $false,
-        [bool]$HasLocalState = $true,
-        [bool]$UseAbeKey     = $false,
-        [bool]$UseDpapiKey   = $true,
-        [bool]$MakeCookieLocked = $false,
-        [bool]$MakeCookieCorrupt = $false,
-        [bool]$MakeCookieZero = $false,
-        [string]$CookieSchema = 'CREATE TABLE cookies (encrypted_value BLOB)',
-        [string[]]$CookieInserts = @()
-    )
-
-    $root    = Join-Path $env:TEMP "TcpkTest_$(New-Guid)"
-    $appDir  = Join-Path $root $AppName
-
-    $cookieDir = if ($Layout -eq 'multiprofile') {
-        Join-Path $appDir 'User Data\Default\Network'
-    } else {
-        Join-Path $appDir 'Network'
-    }
-    New-Item -Path $cookieDir -ItemType Directory -Force | Out-Null
-
-    $cookiePath  = $null
-    $lockStream  = $null
-
-    if ($HasCookies) {
-        $cookiePath = Join-Path $cookieDir 'Cookies'
-        if ($MakeCookieZero) {
-            [System.IO.File]::WriteAllBytes($cookiePath, [byte[]]::new(0))
-        } elseif ($MakeCookieCorrupt) {
-            [System.IO.File]::WriteAllBytes($cookiePath, [System.Text.Encoding]::ASCII.GetBytes('NOT A SQLITE FILE'))
-        } else {
-            New-ChromiumStoreSqlite -Path $cookiePath `
-                -Schema $CookieSchema -Inserts $CookieInserts | Out-Null
-        }
-
-        if ($MakeCookieLocked) {
-            $lockStream = [System.IO.FileStream]::new(
-                $cookiePath,
-                [System.IO.FileMode]::Open,
-                [System.IO.FileAccess]::ReadWrite,
-                [System.IO.FileShare]::None)
-        }
-    }
-
-    $loginPath = $null
-    if ($HasLoginData) {
-        $loginPath = Join-Path (Split-Path $cookieDir) 'Login Data'
-        New-ChromiumStoreSqlite -Path $loginPath `
-            -Schema 'CREATE TABLE logins (username TEXT, password_value BLOB)' `
-            -Inserts @("INSERT INTO logins VALUES('user@example.com', X'763130AABBCC')") | Out-Null
-    }
-
-    $webDataPath = $null
-    if ($HasWebData) {
-        $webDataPath = Join-Path (Split-Path $cookieDir) 'Web Data'
-        New-ChromiumStoreSqlite -Path $webDataPath `
-            -Schema 'CREATE TABLE autofill (name TEXT, value TEXT)' `
-            -Inserts @("INSERT INTO autofill VALUES('email','user@example.com')") | Out-Null
-    }
-
-    $localStatePath = $null
-    if ($HasLocalState) {
-        $lsDir = if ($Layout -eq 'multiprofile') { Join-Path $appDir 'User Data' } else { $appDir }
-        New-Item -Path $lsDir -ItemType Directory -Force | Out-Null
-        $localStatePath = Join-Path $lsDir 'Local State'
-        $osCrypt = if ($UseAbeKey) {
-            @{ os_crypt = @{ app_bound_encrypted_key = 'QUJCQQ==' } }
-        } elseif ($UseDpapiKey) {
-            @{ os_crypt = @{ encrypted_key = 'QUJCQQ==' } }
-        } else {
-            @{ os_crypt = @{} }
-        }
-        $osCrypt | ConvertTo-Json | Set-Content -Path $localStatePath -Encoding UTF8
-    }
-
-    return @{
-        Root            = $root
-        AppDir          = $appDir
-        CookiePath      = $cookiePath
-        LoginPath       = $loginPath
-        WebDataPath     = $webDataPath
-        LocalStatePath  = $localStatePath
-        LockStream      = $lockStream
-    }
-}
-
-function script:Invoke-InModuleWithMocks {
-    param(
-        [string]$AppName,
-        [hashtable]$Fixture,
-        [string]$RuntimeText = 'Electron/1.0.0 Chrome/114.0.0.0',
-        [bool]$MasterKeySucceeds = $false,
-        [bool]$GcmSucceeds       = $false
-    )
-    $origAppdata = $env:APPDATA
-    $env:APPDATA = $Fixture.Root
-    try {
-        InModuleScope TCPK -Parameters @{
-            AppName          = $AppName
-            RuntimeText      = $RuntimeText
-            MasterKeySucceeds = $MasterKeySucceeds
-            GcmSucceeds      = $GcmSucceeds
-            FakeKey          = $script:fakeKey
-        } {
-            param($AppName, $RuntimeText, $MasterKeySucceeds, $GcmSucceeds, $FakeKey)
-
-            Mock Assert-TcpkWindows { return $true }
-            Mock Read-TcpkAllText { return $RuntimeText }
-            Mock Get-TcpkChromiumMasterKey {
-                if ($MasterKeySucceeds) { return $FakeKey } else { return $null }
-            }
-            Mock Unprotect-TcpkChromiumBlob {
-                if ($GcmSucceeds) { return 'decrypted-value' } else { return $null }
-            }
-
-            @(Test-TcpkBrowserTokenStore -NameLike $AppName)
-        }
-    } finally {
-        $env:APPDATA = $origAppdata
-        if ($Fixture.LockStream) { $Fixture.LockStream.Dispose() }
-        Remove-Item $Fixture.Root -Recurse -Force -ErrorAction SilentlyContinue
-    }
 }
 
 # =============================================================================
