@@ -37,8 +37,9 @@ Describe 'Get-TcpkChecklistStatus' {
         ($r | Where-Object Id -eq 'TC41').AutoStatus | Should -Be 'REVIEW'
     }
     It 'marks a GAP case as MANUAL-ONLY regardless of findings' {
+        # TC12 is the GAP case. TC18 was reclassified GAP -> PARTIAL (commit d391aa6), so it no
+        # longer belongs here; its PARTIAL behaviour is covered by the NO FINDINGS test below.
         ($script:rows | Where-Object Id -eq 'TC12').AutoStatus | Should -Be 'MANUAL-ONLY'
-        ($script:rows | Where-Object Id -eq 'TC18').AutoStatus | Should -Be 'MANUAL-ONLY'
     }
     It 'marks a case with no matching finding as NO FINDINGS (never auto-PASS)' {
         ($script:rows | Where-Object Id -eq 'TC04').AutoStatus | Should -Be 'NO FINDINGS'

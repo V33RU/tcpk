@@ -67,7 +67,7 @@
       "name": "Anti-tampering & integrity checks",
       "type": "Static",
       "coverage": "PARTIAL",
-      "rule": "^(antidebug|integrity|antiinjection|timing|packer|obfuscation|strongname|exploit\\.il-patch|exploit\\.check-bypassed|flagflip)\\.",
+      "rule": "^(antidebug|integrity|antiinjection|timing|packer|obfuscation|strongname|exploit\\.il-patch|exploit\\.check-bypassed|flagflip)(\\.|$)",
       "manual": "Hex-edit a check and run; swap a DLL; attach x64dbg."
     },
     {
@@ -147,7 +147,7 @@
       "name": "Exception handling & error messages",
       "type": "Dynamic",
       "coverage": "PARTIAL",
-      "rule": "^(error|log\\.stack-trace)\\.",
+      "rule": "^(error|log\\.stack-trace)(\\.|$)",
       "manual": "Deliberately trigger errors; inspect messages for stack traces / sensitive data."
     },
     {
@@ -187,7 +187,7 @@
       "name": "Windows Credential Manager stored credentials",
       "type": "Runtime",
       "coverage": "PARTIAL",
-      "rule": "^(credman|exploit\\.stored-credential|exploit\\.credential-live)\\.",
+      "rule": "^(credman|exploit\\.stored-credential|exploit\\.credential-live)(\\.|$)",
       "manual": "Cross-user access test; cleanup-on-uninstall; LaZagne/mimikatz."
     },
     {
@@ -203,7 +203,7 @@
       "name": "UAC bypass / privilege escalation",
       "type": "Static",
       "coverage": "PARTIAL",
-      "rule": "^(uac|ifeo|com\\.auto-elevates|guiunlock|dll-hijack)\\.|^callsites\\.uac-bypass-registry",
+      "rule": "^(uac|ifeo|com\\.auto-elevates|guiunlock|dll-hijack)(\\.|$)|^callsites\\.uac-bypass-registry",
       "manual": "Execute the bypass technique (Fodhelper / auto-elevate / COM elevation) and observe."
     },
     {
