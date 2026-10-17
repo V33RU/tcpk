@@ -106,16 +106,52 @@ function Initialize-TcpkDecompilerEngine {
         }
     }
     if (-not $script:TcpkDecompilerResolverAdded) {
-        $resolver = [System.ResolveEventHandler]{
-            param($eventSender, $e)
-            try {
-                $want = (New-Object System.Reflection.AssemblyName $e.Name).Name
-                if ($script:TcpkDecompilerAsms.ContainsKey($want)) { return $script:TcpkDecompilerAsms[$want] }
-            } catch { }
-            return $null
+        # The AssemblyResolve handler MUST be a compiled .NET delegate, NOT a PowerShell
+        # scriptblock. Merely entering a scriptblock sets up its execution context via
+        # ScriptBlock.GetContextFromTLS -> ErrorCategoryInfo.Ellipsize -> ResourceManager.GetString,
+        # which itself probes for a satellite '*.resources' assembly. That probe fires
+        # AssemblyResolve again and re-enters the handler before any in-script guard can run,
+        # recursing until the process stack-overflows -- observed as a hard crash mid-run when an
+        # offline HTTP failure (e.g. the ExpiryProbe test) formats its error message. A pure-.NET
+        # handler touches no PowerShell runtime, so it cannot re-enter that resource lookup.
+        try {
+            if (-not ('Tcpk.AssemblyResolver' -as [type])) {
+                Add-Type -ErrorAction Stop -TypeDefinition @'
+using System;
+using System.Reflection;
+using System.Collections.Generic;
+namespace Tcpk {
+  public static class AssemblyResolver {
+    // Bundled decompiler facade copies, keyed by simple assembly name (populated from PowerShell).
+    public static readonly Dictionary<string, Assembly> Map =
+        new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase);
+    [ThreadStatic] private static bool _busy;   // same-thread re-entry guard
+    public static Assembly Resolve(object sender, ResolveEventArgs args) {
+      if (_busy) return null;
+      _busy = true;
+      try {
+        string n = (args == null) ? null : args.Name;
+        if (string.IsNullOrEmpty(n)) return null;
+        int c = n.IndexOf(',');
+        string simple = (c >= 0) ? n.Substring(0, c) : n;
+        // We bundle no satellite resource assemblies; never try to satisfy a '.resources' request.
+        if (simple.EndsWith(".resources", StringComparison.OrdinalIgnoreCase)) return null;
+        Assembly asm;
+        return Map.TryGetValue(simple, out asm) ? asm : null;
+      } finally { _busy = false; }
+    }
+    public static void Register() { AppDomain.CurrentDomain.AssemblyResolve += new ResolveEventHandler(Resolve); }
+  }
+}
+'@
+            }
+            # Hand the resolver our byte-loaded facade copies, then register it once.
+            foreach ($kv in $script:TcpkDecompilerAsms.GetEnumerator()) { [Tcpk.AssemblyResolver]::Map[$kv.Key] = $kv.Value }
+            [Tcpk.AssemblyResolver]::Register()
+            $script:TcpkDecompilerResolverAdded = $true
+        } catch {
+            $script:TcpkDecompilerLoadError = "decompiler assembly-resolver registration failed: $($_.Exception.Message)"
         }
-        [System.AppDomain]::CurrentDomain.add_AssemblyResolve($resolver)
-        $script:TcpkDecompilerResolverAdded = $true
     }
     if ([ICSharpCode.Decompiler.CSharp.CSharpDecompiler] -as [type]) {
         $script:TcpkDecompilerLoaded = $true
