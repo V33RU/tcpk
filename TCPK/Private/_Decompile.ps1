@@ -32,13 +32,31 @@ function Initialize-TcpkCecil {
         }
         return $false
     }
+    # Load from BYTES first, not Add-Type -Path. A byte-array assembly load performs NO file-zone
+    # (Mark-of-the-Web) check, so a Cecil DLL that arrived inside a downloaded ZIP -- where Windows
+    # blocks every extracted file -- still loads. Add-Type -Path on a blocked DLL throws a
+    # FileLoadException ("...loaded from a network location..."), and THAT was the real, silent
+    # "Unable to find type [Mono.Cecil.AssemblyDefinition]" cause on a fresh download: the type never
+    # loaded, so every IL check that referenced it threw. Add-Type -Path is kept as a fallback.
+    try {
+        [void][System.Reflection.Assembly]::Load([System.IO.File]::ReadAllBytes($cecil))
+        if ([Mono.Cecil.AssemblyDefinition] -as [type]) { $script:TcpkCecilLoaded = $true; return $true }
+    } catch { $script:TcpkCecilLoadError = "$($_.Exception.Message)" }
     try {
         Add-Type -Path $cecil -ErrorAction Stop
         $script:TcpkCecilLoaded = $true
         return $true
     } catch {
-        # Already loaded in this session is fine
+        # Already loaded in this session is fine.
         if ([Mono.Cecil.AssemblyDefinition] -as [type]) { $script:TcpkCecilLoaded = $true; return $true }
+        $script:TcpkCecilLoadError = "$($_.Exception.Message)"
+        if (-not $script:TcpkCecilMissingLogged) {
+            $script:TcpkCecilMissingLogged = $true
+            $hint = if ("$script:TcpkCecilLoadError" -match 'network location|HRESULT|0x80131515|blocked') {
+                " (the DLL appears BLOCKED - it was downloaded; run: Get-ChildItem '$($cecil | Split-Path)' -Recurse | Unblock-File)"
+            } else { '' }
+            try { Add-TcpkScanSkip -Kind 'CecilMissing' -ItemPath "Mono.Cecil present but failed to load: $script:TcpkCecilLoadError$hint" } catch { }
+        }
         return $false
     }
 }
