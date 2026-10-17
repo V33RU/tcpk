@@ -109,7 +109,11 @@ Describe 'Get-TcpkTamperLocations' {
 
 Describe 'Get-TcpkTamperVerdict' {
     BeforeAll {
-        function script:Snap($status, $hash, $len) { @{ Status=$status; Hash=$hash; Len=$len; BodyHead='' } }
+        # Snap is called from inside InModuleScope below, so it must live in the MODULE
+        # script scope (the test-file script scope is not visible there).
+        InModuleScope TCPK {
+            function script:Snap($status, $hash, $len) { @{ Status=$status; Hash=$hash; Len=$len; BodyHead='' } }
+        }
     }
 
     It 'reports accepted when the tamper looks like success and the control was rejected' {
