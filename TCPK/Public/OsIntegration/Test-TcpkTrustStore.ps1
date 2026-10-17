@@ -137,6 +137,15 @@ function Test-TcpkTrustStore {
             }
             $conf = if ($byThumbprint) { 'Confirmed' } else { 'Inferred' }
 
+            # Attribution gate (scan-host). A subject/issuer NAME match proves identity overlap, not
+            # that THIS app installed the cert: OS-shipped Microsoft root CAs match a broad "Microsoft
+            # Corporation" publisher term, which is how this fired HIGH on machine-wide certs during a
+            # VS Code audit. Only a THUMBPRINT match (the cert ships in the app's own files) establishes
+            # attribution; a name-only match is ambient trust-store state -> INFO, reframed AMBIENT by
+            # Invoke-TcpkAttributionFilter. (Disallowed / chain-broken are already INFO above.)
+            $attrBasis = if ($byThumbprint) { 'established-footprint' } else { 'name-match-only' }
+            if (-not $byThumbprint -and $sev -ne 'INFO') { $sev = 'INFO' }
+
             # Impact text conditioned on the actual chain state and CA flag.
             $impactTxt = if ($isDisallowed) {
                 "The certificate is in the Disallowed store (explicitly revoked or distrusted by OS/admin). " +
@@ -183,6 +192,7 @@ function Test-TcpkTrustStore {
                 -File $st.Path `
                 -Evidence $decoded `
                 -Cwe @('CWE-296','CWE-295') `
+                -AttributionBasis $attrBasis -Subject "cert:$($c.Thumbprint)" `
                 -Description ("$impactTxt`n`n$attrWhy`n`nFull certificate (PEM):`n$pem") `
                 -Fix 'Remove custom root CAs from the machine trust store. Use per-connection certificate pinning instead. If this cert is legitimately installed, confirm its origin and document it.'
         }
