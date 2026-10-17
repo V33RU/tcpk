@@ -136,12 +136,12 @@ function Invoke-TcpkSweep {
     $sevColor = @{ CRITICAL='#f85149'; HIGH='#db6d28'; MEDIUM='#d29922'; LOW='#3fb950'; INFO='#8b949e' }
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.Append("<!doctype html><html><head><meta charset='utf-8'><title>TCPK sweep</title><style>")
-    [void]$sb.Append("body{background:#0d1117;color:#e6edf3;font-family:"Cascadia Code","Fira Code",Consolas,monospace;margin:24px}")
-    [void]$sb.Append("h1{font-family:"Cascadia Code","Fira Code",Consolas,monospace;display:flex;align-items:center;gap:11px}a{color:#58a6ff}")
+    [void]$sb.Append("body{background:#0d1117;color:#e6edf3;font-family:'Cascadia Code','Fira Code',Consolas,monospace;margin:24px}")
+    [void]$sb.Append("h1{font-family:'Cascadia Code','Fira Code',Consolas,monospace;display:flex;align-items:center;gap:11px}a{color:#58a6ff}")
     [void]$sb.Append("table{border-collapse:collapse;width:100%;margin:12px 0}")
     [void]$sb.Append("th,td{border:1px solid #30363d;padding:6px 10px;text-align:left;font-size:13px}")
-    [void]$sb.Append("th{background:#161b22}td.n{text-align:right;font-family:"Cascadia Code","Fira Code",Consolas,monospace}")
-    [void]$sb.Append(".pill{padding:1px 7px;border-radius:9px;font-size:11px;font-family:"Cascadia Code","Fira Code",Consolas,monospace}")
+    [void]$sb.Append("th{background:#161b22}td.n{text-align:right;font-family:'Cascadia Code','Fira Code',Consolas,monospace}")
+    [void]$sb.Append(".pill{padding:1px 7px;border-radius:9px;font-size:11px;font-family:'Cascadia Code','Fira Code',Consolas,monospace}")
     [void]$sb.Append("</style></head><body>")
     # The square mark, not the wordmark: the heading already prints the name in text.
     # Empty string when assets\ is absent, which still yields a valid heading.
