@@ -34,3 +34,27 @@ Describe 'Get-TcpkDerivedSearchSurface does not choke on the ordered catalog' {
         }
     }
 }
+
+Describe 'GatedNoCecil coverage status (IL engine unavailable, not Failed)' {
+    It 'rolls into gated + gatedNoCecil and surfaces in the summary line' {
+        InModuleScope TCPK {
+            Clear-TcpkCoverage
+            Add-TcpkCoverage -Name 'Test-TcpkFoo' -Status 'GatedNoCecil'
+            $t = (New-TcpkCoverageManifest).totals
+            $t.gatedNoCecil | Should -Be 1
+            $t.gated        | Should -Be 1   # GatedNoCecil rolls into the gated total
+            $t.failed       | Should -Be 0   # NOT counted as a failure
+            (Get-TcpkCoverageSummaryLine) | Should -Match 'IL checks gated'
+        }
+    }
+    It 'readiness line names the IL gap, not "no live process"' {
+        InModuleScope TCPK {
+            Clear-TcpkCoverage
+            Add-TcpkCoverage -Name 'Test-TcpkBar' -Status 'GatedNoCecil'
+            $r = Get-TcpkReadinessLine
+            $r.State | Should -Be 'degraded'
+            ($r.Reasons -join '; ') | Should -Match 'IL checks skipped'
+            ($r.Reasons -join '; ') | Should -Not -Match 'no live process'
+        }
+    }
+}

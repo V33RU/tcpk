@@ -342,6 +342,30 @@ function Invoke-TcpkAudit {
             Clear-TcpkCheckBudget
         } catch {
             $sw.Stop()
+            # Mono.Cecil (the IL engine, bundled with ILSpy) not loadable is an operator-controllable
+            # SETUP gap, not a broken check: without it NO finding can be promoted to 'Confirmed (IL)',
+            # so the audit is degraded, not wrong. Mark it GatedNoCecil (a gated, not failed, status)
+            # and keep the per-check line quiet, but print one clear banner the first time so the
+            # operator knows the whole IL-verification layer is off and how to turn it on. This turns
+            # a wall of 12 scary "Unable to find type [Mono.Cecil...]" FAILED lines into one message.
+            # Match the specific TYPE-NOT-LOADED signature ("Unable to find type [Mono.Cecil...]"),
+            # not any Mono.Cecil error -- a Cecil that IS loaded but throws on a bad image is a real
+            # failure and should still report as Failed.
+            if ("$($_.Exception.Message)" -match 'Unable to find type \[Mono\.Cecil') {
+                if (-not $script:TcpkCecilBannerShown) {
+                    $script:TcpkCecilBannerShown = $true
+                    Write-Information -MessageData "" -InformationAction Continue
+                    Write-Information -MessageData "  [IL ENGINE OFF] Mono.Cecil (ships with ILSpy) is not loaded. IL-dependent checks" -InformationAction Continue
+                    Write-Information -MessageData "  are skipped and NO finding can be promoted to 'Confirmed (IL)'. Install ILSpy to" -InformationAction Continue
+                    Write-Information -MessageData "  enable the deterministic IL verification layer, then re-run." -InformationAction Continue
+                    Write-Information -MessageData "" -InformationAction Continue
+                    Write-TcpkLog -Level WARN -Component 'il' -Message 'Mono.Cecil not loaded; IL verification layer unavailable; install ILSpy' | Out-Null
+                }
+                Write-Information -MessageData ("  {0,-36}  skipped (IL engine unavailable)" -f $Name) -InformationAction Continue
+                Add-TcpkCoverage -Name $Name -Status 'GatedNoCecil' -DurationMs ([int]$sw.Elapsed.TotalMilliseconds)
+                Clear-TcpkCheckBudget
+                return
+            }
             # Elapsed on the failure line too: a check that dies instantly is a different
             # problem from one that dies after 40 minutes, and without the number they
             # read identically in the log.
@@ -368,6 +392,7 @@ function Invoke-TcpkAudit {
     Clear-TcpkTextCache
     Clear-TcpkCecilCache
     Clear-TcpkCoverage
+    $script:TcpkCecilBannerShown = $false   # one-time "IL engine unavailable" banner, per audit
     $script:TcpkAutoProcess = $null
     Write-TcpkLog -Level INFO -Component 'audit' -Message "Audit start: $Target" | Out-Null
     if ($idTerms.Count) {

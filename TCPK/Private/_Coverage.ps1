@@ -4,7 +4,7 @@
 # implemented, or failed -- so "was this audit 100%?" is answerable instead of invisible.
 # Written to coverage.json and surfaced in the HTML/Excel reports + a console summary line.
 
-$script:TcpkCoverageStatuses = @('Ran','SkippedQuickProfile','GatedNoProcess','GatedNoTerms','GatedNoPfn','NeedsElevation','NotImplemented','Failed')
+$script:TcpkCoverageStatuses = @('Ran','SkippedQuickProfile','GatedNoProcess','GatedNoTerms','GatedNoPfn','GatedNoCecil','NeedsElevation','NotImplemented','Failed')
 
 function Clear-TcpkCoverage {
     $script:TcpkCoverage = New-Object 'System.Collections.Generic.List[object]'
@@ -14,7 +14,7 @@ function Add-TcpkCoverage {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][ValidateSet('Ran','SkippedQuickProfile','GatedNoProcess','GatedNoTerms','GatedNoPfn','NeedsElevation','NotImplemented','Failed')][string]$Status,
+        [Parameter(Mandatory)][ValidateSet('Ran','SkippedQuickProfile','GatedNoProcess','GatedNoTerms','GatedNoPfn','GatedNoCecil','NeedsElevation','NotImplemented','Failed')][string]$Status,
         [int]$Count = 0,
         [int]$DurationMs = 0
     )
@@ -62,7 +62,8 @@ function New-TcpkCoverageManifest {
     $totals = [ordered]@{
         ran            = @($cov | Where-Object { $_.status -eq 'Ran' }).Count
         skippedQuick   = @($cov | Where-Object { $_.status -eq 'SkippedQuickProfile' }).Count
-        gated          = @($cov | Where-Object { $_.status -in 'GatedNoProcess','GatedNoTerms','GatedNoPfn' }).Count
+        gated          = @($cov | Where-Object { $_.status -in 'GatedNoProcess','GatedNoTerms','GatedNoPfn','GatedNoCecil' }).Count
+        gatedNoCecil   = @($cov | Where-Object { $_.status -eq 'GatedNoCecil' }).Count
         needsElevation = @($cov | Where-Object { $_.status -eq 'NeedsElevation' }).Count
         notImplemented = @($cov | Where-Object { $_.status -eq 'NotImplemented' }).Count
         failed         = @($cov | Where-Object { $_.status -eq 'Failed' }).Count
@@ -105,8 +106,10 @@ function Save-TcpkCoverage {
 function Get-TcpkCoverageSummaryLine {
     $m = New-TcpkCoverageManifest
     $t = $m.totals
-    "Coverage: {0} ran, {1} gated (no process), {2} need elevation, {3} quick-skip, {4} not implemented, {5} failed (of {6} checks)" -f `
+    $line = "Coverage: {0} ran, {1} gated, {2} need elevation, {3} quick-skip, {4} not implemented, {5} failed (of {6} checks)" -f `
         $t.ran, $t.gated, $t.needsElevation, $t.skippedQuick, $t.notImplemented, $t.failed, $t.total
+    if ([int]$t.gatedNoCecil -gt 0) { $line += " [{0} IL checks gated: Mono.Cecil/ILSpy not loaded]" -f $t.gatedNoCecil }
+    $line
 }
 
 # ---------------------------------------------------------------- readiness ----
@@ -200,7 +203,9 @@ function Get-TcpkReadinessLine {
     }
 
     if ($state -ne 'unreliable') {
-        if ($t.gated -gt 0)          { $state = 'degraded'; $reasons.Add("$($t.gated) skipped (no live process)") }
+        $gatedProc = [int]$t.gated - [int]$t.gatedNoCecil
+        if ($gatedProc -gt 0)        { $state = 'degraded'; $reasons.Add("$gatedProc skipped (no live process)") }
+        if ([int]$t.gatedNoCecil -gt 0) { $state = 'degraded'; $reasons.Add("$($t.gatedNoCecil) IL checks skipped (no ILSpy/Cecil)") }
         if ($t.needsElevation -gt 0) { $state = 'degraded'; $reasons.Add("$($t.needsElevation) need elevation") }
         if ($t.skippedQuick -gt 0)   { $state = 'degraded'; $reasons.Add("$($t.skippedQuick) skipped by the quick profile") }
     }
