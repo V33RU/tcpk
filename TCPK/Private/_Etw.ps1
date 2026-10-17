@@ -37,8 +37,8 @@ function Get-TcpkProcessTreeId {
 
     $all = $null
     try { $all = @(Get-CimInstance -ClassName Win32_Process -ErrorAction Stop | Select-Object ProcessId, ParentProcessId) }
-    catch { return $out }
-    if (-not $all.Count) { return $out }
+    catch { return ,$out }
+    if (-not $all.Count) { return ,$out }
 
     $frontier = @($ProcessId)
     for ($d = 0; $d -lt $MaxDepth -and $frontier.Count; $d++) {
@@ -54,7 +54,9 @@ function Get-TcpkProcessTreeId {
         }
         $frontier = $next.ToArray()
     }
-    return $out
+    # Unary comma: return the HashSet itself, not its enumerated members (a bare 'return $out'
+    # makes PowerShell unroll it, so the caller gets an int or object[] instead of the set).
+    return ,$out
 }
 
 function Start-TcpkEtwCapture {

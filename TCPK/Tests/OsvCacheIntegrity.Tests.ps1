@@ -57,7 +57,7 @@ Describe 'Cache write-back is gated on a real answer' {
             Mock Get-TcpkOsvCache { @{} }
             $null = Get-TcpkOsvMatches -Components @(@{ Name = 'lodash'; Version = '4.17.15' }) -Ecosystem 'npm'
             # The regression: this used to be called with every component stamped clean.
-            Assert-MockCalled Save-TcpkOsvCache -Times 0 -Exactly `
+            Should -Invoke Save-TcpkOsvCache -Times 0 -Exactly `
                 -Because 'a failed lookup must leave the cache untouched so the next run retries'
         }
     }
@@ -84,7 +84,7 @@ Describe 'Cache write-back is gated on a real answer' {
             Mock Save-TcpkOsvCache { $saved = $Cache } -Verifiable
             Mock Get-TcpkOsvCache { @{} }
             $null = Get-TcpkOsvMatches -Components @(@{ Name = 'clean-pkg'; Version = '1.0.0' }) -Ecosystem 'npm'
-            Assert-MockCalled Save-TcpkOsvCache -Times 1 -Exactly `
+            Should -Invoke Save-TcpkOsvCache -Times 1 -Exactly `
                 -Because 'zero vulns WITH a result slot is a genuine answer and should cache'
         }
     }

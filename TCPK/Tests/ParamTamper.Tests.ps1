@@ -167,7 +167,12 @@ Describe 'Get-TcpkTamperVerdict' {
 
 Describe 'Invoke-TcpkParamTamper: gates' {
     It 'refuses without -ConfirmActive' {
-        { Invoke-TcpkParamTamper -Url 'http://127.0.0.1:1/x?price=9.99' -Target '127.0.0.1' } |
-            Should -Throw -ExpectedMessage '*ConfirmActive*'
+        # Invoke-TcpkParamTamper is in the exploit bucket, whose gate fires first. Enable it so
+        # the test actually reaches (and verifies) the -ConfirmActive guard, not the bucket gate.
+        Enable-TcpkExploit -Acknowledge | Out-Null
+        try {
+            { Invoke-TcpkParamTamper -Url 'http://127.0.0.1:1/x?price=9.99' -Target '127.0.0.1' } |
+                Should -Throw -ExpectedMessage '*ConfirmActive*'
+        } finally { Disable-TcpkExploit | Out-Null }
     }
 }

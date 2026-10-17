@@ -22,7 +22,7 @@ Describe 'Invoke-TcpkAudit refuses an unreadable target loudly' {
         # nothing. We do not need to fabricate a WindowsApps ACL to prove the guard fires.
         $out = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-out-' + [guid]::NewGuid().ToString('N').Substring(0,8))
         try {
-            $rows = @(Invoke-TcpkAudit -Target $script:empty -Acknowledge -OutDir $out -Quick 3>$null 2>$null | Where-Object { $_.RuleId -eq 'scan.target-unreadable' })
+            $rows = @(Invoke-TcpkAudit -Target $script:empty -Acknowledge -OutDir $out -ScanProfile Quick 3>$null 2>$null | Where-Object { $_.RuleId -eq 'scan.target-unreadable' })
             $rows.Count | Should -BeGreaterThan 0
             $rows[0].Severity | Should -Be 'HIGH'
             $rows[0].Confidence | Should -Be 'Confirmed'
@@ -44,7 +44,7 @@ Describe 'Pre-flight guard does not abort on any path shape' {
         $out = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-out-' + [guid]::NewGuid().ToString('N').Substring(0,8))
         try {
             # If the pre-flight regex threw, this call would throw before returning any findings
-            $rows = @(Invoke-TcpkAudit -Target $winShape -Acknowledge -OutDir $out -Quick 3>$null 2>$null)
+            $rows = @(Invoke-TcpkAudit -Target $winShape -Acknowledge -OutDir $out -ScanProfile Quick 3>$null 2>$null)
             # Anything returned means the audit completed the pre-flight and reached the check loop
             $rows | Should -Not -BeNullOrEmpty
         } finally {

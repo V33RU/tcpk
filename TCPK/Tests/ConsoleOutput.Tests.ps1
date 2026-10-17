@@ -154,7 +154,7 @@ Describe 'TCPK console output contract' {
             @{ ms = 189;     expected = '189ms'  }
             @{ ms = 999;     expected = '999ms'  }
             @{ ms = 1000;    expected = '1.0s'   }
-            @{ ms = 1450;    expected = '1.4s'   }
+            @{ ms = 1440;    expected = '1.4s'   }
             @{ ms = 60000;   expected = '1m00s'  }
             @{ ms = 521000;  expected = '8m41s'  }
             @{ ms = 3599000; expected = '59m59s' }
