@@ -74,6 +74,7 @@
         'Get-TcpkCategoryMap',
         'Invoke-TcpkActivityTrace',
         'Invoke-TcpkAgentAudit',
+        'Invoke-TcpkAgentRun',
         'Invoke-TcpkApiTrace',
         'Invoke-TcpkAudit',
         'Invoke-TcpkAuthMatrix',
