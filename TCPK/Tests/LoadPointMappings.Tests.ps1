@@ -62,19 +62,23 @@ Describe 'Load-point rule IDs are registered in every mapping table' {
 
 Describe 'Technique choices are specific, not just present' {
 
+    # Get-TcpkAttackTechnique is a private helper, so reach it in module scope.
     It 'maps servicedll.key-writable to the service-registry technique' {
-        (Get-TcpkAttackTechnique -RuleId 'servicedll.key-writable') -join ' ' | Should -Match 'T1574\.011'
+        InModuleScope TCPK { (Get-TcpkAttackTechnique -RuleId 'servicedll.key-writable') -join ' ' } |
+            Should -Match 'T1574\.011'
     }
 
     It 'maps appinit.* to AppInit DLLs and appcert.* to AppCert DLLs' {
-        (Get-TcpkAttackTechnique -RuleId 'appinit.dll-writable') -join ' ' | Should -Match 'T1546\.010'
-        (Get-TcpkAttackTechnique -RuleId 'appcert.configured')   -join ' ' | Should -Match 'T1546\.009'
+        InModuleScope TCPK { (Get-TcpkAttackTechnique -RuleId 'appinit.dll-writable') -join ' ' } |
+            Should -Match 'T1546\.010'
+        InModuleScope TCPK { (Get-TcpkAttackTechnique -RuleId 'appcert.configured') -join ' ' } |
+            Should -Match 'T1546\.009'
     }
 
     It 'maps thread.unbacked-start to the injection techniques, not only the generic T1068' {
         # '^(thread|token)\.' also matches and contributes T1068; the two are unioned.
         # What matters is that the specific entry is present as well.
-        $t = (Get-TcpkAttackTechnique -RuleId 'thread.unbacked-start') -join ' '
+        $t = InModuleScope TCPK { (Get-TcpkAttackTechnique -RuleId 'thread.unbacked-start') -join ' ' }
         $t | Should -Match 'T1055'
         $t | Should -Match 'T1620'
     }
@@ -94,7 +98,13 @@ Describe 'Severity-bearing rules score as escalation, coverage records do not' {
 
     It 'does not score census or skip records as escalation' {
         foreach ($id in 'servicedll.enumerated', 'servicedll.unreadable', 'loadpoint.census', 'appinit.clean', 'appinit.not-readable') {
-            (& $archetypeOf $id) | Should -Not -Be 'local-privesc' -Because "$id is a coverage record, not a weakness"
+            # $script:TcpkCvssRuleArchetype is module-internal; resolve the archetype there.
+            $a = InModuleScope TCPK -Parameters @{ id = $id } {
+                param($id)
+                foreach ($m in $script:TcpkCvssRuleArchetype) { if ($id -match $m.Rx) { return $m.A } }
+                return ''
+            }
+            $a | Should -Not -Be 'local-privesc' -Because "$id is a coverage record, not a weakness"
         }
     }
 }
