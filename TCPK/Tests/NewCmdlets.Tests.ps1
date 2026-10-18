@@ -214,9 +214,11 @@ Describe 'Entry-point depth (sink reachability + alias shadowing)' {
         (Test-TcpkMsixProtocols -Path $script:pkg | Where-Object RuleId -eq 'protocol.sink-reachable') | Should -Not -BeNullOrEmpty
     }
     It 'flags an appExecutionAlias that shadows a common tool (python)' {
-        $s = Test-TcpkMsixExtensions -Path $script:pkg | Where-Object RuleId -eq 'msix.alias-shadowing'
+        $s = @(Test-TcpkMsixExtensions -Path $script:pkg | Where-Object RuleId -eq 'msix.alias-shadowing')
         $s | Should -Not -BeNullOrEmpty
-        $s.Severity | Should -Be 'HIGH'
+        # MEDIUM/Inferred by design: the alias collision is read from the manifest, not proven to
+        # actually shadow the tool at runtime (see Test-TcpkMsixExtensions).
+        $s[0].Severity | Should -Be 'MEDIUM'
     }
     It 'end-to-end: handler + sink correlate into a CRITICAL chain' {
         $f = @()

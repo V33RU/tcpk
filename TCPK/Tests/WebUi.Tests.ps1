@@ -110,7 +110,10 @@ Describe 'request dispatcher (no socket)' {
     BeforeAll { $script:port = 54999; $script:tok = 'SECRET-tok-123'; $script:state = New-State $script:port $script:tok }
 
     It 'serves the self-contained SPA on GET /' {
-        $resp = Invoke-Api (New-Req 'GET' '/' $script:port $null @{} '') $script:state
+        # The self-contained SPA (with the onlineCve toggle) is now served by the agentic
+        # workbench dispatcher; the control-panel API (Invoke-TcpkWebApi) is API-only and
+        # returns 404 for '/'. Verify the SPA against the dispatcher that actually serves it.
+        $resp = & (Get-Module TCPK) { param($r, $s) Invoke-TcpkAgenticApi -Request $r -State $s } (New-Req 'GET' '/' $script:port $null @{} '') $script:state
         $resp.Status | Should -Be 200
         $resp.ContentType | Should -Match 'text/html'
         $resp.Body | Should -Match 'TCPK'
@@ -165,7 +168,9 @@ Describe 'async audit run (real background job)' {
         ((Invoke-Api (New-Req 'POST' '/api/resume' $port $tok @{ job = $run.jobId } '') $state).Body | ConvertFrom-Json).paused | Should -BeFalse
 
         $st = $null; $sawRunning = $false
-        for ($i = 0; $i -lt 90; $i++) {
+        # Up to 240s: the job runs the FULL audit, and one whole-machine check (registry load
+        # points) can take ~60s alone on a slow box, pushing a real completion past 90s.
+        for ($i = 0; $i -lt 240; $i++) {
             Start-Sleep -Seconds 1
             $st = (Invoke-Api (New-Req 'GET' '/api/status' $port $tok @{ job = $run.jobId } '') $state).Body | ConvertFrom-Json
             if ($st.state -eq 'running') { $sawRunning = $true }
