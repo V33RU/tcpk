@@ -46,7 +46,10 @@ BeforeAll {
     # Protected DACL: current user FullControl, plus BUILTIN\Users with exactly $Rights.
     # $Propagation 'InheritOnly' produces the ACE that must NOT count as an effective
     # grant on the directory itself.
-    function Set-UsersRight([string]$DirPath, [string]$Rights, [string]$Propagation = 'None') {
+    # $DenyRights folds a deny ACE into this SAME protected Set-Acl. A separate second Set-Acl
+    # (the old Add-UsersDeny) needs SeSecurityPrivilege and fails in a non-elevated session;
+    # writing allow + deny in one protected descriptor does not.
+    function Set-UsersRight([string]$DirPath, [string]$Rights, [string]$Propagation = 'None', [string]$DenyRights = '') {
         $acl = Get-Acl -LiteralPath $DirPath
         $acl.SetAccessRuleProtection($true, $false)
         foreach ($r in @($acl.Access)) { $acl.RemoveAccessRuleSpecific($r) }
@@ -56,6 +59,10 @@ BeforeAll {
         $sid = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-545')
         $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
             $sid, $Rights, 'ContainerInherit,ObjectInherit', $Propagation, 'Allow')))
+        if ($DenyRights) {
+            $acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+                $sid, $DenyRights, 'ContainerInherit,ObjectInherit', 'None', 'Deny')))
+        }
         Set-Acl -LiteralPath $DirPath -AclObject $acl
     }
 
@@ -146,8 +153,7 @@ Describe 'Get-TcpkPlantGrants -- which right is the planting primitive' -Skip:(-
 
     It 'lets an explicit DENY override the allow for the same principal' {
         $d = New-FixtureDir
-        Set-UsersRight $d 'CreateFiles'
-        Add-UsersDeny  $d 'CreateFiles'
+        Set-UsersRight $d 'CreateFiles' -DenyRights 'CreateFiles'
         $r = Invoke-PlantGrants (Join-Path $d 'absent.dll')
         @($r.Grants).Count | Should -Be 0
     }
@@ -156,8 +162,7 @@ Describe 'Get-TcpkPlantGrants -- which right is the planting primitive' -Skip:(-
         # The mirror of the case above. A deny of something irrelevant must not suppress
         # a real grant, or the check silently stops finding the bug it exists for.
         $d = New-FixtureDir
-        Set-UsersRight $d 'CreateFiles'
-        Add-UsersDeny  $d 'WriteAttributes'
+        Set-UsersRight $d 'CreateFiles' -DenyRights 'WriteAttributes'
         $r = Invoke-PlantGrants (Join-Path $d 'absent.dll')
         @($r.Grants).Count | Should -BeGreaterThan 0
     }

@@ -10,10 +10,12 @@ BeforeAll {
     $script:work = Join-Path ([IO.Path]::GetTempPath()) ("tcpk-dyn-" + [guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $script:work -Force | Out-Null
 
-    # C# console-app fixtures. Add-Type -OutputType ConsoleApplication is unsupported on
-    # .NET Core (PSNotSupportedException), and the harness is Windows-only anyway, so build
-    # them only on Windows; the Windows-runtime Its below Skip off-Windows.
-    if ($IsWindows -ne $false) {
+    # C# console-app fixtures. Add-Type -OutputType ConsoleApplication is a .NET Framework
+    # feature (Windows PowerShell 5.1, $PSEdition 'Desktop'); on PS7 / .NET Core it throws
+    # PSNotSupportedException. Build them only where supported; the exe-dependent Its below
+    # Skip when it is not (the gate must be the edition, not merely $IsWindows: PS7 on Windows
+    # cannot emit an exe either).
+    if ($PSEdition -eq 'Desktop') {
     # "vulnerable" app: follows --host and connects to it, forwarding --token
     $vuln = @'
 using System; using System.Net.Sockets; using System.Text; using System.Threading;
@@ -44,24 +46,24 @@ AfterAll {
 }
 
 Describe 'Invoke-TcpkDynamicConfirm gating' {
-    It 'throws when the exploit bucket is disabled' {
+    It 'throws when the exploit bucket is disabled' -Skip:($PSEdition -ne 'Desktop') {
         & (Get-Module TCPK) { Disable-TcpkExploit } | Out-Null
         { Invoke-TcpkDynamicConfirm -Target $script:safeExe -ConfirmDynamic } | Should -Throw
         & (Get-Module TCPK) { Enable-TcpkExploit -Acknowledge } | Out-Null
     }
-    It 'throws without -ConfirmDynamic even when enabled' -Skip:($IsWindows -eq $false) {
+    It 'throws without -ConfirmDynamic even when enabled' -Skip:($PSEdition -ne 'Desktop') {
         { Invoke-TcpkDynamicConfirm -Target $script:safeExe } | Should -Throw
     }
 }
 
 Describe 'Invoke-TcpkDynamicConfirm observation' {
-    It 'Confirmed (dynamic) when the app follows the CLI host override' -Skip:($IsWindows -eq $false) {
+    It 'Confirmed (dynamic) when the app follows the CLI host override' -Skip:($PSEdition -ne 'Desktop') {
         $r = @(Invoke-TcpkDynamicConfirm -Target $script:vulnExe -ConfirmDynamic -TimeoutSec 10 6>$null)
         $r[0].RuleId     | Should -Be 'dynamic.argv-session-override'
         $r[0].Confidence | Should -Be 'Confirmed (dynamic)'
         $r[0].Severity   | Should -Be 'HIGH'
     }
-    It 'stays Inferred/inconclusive when the app ignores the override' -Skip:($IsWindows -eq $false) {
+    It 'stays Inferred/inconclusive when the app ignores the override' -Skip:($PSEdition -ne 'Desktop') {
         $r = @(Invoke-TcpkDynamicConfirm -Target $script:safeExe -ConfirmDynamic -TimeoutSec 4 6>$null)
         $r[0].Confidence | Should -Be 'Inferred'
     }

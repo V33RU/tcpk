@@ -147,6 +147,13 @@ function New-TcpkHttpSnapshot {
         try {
             if ($resp.Headers.Date -and $resp.Headers.Date.HasValue) {
                 $serverDate = $resp.Headers.Date.Value.UtcDateTime
+            } elseif ($hdrs.ContainsKey('Date')) {
+                # On .NET (Core/.NET 10) the strongly-typed Headers.Date is often left $null even
+                # when the server sent a valid Date header, so fall back to parsing the raw value.
+                # Without this the server clock reads as absent against real targets too, not just
+                # in tests, which would wrongly downgrade every expiry check to "cannot prove".
+                $dto = [System.DateTimeOffset]::MinValue
+                if ([System.DateTimeOffset]::TryParse($hdrs['Date'], [ref]$dto)) { $serverDate = $dto.UtcDateTime }
             }
         } catch { $serverDate = $null }
 

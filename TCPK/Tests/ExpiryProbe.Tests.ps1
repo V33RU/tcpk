@@ -43,6 +43,7 @@ BeforeAll {
         $PROTECTED = 'PROTECTED-ACCOUNT-BODY-0123456789abcdef'
         while ($ln.IsListening) {
             $ctx = $ln.GetContext(); $req = $ctx.Request; $res = $ctx.Response
+            $res.ContentType = 'text/plain'   # a real server sends Content-Type; the merge test needs one
             $auth = "$($req.Headers['Authorization'])" -replace '^\s*Bearer\s+', ''
             $known = ($auth -eq $expired -or $auth -eq $fresh)
             $code = 401; $body = 'unauthorized'
