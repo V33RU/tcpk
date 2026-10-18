@@ -50,7 +50,13 @@ function Get-TcpkBytePatternTypes {
         'filetime' = @{ Fixed = 8;  Decode = { param($b, $o, $l)
                         $t = [BitConverter]::ToInt64($b, $o)
                         if ($t -le 0 -or $t -ge 2650467744000000000) { "(not a FILETIME: $t)" }
-                        else { [DateTime]::FromFileTimeUtc($t).ToString('u') } } }
+                        else {
+                            $dt = [DateTime]::FromFileTimeUtc($t)
+                            # A zeroed / garbage 8-byte field decodes to a date near the 1601
+                            # epoch and reads like a real timestamp. Nothing TCPK inspects predates
+                            # 1980 (the DOS epoch floor), so treat earlier dates as not-a-FILETIME.
+                            if ($dt.Year -lt 1980) { "(not a FILETIME: $t)" } else { $dt.ToString('u') }
+                        } } }
 
         'bytes'    = @{ Fixed = 0;  Decode = { param($b, $o, $l)
                         $n = [Math]::Min($l, 32)

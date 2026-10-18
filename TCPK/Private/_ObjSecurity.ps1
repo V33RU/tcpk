@@ -141,6 +141,11 @@ function Get-TcpkSddlLowPrivGrants {
 
     $danger = 0
     foreach ($v in $RightsMap.Values) { $danger = $danger -bor [int]$v }
+    # READ_CONTROL (0x20000) and SYNCHRONIZE (0x100000) are benign standard rights that a
+    # composite *_ALL_ACCESS mask carries. A low-privilege grant of ONLY those is not an
+    # injection primitive (it reads the descriptor / waits on the object), so strip them --
+    # otherwise any RightsMap containing ALL_ACCESS flags read-only ACEs as dangerous.
+    $danger = $danger -band (-bnot 0x00120000)
 
     $rsd = $null
     try { $rsd = New-Object System.Security.AccessControl.RawSecurityDescriptor($Sddl) } catch { return $out.ToArray() }

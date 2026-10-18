@@ -159,7 +159,7 @@ Describe 'Low-privilege principal set covers AppContainers' {
         $root = Split-Path (Split-Path $PSCommandPath -Parent) -Parent
         $dupes = @(Get-ChildItem -LiteralPath $root -Recurse -File -Filter '*.ps1' |
             Where-Object { $_.FullName -notmatch '\\Tests\\' } |
-            Where-Object { [IO.File]::ReadAllText($_.FullName) -match "'S-1-5-32-545'\s*,\s*'S-1-5-4'" } |
+            Where-Object { [IO.File]::ReadAllText($_.FullName) -match "'S-1-5-32-545'[^']*'S-1-5-4'" } |
             ForEach-Object { $_.Name })
         $dupes -join ', ' | Should -Be '_ObjSecurity.ps1'
     }

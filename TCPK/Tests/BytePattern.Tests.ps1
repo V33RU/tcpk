@@ -160,7 +160,10 @@ Describe 'Resolve-TcpkBytePattern: a pattern that does not fit says so' {
             param($w)
             $tiny = Join-Path $w 'tiny.bin'
             $p = Read-TcpkBytePattern -Json '[{"name":"A","offset":0,"size":4,"type":"string"},{"name":"B","offset":900,"size":4,"type":"leuint"}]'
-            @(Resolve-TcpkBytePattern -Path $tiny -Fields $p.Fields).Count | Should -Be 2
+            # Resolve returns the row array atomically (', $out'), so capture it before counting
+            # -- '@(call).Count' would wrap the whole array as one element and read 1.
+            $rows = Resolve-TcpkBytePattern -Path $tiny -Fields $p.Fields
+            @($rows).Count | Should -Be 2
         }
     }
 }

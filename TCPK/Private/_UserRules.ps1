@@ -55,7 +55,7 @@ function Read-TcpkUserRule {
     $match    = & $get 'match'
 
     if (-not $id)   { $errors.Add("$SourceLabel : 'id' is required") }
-    if ($id -and $id -notmatch '^[a-z][a-z0-9_.\-]{2,80}$') {
+    if ($id -and $id -cnotmatch '^[a-z][a-z0-9_.\-]{2,80}$') {   # -cnotmatch: 'lowercase' must be case-SENSITIVE, or 'BAD' slips through
         $errors.Add("$SourceLabel : 'id' must be lowercase, contain a dot, and use only [a-z0-9_.-] (got '$id')")
     }
     if (-not $sev) { $errors.Add("$SourceLabel : 'severity' is required") }
@@ -181,8 +181,9 @@ function Convert-TcpkGlobToRegex {
     Everything else is escaped literally. Anchored to the whole path.
 #>
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Glob)
-    # Normalise separators
-    $g = $Glob -replace '\\','/'
+    # Normalise separators: backslashes to forward slashes, then collapse redundant runs
+    # (e.g. a '\\'-escaped glob becomes 'a//b' -- without this it would never match 'a/b').
+    $g = $Glob -replace '\\','/' -replace '/{2,}','/'
     # Tokenise around ** first, then * and ?
     $sb = New-Object System.Text.StringBuilder
     $i = 0; $n = $g.Length
