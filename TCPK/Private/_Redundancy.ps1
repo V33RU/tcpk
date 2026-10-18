@@ -48,8 +48,12 @@ function Get-TcpkNormalizedSubject {
     # Registry
     if ($s -match '^HK') {
         $s = $s.ToLowerInvariant()
-        $s = $s -replace '^hklm[:\\]', 'hkey_local_machine\'
-        $s = $s -replace '^hkcu[:\\]', 'hkey_current_user\'
+        # [:\\]+ consumes the whole 'HKLM:\' separator (both the ':' and the '\'); with
+        # just [:\\] only the ':' is eaten, the stray '\' survives and becomes a double
+        # slash after the Replace below -- which breaks both ambient-surface detection and
+        # correlation grouping for registry subjects written in HKLM:/HKCU: notation.
+        $s = $s -replace '^hklm[:\\]+', 'hkey_local_machine\'
+        $s = $s -replace '^hkcu[:\\]+', 'hkey_current_user\'
         $s = $s -replace '^hkey_local_machine\\', 'hkey_local_machine/'
         $s = $s -replace '^hkey_current_user\\', 'hkey_current_user/'
         return $s.Replace('\', '/').TrimEnd('/')

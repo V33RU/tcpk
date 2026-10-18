@@ -1,3 +1,8 @@
+BeforeDiscovery {
+    # Load TCPK at discovery so the top-level InModuleScope can discover the tests inside it
+    # (otherwise this file discovers zero tests when run alone).
+    Import-Module (Resolve-Path (Join-Path (Join-Path $PSScriptRoot '..') 'TCPK.psd1')) -Force -ErrorAction Stop
+}
 Describe 'TCPK CAP6 - Platform-Aware Coverage' {
     BeforeAll {
         $manifest = Join-Path (Join-Path $PSScriptRoot '..') 'TCPK.psd1'

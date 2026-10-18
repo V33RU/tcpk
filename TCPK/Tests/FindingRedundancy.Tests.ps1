@@ -1,3 +1,9 @@
+BeforeDiscovery {
+    # Load TCPK at DISCOVERY so the top-level 'InModuleScope TCPK' can discover the tests inside
+    # it. Without this the file discovers zero tests when run alone (TCPK is only imported in the
+    # run-time BeforeAll), and only appears to work in a combined run where another file loaded it.
+    Import-Module (Resolve-Path (Join-Path (Join-Path $PSScriptRoot '..') 'TCPK.psd1')) -Force -ErrorAction Stop
+}
 Describe 'TCPK Finding Redundancy Model' {
     BeforeAll {
         $manifest = Join-Path (Join-Path $PSScriptRoot '..') 'TCPK.psd1'
@@ -9,22 +15,27 @@ Describe 'TCPK Finding Redundancy Model' {
     # -----------------------------------------------------------------------
     InModuleScope TCPK {
 
-        function _MakeFinding {
-            param(
-                [string]$RuleId,
-                [string]$Severity   = 'HIGH',
-                [string]$Confidence = 'Confirmed',
-                [string]$Subject    = '',
-                [string]$Dimension  = '',
-                [string]$ObsValue   = '',
-                [string]$Basis      = 'Measured',
-                [string[]]$BasisInputs = @()
-            )
-            $f = New-TcpkFinding -Module 'test' -RuleId $RuleId -Severity $Severity `
-                -Confidence $Confidence -Title "$RuleId finding" `
-                -Subject $Subject -Dimension $Dimension -ObsValue $ObsValue `
-                -Basis $Basis -BasisInputs $BasisInputs
-            $f
+        # Define the helper in a BeforeAll INSIDE this InModuleScope, so it is (re)created at run
+        # time, after any -Force reimport by this or another test file, in the same module scope
+        # the Its run in. Defined at discovery it was wiped by the next reimport; defined in a
+        # separate InModuleScope it did not reach these Its.
+        BeforeAll {
+            function _MakeFinding {
+                param(
+                    [string]$RuleId,
+                    [string]$Severity   = 'HIGH',
+                    [string]$Confidence = 'Confirmed',
+                    [string]$Subject    = '',
+                    [string]$Dimension  = '',
+                    [string]$ObsValue   = '',
+                    [string]$Basis      = 'Measured',
+                    [string[]]$BasisInputs = @()
+                )
+                New-TcpkFinding -Module 'test' -RuleId $RuleId -Severity $Severity `
+                    -Confidence $Confidence -Title "$RuleId finding" `
+                    -Subject $Subject -Dimension $Dimension -ObsValue $ObsValue `
+                    -Basis $Basis -BasisInputs $BasisInputs
+            }
         }
 
         # -------------------------------------------------------------------
