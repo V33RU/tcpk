@@ -181,6 +181,10 @@ Describe 'F5b: outdated-runtime CVE text reconciliation' {
     It 'OnlineCve ran but OSV empty: removes the hint and says it was queried' {
         InModuleScope TCPK -Parameters @{ d = $script:hintDesc } {
             param($d)
+            # "queried, none" is only claimed when the OSV run actually COMPLETED
+            # (Test-TcpkOsvRunComplete), so mark a clean completed run for this unit test.
+            Reset-TcpkOsvSession
+            (Get-TcpkOsvSession).Attempted = $true
             $f = New-TcpkFinding -Module static -RuleId 'electron.outdated-runtime' -Severity MEDIUM -Confidence Inferred -Title 't' -Description $d
             $out = Update-TcpkRuntimeCveText -Finding $f -CveMatches @() -OnlineCve $true
             "$($out.Description)" | Should -Not -Match 'Run with -OnlineCve'
