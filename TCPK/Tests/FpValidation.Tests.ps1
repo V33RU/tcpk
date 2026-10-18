@@ -114,10 +114,11 @@ Describe 'FP regression: hollowing-apis provenance and sandbox suppression' {
                 'VirtualAllocEx Electron/20.0.0 Chrome/114.0.0.0'
             [System.IO.File]::WriteAllText($tmpPe, $content)
 
-            $script:findings_c = InModuleScope TCPK {
+            $script:findings_c = InModuleScope TCPK -Parameters @{ dir = $script:tmpDir_c } {
+                param($dir)
                 Mock Assert-TcpkWindows { return $true }
                 Mock Test-TcpkIsFrameworkFile { return $false }
-                @(Test-TcpkHollowingApis -Path $using:tmpDir_c)
+                @(Test-TcpkHollowingApis -Path $dir)
             }
         }
         AfterAll {
@@ -168,9 +169,13 @@ Describe 'FP regression: truststore cert gating (truststore.app-installed-cert)'
     Context '(e) Disallowed cert -> INFO regardless of store' {
         BeforeAll {
             # Create a self-signed cert for testing (PowerShell 5.1 compatible)
+            # NotBefore must also be in the past: New-SelfSignedCertificate rejects a NotAfter
+            # earlier than NotBefore (defaults to now) with PEER_E_INVALID_TIME_PERIOD. A
+            # 10-days-ago .. 1-day-ago window yields the expired cert this fixture needs.
             $script:testCert = New-SelfSignedCertificate `
                 -Subject 'CN=TcpkFpTest' `
                 -CertStoreLocation 'Cert:\CurrentUser\My' `
+                -NotBefore (Get-Date).AddDays(-10) `
                 -NotAfter (Get-Date).AddDays(-1) `
                 -ErrorAction SilentlyContinue
         }

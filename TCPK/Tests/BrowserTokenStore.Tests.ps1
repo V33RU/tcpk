@@ -114,6 +114,11 @@ BeforeAll {
         }
         New-Item -Path $cookieDir -ItemType Directory -Force | Out-Null
 
+        # A Chromium app ships an .exe. The ABE grading reads RuntimeText from *.exe files only
+        # (via the mocked Read-TcpkAllText), so without one $canSupportAbe stays false and an
+        # app-bound key can never grade as LOW.
+        Set-Content -LiteralPath (Join-Path $appDir "$AppName.exe") -Value 'MZ' -Encoding Ascii
+
         $cookiePath  = $null
         $lockStream  = $null
 
@@ -383,9 +388,12 @@ Describe 'BrowserTokenStore fixture matrix' {
             $script:fx_d = New-AppFixture -AppName 'FixtureD' `
                 -HasCookies $true -HasLoginData $false -HasWebData $false `
                 -UseDpapiKey $false -UseAbeKey $true
+            # A real Chrome install carries BOTH the brand string AND Chromium markers
+            # (v8_context_snapshot); $canSupportAbe needs Test-TcpkIsChromiumRuntime (markers) AND
+            # a 'Google Chrome'/'Edge' brand match, so the mocked runtime text must supply both.
             $script:findings_d = Invoke-InModuleWithMocks `
                 -AppName 'FixtureD' -Fixture $script:fx_d `
-                -RuntimeText 'Google Chrome/130.0.0.0' `
+                -RuntimeText 'Google Chrome/130.0.0.0 v8_context_snapshot' `
                 -MasterKeySucceeds $false -GcmSucceeds $false
         }
 

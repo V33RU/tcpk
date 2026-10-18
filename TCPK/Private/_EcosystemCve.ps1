@@ -290,7 +290,11 @@ function Get-TcpkLockfileNpmComponents {
                         # Berry descriptor: everything before the FIRST protocol marker is the
                         # name. A patch entry repeats the name after it ("a@patch:a@npm%3A1.0.0"),
                         # so LastIndexOf would cut in the wrong place and invent 'a@patch:a'.
-                        $pending = $matches[1]
+                        # An npm ALIAS ("my-alias@npm:strip-ansi@^6") names a DIFFERENT package
+                        # after npm:, and the following resolution: line carries the real one --
+                        # so defer (clear $pending) instead of recording the alias name.
+                        $rest = $first.Substring($matches[0].Length)
+                        $pending = if ($matches[2] -eq 'npm' -and $rest -match '@') { '' } else { $matches[1] }
                     } else {
                         # yarn v1 descriptor ("lodash@^4.17.15"): strip the range at the last '@'.
                         # Position 0 belongs to an @scope, so only an '@' after it counts.

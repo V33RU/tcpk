@@ -29,6 +29,7 @@ BeforeAll {
     $script:deserToken = (& (Get-Module TCPK) { (Get-TcpkData).deser_tokens })[0].token
     $script:callPat    = (& (Get-Module TCPK) { (Get-TcpkData).callsite_patterns })[0].patterns[0]
     Add-Content -LiteralPath $script:dll -Encoding UTF8 -Value @(
+        'BSJB'   # .NET metadata signature: the deserialization detector gates on it to skip native PEs
         $script:deserToken
         $script:callPat
         'DtdProcessing = DtdProcessing.Parse'

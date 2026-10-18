@@ -65,6 +65,9 @@ Describe 'LLM local-only cloud gate' {
     It 'gives every provider a dialect, a baseUrl and a default model' {
         $bad = & (Get-Module TCPK) {
             @($script:TcpkLlmProviders.Keys | Where-Object {
+                # 'custom' is bring-your-own: baseUrl/defaultModel are intentionally blank and set
+                # via config, so the universal dialect+baseUrl+model invariant does not apply.
+                if ($_ -eq 'custom') { return $false }
                 $p = $script:TcpkLlmProviders[$_]
                 -not $p.dialect -or -not $p.baseUrl -or -not $p.defaultModel
             })

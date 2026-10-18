@@ -117,7 +117,9 @@ Describe 'tools/list' {
     It 'annotates the gated PoC tool as destructive and the rest as read-only' {
         $tools = @($script:R['2'].result.tools)
         $destructive = @($tools | Where-Object { $_.annotations.destructiveHint } | ForEach-Object { $_.name })
-        $destructive | Should -Be @('tcpk_generate_poc')
+        # tcpk_audit is also destructive: an .msi target dispatches 'msiexec /a', which runs the
+        # installer's AdminExecuteSequence (vendor code), so prompt-skipping MCP clients must confirm.
+        $destructive | Should -Be @('tcpk_audit', 'tcpk_generate_poc')
         ($tools | Where-Object { $_.name -eq 'tcpk_generate_poc' }).annotations.readOnlyHint | Should -BeFalse
         ($tools | Where-Object { $_.name -eq 'tcpk_decompile' }).annotations.readOnlyHint | Should -BeTrue
     }

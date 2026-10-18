@@ -62,7 +62,7 @@ Describe 'Find-TcpkByteMatches: the UTF-16 blind spot' {
             @($r.Matches).Count | Should -Be 2
             @($r.Matches)[0].Offset | Should -Be $a
             @($r.Matches)[1].Offset | Should -Be $w
-            (@($r.Matches) | Where-Object { $_.Kind -eq 'utf16le' }).Count | Should -Be 1
+            @(@($r.Matches) | Where-Object { $_.Kind -eq 'utf16le' }).Count | Should -Be 1
         }
     }
 
@@ -98,7 +98,7 @@ Describe 'Find-TcpkByteMatches: hex and case handling' {
         InModuleScope TCPK -Parameters @{ f = $script:mixed } {
             param($f)
             @(Find-TcpkByteMatches -Path $f -Query 'connectionstring' -Kind 'ascii').Matches.Count | Should -Be 0
-            @(Find-TcpkByteMatches -Path $f -Query 'connectionstring' -Kind 'ascii' -CaseInsensitive).Matches.Count | Should -Be 1
+            @((Find-TcpkByteMatches -Path $f -Query 'connectionstring' -Kind 'ascii' -CaseInsensitive).Matches).Count | Should -Be 1
         }
     }
 }

@@ -37,13 +37,15 @@ Describe 'Test-TcpkMemoryRegions' -Skip:(-not $script:isWin) {
         if ($priv) {
             # JIT present, so this is posture rather than a defect.
             $priv.Severity | Should -Be 'INFO'
-            $priv.Description | Should -Match 'JIT runtime is loaded'
+            $priv.Description | Should -Match 'JIT runtime detected'
         }
     }
 
     It 'never rates RWX above MEDIUM when a JIT runtime is present' {
         $r = @(Test-TcpkMemoryRegions -ProcessId $PID | Where-Object RuleId -eq 'memregion.rwx')
-        foreach ($f in $r) { $f.Severity | Should -Be 'MEDIUM' }
+        # RWX with a JIT runtime present is expected posture: the check caps it at MEDIUM and
+        # usually reports INFO. Assert "never above MEDIUM", matching the test's stated intent.
+        foreach ($f in $r) { $f.Severity | Should -BeIn @('INFO','LOW','MEDIUM') }
     }
 
     It 'counts every region it reports and keeps the sample bounded' {

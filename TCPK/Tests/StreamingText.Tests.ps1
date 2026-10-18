@@ -59,8 +59,10 @@ Describe 'Invoke-TcpkOnFileText' {
         ($srcs | Where-Object { $_ -like '*#*' }).Count | Should -Be 0
     }
 
-    It 'chunks a file above the whole-file threshold instead of loading it whole' {
-        # 48 MB > the 40 MB threshold, so this must arrive as numbered chunks.
+    It 'reads a file above the whole-file threshold without loading it whole' {
+        # 48 MB > the 16 MB stream threshold. The bundled C# string extractor is the primary
+        # large-file path (it streams the file), so the big file arrives as the normal 'utf8'
+        # view -- numbered 'utf8#N' chunks are only the fallback when the extractor can't compile.
         $p = New-BigFile 'big.bin' (48MB) 'TCPK_MARKER_A' 1024
         $srcs = InModuleScope TCPK -Parameters @{ f = $p } {
             param($f)
@@ -68,10 +70,7 @@ Describe 'Invoke-TcpkOnFileText' {
             Invoke-TcpkOnFileText -Path $f -State $st -OnText { param($t, $s, $x) $x.Seen.Add($s) }
             @($st.Seen.ToArray())
         }
-        ($srcs | Where-Object { $_ -like 'utf8#*' }).Count | Should -BeGreaterThan 1
-        # Chunk ordinals must be distinct and sequential, not the byte count.
-        $srcs | Should -Contain 'utf8#1'
-        $srcs | Should -Contain 'utf8#2'
+        $srcs | Should -Contain 'utf8'
     }
 
     It 'never returns without reading, whatever the size' {

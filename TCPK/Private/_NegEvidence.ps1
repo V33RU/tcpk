@@ -109,11 +109,10 @@ function Get-TcpkNegativeEvidenceStatus {
     $untestedAlts  = @($entry.KnownAlternatives | Where-Object { $Tested -notcontains $_ })
     $justified     = ($untestedAlts.Count -eq 0)
 
-    $degradation = switch ($true) {
-        $justified                   { 'none'       }
-        ($untestedAlts.Count -le 1)  { 'confidence' }
-        default                      { 'severity'   }
-    }
+    # A single value, not a switch($true): without 'break' both the $justified arm and the
+    # count arm fire for the all-tested case, yielding the array @('none','confidence'). Degrade
+    # confidence whenever ANY alternative was tested; severity only when nothing was checked.
+    $degradation = if ($justified) { 'none' } elseif ($Tested.Count -ge 1) { 'confidence' } else { 'severity' }
 
     $expl = if ($justified) {
         "CAP2: all alternatives for '$Method' tested ($($Tested -join ', ')); negative conclusion justified"
