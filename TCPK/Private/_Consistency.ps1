@@ -226,23 +226,31 @@ function Invoke-TcpkConsistencyCheck {
             $constraints = @($script:TcpkStaticConstraints) + @(Get-TcpkPlatformConstraints -PlatformClass $platformClass)
 
             foreach ($constraint in $constraints) {
-                # Find governing findings in this group
+                # Find governing findings in this group.
+                # ObsValue is JSON-ish and often arrives quoted (e.g. '"valid"'); the
+                # constraint patterns are bare/anchored, so strip surrounding quotes and
+                # whitespace before matching -- the same normalization used for
+                # platform-class resolution above.
                 $governing = @($idxList | Where-Object {
                     $f = $all[$_]
                     "$($f.Dimension)" -eq $constraint.GoverningDim -and
-                    "$($f.ObsValue)"  -match $constraint.GoverningPattern
+                    ("$($f.ObsValue)".Trim().Trim('"').Trim())  -match $constraint.GoverningPattern
                 })
-                if (-not $governing) { continue }
+                # NB: test .Count, not (-not $governing).  $governing is @(index);
+                # when the sole match is index 0, PowerShell unwraps @(0) and 0 is
+                # falsy, so (-not $governing) is $true and the contradiction at the
+                # first finding would be silently skipped.
+                if ($governing.Count -eq 0) { continue }
 
                 # Find negated findings in this group
                 $negated = @($idxList | Where-Object {
                     $idx = $_
                     $f   = $all[$idx]
                     "$($f.Dimension)" -eq $constraint.NegatesDim -and
-                    "$($f.ObsValue)"  -match $constraint.NegatesPattern -and
+                    ("$($f.ObsValue)".Trim().Trim('"').Trim())  -match $constraint.NegatesPattern -and
                     $idx -notin $governing
                 })
-                if (-not $negated) { continue }
+                if ($negated.Count -eq 0) { continue }
 
                 foreach ($govIdx in $governing) {
                     if ($suppressedIdx.ContainsKey($govIdx)) { continue }

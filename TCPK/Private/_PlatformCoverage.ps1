@@ -214,11 +214,15 @@ function Assert-TcpkCoverageComplete {
     foreach ($n in $InspectedStoreNames) { [void]$inspectedSet.Add($n) }
 
     foreach ($s in $Surface) {
+        # CAP6 gaps are declared for UNPROTECTED stores only: a protected store the
+        # platform guards (DPAPI/Keychain/keyring) is not a coverage gap in CAP6's
+        # sense, even when uninspected.  (See this function's .SYNOPSIS and the
+        # module header.)
+        if ($s.Protected) { continue }
         $covered = $s.Inspected -or $inspectedSet.Contains($s.StoreName)
         if (-not $covered) {
-            $protection = if ($s.Protected) { "protected ($($s.ProtectedBy))" } else { 'UNPROTECTED' }
             New-TcpkPrecondition -Name "store-$($s.StoreName)-inspected" -State 'UNTESTED' `
-                -Evidence "Store '$($s.StoreName)' ($protection) was not inspected; coverage gap declared."
+                -Evidence "Store '$($s.StoreName)' (UNPROTECTED) was not inspected; coverage gap declared."
         }
     }
 }
@@ -234,7 +238,7 @@ function Format-TcpkCoverageLog {
 #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][object[]]$Surface,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Surface,
         [object[]]$Exclusions = @()
     )
     $lines = foreach ($s in $Surface) {

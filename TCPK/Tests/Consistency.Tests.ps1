@@ -1,3 +1,8 @@
+BeforeDiscovery {
+    # Load TCPK at discovery so the top-level InModuleScope can discover the tests inside it
+    # (otherwise this file discovers zero tests when run alone).
+    Import-Module (Resolve-Path (Join-Path (Join-Path $PSScriptRoot '..') 'TCPK.psd1')) -Force -ErrorAction Stop
+}
 Describe 'TCPK CAP7 - Internal Consistency Enforcement' {
     BeforeAll {
         $manifest = Join-Path (Join-Path $PSScriptRoot '..') 'TCPK.psd1'
@@ -6,19 +11,23 @@ Describe 'TCPK CAP7 - Internal Consistency Enforcement' {
 
     InModuleScope TCPK {
 
-        function _MakeFinding {
-            param(
-                [string]$RuleId,
-                [string]$Severity   = 'HIGH',
-                [string]$Confidence = 'Confirmed',
-                [string]$Subject    = '',
-                [string]$Dimension  = '',
-                [string]$ObsValue   = '',
-                [string]$Basis      = 'Measured'
-            )
-            New-TcpkFinding -Module 'test' -RuleId $RuleId -Severity $Severity `
-                -Confidence $Confidence -Title "$RuleId" `
-                -Subject $Subject -Dimension $Dimension -ObsValue $ObsValue -Basis $Basis
+        # Helper in a BeforeAll INSIDE this InModuleScope, so it is (re)created at run time after
+        # any -Force reimport, in the module scope the Its run in (it calls private New-TcpkFinding).
+        BeforeAll {
+            function _MakeFinding {
+                param(
+                    [string]$RuleId,
+                    [string]$Severity   = 'HIGH',
+                    [string]$Confidence = 'Confirmed',
+                    [string]$Subject    = '',
+                    [string]$Dimension  = '',
+                    [string]$ObsValue   = '',
+                    [string]$Basis      = 'Measured'
+                )
+                New-TcpkFinding -Module 'test' -RuleId $RuleId -Severity $Severity `
+                    -Confidence $Confidence -Title "$RuleId" `
+                    -Subject $Subject -Dimension $Dimension -ObsValue $ObsValue -Basis $Basis
+            }
         }
 
         # -----------------------------------------------------------------------

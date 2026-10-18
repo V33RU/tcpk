@@ -157,7 +157,7 @@ function Resolve-TcpkSinkSeverity {
         [Parameter(Mandatory)]
         [ValidateSet('CRITICAL','HIGH','MEDIUM','LOW','INFO')][string]$Candidate,
         [string]$CandidateConf = 'Confirmed',
-        [ref]$Log = $null
+        [ref]$Log
     )
 
     $preconds = Get-TcpkSinkPreconditions -SinkAnalysis $SinkAnalysis

@@ -68,7 +68,7 @@ function Assert-TcpkStructuredClaim {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$ArtifactType,
-        [Parameter(Mandatory)][string]$ClaimElement,   # the specific element the claim is about
+        [Parameter(Mandatory)][AllowEmptyString()][string]$ClaimElement,   # the specific element the claim is about ('' is a valid input: it is the "no element named" case the body rejects)
         [string]$Evidence = ''
     )
     $parseInfo = Get-TcpkArtifactParseLevel -ArtifactType $ArtifactType
@@ -152,9 +152,12 @@ function ConvertTo-TcpkCspModel {
     C9 - Parse a CSP header value into a structured directive model.
 
 .DESCRIPTION
-    Returns an ordered hashtable: directive-name -> [string[]] values.
+    Returns a hashtable: directive-name -> [string[]] values.
     All names and values are lowercased for consistent comparison.
-    Malformed tokens are skipped.
+    Malformed tokens are skipped.  The type is a plain hashtable so callers can
+    use .ContainsKey(); every consumer (Test-TcpkCspDirectivePermissive etc.)
+    declares [hashtable]$CspModel.  Directive order is not load-bearing: the W3C
+    fallback chain is explicit and first-wins is enforced during parse.
 
 .EXAMPLE
     $m = ConvertTo-TcpkCspModel "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'"
@@ -163,7 +166,7 @@ function ConvertTo-TcpkCspModel {
 #>
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$HeaderValue)
-    $model = [ordered]@{}
+    $model = @{}
     foreach ($rawDir in ($HeaderValue -split ';')) {
         $d = $rawDir.Trim()
         if (-not $d) { continue }
