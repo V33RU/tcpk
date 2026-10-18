@@ -22,7 +22,11 @@ Describe 'Invoke-TcpkAudit refuses an unreadable target loudly' {
         # nothing. We do not need to fabricate a WindowsApps ACL to prove the guard fires.
         $out = Join-Path ([IO.Path]::GetTempPath()) ('tcpk-out-' + [guid]::NewGuid().ToString('N').Substring(0,8))
         try {
-            $rows = @(Invoke-TcpkAudit -Target $script:empty -Acknowledge -OutDir $out -ScanProfile Quick 3>$null 2>$null | Where-Object { $_.RuleId -eq 'scan.target-unreadable' })
+            # Capture before filtering: Invoke-TcpkAudit returns the findings array atomically
+            # (', $findings'), so piping it straight into Where-Object hands the whole array to
+            # $_ as one object and $rows[0].Severity becomes every severity, not the finding's.
+            $all  = Invoke-TcpkAudit -Target $script:empty -Acknowledge -OutDir $out -ScanProfile Quick 3>$null 2>$null
+            $rows = @($all | Where-Object { $_.RuleId -eq 'scan.target-unreadable' })
             $rows.Count | Should -BeGreaterThan 0
             $rows[0].Severity | Should -Be 'HIGH'
             $rows[0].Confidence | Should -Be 'Confirmed'
