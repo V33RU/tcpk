@@ -4220,7 +4220,7 @@ $hexCtxCopyHex = $hexCtxMenu.Items.Add('Copy page as hex string')
 $hexCtxCopyC = $hexCtxMenu.Items.Add('Copy page as C array')
 $hexCtxCopyPy = $hexCtxMenu.Items.Add('Copy page as Python bytes')
 $hexCtxCopyPs = $hexCtxMenu.Items.Add('Copy page as PS byte[]')
-$hexCtxMenu.Items.Add('-')
+[void]$hexCtxMenu.Items.Add('-')   # ContextMenuStrip turns '-' into a ToolStripSeparator and returns it; void it so it does not print to stdout
 $hexCtxBmk = $hexCtxMenu.Items.Add('Bookmark this offset')
 $txtHex.ContextMenuStrip = $hexCtxMenu
 $hexCenter.Controls.Add($txtHex); $txtHex.BringToFront()
