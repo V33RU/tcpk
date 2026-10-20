@@ -150,6 +150,10 @@ Restart the client. You should see **10 `tcpk_*` tools** become available.
 **Compose with other MCP servers:**
 > "Run tcpk_audit, then for every CRITICAL finding create an issue via my Jira MCP server."
 
+For a full library of ready-to-use workflow prompts (full assessment, lead triage, secret
+hunt, decompile review, CVE report, attack path, PoC, demo), see
+[MCP-PROMPTS.md](MCP-PROMPTS.md).
+
 ---
 
 ## 5. Authorization & safety
