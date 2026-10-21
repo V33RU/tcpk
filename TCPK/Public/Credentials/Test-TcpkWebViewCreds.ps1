@@ -213,8 +213,8 @@ function Test-TcpkWebViewCreds {
                 "$PackageFamilyName. $precondNote $descContent " +
                 'Protected by user DPAPI (EdgeMaster Key) against other OS users; ' +
                 'readable by any process running as the current user.') `
-            -Fix 'For sensitive auth flows, clear the WebView2 profile on logout ' +
+            -Fix ('For sensitive auth flows, clear the WebView2 profile on logout ' +
                 '(CoreWebView2.CookieManager.DeleteAllCookies, or wipe the User Data directory). ' +
-                'Do not persist long-lived session cookies in the WebView2 profile.'
+                'Do not persist long-lived session cookies in the WebView2 profile.')
     }
 }

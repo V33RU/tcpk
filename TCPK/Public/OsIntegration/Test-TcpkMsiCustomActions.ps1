@@ -52,9 +52,9 @@ function Test-TcpkMsiCustomActions {
             -Description ('Both HKLM and HKCU AlwaysInstallElevated are set to 1. Any user on the ' +
                 'machine can craft a minimal .msi that runs a custom action as SYSTEM, achieving ' +
                 'full local privilege escalation. This is T1218.007 (MITRE ATT&CK).') `
-            -Fix 'Disable AlwaysInstallElevated via GPO: Computer and User Configuration -> ' +
+            -Fix ('Disable AlwaysInstallElevated via GPO: Computer and User Configuration -> ' +
                 'Administrative Templates -> Windows Components -> Windows Installer -> ' +
-                '"Always install with elevated privileges" = Disabled.'
+                '"Always install with elevated privileges" = Disabled.')
     }
 
     # ------------------------------------------------------------------
