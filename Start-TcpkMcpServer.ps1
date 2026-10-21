@@ -109,9 +109,27 @@ function Get-BoolArg($arguments, [string]$name, [bool]$default = $false) {
 # from %TEMP% for that reason. Confining reads would have broken a real workflow to close
 # a hole that the UNC refusal already closes: what is left is a local file read whose
 # content flows into model context, and the operator chose the client and the target.
+# A caller-supplied path is UNC or a device namespace if it starts with ANY two separators
+# (\\ // /\ \/). Windows normalizes a mixed leading pair into a UNC, so a single-form check
+# like ^(\\|//) was bypassable; \\?\ and \\.\ device paths also start with two separators.
+function Test-TcpkUncOrDevice([string]$p) {
+    if (-not $p) { return $false }
+    return ($p -match '^[\\/]{2}')
+}
+
+# Refuse a UNC/device INPUT path before it reaches the filesystem. Get-Item on \\host\share
+# performs SMB session setup and hands this machine's Net-NTLMv2 to the named host before the
+# file-exists check returns, with nothing shown. Reads stay otherwise unconfined (a local path
+# or a mapped drive is fine); only UNC/device is refused, the same intent as the outDir guard.
+function Assert-SafeInputPath([string]$path, [string]$what = 'path') {
+    if (Test-TcpkUncOrDevice $path) {
+        throw "Refused $what '$path': UNC and device paths authenticate this machine to the named host. Use a local path."
+    }
+}
+
 function Resolve-SafeOutDir([string]$path, [string]$toolName, [switch]$ForWrite) {
     if (-not $path) { throw "$toolName requires an outDir." }
-    if ($path -match '^(\\\\|//)') {
+    if (Test-TcpkUncOrDevice $path) {
         throw "$toolName refused outDir '$path': UNC and device paths authenticate this machine to the named host. Use a local path."
     }
     $rootFull = [IO.Path]::GetFullPath($PSScriptRoot)
@@ -144,7 +162,7 @@ $script:ToolHandlers = @{
 
     'tcpk_recon_profile' = {
         param($a)
-        $target = Get-Arg $a 'target'
+        $target = Get-Arg $a 'target'; Assert-SafeInputPath $target 'target'
         if (-not $target) { throw "Missing required argument: target" }
         $findings = @()
         $p = Get-TcpkTargetProfile -Path $target -Findings $findings 2>$null 3>$null 4>$null 5>$null 6>$null
@@ -153,7 +171,7 @@ $script:ToolHandlers = @{
 
     'tcpk_strings' = {
         param($a)
-        $target = Get-Arg $a 'target'
+        $target = Get-Arg $a 'target'; Assert-SafeInputPath $target 'target'
         if (-not $target) { throw "Missing required argument: target" }
         $s = Get-TcpkReconStrings -Path $target 2>$null 3>$null 4>$null 5>$null 6>$null
         return ($s | ConvertTo-Json -Depth 5)
@@ -161,7 +179,7 @@ $script:ToolHandlers = @{
 
     'tcpk_cve_match' = {
         param($a)
-        $target = Get-Arg $a 'target'
+        $target = Get-Arg $a 'target'; Assert-SafeInputPath $target 'target'
         if (-not $target) { throw "Missing required argument: target" }
         $incl = Get-BoolArg $a 'includePatched' $false
         $m = if ($incl) { Get-TcpkCveMatches -Path $target -IncludePatched 2>$null 3>$null 4>$null 5>$null 6>$null }
@@ -171,7 +189,7 @@ $script:ToolHandlers = @{
 
     'tcpk_list_modules' = {
         param($a)
-        $target = Get-Arg $a 'target'
+        $target = Get-Arg $a 'target'; Assert-SafeInputPath $target 'target'
         if (-not $target) { throw "Missing required argument: target" }
         $r = & $script:TcpkMod { param($t) Get-TcpkAgentModules -Target $t -Summary } $target
         return ($r | ConvertTo-Json -Depth 6)
@@ -179,7 +197,7 @@ $script:ToolHandlers = @{
 
     'tcpk_decompile' = {
         param($a)
-        $dll = Get-Arg $a 'dll'
+        $dll = Get-Arg $a 'dll'; Assert-SafeInputPath $dll 'dll'
         if (-not $dll) { throw "Missing required argument: dll" }
         $method = Get-Arg $a 'method'
         # With a method -> its IL, each instruction flagged when it calls a sink.
@@ -206,7 +224,7 @@ $script:ToolHandlers = @{
 
     'tcpk_audit' = {
         param($a)
-        $target = Get-Arg $a 'target'
+        $target = Get-Arg $a 'target'; Assert-SafeInputPath $target 'target'
         if (-not $target) { throw "Missing required argument: target" }
 
         # Unpacking an .msi means RUNNING it. Expand-TcpkTarget routes '^\.msi$' to
@@ -346,7 +364,7 @@ $script:ToolHandlers = @{
         if (-not $pattern) {
             return ((Get-TcpkFileStructure -ListPatterns | Select-Object Name, Fields) | ConvertTo-Json -Depth 4)
         }
-        $target = Get-Arg $a 'target'
+        $target = Get-Arg $a 'target'; Assert-SafeInputPath $target 'target'
         if (-not $target) { throw "Missing required argument: target" }
         $base = [int64]0
         $bt = "$(Get-Arg $a 'baseOffset' 0)"
@@ -357,7 +375,7 @@ $script:ToolHandlers = @{
 
     'tcpk_embedded_blobs' = {
         param($a)
-        $target = Get-Arg $a 'target'
+        $target = Get-Arg $a 'target'; Assert-SafeInputPath $target 'target'
         if (-not $target) { throw "Missing required argument: target" }
         $f = @(Test-TcpkEmbeddedBlobs -Path $target 2>$null 3>$null 4>$null 5>$null 6>$null)
         return (($f | Select-Object RuleId, Severity, Title, File, Evidence) | ConvertTo-Json -Depth 5)
@@ -365,7 +383,7 @@ $script:ToolHandlers = @{
 
     'tcpk_byte_search' = {
         param($a)
-        $target = Get-Arg $a 'target'
+        $target = Get-Arg $a 'target'; Assert-SafeInputPath $target 'target'
         if (-not $target) { throw "Missing required argument: target" }
         $q = Get-Arg $a 'query'
         if (-not $q) { throw "Missing required argument: query" }
@@ -382,8 +400,8 @@ $script:ToolHandlers = @{
 
     'tcpk_file_diff' = {
         param($a)
-        $x = Get-Arg $a 'target'
-        $y = Get-Arg $a 'compareTo'
+        $x = Get-Arg $a 'target'; Assert-SafeInputPath $x 'target'
+        $y = Get-Arg $a 'compareTo'; Assert-SafeInputPath $y 'compareTo'
         if (-not $x -or -not $y) { throw "tcpk_file_diff needs both target and compareTo." }
         $r = & $script:TcpkMod { param($p, $q) Get-TcpkFileDiffSummary -PathA $p -PathB $q } $x $y
         return ([ordered]@{
@@ -419,7 +437,7 @@ $script:ToolHandlers = @{
                 "Poisoned update manifest: $o"
             }
             'New-TcpkProxyDll' {
-                $victim = Get-Arg $a 'componentPath'
+                $victim = Get-Arg $a 'componentPath'; Assert-SafeInputPath $victim 'componentPath'
                 if (-not $victim) { throw "New-TcpkProxyDll requires componentPath (the victim DLL)." }
                 New-TcpkProxyDll -Path $victim -OutDir $outDir *>$null
                 "Proxy-DLL scaffold in: $outDir"
