@@ -228,14 +228,14 @@ function Start-TcpkWebAuditJob {
     if (-not $target) { return (New-TcpkWebJson 400 @{ error = "target not found or invalid: $rawTarget" }) }
 
     $jobId = [guid]::NewGuid().ToString('N')
-    # Write reports to a persistent, discoverable <repo-parent>\out\<target>_<stamp> folder -- the
-    # SAME location the desktop GUI uses -- instead of a throwaway %TEMP% dir. Tests pass
-    # $State.OutRoot to redirect the output root; falls back to <tool folder>\work\out\ if the
-    # root cannot resolve. Never outside the tool folder.
+    # Write reports under the tool WORK folder (never %TEMP%/CWD, never outside the tool folder,
+    # per the work-dir directive). $State.OutRoot explicitly redirects the root (tests, or a caller
+    # that wants a shared location); with no override the default is <tool folder>\work\out\ via
+    # Get-TcpkWorkDir, not the tool folder's parent.
     $stamp = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
     $leaf = try { Split-Path $target -Leaf } catch { '' }; if (-not $leaf) { $leaf = 'audit' }
-    $outRoot = if ("$($State.OutRoot)") { "$($State.OutRoot)" } else { try { Split-Path -Parent (Split-Path -Parent $script:TcpkRoot) } catch { $null } }
-    $outDir = if ($outRoot) { Join-Path $outRoot "work\out\${leaf}_$stamp" } else { Get-TcpkWorkDir -Kind 'out' -Leaf ("web-" + $jobId) -NoCreate }
+    $outRoot = if ("$($State.OutRoot)") { "$($State.OutRoot)" } else { $null }
+    $outDir = if ($outRoot) { Join-Path $outRoot "work\out\${leaf}_$stamp" } else { Get-TcpkWorkDir -Kind 'out' -Leaf "${leaf}_$stamp" -NoCreate }
     if (-not (Test-Path -LiteralPath $outDir)) { New-Item -ItemType Directory -Path $outDir -Force | Out-Null }
     $pauseFlag = Join-Path (Get-TcpkWorkDir -Kind 'run') ("webpause-" + $jobId + ".flag")
 

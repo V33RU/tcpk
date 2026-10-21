@@ -61,7 +61,7 @@ function Invoke-TcpkSweep {
         [string[]]$Target,
         [string]$AppName,
         [string[]]$Root,
-        [string]$OutDir = '.\tcpk-sweep',
+        [string]$OutDir = '',
         [switch]$Acknowledge,
         [switch]$EnableLlm,
         [switch]$AllowCloudLlm,
@@ -84,6 +84,13 @@ function Invoke-TcpkSweep {
     if ($AppName) { foreach ($d in (Get-TcpkInstallLocations -AppName $AppName -Root $Root)) { & $add $d } }
     if ($Target)  { foreach ($t in $Target) { & $add $t } }
     if (-not $set.Count) { throw "Invoke-TcpkSweep: no targets resolved. Use -Target and/or -AppName." }
+
+    # Default the output root to the tool work folder (never CWD), same as Invoke-TcpkAudit.
+    if (-not $OutDir) {
+        $leaf = if ($AppName) { "$AppName" } else { 'sweep' }
+        $leaf = $leaf -replace '[^\w.-]', '_'
+        $OutDir = Get-TcpkWorkDir -Kind 'out' -Leaf ("${leaf}_" + (Get-Date -Format 'yyyy-MM-dd_HH-mm-ss')) -NoCreate
+    }
 
     Write-TcpkInfo "Sweep: $($set.Count) target(s) -> $OutDir"
     New-Item -ItemType Directory -Path $OutDir -Force -ErrorAction SilentlyContinue | Out-Null
