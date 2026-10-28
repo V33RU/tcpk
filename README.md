@@ -96,6 +96,33 @@ Full check catalogue in [`docs/CHECKS.md`](docs/CHECKS.md); the 55-case thick-cl
 auto-correlated in the Excel **Checklist** sheet (31 of 55 fully automated, 23 partial, 1 gap). Full technical write-up at
 [v33ru.github.io/tcpk](https://v33ru.github.io/tcpk/).
 
+## GUI tabs
+
+Status: ✅ shipped &nbsp;|&nbsp; 🚧 in development &nbsp;|&nbsp; 📋 planned
+
+| Tab | Function | Status |
+|---|---|:---:|
+| Dashboard | Posture, proven-vs-leads split, severity + CVSS charts | ✅ |
+| Audit | Run the full audit over a target | ✅ |
+| Recon | Target profile, runtime, UI, attack-surface map | ✅ |
+| Exploits | Gated, generate-only PoC builders | ✅ |
+| SBOM | CycloneDX component inventory + hashes | ✅ |
+| Hardening | PE mitigations (ASLR/DEP/CFG/GS/...) | ✅ |
+| Signing | Authenticode signer/trust matrix | ✅ |
+| Logs | Run log / console stream | ✅ |
+| Intercept | Proxy + Frida capture review, tamper | 🚧 |
+| Pcap | Wireshark/tshark pcap analysis | 🚧 |
+| Replay | HTTP replay / IDOR / JWT crack + attack | 🚧 |
+| Creds | Stored credentials, DPAPI, vault | 🚧 |
+| Runtime | Live read-only process checks | 🚧 |
+| Asar | Electron `app.asar` unpack + browse | ✅ |
+| Hex | Byte/hex view + string extraction | ✅ |
+| Decompiler | IL (Mono.Cecil) + C# (ILSpy engine) | ✅ |
+| ProcMon | Live process watch + activity capture | ✅ |
+| Graph | Attack-path graph | 🚧 |
+| Dependencies | Dependency tree | 🚧 |
+| Live Edit | In-tool config / rule edit | 🚧 |
+
 ## Supported targets
 
 Path-based: MSIX / AppX / `.msixbundle` / `.zip`, an installed or extracted folder, or a single
