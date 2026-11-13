@@ -118,6 +118,15 @@ $script:TcpkAttackMap = @(
     @{ rx = '^amsi\.';                                                                                   tech = @('T1562.001 Disable or Modify Tools') }
     @{ rx = '^injection\.hollowing';                                                                     tech = @('T1055.012 Process Hollowing') }
     @{ rx = '^injection\.(dll-inject|apc-inject|suspicious-pinvoke)';                                    tech = @('T1055 Process Injection') }
+    # Local LLM inference server: only the network-reachable cases map to a technique. A
+    # loopback-class lead and the INFO records stay unmapped on purpose.
+    @{ rx = '^aiserver\.(bind-all-interfaces|ollama-probllama-version)$';                                tech = @('T1190 Exploit Public-Facing Application') }
+    # MCP host config.
+    @{ rx = '^mcp\.(inline-download-exec|shell-inline-command)$';                                        tech = @('T1059 Command and Scripting Interpreter') }
+    @{ rx = '^mcp\.secret-in-config$';                                                                   tech = @('T1552.001 Credentials In Files') }
+    @{ rx = '^mcp\.unpinned-package$';                                                                   tech = @('T1195.001 Compromise Software Dependencies and Development Tools') }
+    @{ rx = '^mcp\.user-writable-launch$';                                                               tech = @('T1574 Hijack Execution Flow') }
+    @{ rx = '^mcp\.cleartext-endpoint$';                                                                 tech = @('T1557 Adversary-in-the-Middle','T1040 Network Sniffing') }
 )
 
 function Get-TcpkAttackTechnique {

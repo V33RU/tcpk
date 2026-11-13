@@ -243,7 +243,7 @@
       "name": "Windows Firewall rule security",
       "type": "Runtime",
       "coverage": "AUTO",
-      "rule": "^(firewall|ports|selfhost)\\.",
+      "rule": "^(firewall|ports|selfhost)\\.|^aiserver\\.(bind-all-interfaces|local-server)$",
       "manual": "nmap from another host; uninstall-cleanup check."
     },
     {

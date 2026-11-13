@@ -4,6 +4,37 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+`aiserver.bind-all-interfaces` (HIGH), `aiserver.local-server` (MEDIUM). Test-TcpkAiInferenceServer
+reports a local LLM inference server that the target ships (an engine server binary such as
+ollama.exe or llama-server.exe, or script and compiled code that registers model API routes)
+and how it is bound. Only a setting counts as a bind: the engine's host variable or host flag
+in a launcher or configuration file, structured code next to that engine's server binary, or
+the listen call of the code that registers the routes. The same text inside a string literal,
+a locale file or a help screen is shown and never rated. One finding per scan root, not one
+per file; engine libraries and a client of a separately installed server are INFO only.
+Electron and Tauri products are read from their script and configuration files.
+
+`aiserver.unauth-reachable`, `aiserver.origin-unchecked`, `aiserver.ollama-probllama-version`.
+Confirm-TcpkAiInferenceServer is the gated live probe for the above. It sends read-only GET
+requests with no credential, follows no redirect and uses no proxy. A model API counts as
+unauthenticated only when a JSON model list comes back and no probed route asks for a
+credential. Reachability from a web page is observed with a foreign Origin and a foreign Host
+header, not assumed. The CVE-2024-37032 finding needs proven Ollama identity and a version
+below 0.1.34; the exploit is not run. In a sweep of the default ports a listener is reported
+at its severity only when its owning image is under -Path, so the operator's own Ollama is
+not attributed to the target.
+
+`mcp.inline-download-exec` (HIGH), `mcp.secret-in-config`, `mcp.unpinned-package`,
+`mcp.user-writable-launch`, `mcp.broad-filesystem-scope`, `mcp.cleartext-endpoint`.
+Test-TcpkMcpHostConfig audits the MCP host config files a target ships or a project commits.
+The documented Windows wrapper (cmd /c npx ...) is unwrapped and is not a finding by itself;
+shell characters are only read inside a script string. Comments, trailing commas and keys
+that differ only by case are handled so a config cannot hide from the parser on Windows
+PowerShell 5.1. Evidence is default deny: of a command line only the program, option names,
+paths, package references and URLs reduced to host and path are printed, and a script string
+is replaced by its length. An example file or a config inside a bundled dependency is
+inventoried and not rated as live.
+
 `appcontainer.loopback-exempt` (MEDIUM). A packaged app registering a loopback exemption
 (CheckNetIsolation LoopbackExempt, or NetworkIsolationSetAppContainerConfig) turns off the
 network isolation that stops a sandboxed app reaching 127.0.0.1. The nine Project Zero

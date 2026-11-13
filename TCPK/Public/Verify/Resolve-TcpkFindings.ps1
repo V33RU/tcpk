@@ -81,7 +81,7 @@ function Resolve-TcpkFindings {
                 # otherwise aggregating the same secret across e.g. app.exe.config +
                 # app.vshost.exe.config would hide it behind a file list.
                 $aggEvidence = "$n affected: $shown"
-                if ($rep.RuleId -match '^(secrets|entropy|authenticode|truststore|strongname)\.') {
+                if ($rep.RuleId -match '^(secrets|entropy|authenticode|truststore|strongname|aiserver|mcp)\.') {
                     $vals = @($members | ForEach-Object { "$($_.Evidence)" } | Where-Object { $_ } | Select-Object -Unique)
                     if ($vals.Count) {
                         $vShown = ($vals | Select-Object -First 5) -join ' | '

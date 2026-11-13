@@ -123,7 +123,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkMsixProtocols** - B03. URI scheme handlers declared in AppxManifest.xml. Adds a sink-reachability pass: emits `protocol.sink-reachable` (HIGH) when a binary both handles activation args and references a dangerous sink.
 - **Test-TcpkUacManifest** - B09. UAC execution level in embedded RT_MANIFEST (and sidecar .manifest).
 
-## C - OS integration  (46)
+## C - OS integration  (47)
 
 - **Compare-TcpkFileSnapshot** - C19b. Diff two file-system snapshots -- files the app created/modified/deleted at runtime (exec drops HIGH).
 - **Compare-TcpkRegistrySnapshot** - C18b. Diff two registry snapshots (Regshot-style) -- what the app changed.
@@ -149,6 +149,7 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkLoopbackExempt** - C35. The package registers an AppContainer loopback exemption (CheckNetIsolation LoopbackExempt / NetworkIsolationSetAppContainerConfig), turning off the isolation that blocks a sandboxed app from reaching 127.0.0.1. Static scan of shipped scripts and binaries. The AppContainer isolation bypasses are Windows bugs; this flags the vendor removing the boundary itself.
 - **Test-TcpkInstallerPlanting** - C27. Installer / setup-binary DLL planting (T1574.001). Every other DLL check in TCPK inspects an INSTALLED application; this one inspects the installer, which runs from wherever the browser saved it (usually %USERPROFILE%\Downloads) and resolves DLLs from its own directory first. A DLL the installer imports but does not ship beside itself is loaded from the download folder if one is sitting there, and installers are commonly elevated, so the payload lands as Administrator. The attacker never touches the installer, so its signature stays valid. Splits the result: imports resolvable NOWHERE are HIGH/Confirmed (the loader is guaranteed to find nothing), imports that exist in System32 are MEDIUM/Inferred (the app directory still precedes System32, but SafeDllSearchMode and manifest dependencies can change the outcome). api-ms-win-* and ext-ms-* API sets are excluded -- the loader resolves those from a schema, never from disk. Emits a coverage record when nothing was found, so silence means "looked" rather than "never looked".
 - **Test-TcpkKernelDrivers** - C14. Kernel-mode drivers (.sys) shipped or installed by the app.
+- **Test-TcpkMcpHostConfig** - C47. MCP host config files the target ships or a project commits (claude_desktop_config.json, mcp.json and the like). Reports a launcher that downloads and runs remote content, a credential held in the entry, an unpinned fetch-and-run package, a launch target in a user-writable location, a filesystem server granted a broad root, and a cleartext endpoint. Evidence is default deny: an argument value is printed only when its shape cannot be a secret.
 - **Test-TcpkMsiCustomActions** - C28. MSI custom actions that run with elevated (SYSTEM) privileges.
 - **Test-TcpkMsiLaunchConditions** - C26. Whether an installer checks the platform it is about to install onto.
 - **Test-TcpkPersistenceLoadPoints** - C24. Machine-wide Windows persistence load points not covered by the dedicated autostart checks.
@@ -224,8 +225,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkWindowEnumeration** - E12. Top-level windows owned by the process (Shatter / UIA surface).
 - **Test-TcpkWindowMessages** - E12b. Window-message attack surface (WM_COPYDATA injection + drop-files).
 
-## F - Network  (12)
+## F - Network  (13)
 
+- **Test-TcpkAiInferenceServer** - F13. Does the target ship a local LLM inference server (an engine server binary, or code that registers model API routes), and how is it bound. An all-interfaces bind setting is HIGH; an established server with no such setting is MEDIUM. Text in code, locale strings or help screens is never rated. Live proof is Confirm-TcpkAiInferenceServer.
 - **Test-TcpkBackendEndpoints** - F03. Inventory backend API endpoints + inferred auth model.
 - **Test-TcpkCrlOcsp** - F06. CRL / OCSP revocation-checking behavior.
 - **Test-TcpkDnsLeakage** - F05. DNS pre-resolution / hostname leakage indicators.
@@ -316,10 +318,11 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Get-TcpkReconStrings** - R11. Extract + categorize interesting literal strings from first-party binaries.
 - **Get-TcpkTargetProfile** - R00. Recon / fingerprint pass. Builds a target-application profile for the
 
-## Verify / triage  (22)
+## Verify / triage  (23)
 
 - **Invoke-TcpkManagedCarve** - V22. Carves managed assemblies out of a live process's private memory and proves each one by parsing it with Cecil. Covers the fileless `Assembly.Load(byte[])` case that disk-based decompilers cannot see. Rules: `memory.fileless-managed-assembly` (MEDIUM, identity matches no module on disk), `memory.in-memory-managed-assembly` (INFO, packer or resource-embedded dependency), `memory.managed-header-unparsed`, `memory.carve-coverage-capped`.
 
+- **Confirm-TcpkAiInferenceServer** - GATED. Live probe of a local LLM inference server with read-only GET requests and no credential. Reports an unauthenticated model API, whether it also answers a foreign Origin or Host header, and an Ollama version below the fix for CVE-2024-37032 (product identity and version are proven first; the exploit is not run). A listener is attributed to the target only when its owning image is under -Path.
 - **Confirm-TcpkCallsiteUsage** - Deterministic IL verification of callsites.* and deser.* findings: is the flagged API actually invoked, reachable, and fed by external input -- or a false positive?.
 - **Confirm-TcpkCallsites** - Phase-2 confirmation for dangerous-API callsite findings.
 - **Confirm-TcpkDeserialization** - Phase-2 confirmation for unsafe-deserialization findings.
@@ -365,4 +368,4 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 ---
 **Not every cmdlet is documented here.** The remainder are reachable via `Get-Command -Module TCPK`.
 Run `Get-TcpkInfo` for the authoritative live count, which is computed from the module folder rather than
-from this page (335 cmdlets across 19 categories, 227 of them `Test-*` detection checks).
+from this page (340 cmdlets across 19 categories, 228 of them `Test-*` detection checks).

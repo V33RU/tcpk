@@ -436,6 +436,59 @@ function Get-TcpkVerifyHint {
                 -Note "replace <vendor> with the app's publisher name." `
                 -Tool "PowerShell (alternative: certlm.msc)"
         }
+        '^aiserver\.(bind-all-interfaces|local-server)$' {
+            # Static lead: File is a shipped file, not an endpoint. Take the port from the
+            # Evidence when it names one, so the command runs as written. Address text the
+            # Evidence itself marks as not rated is not used.
+            $aiEv = "$Evidence" -replace 'all-interfaces address text seen but not rated: [^|;]*', ''
+            $aiPort = '<port>'
+            $aiNote = "run the app first. Replace <port> with the port the bundled server listens on (Get-NetTCPConnection -State Listen shows it)."
+            $aiFound = ''
+            if ($aiEv -match '(?:0\.0\.0\.0|127\.0\.0\.1|localhost|\[::1?\]):([0-9]{2,5})(?![0-9])') { $aiFound = $matches[1] }
+            elseif ($aiEv -match '(?:port=|--port |\.listen\()([0-9]{2,5})(?![0-9])') { $aiFound = $matches[1] }
+            if ($aiFound) {
+                $aiPort = $aiFound
+                $aiNote = "run the app first. Port $aiPort is the one named in the Evidence; the running server may be configured to use another."
+            } elseif ($aiEv -match 'OLLAMA_HOST=') {
+                $aiPort = '11434'
+                $aiNote = "run the app first. The host variable in the Evidence carries no port; 11434 is that engine's default."
+            }
+            if ($RuleId -match 'bind-all-interfaces') {
+                $aiNote += " To see whether the listener answers from the network, repeat with this machine's LAN address in place of 127.0.0.1."
+            }
+            $aiNote += " aiserver.port-open-unidentified means the port is open but did not answer as a model API: no result either way."
+            Format-TcpkVerifyHint `
+                -What "The finding is a static reading of shipped files. This probes the running inference server with read-only GET requests and no credential, and reports what it answered." `
+                -Run "Enable-TcpkExploit -Acknowledge; Confirm-TcpkAiInferenceServer -Endpoint '127.0.0.1:$aiPort'" `
+                -Vulnerable "aiserver.unauth-reachable is returned: the model API answered a request that carried no credential." `
+                -Ok "nothing is returned (no listener on that port), or aiserver.reachable-authed is returned (the API asked for a credential)." `
+                -Note $aiNote `
+                -Tool "TCPK (gated active probe)"
+        }
+        '^aiserver\.(engine-library|local-llm-client)$' {
+            Format-TcpkVerifyHint `
+                -What "Re-reads the shipped files for inference-engine libraries and loopback inference endpoints." `
+                -Run "Test-TcpkAiInferenceServer -Path '$dir'" `
+                -Info "inventory only. aiserver.engine-library lists in-process tensor / model-runtime libraries, which open no socket. aiserver.local-llm-client means a shipped file holds the address of an inference server that is not part of the target. Neither is a weakness of the target." `
+                -Tool "PowerShell"
+        }
+        '^aiserver\.(unauth-reachable|origin-unchecked|ollama-probllama-version|reachable-authed|port-open-unidentified)$' {
+            # A live finding carries host:port in File; a static lead carries a binary path.
+            $aiEndpoint = '127.0.0.1:<port>'
+            $aiPathNote = "Add -Path '<install-dir>' to check the listener against the target: when the image of the process that owns the port is found outside that folder, the records are reported as INFO and not as target findings."
+            $aiNote = "run the app first; replace <port> with the port the bundled server listens on. $aiPathNote"
+            if ($File -and [regex]::IsMatch($File, '\A(\[[0-9A-Za-z:.%]+\]|[A-Za-z0-9_.\-]+):[0-9]{1,5}\z')) {
+                $aiEndpoint = $File
+                $aiNote = "the server must be running. $aiPathNote"
+            }
+            Format-TcpkVerifyHint `
+                -What "Sends read-only GET requests (/api/tags and /v1/models, then / and /api/version once a model list came back) to the inference server with no credential, and reports what it answered." `
+                -Run "Enable-TcpkExploit -Acknowledge; Confirm-TcpkAiInferenceServer -Endpoint '$aiEndpoint'" `
+                -Vulnerable "aiserver.unauth-reachable is returned: a JSON model list came back with no credential and no probed route asked for one. It is MEDIUM or HIGH on a server identified as Ollama, and LOW on a product that was not identified, where only the model list is shown to be readable and the inference routes are left for a manual check. aiserver.origin-unchecked means the list also came back for a foreign Host header, or for a foreign Origin together with a permissive Access-Control-Allow-Origin." `
+                -Ok "aiserver.reachable-authed (a probed route answered 401, or 403 with WWW-Authenticate) or aiserver.port-open-unidentified (no model list came back) is returned, or nothing is returned because the port is closed." `
+                -Note $aiNote `
+                -Tool "TCPK (gated active probe)"
+        }
         '^selfhost\.' {
             Format-TcpkVerifyHint `
                 -What "Checks whether the app runs its own local HTTP/socket server, and whether that server needs authentication." `
@@ -544,6 +597,15 @@ function Get-TcpkVerifyHint {
                 -Ok "no collision, or the real tool resolves first / the alias name is unique to this app." `
                 -Note "alias stubs live in %LOCALAPPDATA%\Microsoft\WindowsApps (a per-user, user-writable PATH dir)." `
                 -Tool "PowerShell (where.exe / Get-Command)"
+        }
+        '^mcp\.' {
+            Format-TcpkVerifyHint `
+                -What "Re-reads the MCP host config and lists every server entry with the rules that fired on it." `
+                -Run "Test-TcpkMcpHostConfig -Path '$f' | Format-List Severity,RuleId,Title,Evidence" `
+                -Vulnerable "the entry named in the Title is still in the file and the Evidence matches what the file says (secrets are masked in the output; compare by location, not by value)." `
+                -Ok "the entry is gone, or was changed to a fixed program, a pinned package, a reference instead of a literal credential, or an https / wss endpoint. Disabling an entry clears its launch and endpoint findings, not a credential stored in it." `
+                -Note "this is a static read of the file. Open it next to the output to confirm which host loads it." `
+                -Tool "TCPK / PowerShell"
         }
         default {
             Format-TcpkVerifyHint `

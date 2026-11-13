@@ -33,7 +33,7 @@ function Get-TcpkAttackSurface {
             @{ Key='ipc-com';         Label='COM / DCOM servers';        Rx='comobject|comserver|comhijack|msixcom';           W=7 }
             @{ Key='ipc-rpc';         Label='RPC surface';               Rx='rpcsurface|rpc\.';                                W=7 }
             @{ Key='ipc-other';       Label='Mailslots / ALPC / objects';Rx='mailslot|alpc|namedobject';                       W=5 }
-            @{ Key='net-listen';      Label='Network listeners';         Rx='listeningport|selfhost';                          W=9 }
+            @{ Key='net-listen';      Label='Network listeners';         Rx='listeningport|selfhost|^aiserver\.(bind-all-interfaces|local-server)$'; W=9 }
             @{ Key='net-firewall';    Label='Inbound firewall rules';    Rx='firewall.inbound';                                W=8 }
             @{ Key='web-bridge';      Label='WebView2 / web bridges';    Rx='wv2|webview';                                     W=7 }
             @{ Key='native-exports';  Label='Native export surface';     Rx='pe-exports';                                      W=4 }

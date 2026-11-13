@@ -591,7 +591,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkMsixDeclaredVsUsed'  { Test-TcpkMsixDeclaredVsUsed  -Path $Target   }
     _RunCheck 'Test-TcpkUacManifest'         { Test-TcpkUacManifest         -Path $expanded }
 
-    # ----- Bucket C (OS integration, 38 cmdlets) -----
+    # ----- Bucket C (OS integration, 39 cmdlets) -----
     # Path-targeted
     _RunCheck 'Test-TcpkInstallDirAcl'       { Test-TcpkInstallDirAcl       -Path $expanded }
     _RunCheck 'Test-TcpkFolderAcls'          { Test-TcpkFolderAcls          -Path $expanded }
@@ -608,6 +608,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkInstallerPlanting'   { Test-TcpkInstallerPlanting   -Path $expanded }
     _RunCheck 'Test-TcpkInstallerHostsWrite' { Test-TcpkInstallerHostsWrite -Path $expanded }
     _RunCheck 'Test-TcpkLoopbackExempt'      { Test-TcpkLoopbackExempt      -Path $expanded }
+    _RunCheck 'Test-TcpkMcpHostConfig'       { Test-TcpkMcpHostConfig       -Path $expanded }
     _RunCheck 'Test-TcpkMsiCustomActions'   { Test-TcpkMsiCustomActions    -Path $expanded }
     _RunCheck 'Test-TcpkMsiLaunchConditions' { Test-TcpkMsiLaunchConditions -Path $expanded }
     _RunCheck 'Test-TcpkKernelDrivers'       { Test-TcpkKernelDrivers       -Path $expanded -NameLike $idTerms }
@@ -790,7 +791,7 @@ function Invoke-TcpkAudit {
         $script:TcpkLaunchedProc = $null
     }
 
-    # ----- Bucket F (network, 10 cmdlets) -----
+    # ----- Bucket F (network, 11 cmdlets) -----
     _RunCheck 'Test-TcpkTlsPinning'        { Test-TcpkTlsPinning        -Path $expanded }
     _RunCheck 'Test-TcpkUpdateFlow'        { Test-TcpkUpdateFlow        -Path $expanded }
     _RunCheck 'Test-TcpkBackendEndpoints'  { Test-TcpkBackendEndpoints  -Path $expanded }
@@ -799,6 +800,7 @@ function Invoke-TcpkAudit {
     _RunCheck 'Test-TcpkCrlOcsp'           { Test-TcpkCrlOcsp           -Path $expanded }
     _RunCheck 'Test-TcpkInsecureSchemes'   { Test-TcpkInsecureSchemes   -Path $expanded }
     _RunCheck 'Test-TcpkSelfHostedServer'  { Test-TcpkSelfHostedServer  -Path $expanded }
+    _RunCheck 'Test-TcpkAiInferenceServer' { Test-TcpkAiInferenceServer -Path $expanded }
     _RunCheck 'Test-TcpkRpcChannels'       { Test-TcpkRpcChannels       -Path $expanded }
     _RunCheck 'Test-TcpkGrpcSurface'      { Test-TcpkGrpcSurface       -Path $expanded }
 

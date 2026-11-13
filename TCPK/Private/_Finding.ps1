@@ -252,6 +252,24 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^(tls-bypass|tls-handshake|wcf|truststore)\.|^electron\.cert';                                                                                                         A = 'net-mitm' }
     @{ Rx = '^(scheme|dns|tls)\.';                                                                                                                                   A = 'cleartext-net' }
     @{ Rx = '^(deser|update)\.';                                                                                                                                    A = 'net-rce' }
+    # Local LLM inference servers (Ollama/LM Studio/Jan/GPT4All/AnythingLLM): an HTTP model API
+    # that ships with no auth. Scored as a network service (INFO variants short-circuit above).
+    # aiserver.local-server is the static lead with NO all-interfaces bind found: it is rated
+    # as a loopback-class listener, so it takes a local-flavor archetype (same flavor the
+    # selfhost.* sibling resolves to). Listed first; this table is first-match-wins.
+    @{ Rx = '^aiserver\.local-server$';                                                                                                                             A = 'hardening' }
+    @{ Rx = '^aiserver\.';                                                                                                                                          A = 'net-rce' }
+    # MCP host config: a server entry the AI client launches. Code that arrives over the network
+    # at launch (download-and-execute, an unpinned registry package) is remote code delivery. A
+    # launch target in a profile or temp folder needs a LOCAL writer, so it scores as local
+    # escalation like every other writable-path rule. A credential in the file is a shipped
+    # secret; cleartext is transport; the rest (inline script, filesystem scope) is hardening.
+    # INFO variants (inventory, unparsed) short-circuit before this table.
+    @{ Rx = '^mcp\.(inline-download-exec|unpinned-package)';                                                                                                         A = 'net-rce' }
+    @{ Rx = '^mcp\.user-writable-launch';                                                                                                                            A = 'local-privesc' }
+    @{ Rx = '^mcp\.secret-in-config';                                                                                                                                A = 'shipped-secret' }
+    @{ Rx = '^mcp\.cleartext-endpoint';                                                                                                                              A = 'cleartext-net' }
+    @{ Rx = '^mcp\.';                                                                                                                                                A = 'hardening' }
     # electron.* renderer-config flaws are RCE-class -- EXCEPT electron.outdated-runtime, whose
     # exact CVSS depends on which Chromium/Node CVEs apply (the OSV electron@ver list carries
     # per-CVE scores), so it deliberately falls through to the 'assign per finding' note rather
@@ -373,7 +391,9 @@ function Get-TcpkCvssVector {
     # electron.outdated-runtime is the same case: its true risk is the specific Chromium /
     # Node CVEs that apply (the OSV electron@ver list carries per-CVE scores), so it must NOT
     # inherit a fabricated anchor -- defer to the per-CVE advisory instead.
-    if ($rid -match '^(cve|deps|pkgmanifest)\.' -or $rid -eq 'electron.outdated-runtime') {
+    # aiserver.ollama-probllama-version is a live version match against one published CVE,
+    # emitted only after product identity and version are both proven, so it defers too.
+    if ($rid -match '^(cve|deps|pkgmanifest)\.' -or $rid -eq 'electron.outdated-runtime' -or $rid -eq 'aiserver.ollama-probllama-version') {
         return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = 'See the linked NVD / GHSA advisory for the official CVSS v4.0 score'; Source = 'nvd' }
     }
 

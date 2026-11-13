@@ -80,6 +80,24 @@ $script:TcpkCategoryMap = @(
     @{ rx='^sqli\.';                                                                        area=@('Code Quality'); da=@('DA1 Injection') }
     @{ rx='^creds\.';                                                                       area=@('Sensitive Data Storage'); da=@('DA3 Sensitive Data Exposure') }
     @{ rx='^devartifact\.';                                                                 area=@('Code Quality & Build Settings'); da=@('DA6 Security Misconfiguration') }
+
+    # --- live inference-server probe (Confirm-TcpkAiInferenceServer) -----------------
+    # Exact ids, for the same reason as the session probes above: aiserver.reachable-authed
+    # and aiserver.port-open-unidentified are INFO records of what was seen, not weaknesses.
+    # No risk-class code is assigned here (see the note at the top of this file).
+    @{ rx='^aiserver\.unauth-reachable$';                                                   area=@('Authentication & Session'); da=@() }
+    @{ rx='^aiserver\.origin-unchecked$';                                                   area=@('Network Communication'); da=@() }
+    @{ rx='^aiserver\.ollama-probllama-version$';                                           area=@('Dependencies'); da=@() }
+    # --- static inference-server detector (Test-TcpkAiInferenceServer) ----------------
+    # Exact ids: only the two listener rules are weaknesses. aiserver.engine-library and
+    # aiserver.local-llm-client are INFO inventory records and stay unmapped on purpose.
+    # No risk-class code is assigned here (see the note at the top of this file).
+    @{ rx='^aiserver\.(bind-all-interfaces|local-server)$';                                 area=@('Network Communication'); da=@() }
+    # MCP host config (Test-TcpkMcpHostConfig). Area only: no risk-class code is attached.
+    @{ rx='^mcp\.secret-in-config';                                                         area=@('Sensitive Data Storage'); da=@() }
+    @{ rx='^mcp\.cleartext-endpoint';                                                       area=@('Network Communication'); da=@() }
+    @{ rx='^mcp\.unpinned-package';                                                         area=@('Dependencies'); da=@() }
+    @{ rx='^mcp\.(server-inventory|inline-download-exec|shell-inline-command|user-writable-launch|broad-filesystem-scope|config-unparsed)'; area=@('Platform Interaction'); da=@() }
 )
 
 function Get-TcpkCategoryList {
