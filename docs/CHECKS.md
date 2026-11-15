@@ -1,6 +1,6 @@
 # TCPK - Check Catalogue
 
-Public cmdlets, grouped by bucket. This page covers a subset of the 335 that ship; run
+Public cmdlets, grouped by bucket. This page covers a subset of the 340 that ship; run
 `Get-TcpkInfo` or `Get-Command -Module TCPK` for the authoritative live list.
 **GATED** cmdlets require `Enable-TcpkExploit -Acknowledge`.
 
@@ -12,7 +12,7 @@ For thin-client apps it audits the **client-side binaries** only -- the remote s
 is out of scope (separate web/API engagement), as is the thin-client terminal OS/appliance
 (run TCPK where the Windows PE binaries live, e.g. a Citrix/RDP published-app host).
 
-## A - Static binary analysis  (92)
+## A - Static binary analysis  (93)
 
 - **Get-TcpkPeHardening** - Per-DLL binary-hardening matrix (ASLR / DEP / CFG / HighEntropyVA / ...).
 - **Get-TcpkSigningMatrix** - Per-DLL code-signing matrix (signed / not signed -- information only; SIGNED / CATALOG / UNSIGNED / TAMPERED / UNTRUSTED + signer). Drives the GUI 'DLL Signing' tab, HTML signing table and Excel 'DLL Signing' sheet.
@@ -41,8 +41,9 @@ is out of scope (separate web/API engagement), as is the thin-client terminal OS
 - **Test-TcpkDeviceComm** - A50. Device-communication surface: serial, USB HID/WinUSB/libusb, BLE, Bluetooth Classic and DeviceIoControl driver calls. Reads .NET IL and native PE imports; emits one finding per channel referenced.
 - **Test-TcpkDiagConfig** - A30. Shipped diagnostic/logging framework configs with exposure risk.
 - **Test-TcpkDiscoveryProtocols** - A51. Local-network discovery protocols the client speaks: mDNS, SSDP/UPnP, WS-Discovery, ONVIF, LLMNR/NetBIOS, vendor UDP broadcast.
-- **Test-TcpkDllSideload** - A31. DLL side-loading opportunities via known target DLL names (T1574.002). Examines every first-party PE module (.exe, .dll, .node, .pyd), not just executables, since DLL-to-DLL side-loading is the same primitive. Delay-load imports count too and are called out as the stronger case. Emits one finding per target DLL listing its importers, rather than one per importing module.
+- **Test-TcpkDllSideload** - A31. DLL side-loading opportunities via known target DLL names (T1574.002). Examines every first-party user-mode PE module (.exe, .dll, .node, .pyd, .ocx, .bpl and the other PE extensions the shared enumerator walks), not just executables, since DLL-to-DLL side-loading is the same primitive. Delay-load imports count too and are called out as the stronger case. Emits one finding per target DLL listing its importers, rather than one per importing module.
 - **Test-TcpkDotenvSecrets** - A60. Parses shipped `.env` / `.env.local` / `.env.production` files as `KEY=VALUE` and flags secrets by KEY NAME rather than value entropy - closes the low-entropy blind spot in Test-TcpkEntropySecrets. Rules: `cfg.dotenv-secret-name` HIGH per line whose key matches a curated pattern (`*_PASSWORD`, `*_SECRET`, `*_API_KEY`, `AWS_SECRET_ACCESS_KEY`, `STRIPE_SECRET_KEY`, `JWT_SECRET`, ...) with a non-placeholder value, `cfg.dotenv-secret-url-embedded` CRITICAL when a value is a URL containing `user:pass@`, `cfg.dotenv-shipped-in-release` LOW inventory rule for every `.env` in the tree (downgrades for `.env.example` / `.env.sample` / `.env.template`). Values are masked in evidence.
+- **Test-TcpkDotLocalRedirection** - A52. DotLocal (`.local`) DLL redirection in the shipped tree: a `<module>.local` file or folder next to a binary, which makes that binary resolve DLLs from its own directory first.
 - **Test-TcpkDotnetHostHijack** - A43. Modern .NET host redirection (T1574.012 / T1574.001). Covers the .NET Core / 5+ vectors that replaced AppDomainManager injection: CLR profiler (COR_PROFILER / CORECLR_PROFILER, an unmanaged DLL loaded before any managed code runs), DOTNET_STARTUP_HOOKS, runtimeconfig.json additionalProbingPaths, writable runtimeconfig.json / deps.json, and single-file bundle extraction (DOTNET_BUNDLE_EXTRACT_BASE_DIR). Findings are split by attribution: the app's own files and shipped launchers are vendor-reportable, while profiler and hook variables already set in the machine or user environment are labelled as environment state the vendor cannot fix, and are reported only when they resolve to something.
 - **Test-TcpkElectron** - A24. Electron / Chromium-embedded insecure configuration (renderer flags incl. nodeIntegration / contextIsolation / sandbox / webSecurity / nodeIntegrationInSubFrames / experimentalFeatures / enableBlinkFeatures / nodeIntegrationInWorkers / webviewTag / webSQL / experimentalCanvasFeatures). Also flags TLS certificate-validation bypass in the bundled JS (electron.cert-validation-bypass, electron.cert-error-accept-all): a setCertificateVerifyProc with no callback(-2) reject path, rejectUnauthorized:false, NODE_TLS_REJECT_UNAUTHORIZED=0, or an accept-all certificate-error handler.
 - **Test-TcpkElectronFuses** - A42. Electron Fuses audit: parses the @electron/fuses wire from the app binary and flags insecure fuse states as Confirmed facts (EnableCookieEncryption off = plaintext cookies; RunAsNode / EnableNodeCliInspectArguments on = node-exec / --inspect LOLBins; EnableNodeOptionsEnvironmentVariable on = NODE_OPTIONS=--require ./x.js LPE under the signed app identity; EnableEmbeddedAsarIntegrityValidation off = tamperable app.asar) plus a full fuse-posture summary.

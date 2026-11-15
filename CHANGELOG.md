@@ -4,6 +4,68 @@ Release history for TCPK. Newest first.
 
 ## Unreleased
 
+Fix: five checks read PE imports in a shape the reader never returned, so they found nothing.
+`Get-TcpkPeFunctionImports` threw on its own ordinal-flag literal and returned nothing for any
+PE with an import table, which left `Test-TcpkHollowingApis` unable to tell an imported API
+from a string reference (its HIGH rules could not fire). `Test-TcpkVendorDriverAcl`,
+`Test-TcpkPacker` (`packer.licensing-drm`), `Get-TcpkDependencyTree` and the agent's native-PE
+summary read a `.Module` / `.DllName` property off what is a plain DLL name string. All five
+now read the names the reader returns. The function-import reader also keeps the names of
+every descriptor that names the same DLL, reads tables that only have FirstThunk, and has a
+total work bound. `Get-TcpkDependencyTree` reports API set contracts as `API-SET` instead of
+missing and resolves KnownDLLs from the system directory. Expect findings these checks never
+produced before. Guard: `PeImportContract.Tests.ps1`.
+
+The shared PE enumerator (`Get-TcpkPeFiles`) now also returns PE images that ship under
+another extension: `.ocx`, `.bpl`, `.cpl`, `.scr`, `.drv`, `.ax`, `.xll`, `.acm`, `.com`,
+`.ime`, `.vst3`, `.arx`, and ClickOnce `.deploy` files whose inner extension is one of the PE
+types (`app.exe.deploy`). Before, only `.exe`, `.dll`, `.sys`, `.node` and `.pyd` were walked,
+so the signature, hardening, import, side-load and packer checks never opened an ActiveX
+control or a Delphi package. `Test-TcpkDllSideload` had its own narrower list on top of
+that and now takes every user-mode image the enumerator returns.
+
+`Test-TcpkHollowingApis` can now see imported APIs, which made its APC rule reachable. That
+rule had no Chromium runtime gate while the hollowing and DLL-inject rules did, so a
+Chromium binary with the two-API APC pair would have been rated HIGH. It now gets the same
+INFO treatment as the other two.
+
+Fix: seven places where a scan silently skipped files or lost its result. Guard:
+`ScanBlindSpots.Tests.ps1`.
+- Three places decoded bytes with `[Text.Encoding]::Latin1`, a property that exists only from
+  .NET 5. On Windows PowerShell 5.1 it is null and the call throws.
+  `Test-TcpkChromiumCleartextStores` then skipped every store file. In
+  `Test-TcpkMemoryRegions` the statically linked V8 marker was never found, so on Electron
+  targets the RWX-region findings were rated HIGH and MEDIUM instead of INFO. The GUI raw
+  editor could not load or save. All three now use code page 28591.
+- `Test-TcpkMsiCustomActions` threw from its own error handler (wrong parameters to the
+  scan-skip recorder) whenever an MSI could not be opened or had no CustomAction table, and
+  the audit then discarded all of the check's findings. A single file is opened only when it
+  is an `.msi` or a merge module (`.msm`), which is now also read in a folder walk.
+- The signature check was given the package, so binaries extracted from an `.msi` or `.zip`
+  target never got a signature finding. The extracted tree now gets its own pass.
+- The framework-name filter also hid `NLog.config`, `log4net.config`, `Serilog.json` and
+  `system.ini` from the secret, entropy and key-literal scans. A file named after a library
+  with only a config extension is the vendor's settings file and is scanned.
+- The licence-text filter matched any name beginning with license, notice or credits. It now
+  needs a document extension (or none), so `LicenseServer.exe.config`, `license.lic` and
+  `LicenseManager.dll` are scanned.
+- New rule `secrets.db-connection-string-password-first`: a connection string with the
+  password before the server, the order Windows writes into `.udl` and `.odc` files. The
+  existing rules only matched server first. All three connection-string rules now need a
+  separator before `password` / `pwd` and ignore a boolean or numeric value, so
+  `SavePassword=True` or `RememberPwd=1` is no longer reported as an embedded password.
+- `cert.expired` / `cert.expiring-soon` could not parse the date openssl prints and never
+  fired.
+
+Seven LLM provider API-key rules added to the secret scanner (`Test-TcpkSecrets`):
+Hugging Face (`hf_`), Groq (`gsk_`), xAI (`xai-`), OpenRouter (`sk-or-v1-`), Replicate
+(`r8_`), Perplexity (`pplx-`) and NVIDIA (`nvapi-`). Each rule is anchored to the
+provider's distinctive token prefix and the documented body length, so it does not fire
+on an env-var name (HF_HOME), a base URL or a placeholder. Providers whose keys have no
+distinctive shape (Mistral, Cohere, bare Azure OpenAI, DeepSeek) are deliberately not
+added: a prefixless rule would be a false-positive generator. Each rule has a loss-free
+prefilter and a SecretPrefilter regression case.
+
 `aiserver.bind-all-interfaces` (HIGH), `aiserver.local-server` (MEDIUM). Test-TcpkAiInferenceServer
 reports a local LLM inference server that the target ships (an engine server binary such as
 ollama.exe or llama-server.exe, or script and compiled code that registers model API routes)
