@@ -74,11 +74,20 @@ function Test-TcpkMsiCustomActions {
     # means the action is scheduled deferred/rollback/commit AND runs without
     # impersonating the user (i.e., as the install token = SYSTEM on admin installs).
     # ------------------------------------------------------------------
-    $msiFiles = if (Test-Path $Path -PathType Leaf) {
-        @(Get-Item $Path)
+    # A single file is opened only when it is an installer database: the audit hands this
+    # check whatever the target is. That is an .msi or a merge module (.msm), which has the
+    # same format and its own CustomAction table. A patch (.msp) is left out: it is a
+    # different storage that OpenDatabase does not read as a database in this mode.
+    # A folder is walked with -LiteralPath so a path containing [ or ] is not read as a
+    # wildcard, and the extension is tested again because a '*.msi' filter also matches 8.3
+    # short names (setup.msix).
+    $msiFiles = @()
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        $one = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+        if ($one -and ($one.Extension -ieq '.msi' -or $one.Extension -ieq '.msm')) { $msiFiles = @($one) }
     } else {
-        @(Get-ChildItem -Path $Path -Recurse -Filter '*.msi' -File -ErrorAction SilentlyContinue |
-          Select-Object -First 20)
+        $msiFiles = @(Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -ieq '.msi' -or $_.Extension -ieq '.msm' } | Select-Object -First 20)
     }
     if (-not $msiFiles.Count) { return }
 
@@ -156,7 +165,11 @@ function Test-TcpkMsiCustomActions {
                         'Consider using WiX Burn (Bootstrapper) with a separate elevated service instead.')
             }
         } catch {
-            Add-TcpkScanSkip -Rule 'msi.custom-actions' -Path $msi.FullName -Reason $_.Exception.Message
+            # Reached when the database cannot be opened or has no CustomAction table. Record
+            # the file as not read and go on to the next one. This call used to pass parameters
+            # the recorder does not have, so it threw from inside the catch, ended the check and
+            # made the audit discard every finding the check had already produced.
+            try { Add-TcpkScanSkip -Kind 'Unreadable' -ItemPath $msi.FullName } catch { }
         } finally {
             try { if ($db) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($db) | Out-Null } } catch {}
         }

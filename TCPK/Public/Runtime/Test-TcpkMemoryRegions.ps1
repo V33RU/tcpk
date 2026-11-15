@@ -134,7 +134,7 @@ function Test-TcpkMemoryRegions {
                         [System.IO.FileShare]::ReadWrite)
                     $hn = $hfs.Read($hbuf, 0, $hbuf.Length)
                     $hfs.Dispose()
-                    if ($hn -gt 0) { $headerText = [System.Text.Encoding]::Latin1.GetString($hbuf, 0, $hn) }
+                    if ($hn -gt 0) { $headerText = [System.Text.Encoding]::GetEncoding(28591).GetString($hbuf, 0, $hn) }
                 } catch { }
                 if (Test-TcpkIsChromiumRuntime -Name ([System.IO.Path]::GetFileName($mainModPath)) -Text $headerText) {
                     $jitFound.Add('V8 (statically linked)')

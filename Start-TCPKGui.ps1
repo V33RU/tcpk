@@ -6007,7 +6007,7 @@ $tmrLe.Add_Tick({
         $script:LePending = $true
         $raw = $st.PacketBytes
         if ($null -ne $raw) {
-            $txtLeEdit.Text = [System.Text.Encoding]::Latin1.GetString($raw)
+            $txtLeEdit.Text = [System.Text.Encoding]::GetEncoding(28591).GetString($raw)
             $lblLeStatus.Text = "PACKET INTERCEPTED -- $($raw.Length) bytes. Edit and click Forward, Pass Through, or Drop."
             $lblLeStatus.ForeColor = [System.Drawing.Color]::FromArgb(255, 200, 60)
         }
@@ -6032,7 +6032,7 @@ function _LeDecide {
 }
 
 $btnLeForward.Add_Click({
-    $bytes = [System.Text.Encoding]::Latin1.GetBytes($txtLeEdit.Text)
+    $bytes = [System.Text.Encoding]::GetEncoding(28591).GetBytes($txtLeEdit.Text)
     _LeDecide -Decision 'FORWARD' -ReplyBytes $bytes
     $lblLeStatus.Text = "Forwarded modified ($($bytes.Length) bytes)"; $lblLeStatus.ForeColor = [System.Drawing.Color]::FromArgb(80, 200, 100)
 })

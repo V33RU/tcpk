@@ -88,10 +88,21 @@ $script:TcpkFrameworkPrefixes = @(
     'DevExpress.','Telerik.','Syncfusion.'
 )
 
+# A configuration file a vendor writes FOR a library carries the library's name and a config
+# extension and nothing else: NLog.config, log4net.config, Serilog.json, system.ini. That is
+# the vendor's own settings file (often with SMTP or database credentials), not framework
+# code, so the prefix test must not hide it from the content scans. Assembly sidecars keep
+# more name parts (NLog.dll.config, System.Text.Json.xml) and stay framework files; .xml is
+# left out on purpose because <Library>.xml is the library's API documentation.
+$script:TcpkVendorConfigExt = @('config', 'ini', 'json', 'yaml', 'yml', 'toml', 'properties', 'settings', 'cfg', 'conf', 'env')
+
 function Test-TcpkIsFrameworkFile {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Name)
     foreach ($p in $script:TcpkFrameworkPrefixes) {
-        if ($Name.StartsWith($p, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+        if ($Name.StartsWith($p, [StringComparison]::OrdinalIgnoreCase)) {
+            if ($script:TcpkVendorConfigExt -contains $Name.Substring($p.Length)) { return $false }
+            return $true
+        }
     }
     return $false
 }
@@ -141,8 +152,16 @@ function Test-TcpkIsFirstParty {
     # NSIS installer / uninstaller scaffolding (by name and by the Nullsoft content marker)
     if ($lower -match '^(uninstall|un[_-]?install|setup|install|nsis)' -and $lower.EndsWith('.exe')) { return $false }
     if ($Text -and $Text -match 'Nullsoft\.?\s*Install\s*System|NullsoftInst') { return $false }
-    # third-party licence / notice / credits text (not first-party secrets or strings)
-    if ($lower -match '^(licenses?|license|notice|third[-_ ]?party|credits|copyright)' -or $lower -match 'licenses?\.(chromium|electron)') { return $false }
+    # third-party licence / notice / credits TEXT (not first-party secrets or strings). The name
+    # has to look like a document: a licence word at the start AND no extension or a text
+    # document one. Without the extension test this dropped LicenseServer.exe.config,
+    # license.lic and LicenseManager.dll from every scan that asks this question.
+    if ($lower -match '^(licen[cs]es?|notices?|copying|credits|copyright|third[-_ ]?party)') {
+        $docExt = ''
+        try { $docExt = [System.IO.Path]::GetExtension($lower) } catch { }
+        if ($docExt -eq '' -or $docExt -in '.txt', '.md', '.markdown', '.html', '.htm', '.rtf', '.pdf', '.rst') { return $false }
+    }
+    if ($lower -match 'licenses?\.(chromium|electron)') { return $false }
     # A very large PE is a statically-linked runtime (the Electron / Chromium / CEF main
     # binary), NOT first-party code -- the app's own exe/dll is small, but the Electron main
     # exe (named after the app) is ~200 MB with its Chromium markers ~180 MB in, too far to

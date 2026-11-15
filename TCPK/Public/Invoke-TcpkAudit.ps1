@@ -413,7 +413,17 @@ function Invoke-TcpkAudit {
     Reset-TcpkOsvSession
 
     # ----- Bucket A (static binary analysis, 93 cmdlets) -----
-    _RunCheck 'Test-TcpkSignature'           { Test-TcpkSignature           -Path $Target   }
+    _RunCheck 'Test-TcpkSignature'           {
+        Test-TcpkSignature -Path $Target
+        # A package target (.msi, .zip) is verified above as ONE file. The binaries extracted
+        # from it are a separate question and used to get no signature finding at all, so they
+        # get their own pass. MSIX-family packages are left out: their binaries are covered by
+        # the package catalog (Test-TcpkCodeIntegrity).
+        if ($expanded -and ("$expanded" -ne "$Target") -and (Test-Path -LiteralPath $expanded -PathType Container) -and
+            ([System.IO.Path]::GetExtension("$Target").ToLowerInvariant() -notin '.msix', '.appx', '.msixbundle', '.appxbundle')) {
+            Test-TcpkSignature -Path $expanded
+        }
+    }
     # Missing binary-hardening (ASLR/DEP/CFG/HighEntropyVA) is reported as POSTURE in
     # the GUI Hardening tab (Get-TcpkPeHardening -> hardening.json, below), NOT as
     # findings: a missing mitigation is defense-in-depth, not an exploitable bug on its

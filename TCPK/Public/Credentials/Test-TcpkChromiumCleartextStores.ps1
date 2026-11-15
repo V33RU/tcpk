@@ -142,7 +142,7 @@ function Test-TcpkChromiumCleartextStores {
                             $n = $fs.Read($buf, 0, $buf.Length)
                             $fs.Dispose()
                             if ($n -gt 0) {
-                                $text = [System.Text.Encoding]::Latin1.GetString($buf, 0, $n)
+                                $text = [System.Text.Encoding]::GetEncoding(28591).GetString($buf, 0, $n)
                             }
                         } catch { continue }
                         if (-not $text) { continue }

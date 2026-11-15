@@ -177,6 +177,16 @@ function Test-TcpkCertBundle {
         if ($notAfter) {
             $expiry = $null
             try { $expiry = [DateTime]::Parse($notAfter) } catch { }
+            if (-not $expiry) {
+                # openssl prints the date as 'Jan 31 00:00:00 2020 GMT' (a single-digit day is
+                # padded with a space). The general parser rejects that layout, which left
+                # $expiry empty and both expiry rules unreachable.
+                try {
+                    $styles = [System.Globalization.DateTimeStyles]::AssumeUniversal -bor [System.Globalization.DateTimeStyles]::AdjustToUniversal
+                    $expiry = [DateTime]::ParseExact(("$notAfter" -replace '\s+', ' ').Trim(), "MMM d HH:mm:ss yyyy 'GMT'",
+                        [System.Globalization.CultureInfo]::InvariantCulture, $styles).ToLocalTime()
+                } catch { }
+            }
             if ($expiry) {
                 $now = Get-Date
                 if ($expiry -lt $now) {
