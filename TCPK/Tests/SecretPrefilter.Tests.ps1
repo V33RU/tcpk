@@ -11,6 +11,7 @@
 $cases = @(
     @{ rule = 'cleartext-credential';               sample = 'password = "S3cr3t-Value-Z9"' }
     @{ rule = 'db-connection-string-with-password'; sample = 'Server=tcp:db.corp;Database=app;User Id=sa;Password=P@ssw0rd-Z9;' }
+    @{ rule = 'db-connection-string-password-first'; sample = 'Provider=SQLOLEDB.1;Password=P@ssw0rd-Z9;Persist Security Info=True;User ID=sa;Data Source=db.corp' }
     @{ rule = 'azure-sas-token';                     sample = 'https://acct.blob.core.windows.net/c/b?sv=2022-11-02&ss=b&srt=co&sp=r&sig=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQR12' }
     @{ rule = 'aws-access-key-id';                   sample = 'aws_key=AKIAIOSFODNN7EXAMPLE' }
     @{ rule = 'aws-secret-key-context';             sample = 'aws_secret_access_key = wJalrXUtnFEMIzK7MDENGzbPxRfiCYzZZ9LEKEY1234' }
@@ -20,6 +21,16 @@ $cases = @(
     @{ rule = 'stripe-secret';                       sample = ('sk_live_' + ('A' * 24)) }
     @{ rule = 'gcp-service-account-key';            sample = '{"type": "service_account", "project_id": "x", "private_key": "-----BEGIN PRIVATE KEY-----' }
     @{ rule = 'private-key-xml';                     sample = '<RSAKeyValue><Modulus>x</Modulus><D>abcdefghijklmnopqrstuvwxyz0123456789AB</D></RSAKeyValue>' }
+    # LLM provider keys. Bodies are assembled from a single repeated character so the fixture
+    # is not itself a real-token shape (repository push protection blocks those), and the
+    # value is long / clean enough to pass the shared placeholder guard.
+    @{ rule = 'huggingface-token';                   sample = ('key=hf_'       + ('a' * 34)) }
+    @{ rule = 'groq-api-key';                        sample = ('key=gsk_'      + ('a' * 52)) }
+    @{ rule = 'xai-api-key';                          sample = ('key=xai-'      + ('a' * 80)) }
+    @{ rule = 'openrouter-api-key';                  sample = ('key=sk-or-v1-' + ('a' * 64)) }
+    @{ rule = 'replicate-api-token';                 sample = ('key=r8_'       + ('a' * 38)) }
+    @{ rule = 'perplexity-api-key';                  sample = ('key=pplx-'     + ('a' * 48)) }
+    @{ rule = 'nvidia-api-key';                      sample = ('key=nvapi-'    + ('a' * 64)) }
 )
 
 BeforeAll {

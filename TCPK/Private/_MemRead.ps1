@@ -126,7 +126,7 @@ if (-not ('Tcpk.MemRead' -as [type])) {
 #   Multiline      set there, not here, which changes what ^ and $ mean mid-buffer.
 #   the gates      below. Built there, never here.
 #
-# THE GATES ARE NOT AN OPTIMISATION. 47 of the 49 rules carry a literal prefix or a
+# THE GATES ARE NOT AN OPTIMISATION. Nearly every rule carries a literal prefix or a
 # 'prefilter' needle set that makes them meaningful; several are unusable without one.
 # particle-io-access-token is [0-9a-f]{40} at HIGH, gated on 'api.particle.io'. Ungated
 # against a process heap that matches every SHA-1, every certificate thumbprint and every
@@ -144,7 +144,7 @@ function Get-TcpkSecretRegexRules {
     foreach ($r in $rules) {
         if (-not $r.PSObject.Properties['_RX']) {
             # NO RegexOptions.Compiled. It defers IL generation and JIT to first use, so the
-            # cost of building all 49 rules lands on the first file scanned and reads as a
+            # cost of building all the rules lands on the first file scanned and reads as a
             # hang; three rules are variable-length lookbehinds and are the most expensive of
             # the set to build. It also fights the _QuickLit gate directly: that gate exists
             # so a rule whose literal is absent NEVER RUNS, and Compiled pays to JIT every
