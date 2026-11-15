@@ -524,6 +524,19 @@ function Get-TcpkPeFunctionImports {
     }
 }
 
+# Extensions a Windows PE image ships under. Beyond .exe / .dll / .sys these are ordinary PE
+# images with another name: ActiveX controls (.ocx), Delphi packages (.bpl), Control Panel
+# applets (.cpl), screen savers (.scr), legacy drivers (.drv), DirectShow filters (.ax), Excel
+# add-ins (.xll), audio codecs (.acm), .com programs, input method editors (.ime) and plug-in
+# modules (.vst3, .arx). Leaving them out hid them from every check that walks this
+# enumerator. A file that carries one of these names but is not a PE costs nothing: Read-TcpkPe
+# returns $null for it. A HashSet, because the test runs once per file per check.
+$script:TcpkPeExtensions = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($e in '.exe', '.dll', '.sys', '.node', '.pyd',
+               '.ocx', '.bpl', '.cpl', '.scr', '.drv', '.ax', '.xll', '.acm', '.com', '.ime', '.vst3', '.arx') {
+    [void]$script:TcpkPeExtensions.Add($e)
+}
+
 # Convenience: enumerate PEs under a path. Returns FileInfo objects.
 function Get-TcpkPeFiles {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
@@ -557,7 +570,13 @@ function Get-TcpkPeFiles {
         $emitted = 0
         $stopped = $false
         foreach ($f in (Get-TcpkChildItemSafe -Path $Path -File)) {
-            if ($f.Extension.ToLowerInvariant() -notin '.exe', '.dll', '.sys', '.node', '.pyd') { continue }
+            $ext = $f.Extension
+            # ClickOnce publishes every file with a .deploy suffix (app.exe.deploy). The image
+            # is classified by the extension underneath it.
+            if ($ext -ieq '.deploy' -and $f.Name.Length -gt 7) {
+                $ext = [System.IO.Path]::GetExtension($f.Name.Substring(0, $f.Name.Length - 7))
+            }
+            if (-not $script:TcpkPeExtensions.Contains($ext)) { continue }
             if (Test-TcpkCheckBudgetExpired) { $stopped = $true; break }
             $emitted++
             Write-TcpkHeartbeat -Component 'pe-scan' -Index $emitted -Current $f.Name -CurrentBytes $f.Length

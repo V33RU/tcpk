@@ -95,7 +95,11 @@ function Test-TcpkDllSideload {
     # Keyed by DLL name so the finding count stays bounded on large applications.
     $hits = [ordered]@{}
     foreach ($pe in Get-TcpkPeFiles -Path $Path) {
-        if ($pe.Extension.ToLowerInvariant() -notin @('.exe', '.dll', '.node', '.pyd')) { continue }
+        # Every PE image the enumerator yields, not just .exe/.dll: an ActiveX control, a
+        # Delphi package or a ClickOnce .deploy file resolves its imports the same way.
+        # .sys is excluded because a kernel image resolves through the kernel loader, not the
+        # user-mode search order this check models.
+        if ($pe.Extension.ToLowerInvariant() -eq '.sys') { continue }
         if (Test-TcpkIsFrameworkFile $pe.Name) { continue }
         $info = Read-TcpkPe -Path $pe.FullName
         if (-not $info) { continue }
