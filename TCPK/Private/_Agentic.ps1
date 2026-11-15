@@ -684,15 +684,26 @@ function Get-TcpkAgentNativePe {
         'RegSetValueExW'='writes the registry';'RegCreateKeyExW'='creates registry keys';
         'WinVerifyTrust'='signature verification (check if bypassable)';'CryptDecrypt'='decrypts data';'CryptEncrypt'='encrypts data'
     }
+    # $info.Imports holds DLL names. The $risky table is keyed by FUNCTION names, so the
+    # lookup has to run over the imported functions, which come from the function-level reader.
     $imp = @($info.Imports)
+    $fnNames = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::Ordinal)
+    $fnInfo = $null
+    try { $fnInfo = Get-TcpkPeFunctionImports -Path $p } catch { }
+    if ($fnInfo) {
+        foreach ($tbl in @($fnInfo.Imported, $fnInfo.DelayImported)) {
+            if (-not $tbl) { continue }
+            foreach ($k in @($tbl.Keys)) { foreach ($fn in @($tbl[$k])) { if ($fn) { [void]$fnNames.Add("$fn") } } }
+        }
+    }
     $hits = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($fn in ($imp | Select-Object -Unique)) { if ($risky.ContainsKey("$fn")) { $hits.Add([ordered]@{ api = "$fn"; note = $risky["$fn"] }) } }
+    foreach ($fn in ($fnNames | Sort-Object)) { if ($risky.ContainsKey("$fn")) { $hits.Add([ordered]@{ api = "$fn"; note = $risky["$fn"] }) } }
 
     return @{
         file = (Split-Path $p -Leaf); arch = $arch; managed = $false
         hardening = $hard; hardeningStatus = $status; missing = ($missing -join ', ')
         signing = $sign
-        importsTotal = $imp.Count; exportsTotal = @($info.Exports).Count
+        importsTotal = $imp.Count; importedFunctions = $fnNames.Count; exportsTotal = @($info.Exports).Count
         riskyImports = @($hits.ToArray())
         exportsSample = @(@($info.Exports) | Select-Object -First 12)
     }
@@ -2089,7 +2100,7 @@ async function selectNative(path,el){window._dcDll=path;window._dcMethod='';docu
     html+='HARDENING  <span style="color:var('+hc+')">'+esc(r.hardeningStatus)+'</span>'+(r.missing?('   missing: '+esc(r.missing)):'')+'\n';
     html+='   ASLR '+yn(h.ASLR)+'  DEP '+yn(h.DEP)+'  CFG '+yn(h.CFG)+'  HighEntropyVA '+yn(h.HighEntropyVA)+'\n';
     html+='   GS '+esc(h.GS||'N/A')+'   SafeSEH '+esc(h.SafeSEH||'N/A')+'   ForceIntegrity '+yn(h.ForceIntegrity)+'\n';
-    html+='IMPORTS    '+r.importsTotal+' imported / '+r.exportsTotal+' exported\n';
+    html+='IMPORTS    '+r.importsTotal+' modules ('+(r.importedFunctions||0)+' functions) imported / '+r.exportsTotal+' exported\n';
     if((r.exportsSample||[]).length){html+='EXPORTS    '+esc(r.exportsSample.join(', '))+((r.exportsTotal>r.exportsSample.length)?' ...':'')+'\n';}
     $('dcCode').innerHTML=html;
     var ri=r.riskyImports||[];

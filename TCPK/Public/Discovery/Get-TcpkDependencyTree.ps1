@@ -20,7 +20,11 @@ function Get-TcpkDependencyTree {
       FOUND-SYSTEM32 -- resolved to System32 or SysWOW64
       FOUND-WINDOWS  -- resolved to Windows directory
       FOUND-PATH     -- resolved to a PATH directory
+      API-SET        -- an API set contract (api-ms-* / ext-ms-*), routed by the loader; not a file
       MISSING        -- not found in any search location
+
+    A name on this machine's KnownDLLs list is reported as FOUND-SYSTEM32 even when a
+    same-named file sits in the application directory, because the loader uses its own copy.
 
     Each node also reports:
       IsDelayLoad    -- true if the DLL is delay-imported (wider hijack window)
@@ -86,25 +90,64 @@ function Get-TcpkDependencyTree {
     } catch {}
 
     # ---- Parse imports and delay-imports from a PE file using Read-TcpkPe ----
-    # Read-TcpkPe returns an object with Imports and DelayImports arrays.
-    # Each element has a DllName property.
+    # Read-TcpkPe returns Imports and DelayImports as arrays of DLL NAME STRINGS.
+    # (This used to read a .DllName property that a string does not have, so every
+    # file came back with no imports and the tree was always empty.)
     function _GetImports([string]$filePath) {
         try {
             $pe = Read-TcpkPe -Path $filePath
             if (-not $pe) { return @() }
             $result = [System.Collections.Generic.List[hashtable]]::new()
             foreach ($imp in $pe.Imports) {
-                if ($imp.DllName) { $result.Add(@{ Name=$imp.DllName.Trim(); IsDelay=$false }) }
+                $n = "$imp".Trim()
+                if ($n) { $result.Add(@{ Name=$n; IsDelay=$false }) }
             }
             foreach ($imp in $pe.DelayImports) {
-                if ($imp.DllName) { $result.Add(@{ Name=$imp.DllName.Trim(); IsDelay=$true }) }
+                $n = "$imp".Trim()
+                if ($n) { $result.Add(@{ Name=$n; IsDelay=$true }) }
             }
             return $result.ToArray()
         } catch { return @() }
     }
 
+    # KnownDLLs. The loader takes these from its own copy and never searches for them, so a
+    # same-named file in the application directory is not used. The list is read from this
+    # machine's registry. If it cannot be read the set stays empty and such a name is
+    # resolved by the ordinary probe below.
+    $knownDlls = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    try {
+        $kd = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs' -ErrorAction Stop
+        foreach ($prop in $kd.PSObject.Properties) {
+            if ($prop.Name -like 'PS*' -or $prop.Name -like 'DllDirectory*') { continue }
+            $v = "$($prop.Value)".Trim()
+            if ($v -like '*.dll') { $null = $knownDlls.Add($v) }
+        }
+    } catch { }
+
     # ---- Resolve a DLL name to a physical path using the search order ----
     function _ResolveDll([string]$dllName) {
+        # API set contracts are routed by the loader to the DLL that implements them. No file
+        # with that name has to exist, so the name is neither missing nor something that can
+        # be supplied from a folder. Contract names begin with api- or ext-; the match is kept
+        # to the api-ms- / ext-ms- form every published contract uses, so a third-party DLL
+        # that merely starts with "api-" is still resolved as an ordinary file.
+        if ($dllName -like 'api-ms-*' -or $dllName -like 'ext-ms-*') {
+            return @{ Status='API-SET'; ResolvedPath='' }
+        }
+        # The name is raw file content: a packed or truncated image can yield section bytes
+        # here. On .NET Framework (Windows PowerShell 5.1) Path.Combine throws on a name
+        # holding " < > | or a control character, which would end the whole walk and discard
+        # the nodes already resolved. Such a name cannot be a file, so report it as missing.
+        if ($dllName.IndexOfAny([System.IO.Path]::GetInvalidFileNameChars()) -ge 0) {
+            return @{ Status='MISSING'; ResolvedPath='' }
+        }
+        if ($knownDlls.Contains($dllName)) {
+            foreach ($d in @($sys32, $wow64)) {
+                $full = [IO.Path]::Combine($d, $dllName)
+                if ([IO.File]::Exists($full)) { return @{ Status='FOUND-SYSTEM32'; ResolvedPath=$full } }
+            }
+            return @{ Status='FOUND-SYSTEM32'; ResolvedPath='' }
+        }
         $candidates = @(
             @{ Status='FOUND-APPDIR';   Dir=$appDir }
             @{ Status='FOUND-SYSTEM32'; Dir=$sys32  }

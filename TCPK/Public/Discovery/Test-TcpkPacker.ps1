@@ -264,8 +264,10 @@ function Test-TcpkPacker {
         # do not double-report the same wrapper.
         if (-not $packerFound) {
             $drmHit = $null; $drmDll = ''
-            foreach ($imp in $info.Imports) {
-                $mod = "$($imp.Module)".ToLowerInvariant()
+            # Read-TcpkPe imports are DLL name strings. These runtimes are often delay-loaded,
+            # so the delay-import table is checked as well.
+            foreach ($imp in (@($info.Imports) + @($info.DelayImports))) {
+                $mod = "$imp".ToLowerInvariant()
                 if ($licensingDllMap.ContainsKey($mod)) {
                     $drmHit = $licensingDllMap[$mod]
                     $drmDll = $mod

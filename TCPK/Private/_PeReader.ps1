@@ -1,6 +1,9 @@
 # Pure-PowerShell PE reader.
 # Returns: Path, IsPE32Plus, Machine, DllCharacteristics, Imports[], DelayImports[].
 # Returns $null on any parse error (graceful - caller must check).
+# CONTRACT: Imports[] and DelayImports[] are arrays of lower-case DLL NAME STRINGS
+# ('kernel32.dll'). Read the element itself: there is no .DllName or .Module property.
+# Function names per DLL come from Get-TcpkPeFunctionImports below.
 # Fixes the bugs from TCAWin v2's _ReadPe (no bounds checks, foreach-then-bare-literal).
 
 function Read-TcpkPe {
@@ -367,45 +370,76 @@ function Get-TcpkPeFunctionImports {
             return -1
         }
 
-        # Read a null-terminated ASCII name from file offset
+        # Read a null-terminated ASCII name from file offset. One ReadBytes call per name
+        # rather than one ReadByte per character: a large import table has thousands of names.
+        # Same result as before: $null for an empty name or one with no terminator in 256 bytes.
         function _ReadName($off) {
             if ($off -lt 0 -or $off -ge $fs.Length) { return $null }
             $fs.Position = $off
-            $bs = New-Object 'System.Collections.Generic.List[byte]'
-            while ($fs.Position -lt $fs.Length) {
-                $b = $br.ReadByte()
-                if ($b -eq 0) { break }
-                $bs.Add($b)
-                if ($bs.Count -gt 256) { return $null }
+            $buf = $br.ReadBytes(257)
+            $end = [Array]::IndexOf($buf, [byte]0)
+            if ($end -lt 0) {
+                if ($buf.Length -gt 256) { return $null }   # no terminator within 256 bytes
+                $end = $buf.Length                           # name runs to the end of the file
             }
-            if ($bs.Count -eq 0) { return $null }
-            return [System.Text.Encoding]::ASCII.GetString($bs.ToArray())
+            if ($end -eq 0) { return $null }
+            return [System.Text.Encoding]::ASCII.GetString($buf, 0, $end)
         }
 
-        # Walk the OriginalFirstThunk (INT) for one import descriptor.
-        # Returns [string[]] of imported function names (ordinals skipped).
-        function _WalkInt($intRva) {
+        # Ordinal flag: the top bit of a thunk (bit 31 on PE32, bit 63 on PE32+). It is built
+        # with [Convert] and NOT written as a hex literal: PowerShell reads a hex literal whose
+        # top bit is set as a negative signed number (0x80000000 is -2147483648), and casting
+        # that to [uint64] throws. That exception used to abort this function on the first
+        # thunk, so it returned $null for every PE that has an import table.
+        $ordinalFlag = if ($is64) { [Convert]::ToUInt64('8000000000000000', 16) } else { [Convert]::ToUInt64('80000000', 16) }
+        $maxNameRva  = [uint64]2147483647     # a by-name thunk carries a 31-bit RVA
+
+        # Total work bound for one file. Each table walk is capped on its own; this stops a
+        # crafted file from chaining 1000 descriptors of 4096 thunks each. A real import table
+        # is a few thousand thunks, so 50000 is far above any shipping binary and keeps the
+        # worst case to a couple of seconds in PowerShell.
+        $work = @{ Thunks = 0; Max = 50000 }
+
+        # A name read through the FirstThunk fallback is only kept when it looks like a symbol:
+        # an unbound table whose FirstThunk holds something other than hint/name RVAs would
+        # otherwise turn arbitrary section bytes into "imported functions".
+        $symbolRx = [regex]'^[A-Za-z_?@$][\x21-\x7E]{0,255}$'
+
+        # Walk one import name table. Returns the imported function names (ordinals skipped).
+        function _WalkInt($intRva, [bool]$strict = $false) {
             $names = New-Object 'System.Collections.Generic.List[string]'
             $iOff = _R2F $intRva
             if ($iOff -lt 0) { return $names.ToArray() }
             $stride = if ($is64) { 8 } else { 4 }
             $maxEntries = 4096
             for ($k = 0; $k -lt $maxEntries; $k++) {
+                if ($work.Thunks -ge $work.Max) { break }
+                $work.Thunks++
                 $pos = $iOff + ($k * $stride)
                 if (($pos + $stride) -gt $fs.Length) { break }
                 $fs.Position = $pos
                 $thunk = if ($is64) { $br.ReadUInt64() } else { [uint64]$br.ReadUInt32() }
                 if ($thunk -eq 0) { break }
-                $ordinalFlag = if ($is64) { [uint64]0x8000000000000000 } else { [uint64]0x80000000 }
-                if (($thunk -band $ordinalFlag) -ne 0) { continue }   # ordinal import, skip
-                $hinNameRva = [uint32]($thunk -band 0x7FFFFFFF)
-                $hinNameOff = _R2F $hinNameRva
+                if ($thunk -ge $ordinalFlag) { continue }   # import by ordinal: no name to read
+                if ($thunk -gt $maxNameRva)  { continue }   # not a hint/name RVA
+                $hinNameOff = _R2F ([uint32]$thunk)
                 if ($hinNameOff -lt 0) { continue }
                 # IMAGE_IMPORT_BY_NAME: WORD Hint, then BYTE Name[]
                 $n = _ReadName ($hinNameOff + 2)
-                if ($n) { $names.Add($n) }
+                if (-not $n) { continue }
+                if ($strict -and -not $symbolRx.IsMatch($n)) { continue }
+                $names.Add($n)
             }
             return $names.ToArray()
+        }
+
+        # A DLL can be named by more than one descriptor. Keep the names from every one.
+        # Collected in a List per DLL (appending to an array copies it every time, which is
+        # quadratic in the number of descriptors naming one DLL) and turned into the string[]
+        # the callers expect just before returning.
+        function _AddFns($table, $dll, $fns) {
+            if (-not $table.ContainsKey($dll)) { $table[$dll] = New-Object 'System.Collections.Generic.List[string]' }
+            $table[$dll].AddRange([string[]]$fns)
         }
 
         $imported      = @{}
@@ -420,18 +454,23 @@ function Get-TcpkPeFunctionImports {
                     if (($descOff + 20) -gt $fs.Length) { break }
                     $fs.Position = $descOff
                     $oft = $br.ReadUInt32()   # OriginalFirstThunk
-                    $null = $br.ReadUInt32()  # TimeDateStamp
+                    $tds = $br.ReadUInt32()   # TimeDateStamp (non-zero when the image is bound)
                     $null = $br.ReadUInt32()  # ForwarderChain
                     $nRva = $br.ReadUInt32()  # Name RVA (DLL name)
-                    $null = $br.ReadUInt32()  # FirstThunk
+                    $ft  = $br.ReadUInt32()   # FirstThunk
                     if ($nRva -eq 0) { break }
                     $dllName = _ReadName (_R2F $nRva)
                     if (-not $dllName) { continue }
                     $dllName = $dllName.ToLowerInvariant()
-                    $intRva = if ($oft -ne 0) { $oft } else { 0 }
+                    # The name table is OriginalFirstThunk. Some linkers leave it 0 and keep the
+                    # names only in FirstThunk. On disk that array still holds the hint/name RVAs,
+                    # unless the image is bound: then it holds addresses, so it is not walked.
+                    $intRva = $oft
+                    $fallback = $false
+                    if ($intRva -eq 0 -and $tds -eq 0) { $intRva = $ft; $fallback = $true }
                     if ($intRva -ne 0) {
-                        $fns = _WalkInt $intRva
-                        if ($fns.Count) { $imported[$dllName] = $fns }
+                        $fns = _WalkInt $intRva $fallback
+                        if ($fns.Count) { _AddFns $imported $dllName $fns }
                     }
                 }
             }
@@ -459,13 +498,18 @@ function Get-TcpkPeFunctionImports {
                     $dllName = _ReadName (_R2F $dNameRva)
                     if (-not $dllName) { continue }
                     $dllName = $dllName.ToLowerInvariant()
-                    $useRva = if ($intRva2 -ne 0) { $intRva2 } else { $iatRva }
-                    if ($useRva -ne 0) {
-                        $fns = _WalkInt $useRva
-                        if ($fns.Count) { $delayImported[$dllName] = $fns }
+                    # Only the delay name table is walked. The delay IAT on disk holds the
+                    # addresses of the load thunks, never names, so it is not a fallback.
+                    if ($intRva2 -ne 0) {
+                        $fns = _WalkInt $intRva2
+                        if ($fns.Count) { _AddFns $delayImported $dllName $fns }
                     }
                 }
             }
+        }
+
+        foreach ($t in @($imported, $delayImported)) {
+            foreach ($k in @($t.Keys)) { $t[$k] = $t[$k].ToArray() }
         }
 
         return [pscustomobject]@{

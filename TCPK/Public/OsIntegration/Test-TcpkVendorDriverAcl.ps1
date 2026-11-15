@@ -155,7 +155,7 @@ function Test-TcpkVendorDriverAcl {
         $kernelImports = @('ntoskrnl.exe','hal.dll','wdfldr.sys','storport.sys','netio.sys','ndis.sys','fltmgr.sys','ksecdd.sys')
         $importedFrom  = @()
         foreach ($imp in $pe.Imports) {
-            $mod = "$($imp.Module)".ToLowerInvariant()
+            $mod = "$imp".ToLowerInvariant()     # Read-TcpkPe imports are DLL name strings
             if ($kernelImports -contains $mod) { $importedFrom += $mod }
         }
         if ($importedFrom.Count -eq 0) { continue }

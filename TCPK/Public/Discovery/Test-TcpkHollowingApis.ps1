@@ -196,7 +196,26 @@ function Test-TcpkHollowingApis {
             }
         }
 
-        if ($isApcInject -and -not $isHollowing -and -not $isDllInject) {
+        if ($isApcInject -and -not $isHollowing -and -not $isDllInject -and $isChromeRuntime) {
+            # Same context gate as the two branches above. This one needs only two imported
+            # APIs, so without the gate the weaker evidence rated HIGH on the very binary the
+            # check has just identified as a Chromium runtime while the stronger evidence
+            # rated INFO. VirtualAllocEx on the own process and QueueUserAPC to break an
+            # alertable wait are ordinary in-process idioms in such a runtime.
+            New-TcpkFinding -Module 'static' -RuleId 'injection.apc-inject-apis' `
+                -Severity 'INFO' -Confidence 'Inferred' `
+                -Title "APC-inject-class APIs in $($pe.Name) (Chromium runtime -- suppressed)" `
+                -File $pe.FullName `
+                -Evidence $evidStr `
+                -Cwe @('CWE-94','CWE-829') `
+                -Description ('Imported APIs match the APC injection pair, but this binary is a ' +
+                    "Chromium/Electron/CEF runtime component (sandbox=$sandboxCount, crashpad=$crashpadCount occurrences). " +
+                    'Allocating in the own process and queueing an APC to wake an alertable wait are ' +
+                    'documented runtime behaviour, and this pair is weaker evidence than the ' +
+                    'sequences the other two rules require.') `
+                -Fix 'No action required for the Chromium runtime. If this binary is not a Chromium component, investigate the usage.'
+        }
+        elseif ($isApcInject -and -not $isHollowing -and -not $isDllInject) {
             New-TcpkFinding -Module 'static' -RuleId 'injection.apc-inject-apis' `
                 -Severity 'HIGH' -Confidence 'Inferred' `
                 -Title "APC injection API sequence in $($pe.Name)" `
