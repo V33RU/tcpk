@@ -523,7 +523,9 @@ $($cveRows -join "`n")
 
                 $kv = New-Object 'System.Collections.Generic.List[string]'
 
-                # CVSS v4.0: score + vector only -- the severity band already lives on the badge.
+                # CVSS v4.0: a proven finding shows score + vector only -- the severity band already
+                # lives on the badge. A finding that is not proven has Vector '' and shows its muted
+                # Display instead: "Not scored (reason). If confirmed: <score> (<rating>) <vector>".
                 $cvss = Get-TcpkCvssVector $f
                 if ($cvss.Vector) {
                     $scoreTxt = if ($null -ne $cvss.Score) { ('{0:0.0} &middot; ' -f $cvss.Score) } else { '' }

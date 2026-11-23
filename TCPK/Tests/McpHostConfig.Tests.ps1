@@ -1088,9 +1088,20 @@ Describe 'Regression: a local plant is scored as local (mcp-cvss-avn-for-local)'
         $f = Get-One @{ command = '%APPDATA%\Acme\server.exe' }
         $hit = Select-Rule $f 'mcp.user-writable-launch'
         $hit.Count | Should -Be 1
-        $c = & (Get-Module TCPK) { param($x) Get-TcpkCvssVector -Finding $x } $hit[0]
-        $c.Vector | Should -Match '/AV:L/'
-        $c.Source | Should -Be 'anchored:local'
+        # mcp.user-writable-launch is emitted as an Inferred lead. Only a proven finding gets a
+        # CVSS score now, so the lead is unscored; the vector it WOULD carry once confirmed is in
+        # IfConfirmedVector and must still be the local band vector, not a network one.
+        $c = & (Get-Module TCPK) {
+            param($x)
+            [pscustomobject]@{
+                R     = (Get-TcpkCvssVector -Finding $x)
+                Local = $script:TcpkCvssBandVector['local']["$($x.Severity)".ToUpperInvariant()]
+            }
+        } $hit[0]
+        $c.R.Source            | Should -Be 'unscored'
+        $c.R.Vector            | Should -BeNullOrEmpty
+        $c.R.IfConfirmedVector | Should -Match '/AV:L/'
+        $c.R.IfConfirmedVector | Should -Be $c.Local
     }
 
     It 'gives every rule a category and a verify hint of its own' {

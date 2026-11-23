@@ -1,7 +1,8 @@
 #requires -Version 5.1
 # Report redesign (v1.6.x): the finding card leads with proof, carries the standards
-# mapping as tags, shows a real CVSS score+vector (no severity word), lists FULL affected
-# paths, fixes the aggregated Verify path, splits [TCPK]/[LLM] process notes into a footer,
+# mapping as tags, shows a real CVSS score+vector (no severity word) for a proven finding
+# and "Not scored (reason). If confirmed: <score> (<rating>) <vector>" for a lead, lists FULL
+# affected paths, fixes the aggregated Verify path, splits [TCPK]/[LLM] process notes into a footer,
 # and surfaces correlated chains as a prominent attack-path callout. Plus: Test-TcpkCallsites
 # no longer scans bundled native runtimes (the libGLESv2 / Chromium false-positive).
 
@@ -54,8 +55,31 @@ Describe 'CVSS: well-defined callsites subrule gets a real vector (not the place
     }
     It 'shows the CVSS score+vector WITHOUT the severity word' {
         # the card renders "<score> &middot; <code>CVSS:4.0/...</code>" -- never "(Low)"/"(Medium)"/...
-        $script:html | Should -Match 'CVSS v4\.0</th><td>\d\.\d &middot; <code>CVSS:4\.0/'
-        $script:html | Should -Not -Match 'CVSS v4\.0</th><td>[^<]*\((Low|Medium|High|Critical)\)'
+        # The shared fixture holds only Inferred leads, and only a proven finding gets a CVSS
+        # score now, so the scored shape is checked on a report with one Confirmed finding.
+        $proven = Join-Path $script:work 'report-proven.html'
+        & (Get-Module TCPK) {
+            param($o)
+            New-TcpkFinding -Module 'static' -RuleId 'callsites.insecure-temp' -Severity 'LOW' -Confidence 'Confirmed' `
+                -Title 'Insecure temp file' -File 'C:\app\Main.exe' -Evidence 'GetTempFileName' -Cwe @('CWE-377') |
+                Export-TcpkReportHtml -OutFile $o
+        } $proven
+        $ph = [IO.File]::ReadAllText($proven)
+        $ph | Should -Match 'CVSS v4\.0</th><td>\d\.\d &middot; <code>CVSS:4\.0/'
+        $ph | Should -Not -Match 'CVSS v4\.0</th><td>[^<]*\((Low|Medium|High|Critical)\)'
+        # The shared fixture has no scored cell left to test the severity-word rule on: every
+        # cell there is a lead, checked in the next It.
+    }
+    It 'shows an unverified lead as Not scored, never as a leading score' {
+        $script:html | Should -Match "CVSS v4\.0</th><td><span class='muted'>Not scored \(unverified lead\)\. If confirmed: "
+        $script:html | Should -Not -Match 'CVSS v4\.0</th><td>\d\.\d &middot;'
+        # A lead cell DOES carry the severity word, but only inside its "If confirmed" clause
+        # (the would-be score), never as a score of its own.
+        $cells = @([regex]::Matches($script:html, 'CVSS v4\.0</th><td>(.*?)</td>') | ForEach-Object { $_.Groups[1].Value })
+        $cells.Count | Should -BeGreaterThan 0
+        foreach ($c in $cells) {
+            $c | Should -Match "^<span class='muted'>Not scored \(unverified lead\)\. If confirmed: \d\.\d \((Low|Medium|High|Critical)\) CVSS:4\.0/[^<]*</span>$"
+        }
     }
 }
 

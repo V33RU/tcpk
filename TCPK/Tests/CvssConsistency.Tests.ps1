@@ -26,14 +26,20 @@ Describe 'CVSS v4.0 engine reproduces official anchor scores' {
     }
 }
 
+# These build Inferred leads. Only a proven finding gets a CVSS score now, so a lead's
+# Rating is empty; the band it WOULD score in once confirmed is IfConfirmedRating, and that
+# is what must agree with the badge.
 Describe 'Secret severity badge and CVSS band are consistent' {
     It 'a CRITICAL secret scores in the Critical band' {
-        (& (Get-Module TCPK) { (Get-TcpkCvssVector (New-TcpkFinding -Module 'static' -RuleId 'secrets.stripe-secret' -Severity 'CRITICAL' -Confidence 'Inferred' -Title 't' -File 'x')).Rating }) | Should -Be 'Critical'
+        (& (Get-Module TCPK) { (Get-TcpkCvssVector (New-TcpkFinding -Module 'static' -RuleId 'secrets.stripe-secret' -Severity 'CRITICAL' -Confidence 'Inferred' -Title 't' -File 'x')).IfConfirmedRating }) | Should -Be 'Critical'
     }
     It 'a HIGH secret scores in the High band' {
-        (& (Get-Module TCPK) { (Get-TcpkCvssVector (New-TcpkFinding -Module 'static' -RuleId 'secrets.pem-private-key' -Severity 'HIGH' -Confidence 'Inferred' -Title 't' -File 'x')).Rating }) | Should -Be 'High'
+        (& (Get-Module TCPK) { (Get-TcpkCvssVector (New-TcpkFinding -Module 'static' -RuleId 'secrets.pem-private-key' -Severity 'HIGH' -Confidence 'Inferred' -Title 't' -File 'x')).IfConfirmedRating }) | Should -Be 'High'
     }
     It 'a LOW secret scores in the Low band' {
-        (& (Get-Module TCPK) { (Get-TcpkCvssVector (New-TcpkFinding -Module 'static' -RuleId 'secrets.aptabase-app-key' -Severity 'LOW' -Confidence 'Inferred' -Title 't' -File 'x')).Rating }) | Should -Be 'Low'
+        (& (Get-Module TCPK) { (Get-TcpkCvssVector (New-TcpkFinding -Module 'static' -RuleId 'secrets.aptabase-app-key' -Severity 'LOW' -Confidence 'Inferred' -Title 't' -File 'x')).IfConfirmedRating }) | Should -Be 'Low'
+    }
+    It 'a CONFIRMED secret carries the same band as a scored Rating' {
+        (& (Get-Module TCPK) { (Get-TcpkCvssVector (New-TcpkFinding -Module 'static' -RuleId 'secrets.pem-private-key' -Severity 'HIGH' -Confidence 'Confirmed' -Title 't' -File 'x')).Rating }) | Should -Be 'High'
     }
 }

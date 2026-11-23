@@ -110,6 +110,9 @@ function Export-TcpkReportMarkdown {
                 if ($cvss.Vector) {
                     $sc = if ($null -ne $cvss.Score) { ('{0:0.0} ' -f $cvss.Score) } else { '' }
                     _w "- CVSS v4.0: $sc``$($cvss.Vector)``"
+                } elseif ($cvss.Source -eq 'unscored' -and $cvss.Display) {
+                    # A finding that is not proven has no score; say why instead of dropping the line.
+                    _w "- CVSS v4.0: $($cvss.Display)"
                 }
                 if ($f.Cwe) { _w "- CWE: $((@($f.Cwe)) -join ', ')" }
                 $att = (Get-TcpkAttackTechnique -RuleId $f.RuleId) -join '; '

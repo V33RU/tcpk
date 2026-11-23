@@ -233,10 +233,11 @@ $script:TcpkCvssArchetypeFlavor = @{
 }
 
 # Rule-family -> archetype. First match wins; families are matched on the RuleId prefix.
-# Families that are genuinely mixed (callsites, registry, raw endpoints) deliberately
-# fall through to the 'per-finding' note rather than be assigned a misleading vector.
-# EXCEPTION: a few callsites.* subrules ARE single-archetype (e.g. insecure-temp is
-# always a local temp-file race), so they get a real, tier-matched vector here.
+# A rule that matches no line here (the rest of callsites.* and registry.*, raw endpoints)
+# takes the 'local' default flavor, so it is anchored on the local band for its severity.
+# The 'per-finding' note is reached only for an empty or unknown severity, which no band has.
+# A few callsites.* subrules ARE single-archetype (e.g. insecure-temp is always a local
+# temp-file race), so they are listed here for a tier-matched vector of their own.
 $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^exploit\.secret-recovered';                                                                                                                            A = 'live-credential' }
     @{ Rx = '^exploit\.credential-live';                                                                                                                             A = 'live-credential' }
@@ -249,9 +250,22 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^callsites\.typelib-moniker-fallback';                                                                                                                 A = 'local-privesc' }
     @{ Rx = '^callsites\.pipe-client-pid-auth';                                                                                                                     A = 'local-privesc' }
     @{ Rx = '^callsites\.insecure-temp';                                                                                                                            A = 'local-tempfile' }
+    # A certificate-validation callback only matters to an on-path TLS interceptor: the same
+    # position as the tls-bypass.* line below. Resolve-TcpkFindings demotes an unconfirmed
+    # tls-bypass.* hit on the same file in favour of this rule.
+    @{ Rx = '^callsites\.disabled-cert-validation$';                                                                                                                A = 'net-mitm' }
     @{ Rx = '^(tls-bypass|tls-handshake|wcf|truststore)\.|^electron\.cert';                                                                                                         A = 'net-mitm' }
     @{ Rx = '^(scheme|dns|tls)\.';                                                                                                                                   A = 'cleartext-net' }
     @{ Rx = '^(deser|update)\.';                                                                                                                                    A = 'net-rce' }
+    # Dependency confusion: a higher-versioned package published to the public registry is
+    # pulled by restore / install. Remote code delivery, the same class as update.*.
+    @{ Rx = '^(nuget|npm|pip)\.dep-confusion\.';                                                                                                                    A = 'net-rce' }
+    # Packet capture rules. BLE and 802.15.4 / Zigbee frames are read over the air by a
+    # receiver in radio range: an adjacent position. The IP-layer rules are on-path network
+    # observations. pcap.arp-spoof is deliberately not listed and keeps the local default;
+    # the INFO records short-circuit before this table.
+    @{ Rx = '^pcap\.(bt|zigbee)-';                                                                                                                                  A = 'net-mitm' }
+    @{ Rx = '^pcap\.(http-basic-cleartext|cleartext-http|weak-tls|ftp-cleartext-cred|weak-cipher|secret-in-url|insecure-cookie|smtp-cleartext-auth|telnet-cleartext|mqtt-cleartext|form-cred-cleartext|ldap-cleartext|snmp-community|dns-exfil|ntlm-http|sensitive-path|jwt-cleartext|vnc-cleartext)$'; A = 'cleartext-net' }
     # Local LLM inference servers (Ollama/LM Studio/Jan/GPT4All/AnythingLLM): an HTTP model API
     # that ships with no auth. Scored as a network service (INFO variants short-circuit above).
     # aiserver.local-server is the static lead with NO all-interfaces bind found: it is rated
@@ -283,7 +297,14 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^fuses\.cookie';                                                                                                                                       A = 'local-at-rest' }
     @{ Rx = '^fuses\.';                                                                                                                                             A = 'local-privesc' }
     @{ Rx = '^(xxe|zipslip)\.';                                                                                                                                     A = 'untrusted-parse' }
+    # Two webview2.* rules need a local position, not a navigation: the Edge profile store is
+    # a DPAPI file readable by any process of the same user, and DevTools is opened from the
+    # local UI. Listed BEFORE the family line; this table is first-match-wins.
+    @{ Rx = '^webview2\.profile-cred-store$';                                                                                                                       A = 'local-at-rest' }
+    @{ Rx = '^webview2\.devtools-enabled$';                                                                                                                         A = 'hardening' }
     @{ Rx = '^(webview2)\.';                                                                                                                                        A = 'web-bridge' }
+    # OAuth CSRF: a remote attacker sends the victim a crafted authorization or callback URL.
+    @{ Rx = '^oauth\.(missing-state|callback-no-state-check|oidc-state-disabled)$';                                                                                 A = 'web-bridge' }
     # Coverage/skip records first: "we ran out of budget" is not a privilege-escalation
     # primitive, and this table is first-match-wins.
     @{ Rx = '^driver\.budget-exhausted';                                                                                                                            A = 'hardening' }
@@ -312,6 +333,9 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^appdomain\.';                                                                                                                                         A = 'local-privesc' }
     @{ Rx = '^clickonce\.(http-deployment|manifest-http)';                                                                                                          A = 'net-rce' }
     @{ Rx = '^clickonce\.';                                                                                                                                         A = 'local-privesc' }
+    # An http:// Uri in a shipped .appinstaller is fetched over the network: an on-path
+    # attacker substitutes it. Same position as clickonce.http-deployment above.
+    @{ Rx = '^msix\.appinstaller\.plaintext-uri$';                                                                                                                  A = 'cleartext-net' }
     @{ Rx = '^msix\.vfs-system-code';                                                                                                                               A = 'local-privesc' }
     @{ Rx = '^msix\.vfs-redirection';                                                                                                                               A = 'hardening' }
     @{ Rx = '^msix\.psf-(full-trust|script-dangerous|startScript|endScript)';                                                                                       A = 'local-privesc' }
@@ -368,19 +392,101 @@ $script:TcpkCvssRuleArchetype = @(
     @{ Rx = '^injection\.';                                                                                                                                         A = 'hardening' }
 )
 
-# Resolve the CVSS v4.0 vector for a finding. Returns @{ Vector; Display; Source }.
+# Resolve the CVSS v4.0 result for a finding. Returns
+#   @{ Vector; Score; Rating; Display; Source; IfConfirmedScore; IfConfirmedRating; IfConfirmedVector; Assurance }
 #   override     -> the finding's explicit .Cvss (e.g. a real NVD vector)
-#   archetype:*  -> an accurate vector chosen by attack family
+#   anchored:*   -> a (flavor, severity) vector so the rating matches the badge
 #   nvd          -> a CVE/dependency finding: use the linked advisory's official vector
-#   per-finding  -> mixed/context-dependent class: analyst assigns the exact vector
+#   per-finding  -> empty or unknown severity (no band for it): analyst assigns the exact vector
 #   info         -> INFO severity: not a vulnerability, N/A
+#   unscored     -> NOT a proven finding (see below): no score, no vector
+#   none         -> no finding at all
+#
+# PROOF GATE. A CVSS score without proof is not a valid finding, so only a PROVEN finding
+# (Confidence like 'Confirmed*', the same test Get-TcpkAssuranceSplit uses) gets a score.
+# Every other tier is unscored: Inferred / Unverified / empty is an unverified lead,
+# Likely-FP is a likely false positive, Uncertain (LLM) is unresolved by triage, Skipped
+# was not evaluated. The would-be result is still computed exactly as for a proven finding
+# (the explicit .Cvss override included) and is kept in IfConfirmedScore / IfConfirmedRating
+# / IfConfirmedVector, so the analyst sees what confirming it would mean. An unscored
+# Display starts with "Not scored", never with a digit: dashboards read a leading number
+# as a score. Scored results carry Assurance 'proven' and empty IfConfirmed* fields.
 function Get-TcpkCvssVector {
     [CmdletBinding()]
     param([Parameter(Mandatory)][AllowNull()]$Finding)
-    if ($null -eq $Finding) { return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = ''; Source = 'none' } }
+    if ($null -eq $Finding) {
+        return [pscustomobject]@{ Vector = ''; Score = $null; Rating = ''; Display = ''; Source = 'none'; IfConfirmedScore = $null; IfConfirmedRating = ''; IfConfirmedVector = ''; Assurance = '' }
+    }
 
+    $tier = Get-TcpkCvssAssurance -Finding $Finding
     $sev = "$($Finding.Severity)".ToUpperInvariant()
-    if ($sev -eq 'INFO') { return [pscustomobject]@{ Vector = ''; Score = $null; Rating = 'None'; Display = 'N/A (informational)'; Source = 'info' } }
+    if ($sev -eq 'INFO') {
+        return [pscustomobject]@{ Vector = ''; Score = $null; Rating = 'None'; Display = 'N/A (informational)'; Source = 'info'; IfConfirmedScore = $null; IfConfirmedRating = ''; IfConfirmedVector = ''; Assurance = $tier.Assurance }
+    }
+
+    $would = Get-TcpkCvssWouldBe -Finding $Finding -Severity $sev
+    if ($tier.Assurance -eq 'proven') {
+        return [pscustomobject]@{
+            Vector = $would.Vector; Score = $would.Score; Rating = $would.Rating; Display = $would.Display; Source = $would.Source
+            IfConfirmedScore = $null; IfConfirmedRating = ''; IfConfirmedVector = ''; Assurance = 'proven'
+        }
+    }
+    return (ConvertTo-TcpkCvssUnscored -Result $would -Assurance $tier.Assurance -Reason $tier.Reason)
+}
+
+# The assurance tier of a finding, for the CVSS proof gate. Returns @{ Assurance; Reason }.
+# 'proven' is exactly the Get-TcpkAssuranceSplit test (Confidence like 'Confirmed*'), which
+# keeps Confirmed (LLM): the owner opted in to it with -EnableLlm. Anything that is not
+# proven and not one of the named tiers (Inferred, Unverified, empty, an unknown label)
+# is an unverified lead.
+function Get-TcpkCvssAssurance {
+    param([AllowNull()]$Finding)
+    $c = ''
+    if ($null -ne $Finding) { try { $c = "$($Finding.Confidence)" } catch { $c = '' } }
+    if ($c -like 'Confirmed*') { return [pscustomobject]@{ Assurance = 'proven';        Reason = '' } }
+    if ($c -like 'Likely-FP*') { return [pscustomobject]@{ Assurance = 'likely-fp';     Reason = 'likely false positive' } }
+    if ($c -like 'Uncertain*') { return [pscustomobject]@{ Assurance = 'uncertain';     Reason = 'unresolved by triage' } }
+    if ($c -eq 'Skipped')      { return [pscustomobject]@{ Assurance = 'not-evaluated'; Reason = 'not evaluated' } }
+    return [pscustomobject]@{ Assurance = 'lead'; Reason = 'unverified lead' }
+}
+
+# Turn the would-be result of a finding that is NOT proven into an unscored one. Vector,
+# Score and Rating are cleared so no consumer can rank or chart it; the would-be values move
+# to IfConfirmed*. Display says why it has no score and, when there is one, what it would be.
+function ConvertTo-TcpkCvssUnscored {
+    param(
+        [Parameter(Mandatory)]$Result,
+        [Parameter(Mandatory)][string]$Assurance,
+        [Parameter(Mandatory)][string]$Reason
+    )
+    $head = "Not scored ($Reason)."
+    $vec  = "$($Result.Vector)"
+    $orig = "$($Result.Display)"
+    if ($null -ne $Result.Score) {
+        $disp = "$head If confirmed: $('{0:0.0}' -f $Result.Score) ($($Result.Rating)) $vec"
+    } elseif ($vec) {
+        # A vector the engine could not score (e.g. an unparseable override): show the vector.
+        $disp = "$head If confirmed: $vec"
+    } elseif ($orig) {
+        # nvd / per-finding: there was no would-be score, keep the original note.
+        $disp = "$head $orig"
+    } else {
+        $disp = $head
+    }
+    return [pscustomobject]@{
+        Vector = ''; Score = $null; Rating = ''; Display = $disp; Source = 'unscored'
+        IfConfirmedScore = $Result.Score; IfConfirmedRating = "$($Result.Rating)"; IfConfirmedVector = $vec; Assurance = $Assurance
+    }
+}
+
+# The CVSS result a finding WOULD get if it were proven: override, nvd, anchored or
+# per-finding, computed exactly as before the proof gate. Called by Get-TcpkCvssVector only
+# after the null and INFO short-circuits; $Severity is already upper-cased.
+function Get-TcpkCvssWouldBe {
+    # $Severity is not Mandatory: a finding with no severity must still fall through to
+    # per-finding, and a Mandatory [string] would refuse the empty string.
+    param([Parameter(Mandatory)]$Finding, [string]$Severity = '')
+    $sev = $Severity
 
     $ov = $null; try { $ov = $Finding.Cvss } catch { }
     if ($ov) { return (New-TcpkCvssResult -Vector $ov -Source 'override') }

@@ -38,9 +38,11 @@ Describe 'Test-TcpkAppStack (technology-stack fingerprint)' {
 Describe 'Export-TcpkReportSarif (SARIF 2.1.0)' {
     It 'writes valid SARIF with rules, results, levels and security-severity' {
         $out = Join-Path $script:work 'report.sarif'
+        # The pem finding is Confirmed: only a proven finding gets a CVSS score, and so a
+        # security-severity, now. The Inferred http lead is checked for the opposite below.
         & (Get-Module TCPK) { param($o)
             $f = @(
-                New-TcpkFinding -Module 'static'  -RuleId 'secrets.pem-private-key' -Severity 'HIGH'   -Confidence 'Inferred' -Title 'key'  -File 'C:\a.dll' -Cwe @('CWE-321')
+                New-TcpkFinding -Module 'static'  -RuleId 'secrets.pem-private-key' -Severity 'HIGH'   -Confidence 'Confirmed' -Title 'key'  -File 'C:\a.dll' -Cwe @('CWE-321')
                 New-TcpkFinding -Module 'network' -RuleId 'scheme.cleartext-http'   -Severity 'MEDIUM' -Confidence 'Inferred' -Title 'http' -File 'C:\b.dll'
             )
             $f | Export-TcpkReportSarif -OutFile $o -Target 'demo'
@@ -54,5 +56,9 @@ Describe 'Export-TcpkReportSarif (SARIF 2.1.0)' {
         @($j.runs[0].tool.driver.rules).Count | Should -Be 2
         ($j.runs[0].results | Where-Object { $_.ruleId -eq 'secrets.pem-private-key' }).level | Should -Be 'error'
         ($j.runs[0].results | Where-Object { $_.ruleId -eq 'secrets.pem-private-key' }).properties.'security-severity' | Should -Not -BeNullOrEmpty
+        $lead = $j.runs[0].results | Where-Object { $_.ruleId -eq 'scheme.cleartext-http' }
+        $lead.level | Should -Be 'warning'
+        @($lead.properties.PSObject.Properties.Name) | Should -Not -Contain 'security-severity'
+        $lead.properties.'tcpk-assurance' | Should -Be 'lead'
     }
 }

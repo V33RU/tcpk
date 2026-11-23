@@ -554,8 +554,14 @@ Describe 'Test-TcpkAiInferenceServer regressions' {
         $wide = New-AiTree @{ '.env' = 'OLLAMA_HOST=0.0.0.0:11434' }
         $a = @(Get-AiServer $loop)
         $b = @(Get-AiServer $wide)
-        (& (Get-Module TCPK) { param($x) Get-TcpkCvssVector -Finding $x } $a[0]).Vector | Should -Match '/AV:L/'
-        (& (Get-Module TCPK) { param($x) Get-TcpkCvssVector -Finding $x } $b[0]).Vector | Should -Match '/AV:N/'
+        # Both are static Inferred leads. Only a proven finding gets a CVSS score now, so the
+        # vector each would carry once confirmed is read from IfConfirmedVector.
+        $ca = & (Get-Module TCPK) { param($x) Get-TcpkCvssVector -Finding $x } $a[0]
+        $cb = & (Get-Module TCPK) { param($x) Get-TcpkCvssVector -Finding $x } $b[0]
+        $ca.Source | Should -Be 'unscored'
+        $cb.Source | Should -Be 'unscored'
+        $ca.IfConfirmedVector | Should -Match '/AV:L/'
+        $cb.IfConfirmedVector | Should -Match '/AV:N/'
     }
 
     It 'never names a CVE, never prints a credential, and stays ASCII' {

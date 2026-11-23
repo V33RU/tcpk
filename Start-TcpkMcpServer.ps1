@@ -489,7 +489,7 @@ $script:ToolDefs = @(
             runInstaller = @{ type = 'boolean'; description = 'Required ONLY for an .msi target. TCPK unpacks an .msi by running it (msiexec /a), which executes the installer''s own custom actions on this machine. Leave unset for any other target type.' }
         }; required = @('target') } },
 
-    [ordered]@{ name = 'tcpk_get_findings'; description = 'Read findings from a completed audit outDir, ENRICHED through the same intel model the HTML/Excel reports use: each finding carries its computed CVSS v4.0, CWE, ATT&CK technique, security category and a how-to-verify hint, plus the confidence ladder (Inferred / Confirmed / Confirmed (IL) / Confirmed (dynamic)). Filter by severity or ruleId.';
+    [ordered]@{ name = 'tcpk_get_findings'; description = 'Read findings from a completed audit outDir, ENRICHED through the same intel model the HTML/Excel reports use: each finding carries its computed CVSS v4.0 (proven findings only; an unverified lead says Not scored and gives the score it would get if confirmed), CWE, ATT&CK technique, security category and a how-to-verify hint, plus the confidence ladder (Inferred / Confirmed / Confirmed (IL) / Confirmed (dynamic)). Filter by severity or ruleId.';
         inputSchema = [ordered]@{ type = 'object'; properties = [ordered]@{
             outDir = @{ type = 'string' }
             severity = @{ type = 'string'; enum = @('CRITICAL','HIGH','MEDIUM','LOW','INFO') }

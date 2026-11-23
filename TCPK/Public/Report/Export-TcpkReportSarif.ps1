@@ -14,6 +14,11 @@ function Export-TcpkReportSarif {
       Severity -> SARIF level:  CRITICAL/HIGH -> error, MEDIUM -> warning, LOW/INFO -> note
       CWE      -> rule + result tags
       CVSS v4.0 score -> properties.'security-severity' (GitHub severity bucketing)
+      Assurance-> properties.'tcpk-assurance' (proven / lead / likely-fp / uncertain /
+                  not-evaluated). A finding that is not proven has no CVSS score, so it
+                  carries NO 'security-severity' (an INFO lead included: no band
+                  fallback); its would-be score, when there is one, is in
+                  properties.'cvss-if-confirmed'.
       RuleId   -> a SARIF rule (deduplicated into tool.driver.rules)
 
 .PARAMETER Findings
@@ -67,11 +72,26 @@ function Export-TcpkReportSarif {
             $rid = "$($f.RuleId)"; if (-not $rid) { continue }
             $sev = "$($f.Severity)".ToUpperInvariant()
             $cvss = Get-TcpkCvssVector $f
+            # Only a PROVEN finding has a CVSS score, so only a proven finding gets
+            # security-severity. A finding that is not proven gets NONE: an unscored lead
+            # (Source 'unscored') and an INFO lead (Source 'info', Assurance not 'proven')
+            # alike. Falling back to the severity band number would hand the code-scanning
+            # ingest a score for an unverified lead.
+            $proven   = ($cvss -and "$($cvss.Assurance)" -eq 'proven')
+            $unscored = ($cvss -and "$($cvss.Source)" -eq 'unscored')
             $secSev = if ($cvss -and $null -ne $cvss.Score) { '{0:0.0}' -f $cvss.Score } elseif ($bandScore.ContainsKey($sev)) { $bandScore[$sev] } else { '0.0' }
             $uri = if ($f.File) { ($f.File -replace '\\', '/') } else { 'tcpk://finding' }
             $msg = "$($f.Title)"
             if ($f.Evidence)    { $msg += "  | evidence: $($f.Evidence)" }
             if ($f.Confidence)  { $msg += "  | confidence: $($f.Confidence)" }
+            $props = [ordered]@{}
+            if ($proven) { $props['security-severity'] = $secSev }
+            $props['severity']   = $sev
+            $props['confidence'] = "$($f.Confidence)"
+            $props['cwe']        = @(if ($f.Cwe) { @($f.Cwe) } else { @() })
+            $props['owaspDa']    = "$(Get-TcpkOwaspDa -RuleId $rid)"
+            if ($cvss -and "$($cvss.Assurance)") { $props['tcpk-assurance'] = "$($cvss.Assurance)" }
+            if ($unscored -and $null -ne $cvss.IfConfirmedScore) { $props['cvss-if-confirmed'] = ('{0:0.0}' -f $cvss.IfConfirmedScore) }
             [ordered]@{
                 ruleId    = $rid
                 ruleIndex = $ruleIndex[$rid]
@@ -80,13 +100,7 @@ function Export-TcpkReportSarif {
                 locations = @(
                     [ordered]@{ physicalLocation = [ordered]@{ artifactLocation = [ordered]@{ uri = $uri } } }
                 )
-                properties= [ordered]@{
-                    'security-severity' = $secSev
-                    severity            = $sev
-                    confidence          = "$($f.Confidence)"
-                    cwe                 = @(if ($f.Cwe) { @($f.Cwe) } else { @() })
-                    owaspDa             = "$(Get-TcpkOwaspDa -RuleId $rid)"
-                }
+                properties= $props
             }
         }
 
