@@ -63,7 +63,8 @@ function Resolve-TcpkFindings {
             # deser.idunno-anticsrf-* descriptions state per-copy measurements (DLL, IL site,
             # application root, registration level and pipeline section) that no title carries,
             # so each such finding (one per DLL or config file) is kept on its own.
-            $groups = $list | Group-Object { "$($_.RuleId)|$($_.Severity)|$($_.Confidence)" + $(if ("$($_.RuleId)" -like 'deser.idunno-anticsrf-*') { "|$($_.File)" } else { '' }) }
+            # Origin keeps a third-party package's occurrence from merging with the vendor's own.
+            $groups = $list | Group-Object { "$($_.RuleId)|$($_.Severity)|$($_.Confidence)|$($_.Origin)" + $(if ("$($_.RuleId)" -like 'deser.idunno-anticsrf-*') { "|$($_.File)" } else { '' }) }
             foreach ($g in $groups) {
                 $members = @($g.Group)
                 if ($members.Count -eq 1) { $members[0]; continue }
@@ -118,7 +119,7 @@ function Resolve-TcpkFindings {
                     -Cwe ([string[]]@($rep.Cwe)) -Impact "$($rep.Impact)" -Cvss "$($rep.Cvss)" -Fix "$($rep.Fix)" `
                     -AttributionBasis "$($rep.AttributionBasis)" -Subject "$($rep.Subject)" `
                     -Dimension "$($rep.Dimension)" -ObsValue "$($rep.ObsValue)" `
-                    -Basis "$($rep.Basis)" -BasisInputs ([string[]]@($rep.BasisInputs))
+                    -Basis "$($rep.Basis)" -BasisInputs ([string[]]@($rep.BasisInputs)) -Origin "$($rep.Origin)"
                 $clone.Affected = [string[]]$locs
                 $clone.AdjustmentLog = [string[]]@($rep.AdjustmentLog)
                 $clone

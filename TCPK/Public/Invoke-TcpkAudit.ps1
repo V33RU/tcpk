@@ -104,7 +104,14 @@ function Invoke-TcpkAudit {
         [switch]$LaunchTarget,
         # Skip the redundancy correlation pass after aggregation.
         # Use this to reproduce a past report exactly.
-        [switch]$NoCollapse
+        [switch]$NoCollapse,
+        # Scan the code of bundled third-party packages too (NuGet DLLs such as Newtonsoft,
+        # log4net or BouncyCastle, native packages such as libcrypto or libsodium, Python
+        # site-packages and node_modules JS), not only their versions for known CVEs. The .NET
+        # runtime / Windows platform assemblies and the browser and C runtimes stay excluded.
+        # Each finding in package code names the package in its title; TCPK does not check
+        # whether the application reaches that code. Off by default.
+        [switch]$IncludeThirdParty
     )
 
     # --- preflight ---
@@ -394,6 +401,11 @@ function Invoke-TcpkAudit {
     Clear-TcpkCoverage
     $script:TcpkCecilBannerShown = $false   # one-time "IL engine unavailable" banner, per audit
     $script:TcpkAutoProcess = $null
+    $script:TcpkIncludeThirdParty = [bool]$IncludeThirdParty
+    if ($IncludeThirdParty) {
+        Write-Information -MessageData '  Third-party package code: INCLUDED (-IncludeThirdParty). Findings in package code name the package; reachability from the app is not checked.' -InformationAction Continue
+        Write-TcpkLog -Level INFO -Component 'audit' -Message 'third-party package code included' | Out-Null
+    }
     Write-TcpkLog -Level INFO -Component 'audit' -Message "Audit start: $Target" | Out-Null
     if ($idTerms.Count) {
         Write-Information -MessageData ("Identity search terms ({0}): {1}" -f $idTerms.Count, ($idTerms -join ', ')) -InformationAction Continue
@@ -1335,6 +1347,7 @@ function Invoke-TcpkAudit {
     }
 
     Clear-TcpkCecilCache   # release the cached IL assemblies (file handles) now the audit is done
+    $script:TcpkIncludeThirdParty = $false   # the switch is per audit; standalone cmdlets run without it
 
     Write-Information -MessageData ("Assurance: $($asr.ProvenCount) proven finding(s) to act on, $($asr.LeadCount) lead(s) to triage (run -EnableLlm to AI-verify the leads).") -InformationAction Continue
     Write-Information -MessageData ("Reports written to: " + $OutDir) -InformationAction Continue

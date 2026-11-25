@@ -65,6 +65,7 @@ function ConvertTo-TcpkFindingObject {
         } catch { continue }
         if ($o.File)     { $f.File     = "$($o.File)" }
         if ($o.Evidence) { $f.Evidence = "$($o.Evidence)" }
+        if ($o.PSObject.Properties['Origin'] -and $o.Origin) { $f.Origin = "$($o.Origin)" }
         if ($o.Cwe)      { $f.Cwe      = @($o.Cwe) }
         $out.Add($f)
     }
@@ -113,7 +114,11 @@ function New-TcpkFinding {
         [string]   $ObsValue   = '',     # measured result as JSON: set, count, enum, bitfield
         [ValidateSet('','Measured','Inferred','Composed')]
         [string]   $Basis      = '',
-        [string[]] $BasisInputs = @()    # Composed only: RuleIds of input findings
+        [string[]] $BasisInputs = @(),   # Composed only: RuleIds of input findings
+
+        # The third-party package the File belongs to. Computed from -File when not given;
+        # pass it explicitly when cloning a finding whose File no longer names the package.
+        [AllowNull()][AllowEmptyString()][string] $Origin
     )
 
     $f = [TcpkFinding]::new()
@@ -135,6 +140,15 @@ function New-TcpkFinding {
     $f.ObsValue    = $ObsValue
     $f.Basis       = $Basis
     $f.BasisInputs = $BasisInputs
+    $f.Origin      = if ($PSBoundParameters.ContainsKey('Origin')) { "$Origin" } else { Get-TcpkCodeOrigin $File }
+    # In an -IncludeThirdParty run, say in the finding itself that the code is the package's
+    # and that reachability from the application was not checked. Default runs are unchanged.
+    if ($f.Origin -and $script:TcpkIncludeThirdParty) {
+        $tag = "(third-party package $($f.Origin))"
+        if (-not "$($f.Title)".Contains($tag)) { $f.Title = "$($f.Title) $tag" }
+        $note = "This is code in the third-party package $($f.Origin), scanned because -IncludeThirdParty was set. TCPK did not check whether the application's own code reaches this code path."
+        if (-not "$($f.Description)".Contains('scanned because -IncludeThirdParty was set')) { $f.Description = ("$($f.Description) $note").Trim() }
+    }
     $f.Timestamp   = (Get-Date).ToUniversalTime().ToString('o')
     return $f
 }

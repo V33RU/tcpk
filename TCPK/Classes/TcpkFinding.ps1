@@ -36,6 +36,12 @@ class TcpkFinding {
     # Empty = un-migrated rule; Invoke-TcpkAttributionFilter warns on ambient surfaces.
     [string] $AttributionBasis = ''
 
+    # --- code origin ---
+    # The third-party package the finding's File belongs to (Get-TcpkCodeOrigin), or '' for
+    # the vendor's own files. Findings in package code are only produced in bulk when
+    # Invoke-TcpkAudit -IncludeThirdParty is set; their titles then name the package.
+    [string] $Origin = ''
+
     # --- observation contract (SDVB) ---
     # Every finding is a claim about an observation.  Rules that set these fields
     # enable the redundancy classifier (Invoke-TcpkRedundancyCorrelation) to derive

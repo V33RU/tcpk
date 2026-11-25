@@ -220,7 +220,7 @@ function Test-TcpkElectron {
     # one file this check exists to read, on precisely the apps most likely to be
     # misconfigured, and reported nothing. Large files are streamed below instead.
     $targets += @(Get-ChildItem -LiteralPath $dir -Recurse -File -Filter '*.js' -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch '(?i)[\\/]node_modules[\\/]' -and $_.Name -match $jsRx })
+        Where-Object { ($script:TcpkIncludeThirdParty -or $_.FullName -notmatch '(?i)[\\/]node_modules[\\/]') -and $_.Name -match $jsRx })
 
     # --- insecure-by-DEFAULT: an OLD Electron that OMITS a hardening key inherits the insecure
     # default -- nodeIntegration is ON before Electron 5, contextIsolation OFF before 12, the

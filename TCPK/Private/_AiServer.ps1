@@ -1284,7 +1284,7 @@ function Test-TcpkAiSkipPe {
 function Get-TcpkAiTextKind {
     [CmdletBinding()] param([AllowNull()][AllowEmptyString()][string]$Name, [AllowNull()][AllowEmptyString()][string]$FullName)
     if (-not $Name) { return '' }
-    if ("$FullName" -match '(?i)[\\/]node_modules[\\/]') { return '' }     # third-party packages
+    if (-not $script:TcpkIncludeThirdParty -and "$FullName" -match '(?i)[\\/]node_modules[\\/]') { return '' }     # third-party packages (scanned with -IncludeThirdParty)
     $lower = $Name.ToLowerInvariant()
     # A test or spec file (app.test.js, Server.Tests.ps1) carries fixtures, not the
     # product's listener or its configuration.

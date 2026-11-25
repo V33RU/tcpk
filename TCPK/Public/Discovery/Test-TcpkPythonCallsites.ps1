@@ -72,7 +72,12 @@ function Test-TcpkPythonCallsites {
     # is a real first-party finding. Without this filter the rule fires on
     # OS-shipped pdb.py / logging.py / gettext.py / lib2to3 fixers and drowns the
     # report.
-    $vendorSkipRx = '(?i)[\\/](python[0-9]+(?:\.[0-9]+)?[\\/](lib|lib64)|lib[\\/]python[0-9]+(?:\.[0-9]+)?|site-packages|dist-packages|_vendor|vendor|node_modules|\.venv|venv|__pycache__|idlelib|lib2to3|pyshared|ensurepip)[\\/]'
+    # The interpreter's own stdlib and caches are always skipped. Installed third-party packages
+    # (site-packages, dist-packages, pip _vendor, vendor, virtualenvs) are scanned when
+    # Invoke-TcpkAudit -IncludeThirdParty is set, and their findings name the package.
+    $stdlibSkipRx = '(?i)[\\/](python[0-9]+(?:\.[0-9]+)?[\\/](lib|lib64)[\\/](?!site-packages|dist-packages)|lib[\\/]python[0-9]+(?:\.[0-9]+)?[\\/](?!site-packages|dist-packages)|__pycache__[\\/]|idlelib[\\/]|lib2to3[\\/]|pyshared[\\/]|ensurepip[\\/])'
+    $packageSkipRx = '(?i)[\\/](site-packages|dist-packages|_vendor|vendor|node_modules|\.venv|venv)[\\/]'
+    $vendorSkipRx = if ($script:TcpkIncludeThirdParty) { $stdlibSkipRx } else { "$stdlibSkipRx|$packageSkipRx" }
 
     $files = @()
     $item = Get-Item -LiteralPath $Path

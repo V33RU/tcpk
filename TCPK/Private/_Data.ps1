@@ -58,12 +58,13 @@ function Get-TcpkData {
 # "their dependency" (keep the version check). Folding the lists together would take one of
 # those two behaviours away from every entry, and losing the second one means a known-
 # vulnerable bundled library stops being reported at all.
-$script:TcpkFrameworkPrefixes = @(
-    'Microsoft.','System.','WinRT.','Windows.','Azure.','BouncyCastle.',
-    'CommunityToolkit.','DotNext.','ExCSS.','HarfBuzzSharp.','SkiaSharp.',
-    'Json.More.','JsonPath.','Newtonsoft.','Aptabase.','Mono.','NuGet.',
-    'McMaster.','Polly.','Serilog.','log4net.','NLog.','OpenTelemetry.',
-    'Google.','Grpc.','MessagePack.','protobuf-net.','xunit.','Castle.',
+# The list is kept as two halves. Platform: the .NET runtime / BCL and Windows platform
+# assemblies, never the vendor's and never a package the vendor chose. Third-party: NuGet
+# packages the vendor bundled. By default both are skipped by the pattern checks; with
+# Invoke-TcpkAudit -IncludeThirdParty ($script:TcpkIncludeThirdParty) only the platform half
+# is, so the packages' own code is scanned and each finding is labelled with its package.
+$script:TcpkPlatformPrefixes = @(
+    'Microsoft.','System.','WinRT.','Windows.',
 
     # Runtime and WPF/WinForms assemblies that are framework code but start with neither
     # System. nor Microsoft., so nothing above caught them. $script:TcpkFxAsmSkip in
@@ -78,7 +79,14 @@ $script:TcpkFrameworkPrefixes = @(
     # prefix 'UIAutomation.' matches none of them and an undotted 'UIAutomation' would
     # swallow a vendor's UIAutomationHelper.dll.
     'UIAutomationClient.','UIAutomationTypes.','UIAutomationProvider.',
-    'UIAutomationClientsideProviders.',
+    'UIAutomationClientsideProviders.'
+)
+$script:TcpkThirdPartyPrefixes = @(
+    'Azure.','BouncyCastle.',
+    'CommunityToolkit.','DotNext.','ExCSS.','HarfBuzzSharp.','SkiaSharp.',
+    'Json.More.','JsonPath.','Newtonsoft.','Aptabase.','Mono.','NuGet.',
+    'McMaster.','Polly.','Serilog.','log4net.','NLog.','OpenTelemetry.',
+    'Google.','Grpc.','MessagePack.','protobuf-net.','xunit.','Castle.',
 
     # Third-party packages that genuinely ship inside .NET desktop applications. Each is a
     # distinctive vendor or project name, so the false-negative risk above is negligible.
@@ -87,6 +95,10 @@ $script:TcpkFrameworkPrefixes = @(
     'Xceed.','MahApps.','MaterialDesignThemes.','MaterialDesignColors.',
     'DevExpress.','Telerik.','Syncfusion.'
 )
+$script:TcpkFrameworkPrefixes = @($script:TcpkPlatformPrefixes + $script:TcpkThirdPartyPrefixes)
+
+# Off unless Invoke-TcpkAudit -IncludeThirdParty sets it for that run.
+$script:TcpkIncludeThirdParty = $false
 
 # A configuration file a vendor writes FOR a library carries the library's name and a config
 # extension and nothing else: NLog.config, log4net.config, Serilog.json, system.ini. That is
@@ -98,7 +110,8 @@ $script:TcpkVendorConfigExt = @('config', 'ini', 'json', 'yaml', 'yml', 'toml', 
 
 function Test-TcpkIsFrameworkFile {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Name)
-    foreach ($p in $script:TcpkFrameworkPrefixes) {
+    $list = if ($script:TcpkIncludeThirdParty) { $script:TcpkPlatformPrefixes } else { $script:TcpkFrameworkPrefixes }
+    foreach ($p in $list) {
         if ($Name.StartsWith($p, [StringComparison]::OrdinalIgnoreCase)) {
             if ($script:TcpkVendorConfigExt -contains $Name.Substring($p.Length)) { return $false }
             return $true
@@ -118,12 +131,49 @@ $script:TcpkNativeNoise = @(
     'icudt','icuuc','icuin','icu','api-ms-win','clrjit','coreclr','clrgc','hostfxr','hostpolicy',
     'mscordaccore','mscordbi','clretwrc','createdump','sni','onnxruntime','tensorflow','opencv'
 )
+# The third-party packages in that list (as opposed to C runtimes, graphics / browser runtimes
+# and the .NET host): scanned when -IncludeThirdParty is set.
+$script:TcpkThirdPartyNative = @('libSkiaSharp','libHarfBuzzSharp','libusb','libcrypto','libssl','libsodium','onnxruntime','tensorflow','opencv')
 function Test-TcpkIsNativeNoise {
     [CmdletBinding()] param([Parameter(Mandatory)][string]$Name)
+    if ($script:TcpkIncludeThirdParty) {
+        foreach ($n in $script:TcpkThirdPartyNative) {
+            if ($Name.StartsWith($n, [StringComparison]::OrdinalIgnoreCase)) { return $false }
+        }
+    }
     foreach ($n in $script:TcpkNativeNoise) {
         if ($Name.StartsWith($n, [StringComparison]::OrdinalIgnoreCase)) { return $true }
     }
     return $false
+}
+
+# Which third-party package a file belongs to, or '' when it is not package code: a bundled
+# NuGet / native package by its file name (the third-party halves above), or a file inside a
+# package folder (node_modules\<pkg> or node_modules\@scope\<pkg>, site-packages /
+# dist-packages \<pkg>, pip _vendor \<pkg>, bower_components \<pkg>; the innermost one wins).
+# Platform assemblies (System.*, Microsoft.*) are not packages and return ''.
+function Get-TcpkCodeOrigin {
+    param([AllowNull()][AllowEmptyString()][string]$File)
+    if (-not $File) { return '' }
+    $dirMatches = [regex]::Matches($File, '(?i)[\\/](node_modules|site-packages|dist-packages|_vendor|bower_components)[\\/]((@[^\\/]+[\\/])?[^\\/]+)')
+    if ($dirMatches.Count -gt 0) {
+        $pkg = $dirMatches[$dirMatches.Count - 1].Groups[2].Value -replace '\\', '/'
+        return ($pkg -replace '\.(py|pyc|pyd|js|mjs|cjs|so|dll)$', '')
+    }
+    # Split on both separators: a Windows path must classify the same on any host.
+    $leaf = @($File -split '[\\/]')[-1]
+    if (-not $leaf) { return '' }
+    $base = $leaf -replace '\.[^.]*$', ''
+    foreach ($p in $script:TcpkThirdPartyPrefixes) {
+        if ($leaf.StartsWith($p, [StringComparison]::OrdinalIgnoreCase)) {
+            if ($script:TcpkVendorConfigExt -contains $leaf.Substring($p.Length)) { return '' }
+            return $base
+        }
+    }
+    foreach ($n in $script:TcpkThirdPartyNative) {
+        if ($leaf.StartsWith($n, [StringComparison]::OrdinalIgnoreCase)) { return $base }
+    }
+    return ''
 }
 
 # Runtime helper executables shipped BY the Electron/Squirrel/NSIS packaging, not authored
