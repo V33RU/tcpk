@@ -539,7 +539,12 @@ foreach ($e in '.exe', '.dll', '.sys', '.node', '.pyd',
 
 # Convenience: enumerate PEs under a path. Returns FileInfo objects.
 function Get-TcpkPeFiles {
-    [CmdletBinding()] param([Parameter(Mandatory)][string]$Path)
+    # -ConfigSink: optional list that receives every web.config / applicationHost.config the
+    # walk passes, so a check that needs both (Test-TcpkDeserialization) walks the tree once.
+    [CmdletBinding()] param(
+        [Parameter(Mandatory)][string]$Path,
+        [System.Collections.Generic.List[string]]$ConfigSink
+    )
     $item = Get-Item -LiteralPath $Path
     if ($item.PSIsContainer) {
         # NB: Get-ChildItem -Include is SILENTLY IGNORED when -LiteralPath is used,
@@ -570,6 +575,7 @@ function Get-TcpkPeFiles {
         $emitted = 0
         $stopped = $false
         foreach ($f in (Get-TcpkChildItemSafe -Path $Path -File)) {
+            if ($null -ne $ConfigSink -and ($f.Name -ieq 'web.config' -or $f.Name -ieq 'applicationHost.config')) { $ConfigSink.Add($f.FullName) }
             $ext = $f.Extension
             # ClickOnce publishes every file with a .deploy suffix (app.exe.deploy). The image
             # is classified by the extension underneath it.

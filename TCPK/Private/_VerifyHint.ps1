@@ -169,6 +169,19 @@ function Get-TcpkVerifyHint {
                 -Note "pipe the finding through Confirm-TcpkTlsBypass to have TCPK prove it: that cmdlet lists callsites.disabled-cert-validation among the rules it re-checks, and its Mono.Cecil IL prover reads the method body rather than the string table. It takes a finding on the pipeline or a single -Dll, not -Path." `
                 -Tool "PowerShell + a .NET decompiler (ILSpy / dnSpy)"
         }
+        '^deser\.idunno-anticsrf-' {
+            # Re-run on the application root (the folder above bin\), so the application's own and
+            # sub-folder web.config files are read again. The run is rooted at the application, so a
+            # parent web.config or applicationHost.config is not read; the Note says so.
+            $idRoot = if ($dir -ne '<install-dir>' -and $dir -match '[\\/]bin$') { $dir -replace '[\\/]bin$', '' } else { $dir }
+            Format-TcpkVerifyHint `
+                -What "Re-checks the Idunno.AntiCsrf DLL (published hash and IL sink) and the registrations in its application's own and sub-folder web.config files (CVE-2026-131914)." `
+                -Run "Test-TcpkDeserialization -Path '$idRoot' | Where-Object RuleId -like 'deser.idunno-anticsrf-*' | Format-List Severity,Confidence,File,Evidence" `
+                -Vulnerable "deser.idunno-anticsrf-module is CRITICAL with Confidence Confirmed or Confirmed (IL): the vulnerable module is registered by the application's own web.config." `
+                -Ok "no finding, or only deser.idunno-anticsrf-dll at INFO Likely-FP (IL): a build that is not one of the published hashes and whose IL has no Deserialize call or ldftn on a state formatter TCPK recognises. Its Fix still asks you to read PreRequestHandlerExecute." `
+                -Note "HIGH Inferred means one piece is not proven: the sink in this copy (IL not read, or receiver / argument / reachability not traced; Evidence says which), or the registration for its application (none found, only inherited, from applicationHost.config, below the application level, or httpModules-only with Integrated validation off). When File is the DLL, this run does not see a parent web.config or applicationHost.config: if Evidence says 'inherited from' or names applicationHost.config, a deser.idunno-anticsrf-dll 'no registration found' result from this run does not clear the lead. Re-run on the original scan root, or read that entry in the parent web.config or %windir%\System32\inetsrv\config\applicationHost.config by hand. The hash, the IL and the config entry are the proof; no payload is needed." `
+                -Tool "PowerShell"
+        }
         '^deser\.' {
             Format-TcpkVerifyHint `
                 -What "Locates the deserialization call sites so you can see which TYPE the payload is allowed to instantiate." `

@@ -26,8 +26,23 @@ function Test-TcpkDeserialization {
     param([Parameter(Mandatory)][string]$Path)
 
     $tokens = (Get-TcpkData).deser_tokens
+    $idunno  = New-Object 'System.Collections.Generic.List[object]'
+    $configs = New-Object 'System.Collections.Generic.List[string]'
+    # Generic ObjectStateFormatter / LosFormatter token findings on an Idunno.AntiCsrf
+    # candidate are held until the Idunno pass has run: when it reports the file as the
+    # vulnerable library, the generic MEDIUM finding for the same call site is dropped.
+    $held    = New-Object 'System.Collections.Generic.List[object]'
 
-    foreach ($pe in Get-TcpkPeFiles -Path $Path) {
+    # Whether THIS walk stopped at the check budget: Get-TcpkPeFiles records a BudgetStopped
+    # skip when it does. The deadline passing later (token loop, IL pass) cut nothing. The
+    # foreach statement collects the whole walk before iterating anyway.
+    $stopsBefore = 0
+    try { $stopsBefore = [int](Get-TcpkScanStats).BudgetStoppedCount } catch { }
+    $pes = @(Get-TcpkPeFiles -Path $Path -ConfigSink $configs)
+    $walkCut = $false
+    try { $walkCut = ([int](Get-TcpkScanStats).BudgetStoppedCount -gt $stopsBefore) } catch { }
+
+    foreach ($pe in $pes) {
         $isFramework = Test-TcpkIsFrameworkFile $pe.Name
         $text = Read-TcpkAllText -Path $pe.FullName
         if (-not $text) { continue }
@@ -40,6 +55,9 @@ function Test-TcpkDeserialization {
         # assemblies), so gate them all on the .NET metadata root marker.
         if (-not $text.Contains('BSJB')) { continue }
 
+        $isIdunno = Test-TcpkIdunnoAntiCsrfCandidate -Name $pe.Name -Text $text
+        if ($isIdunno) { $idunno.Add($pe) }
+
         foreach ($t in $tokens) {
             if (-not $text.Contains($t.token)) { continue }
 
@@ -50,12 +68,13 @@ function Test-TcpkDeserialization {
             $conf  = 'Inferred'
             $title = if ($isFramework) { "$($t.title) (framework, informational)" } else { $t.title }
 
-            New-TcpkFinding -Module 'static' -RuleId "deser.$($t.token.ToLowerInvariant())" `
+            $tf = New-TcpkFinding -Module 'static' -RuleId "deser.$($t.token.ToLowerInvariant())" `
                 -Severity $sev -Confidence $conf `
                 -Title $title -File $pe.FullName `
                 -Description $t.description `
                 -Cwe @('CWE-502') `
                 -Fix 'Use TypeNameHandling.None / allowlisted KnownTypes / System.Text.Json polymorphism. Confirm runtimeconfig.json EnableUnsafeBinaryFormatterSerialization=false.'
+            if ($isIdunno -and @('ObjectStateFormatter', 'LosFormatter') -contains $t.token) { $held.Add($tf) } else { $tf }
         }
 
         # ---- deser.newtonsoft-typenamehandling-unsafe ---------------------------
@@ -112,5 +131,21 @@ function Test-TcpkDeserialization {
                     'RCE gadget chain applies. Confirmed for what the config literally says.') `
                 -Fix 'Set EnableUnsafeBinaryFormatterSerialization=false, migrate BinaryFormatter call sites to System.Text.Json / MessagePack / protobuf-net (with allow-listed types).'
         }
+    }
+
+    # ---- deser.idunno-anticsrf-* (CVE-2026-131914) ------------------------------
+    # Hash, IL sink and web.config registration of the Idunno.AntiCsrf HTTP module. Runs
+    # even with no candidate DLL so a web.config that registers the module is still reported.
+    # Guarded: a failure here must not take the token findings above down with it.
+    $claimed = $null
+    try {
+        $res = Get-TcpkIdunnoAntiCsrfFindings -Path $Path -Candidates $idunno.ToArray() -ConfigPaths $configs.ToArray() -WalkCut:$walkCut
+        $res.Findings
+        $claimed = $res.Claimed
+    } catch {
+        try { Write-TcpkLog -Level WARN -Component 'deser.idunno-anticsrf' -Message "Idunno.AntiCsrf check failed: $($_.Exception.Message)" | Out-Null } catch { }
+    }
+    foreach ($hf in $held) {
+        if (-not $claimed -or -not $claimed.Contains((ConvertTo-TcpkIdunnoPathKey $hf.File))) { $hf }
     }
 }

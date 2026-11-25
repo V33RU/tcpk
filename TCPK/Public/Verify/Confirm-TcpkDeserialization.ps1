@@ -62,6 +62,14 @@ function Confirm-TcpkDeserialization {
                 continue
             }
 
+            # deser.idunno-anticsrf-* already carry their own hash / IL / web.config proof, and
+            # their RuleId names no formatter type, so the lookup below would only append a
+            # wrong "no call site" note.
+            if ($f.RuleId -like 'deser.idunno-anticsrf-*') {
+                $f
+                continue
+            }
+
             # token after 'deser.' is the formatter type fragment, e.g. 'binaryformatter'
             $token = $f.RuleId -replace '^deser\.', ''
             $sites = Get-TcpkCallSites -DllPath $f.File -TypeFragment $token -MethodName 'Deserialize'

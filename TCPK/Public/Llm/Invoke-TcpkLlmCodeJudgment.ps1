@@ -104,6 +104,9 @@ Reply with ONLY this JSON (no prose, no code fences):
             # deterministic tier is never second-guessed by the model), or no readable DLL.
             if (-not $llmOk -or -not $cecilOk) { $f; continue }
             if ($f.RuleId -notmatch $codeRules) { $f; continue }
+            # deser.idunno-anticsrf-* leads are leads because of web.config registration or an
+            # unreadable image, which the method IL the model sees cannot settle.
+            if ($f.RuleId -like 'deser.idunno-anticsrf-*') { $f; continue }
             if ("$($f.Confidence)" -notin $leadConf) { $f; continue }
             if (-not $f.File -or -not (Test-Path -LiteralPath $f.File)) { $f; continue }
             if ($f.File -notmatch '\.(dll|exe)$') { $f; continue }

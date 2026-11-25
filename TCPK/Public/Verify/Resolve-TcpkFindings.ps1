@@ -60,7 +60,10 @@ function Resolve-TcpkFindings {
         }
         function _TcpkAggregate {
             param([System.Collections.Generic.List[TcpkFinding]]$list)
-            $groups = $list | Group-Object { "$($_.RuleId)|$($_.Severity)|$($_.Confidence)" }
+            # deser.idunno-anticsrf-* descriptions state per-copy measurements (DLL, IL site,
+            # application root, registration level and pipeline section) that no title carries,
+            # so each such finding (one per DLL or config file) is kept on its own.
+            $groups = $list | Group-Object { "$($_.RuleId)|$($_.Severity)|$($_.Confidence)" + $(if ("$($_.RuleId)" -like 'deser.idunno-anticsrf-*') { "|$($_.File)" } else { '' }) }
             foreach ($g in $groups) {
                 $members = @($g.Group)
                 if ($members.Count -eq 1) { $members[0]; continue }
@@ -79,9 +82,10 @@ function Resolve-TcpkFindings {
                 # enough. But for secrets / entropy findings the matched VALUE (the hardcoded
                 # key / password / token) IS the finding, so preserve the distinct value(s) --
                 # otherwise aggregating the same secret across e.g. app.exe.config +
-                # app.vshost.exe.config would hide it behind a file list.
+                # app.vshost.exe.config would hide it behind a file list. deser.idunno-anticsrf-*
+                # keeps the hash, IL and registration proof of each site the same way.
                 $aggEvidence = "$n affected: $shown"
-                if ($rep.RuleId -match '^(secrets|entropy|authenticode|truststore|strongname|aiserver|mcp)\.') {
+                if ($rep.RuleId -match '^(secrets|entropy|authenticode|truststore|strongname|aiserver|mcp)\.|^deser\.idunno-anticsrf-') {
                     $vals = @($members | ForEach-Object { "$($_.Evidence)" } | Where-Object { $_ } | Select-Object -Unique)
                     if ($vals.Count) {
                         $vShown = ($vals | Select-Object -First 5) -join ' | '
